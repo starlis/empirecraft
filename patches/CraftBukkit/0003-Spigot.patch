@@ -1,4 +1,4 @@
-From 3ba720b589f35bcf30ffb005866086cee1a99a13 Mon Sep 17 00:00:00 2001
+From 15faa96d5c21dbdbaf827da25ad19e631e32412e Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
 Date: Sun, 30 Dec 2012 23:56:05 -0600
 Subject: [PATCH 3/9] Spigot
@@ -17,6 +17,7 @@ Subject: [PATCH 3/9] Spigot
  src/main/java/net/minecraft/server/BlockStem.java  |    2 +-
  .../net/minecraft/server/ChunkRegionLoader.java    |   45 +-
  .../java/net/minecraft/server/ChunkSection.java    |   47 +-
+ .../java/net/minecraft/server/EntityHuman.java     |   11 +-
  src/main/java/net/minecraft/server/EntityItem.java |    3 +-
  .../java/net/minecraft/server/EntityPlayer.java    |    1 +
  .../java/net/minecraft/server/EntitySquid.java     |    4 -
@@ -42,13 +43,13 @@ Subject: [PATCH 3/9] Spigot
  .../bukkit/craftbukkit/util/ExceptionReporter.java |   26 ++
  .../java/org/bukkit/craftbukkit/util/FlatMap.java  |   34 ++
  .../craftbukkit/util/LightningSimulator.java       |  184 ++++++++
- .../org/bukkit/craftbukkit/util/LongHashSet.java   |   11 +-
+ .../org/bukkit/craftbukkit/util/LongHashSet.java   |    9 +-
  .../bukkit/craftbukkit/util/LongObjectHashMap.java |    5 +
  .../java/org/bukkit/craftbukkit/util/Metrics.java  |  488 ++++++++++++++++++++
  .../org/bukkit/craftbukkit/util/TimedThread.java   |   37 ++
  .../bukkit/craftbukkit/util/WatchdogThread.java    |   88 ++++
  src/main/resources/configurations/bukkit.yml       |   55 +++
- 44 files changed, 1888 insertions(+), 181 deletions(-)
+ 45 files changed, 1889 insertions(+), 189 deletions(-)
  create mode 100644 src/main/java/net/minecraft/server/NibbleArray.java
  create mode 100644 src/main/java/org/bukkit/craftbukkit/command/RestartCommand.java
  create mode 100644 src/main/java/org/bukkit/craftbukkit/command/TicksPerSecondCommand.java
@@ -428,6 +429,29 @@ index 90e0636..42e669c 100644
      }
 +    // Spigot end
  }
+diff --git a/src/main/java/net/minecraft/server/EntityHuman.java b/src/main/java/net/minecraft/server/EntityHuman.java
+index 0b0c351..3684509 100644
+--- a/src/main/java/net/minecraft/server/EntityHuman.java
++++ b/src/main/java/net/minecraft/server/EntityHuman.java
+@@ -460,16 +460,9 @@ public abstract class EntityHuman extends EntityLiving implements ICommandListen
+     public float a(Block block) {
+         float f = this.inventory.a(block);
+         int i = EnchantmentManager.getDigSpeedEnchantmentLevel(this);
+-        ItemStack itemstack = this.inventory.getItemInHand();
+ 
+-        if (i > 0 && itemstack != null) {
+-            float f1 = (float) (i * i + 1);
+-
+-            if (!itemstack.b(block) && f <= 1.0F) {
+-                f += f1 * 0.08F;
+-            } else {
+-                f += f1;
+-            }
++        if (i > 0 && this.inventory.b(block)) {
++            f += (float) (i * i + 1);
+         }
+ 
+         if (this.hasEffect(MobEffectList.FASTER_DIG)) {
 diff --git a/src/main/java/net/minecraft/server/EntityItem.java b/src/main/java/net/minecraft/server/EntityItem.java
 index 1cb66df..aefc806 100644
 --- a/src/main/java/net/minecraft/server/EntityItem.java
@@ -2405,7 +2429,7 @@ index 0000000..3b12b19
 +    }
 +}
 diff --git a/src/main/java/org/bukkit/craftbukkit/util/LongHashSet.java b/src/main/java/org/bukkit/craftbukkit/util/LongHashSet.java
-index 22c96c5..3f1617d 100644
+index 22c96c5..a1250d3 100644
 --- a/src/main/java/org/bukkit/craftbukkit/util/LongHashSet.java
 +++ b/src/main/java/org/bukkit/craftbukkit/util/LongHashSet.java
 @@ -31,6 +31,8 @@ public class LongHashSet {
@@ -2430,16 +2454,11 @@ index 22c96c5..3f1617d 100644
          int hash = hash(value);
          int index = (hash & 0x7FFFFFFF) % values.length;
          int offset = 1;
-@@ -78,10 +81,11 @@ public class LongHashSet {
+@@ -82,6 +85,7 @@ public class LongHashSet {
      }
  
-     public boolean add(int msw, int lsw) {
-+        flat.put(msw, lsw, PRESENT); // Spigot
-         return add(LongHash.toLong(msw, lsw));
-     }
- 
--    public boolean add(long value) {
-+    private boolean add(long value) { // Spigot
+     public boolean add(long value) {
++        flat.put(value, PRESENT); // Spigot
          int hash = hash(value);
          int index = (hash & 0x7FFFFFFF) % values.length;
          int offset = 1;
