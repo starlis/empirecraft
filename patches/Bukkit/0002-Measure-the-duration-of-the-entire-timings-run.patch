@@ -1,0 +1,65 @@
+From bd1f64d18a31a9fa0225d0cfbd46109bb8fc8c43 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Wed, 9 Jan 2013 16:53:45 -0500
+Subject: [PATCH 2/3] Measure the duration of the entire timings run.
+
+---
+ src/main/java/org/bukkit/command/defaults/TimingsCommand.java |    4 ++++
+ src/main/java/org/bukkit/plugin/SimplePluginManager.java      |    2 ++
+ 2 files changed, 6 insertions(+)
+
+diff --git a/src/main/java/org/bukkit/command/defaults/TimingsCommand.java b/src/main/java/org/bukkit/command/defaults/TimingsCommand.java
+index 29ebbe0..75c70a4 100644
+--- a/src/main/java/org/bukkit/command/defaults/TimingsCommand.java
++++ b/src/main/java/org/bukkit/command/defaults/TimingsCommand.java
+@@ -22,6 +22,7 @@ import com.google.common.collect.ImmutableList;
+ public class TimingsCommand extends BukkitCommand {
+     private static final List<String> TIMINGS_SUBCOMMANDS = ImmutableList.of("merged", "reset", "separate");
+ 
++    public static long timingStart =  0; // EMC - Total sample time of timings
+     public TimingsCommand(String name) {
+         super(name);
+         this.description = "Records timings for all plugin events";
+@@ -50,9 +51,11 @@ public class TimingsCommand extends BukkitCommand {
+                     }
+                 }
+             }
++            timingStart = System.nanoTime(); // EMC - Reset start time for sample
+             sender.sendMessage("Timings reset");
+         } else if ("merged".equals(args[0]) || separate) {
+ 
++            long sampleTime = System.nanoTime() - timingStart; // EMC - Calculate sample time
+             int index = 0;
+             int pluginIdx = 0;
+             File timingFolder = new File("timings");
+@@ -92,6 +95,7 @@ public class TimingsCommand extends BukkitCommand {
+                     }
+                     fileTimings.println("    Total time " + totalTime + " (" + totalTime / 1000000000 + "s)");
+                 }
++                fileTimings.println("Sample time " + sampleTime + " (" + sampleTime / 1000000000 + "s)");
+                 sender.sendMessage("Timings written to " + timings.getPath());
+                 if (separate) sender.sendMessage("Names written to " + names.getPath());
+             } catch (IOException e) {
+diff --git a/src/main/java/org/bukkit/plugin/SimplePluginManager.java b/src/main/java/org/bukkit/plugin/SimplePluginManager.java
+index d4f6bf3..66d2e66 100644
+--- a/src/main/java/org/bukkit/plugin/SimplePluginManager.java
++++ b/src/main/java/org/bukkit/plugin/SimplePluginManager.java
+@@ -23,6 +23,7 @@ import org.bukkit.Server;
+ import org.bukkit.command.Command;
+ import org.bukkit.command.PluginCommandYamlParser;
+ import org.bukkit.command.SimpleCommandMap;
++import org.bukkit.command.defaults.TimingsCommand;
+ import org.bukkit.event.Event;
+ import org.bukkit.event.EventPriority;
+ import org.bukkit.event.HandlerList;
+@@ -274,6 +275,7 @@ public final class SimplePluginManager implements PluginManager {
+             }
+         }
+ 
++        TimingsCommand.timingStart = System.nanoTime(); // EMC - Reset timings start
+         return result.toArray(new Plugin[result.size()]);
+     }
+ 
+-- 
+1.7.10.4
+
