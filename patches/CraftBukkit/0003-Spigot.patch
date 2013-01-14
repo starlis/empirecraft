@@ -1,4 +1,4 @@
-From 15faa96d5c21dbdbaf827da25ad19e631e32412e Mon Sep 17 00:00:00 2001
+From 31a667d9f7144930900bf6b6951afcfff55ea3bd Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
 Date: Sun, 30 Dec 2012 23:56:05 -0600
 Subject: [PATCH 3/9] Spigot
@@ -9,31 +9,31 @@ Subject: [PATCH 3/9] Spigot
  src/main/java/net/minecraft/server/Block.java      |   12 +
  .../java/net/minecraft/server/BlockCactus.java     |    2 +-
  src/main/java/net/minecraft/server/BlockCrops.java |    2 +-
- src/main/java/net/minecraft/server/BlockGrass.java |    2 +-
+ src/main/java/net/minecraft/server/BlockGrass.java |    3 +-
  .../java/net/minecraft/server/BlockMushroom.java   |    2 +-
- src/main/java/net/minecraft/server/BlockMycel.java |    2 +-
+ src/main/java/net/minecraft/server/BlockMycel.java |    3 +-
  src/main/java/net/minecraft/server/BlockReed.java  |    2 +-
  .../java/net/minecraft/server/BlockSapling.java    |    2 +-
  src/main/java/net/minecraft/server/BlockStem.java  |    2 +-
  .../net/minecraft/server/ChunkRegionLoader.java    |   45 +-
  .../java/net/minecraft/server/ChunkSection.java    |   47 +-
- .../java/net/minecraft/server/EntityHuman.java     |   11 +-
  src/main/java/net/minecraft/server/EntityItem.java |    3 +-
  .../java/net/minecraft/server/EntityPlayer.java    |    1 +
  .../java/net/minecraft/server/EntitySquid.java     |    4 -
  .../net/minecraft/server/EntityTrackerEntry.java   |    2 +
  .../java/net/minecraft/server/MinecraftServer.java |   51 +-
  .../java/net/minecraft/server/NibbleArray.java     |  158 +++++++
+ .../java/net/minecraft/server/OldChunkLoader.java  |  122 +++++
  .../net/minecraft/server/Packet51MapChunk.java     |   28 +-
  .../net/minecraft/server/PlayerConnection.java     |   18 +-
  src/main/java/net/minecraft/server/PlayerList.java |   10 +-
- .../java/net/minecraft/server/SpawnerCreature.java |   23 +-
+ .../java/net/minecraft/server/SpawnerCreature.java |   26 +-
  .../net/minecraft/server/ThreadLoginVerifier.java  |   23 +
  src/main/java/net/minecraft/server/World.java      |  205 +++++++-
- .../java/net/minecraft/server/WorldServer.java     |  133 ++++--
+ .../java/net/minecraft/server/WorldServer.java     |  135 ++++--
  .../java/org/bukkit/craftbukkit/CraftChunk.java    |   44 +-
- .../java/org/bukkit/craftbukkit/CraftServer.java   |  108 ++++-
- .../java/org/bukkit/craftbukkit/CraftWorld.java    |   76 ++-
+ .../java/org/bukkit/craftbukkit/CraftServer.java   |  115 ++++-
+ .../java/org/bukkit/craftbukkit/CraftWorld.java    |   81 +++-
  .../craftbukkit/chunkio/ChunkIOProvider.java       |    2 +-
  .../bukkit/craftbukkit/command/RestartCommand.java |   24 +
  .../craftbukkit/command/TicksPerSecondCommand.java |   35 ++
@@ -48,9 +48,10 @@ Subject: [PATCH 3/9] Spigot
  .../java/org/bukkit/craftbukkit/util/Metrics.java  |  488 ++++++++++++++++++++
  .../org/bukkit/craftbukkit/util/TimedThread.java   |   37 ++
  .../bukkit/craftbukkit/util/WatchdogThread.java    |   88 ++++
- src/main/resources/configurations/bukkit.yml       |   55 +++
- 45 files changed, 1889 insertions(+), 189 deletions(-)
+ src/main/resources/configurations/bukkit.yml       |   56 +++
+ 45 files changed, 2028 insertions(+), 181 deletions(-)
  create mode 100644 src/main/java/net/minecraft/server/NibbleArray.java
+ create mode 100644 src/main/java/net/minecraft/server/OldChunkLoader.java
  create mode 100644 src/main/java/org/bukkit/craftbukkit/command/RestartCommand.java
  create mode 100644 src/main/java/org/bukkit/craftbukkit/command/TicksPerSecondCommand.java
  create mode 100644 src/main/java/org/bukkit/craftbukkit/util/ExceptionHandler.java
@@ -118,7 +119,7 @@ index f29eace..202bd19 100644
 +    // Spigot end
  }
 diff --git a/src/main/java/net/minecraft/server/BlockCactus.java b/src/main/java/net/minecraft/server/BlockCactus.java
-index dd68020..1cb89fa 100644
+index dd68020..57bedfc 100644
 --- a/src/main/java/net/minecraft/server/BlockCactus.java
 +++ b/src/main/java/net/minecraft/server/BlockCactus.java
 @@ -23,7 +23,7 @@ public class BlockCactus extends Block {
@@ -126,12 +127,12 @@ index dd68020..1cb89fa 100644
                  int i1 = world.getData(i, j, k);
  
 -                if (i1 == 15) {
-+                if (i1 >= (byte) range(3, (world.growthOdds * 100 / world.getWorld().cactusGrowthModifier * 15 / 100F) + 0.5F, 15)) { // Spigot
++                if (i1 >= (byte) range(3, (world.growthOdds / world.getWorld().cactusGrowthModifier * 15) + 0.5F, 15)) { // Spigot
                      org.bukkit.craftbukkit.event.CraftEventFactory.handleBlockGrowEvent(world, i, j + 1, k, this.id, 0); // CraftBukkit
                      world.setData(i, j, k, 0);
                  } else {
 diff --git a/src/main/java/net/minecraft/server/BlockCrops.java b/src/main/java/net/minecraft/server/BlockCrops.java
-index a2ce8f9..4d3b448 100644
+index a2ce8f9..815e050 100644
 --- a/src/main/java/net/minecraft/server/BlockCrops.java
 +++ b/src/main/java/net/minecraft/server/BlockCrops.java
 @@ -30,7 +30,7 @@ public class BlockCrops extends BlockFlower {
@@ -139,25 +140,26 @@ index a2ce8f9..4d3b448 100644
                  float f = this.l(world, i, j, k);
  
 -                if (random.nextInt((int) (25.0F / f) + 1) == 0) {
-+                if (random.nextInt((int) ((world.growthOdds * 100 / world.getWorld().wheatGrowthModifier / 25.0F) / f) + 1) == 0) { // Spigot
++                if (random.nextInt((int) (world.growthOdds / world.getWorld().wheatGrowthModifier * ((25.0F / f) + 1))) == 0) { // Spigot
                      org.bukkit.craftbukkit.event.CraftEventFactory.handleBlockGrowEvent(world, i, j, k, this.id, ++l); // CraftBukkit
                  }
              }
 diff --git a/src/main/java/net/minecraft/server/BlockGrass.java b/src/main/java/net/minecraft/server/BlockGrass.java
-index 79a007c..0bc7882 100644
+index 79a007c..bf117bc 100644
 --- a/src/main/java/net/minecraft/server/BlockGrass.java
 +++ b/src/main/java/net/minecraft/server/BlockGrass.java
-@@ -37,7 +37,7 @@ public class BlockGrass extends Block {
+@@ -37,7 +37,8 @@ public class BlockGrass extends Block {
                  }
                  // CraftBukkit end
              } else if (world.getLightLevel(i, j + 1, k) >= 9) {
 -                for (int l = 0; l < 4; ++l) {
-+                for (int l = 0; l < Math.max(4, Math.max(20, (int) (4 * 100F / world.growthOdds))); ++l) { // Spigot
++                int numGrowth = Math.min(4, Math.max(20, (int) (4 * 100F / world.growthOdds))); // Spigot
++                for (int l = 0; l < numGrowth; ++l) { // Spigot
                      int i1 = i + random.nextInt(3) - 1;
                      int j1 = j + random.nextInt(5) - 3;
                      int k1 = k + random.nextInt(3) - 1;
 diff --git a/src/main/java/net/minecraft/server/BlockMushroom.java b/src/main/java/net/minecraft/server/BlockMushroom.java
-index bfc48d4..8fa8302 100644
+index bfc48d4..f66ea7a 100644
 --- a/src/main/java/net/minecraft/server/BlockMushroom.java
 +++ b/src/main/java/net/minecraft/server/BlockMushroom.java
 @@ -23,7 +23,7 @@ public class BlockMushroom extends BlockFlower {
@@ -165,25 +167,26 @@ index bfc48d4..8fa8302 100644
  
      public void b(World world, int i, int j, int k, Random random) {
 -        if (random.nextInt(25) == 0) {
-+        if (random.nextInt((int) (world.growthOdds * 100 / world.getWorld().mushroomGrowthModifier * 25)) == 0) { // Spigot
++        if (random.nextInt((int) (world.growthOdds / world.getWorld().mushroomGrowthModifier * 25)) == 0) { // Spigot
              byte b0 = 4;
              int l = 5;
  
 diff --git a/src/main/java/net/minecraft/server/BlockMycel.java b/src/main/java/net/minecraft/server/BlockMycel.java
-index 6dbf49f..afef94d 100644
+index 6dbf49f..b7cfa69 100644
 --- a/src/main/java/net/minecraft/server/BlockMycel.java
 +++ b/src/main/java/net/minecraft/server/BlockMycel.java
-@@ -37,7 +37,7 @@ public class BlockMycel extends Block {
+@@ -37,7 +37,8 @@ public class BlockMycel extends Block {
                  }
                  // CraftBukkit end
              } else if (world.getLightLevel(i, j + 1, k) >= 9) {
 -                for (int l = 0; l < 4; ++l) {
-+                for (int l = 0; l < Math.max(4, Math.max(20, (int) (4 * 100F / world.growthOdds))); ++l) { // Spigot
++                int numGrowth = Math.min(4, Math.max(20, (int) (4 * 100F / world.growthOdds))); // Spigot
++                for (int l = 0; l < numGrowth; ++l) { // Spigot
                      int i1 = i + random.nextInt(3) - 1;
                      int j1 = j + random.nextInt(5) - 3;
                      int k1 = k + random.nextInt(3) - 1;
 diff --git a/src/main/java/net/minecraft/server/BlockReed.java b/src/main/java/net/minecraft/server/BlockReed.java
-index 399050a..66ad508 100644
+index 399050a..c5a8d8a 100644
 --- a/src/main/java/net/minecraft/server/BlockReed.java
 +++ b/src/main/java/net/minecraft/server/BlockReed.java
 @@ -24,7 +24,7 @@ public class BlockReed extends Block {
@@ -191,12 +194,12 @@ index 399050a..66ad508 100644
                  int i1 = world.getData(i, j, k);
  
 -                if (i1 == 15) {
-+                if (i1 >= (byte) range(3, (world.growthOdds * 100 / world.getWorld().sugarGrowthModifier * 15 / 100F) + 0.5F, 15)) { // Spigot
++                if (i1 >= (byte) range(3, (world.growthOdds / world.getWorld().sugarGrowthModifier * 15) + 0.5F, 15)) { // Spigot
                      org.bukkit.craftbukkit.event.CraftEventFactory.handleBlockGrowEvent(world, i, j + 1, k, this.id, 0); // CraftBukkit
                      world.setData(i, j, k, 0);
                  } else {
 diff --git a/src/main/java/net/minecraft/server/BlockSapling.java b/src/main/java/net/minecraft/server/BlockSapling.java
-index 9c94399..e8b0f96 100644
+index 9c94399..d30fe65 100644
 --- a/src/main/java/net/minecraft/server/BlockSapling.java
 +++ b/src/main/java/net/minecraft/server/BlockSapling.java
 @@ -27,7 +27,7 @@ public class BlockSapling extends BlockFlower {
@@ -204,12 +207,12 @@ index 9c94399..e8b0f96 100644
                  int l = world.getData(i, j, k);
  
 -                if ((l & 8) == 0) {
-+                if (world.getLightLevel(i, j + 1, k) >= 9 && (random.nextInt(Math.max(2, (int) ((world.growthOdds * 100 / world.getWorld().treeGrowthModifier * 7 / 100F) + 0.5F))) == 0)) { // Spigot
++                if (random.nextInt(Math.max(2, (int) ((world.growthOdds / world.getWorld().treeGrowthModifier * 7) + 0.5F))) == 0) { // Spigot
                      world.setData(i, j, k, l | 8);
                  } else {
                      this.grow(world, i, j, k, random, false, null, null); // CraftBukkit - added bonemeal, player and itemstack
 diff --git a/src/main/java/net/minecraft/server/BlockStem.java b/src/main/java/net/minecraft/server/BlockStem.java
-index ff1b89f..dfaf45d 100644
+index ff1b89f..82be68e 100644
 --- a/src/main/java/net/minecraft/server/BlockStem.java
 +++ b/src/main/java/net/minecraft/server/BlockStem.java
 @@ -27,7 +27,7 @@ public class BlockStem extends BlockFlower {
@@ -217,7 +220,7 @@ index ff1b89f..dfaf45d 100644
              float f = this.n(world, i, j, k);
  
 -            if (random.nextInt((int) (25.0F / f) + 1) == 0) {
-+            if (random.nextInt((int) ((world.growthOdds * 100 / ((this.id == Block.PUMPKIN_STEM.id) ? world.getWorld().pumpkinGrowthModifier : world.getWorld().melonGrowthModifier) / 25.0F) / f) + 1) == 0) { // Spigot
++            if (random.nextInt((int) (world.growthOdds / (this.id == Block.PUMPKIN_STEM.id ? world.getWorld().pumpkinGrowthModifier : world.getWorld().melonGrowthModifier) * ((25.0F / f) + 1))) == 0) { // Spigot
                  int l = world.getData(i, j, k);
  
                  if (l < 7) {
@@ -429,29 +432,6 @@ index 90e0636..42e669c 100644
      }
 +    // Spigot end
  }
-diff --git a/src/main/java/net/minecraft/server/EntityHuman.java b/src/main/java/net/minecraft/server/EntityHuman.java
-index 0b0c351..3684509 100644
---- a/src/main/java/net/minecraft/server/EntityHuman.java
-+++ b/src/main/java/net/minecraft/server/EntityHuman.java
-@@ -460,16 +460,9 @@ public abstract class EntityHuman extends EntityLiving implements ICommandListen
-     public float a(Block block) {
-         float f = this.inventory.a(block);
-         int i = EnchantmentManager.getDigSpeedEnchantmentLevel(this);
--        ItemStack itemstack = this.inventory.getItemInHand();
- 
--        if (i > 0 && itemstack != null) {
--            float f1 = (float) (i * i + 1);
--
--            if (!itemstack.b(block) && f <= 1.0F) {
--                f += f1 * 0.08F;
--            } else {
--                f += f1;
--            }
-+        if (i > 0 && this.inventory.b(block)) {
-+            f += (float) (i * i + 1);
-         }
- 
-         if (this.hasEffect(MobEffectList.FASTER_DIG)) {
 diff --git a/src/main/java/net/minecraft/server/EntityItem.java b/src/main/java/net/minecraft/server/EntityItem.java
 index 1cb66df..aefc806 100644
 --- a/src/main/java/net/minecraft/server/EntityItem.java
@@ -776,6 +756,135 @@ index 0000000..c9bc20c
 +        }
 +    }
 +}
+diff --git a/src/main/java/net/minecraft/server/OldChunkLoader.java b/src/main/java/net/minecraft/server/OldChunkLoader.java
+new file mode 100644
+index 0000000..0b3bd0d
+--- /dev/null
++++ b/src/main/java/net/minecraft/server/OldChunkLoader.java
+@@ -0,0 +1,122 @@
++package net.minecraft.server;
++
++public class OldChunkLoader {
++
++    public static OldChunk a(NBTTagCompound nbttagcompound) {
++        int i = nbttagcompound.getInt("xPos");
++        int j = nbttagcompound.getInt("zPos");
++        OldChunk oldchunk = new OldChunk(i, j);
++
++        oldchunk.g = nbttagcompound.getByteArray("Blocks");
++        oldchunk.f = new OldNibbleArray(nbttagcompound.getByteArray("Data"), 7);
++        oldchunk.e = new OldNibbleArray(nbttagcompound.getByteArray("SkyLight"), 7);
++        oldchunk.d = new OldNibbleArray(nbttagcompound.getByteArray("BlockLight"), 7);
++        oldchunk.c = nbttagcompound.getByteArray("HeightMap");
++        oldchunk.b = nbttagcompound.getBoolean("TerrainPopulated");
++        oldchunk.h = nbttagcompound.getList("Entities");
++        oldchunk.i = nbttagcompound.getList("TileEntities");
++        oldchunk.j = nbttagcompound.getList("TileTicks");
++
++        try {
++            oldchunk.a = nbttagcompound.getLong("LastUpdate");
++        } catch (ClassCastException classcastexception) {
++            oldchunk.a = (long) nbttagcompound.getInt("LastUpdate");
++        }
++
++        return oldchunk;
++    }
++
++    public static void a(OldChunk oldchunk, NBTTagCompound nbttagcompound, WorldChunkManager worldchunkmanager) {
++        nbttagcompound.setInt("xPos", oldchunk.k);
++        nbttagcompound.setInt("zPos", oldchunk.l);
++        nbttagcompound.setLong("LastUpdate", oldchunk.a);
++        int[] aint = new int[oldchunk.c.length];
++
++        for (int i = 0; i < oldchunk.c.length; ++i) {
++            aint[i] = oldchunk.c[i];
++        }
++
++        nbttagcompound.setIntArray("HeightMap", aint);
++        nbttagcompound.setBoolean("TerrainPopulated", oldchunk.b);
++        NBTTagList nbttaglist = new NBTTagList("Sections");
++
++        int j;
++
++        for (int k = 0; k < 8; ++k) {
++            boolean flag = true;
++
++            for (j = 0; j < 16 && flag; ++j) {
++                int l = 0;
++
++                while (l < 16 && flag) {
++                    int i1 = 0;
++
++                    while (true) {
++                        if (i1 < 16) {
++                            int j1 = j << 11 | i1 << 7 | l + (k << 4);
++                            byte b0 = oldchunk.g[j1];
++
++                            if (b0 == 0) {
++                                ++i1;
++                                continue;
++                            }
++
++                            flag = false;
++                        }
++
++                        ++l;
++                        break;
++                    }
++                }
++            }
++
++            if (!flag) {
++                byte[] abyte = new byte[4096];
++                NibbleArray nibblearray = new NibbleArray(abyte.length, 4);
++                NibbleArray nibblearray1 = new NibbleArray(abyte.length, 4);
++                NibbleArray nibblearray2 = new NibbleArray(abyte.length, 4);
++
++                for (int k1 = 0; k1 < 16; ++k1) {
++                    for (int l1 = 0; l1 < 16; ++l1) {
++                        for (int i2 = 0; i2 < 16; ++i2) {
++                            int j2 = k1 << 11 | i2 << 7 | l1 + (k << 4);
++                            byte b1 = oldchunk.g[j2];
++
++                            abyte[l1 << 8 | i2 << 4 | k1] = (byte) (b1 & 255);
++                            nibblearray.a(k1, l1, i2, oldchunk.f.a(k1, l1 + (k << 4), i2));
++                            nibblearray1.a(k1, l1, i2, oldchunk.e.a(k1, l1 + (k << 4), i2));
++                            nibblearray2.a(k1, l1, i2, oldchunk.d.a(k1, l1 + (k << 4), i2));
++                        }
++                    }
++                }
++
++                NBTTagCompound nbttagcompound1 = new NBTTagCompound();
++
++                nbttagcompound1.setByte("Y", (byte) (k & 255));
++                nbttagcompound1.setByteArray("Blocks", abyte);
++                // Spigot start - a -> getValueArray() accessor
++                nbttagcompound1.setByteArray("Data", nibblearray.getValueArray());
++                nbttagcompound1.setByteArray("SkyLight", nibblearray1.getValueArray());
++                nbttagcompound1.setByteArray("BlockLight", nibblearray2.getValueArray());
++                // Spigot end
++                nbttaglist.add(nbttagcompound1);
++            }
++        }
++
++        nbttagcompound.set("Sections", nbttaglist);
++        byte[] abyte1 = new byte[256];
++
++        for (int k2 = 0; k2 < 16; ++k2) {
++            for (j = 0; j < 16; ++j) {
++                abyte1[j << 4 | k2] = (byte) (worldchunkmanager.getBiome(oldchunk.k << 4 | k2, oldchunk.l << 4 | j).id & 255);
++            }
++        }
++
++        nbttagcompound.setByteArray("Biomes", abyte1);
++        nbttagcompound.set("Entities", oldchunk.h);
++        nbttagcompound.set("TileEntities", oldchunk.i);
++        if (oldchunk.j != null) {
++            nbttagcompound.set("TileTicks", oldchunk.j);
++        }
++    }
++}
+\ No newline at end of file
 diff --git a/src/main/java/net/minecraft/server/Packet51MapChunk.java b/src/main/java/net/minecraft/server/Packet51MapChunk.java
 index 14a6245..ee179be 100644
 --- a/src/main/java/net/minecraft/server/Packet51MapChunk.java
@@ -909,7 +1018,7 @@ index c43a6ed..ee241af 100644
      }
  
 diff --git a/src/main/java/net/minecraft/server/SpawnerCreature.java b/src/main/java/net/minecraft/server/SpawnerCreature.java
-index a1ed84c..576cbd3 100644
+index a1ed84c..1e4a1a5 100644
 --- a/src/main/java/net/minecraft/server/SpawnerCreature.java
 +++ b/src/main/java/net/minecraft/server/SpawnerCreature.java
 @@ -16,6 +16,7 @@ public final class SpawnerCreature {
@@ -920,13 +1029,16 @@ index a1ed84c..576cbd3 100644
  
      protected static ChunkPosition getRandomPosition(World world, int i, int j) {
          Chunk chunk = world.getChunkAt(i, j);
-@@ -34,13 +35,21 @@ public final class SpawnerCreature {
+@@ -34,13 +35,24 @@ public final class SpawnerCreature {
  
              int i;
              int j;
 +            // Spigot start - limit radius to spawn distance (chunks aren't loaded)
 +            if (spawnRadius == 0) {
-+                spawnRadius = (byte) worldserver.getServer().getViewDistance();
++                spawnRadius = (byte) worldserver.getWorld().mobSpawnRange;
++                if (spawnRadius > (byte) worldserver.getServer().getViewDistance()) {
++                    spawnRadius = (byte) worldserver.getServer().getViewDistance();
++                }
 +                if (spawnRadius > 8) {
 +                    spawnRadius = 8;
 +                }
@@ -943,7 +1055,7 @@ index a1ed84c..576cbd3 100644
  
                  for (int l = -b0; l <= b0; ++l) {
                      for (int i1 = -b0; i1 <= b0; ++i1) {
-@@ -88,13 +97,15 @@ public final class SpawnerCreature {
+@@ -88,13 +100,15 @@ public final class SpawnerCreature {
                  if (limit == 0) {
                      return 0;
                  }
@@ -961,7 +1073,7 @@ index a1ed84c..576cbd3 100644
                          // CraftBukkit start
                          long key = ((Long) iterator.next()).longValue();
  
-@@ -157,6 +168,12 @@ public final class SpawnerCreature {
+@@ -157,6 +171,12 @@ public final class SpawnerCreature {
                                                                  // CraftBukkit - added a reason for spawning this creature
                                                                  worldserver.addEntity(entityliving, SpawnReason.NATURAL);
                                                                  a(entityliving, worldserver, f, f1, f2);
@@ -1361,7 +1473,7 @@ index e2fd0df..29ccbef 100644
  
      public List a(Class oclass, AxisAlignedBB axisalignedbb) {
 diff --git a/src/main/java/net/minecraft/server/WorldServer.java b/src/main/java/net/minecraft/server/WorldServer.java
-index b426d5d..6de6b12 100644
+index b426d5d..6e5434b 100644
 --- a/src/main/java/net/minecraft/server/WorldServer.java
 +++ b/src/main/java/net/minecraft/server/WorldServer.java
 @@ -1,5 +1,7 @@
@@ -1389,7 +1501,14 @@ index b426d5d..6de6b12 100644
      private TreeSet M;
      public ChunkProviderServer chunkProviderServer;
      public boolean savingDisabled;
-@@ -52,7 +55,7 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
+@@ -46,13 +49,13 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
+         // CraftBukkit end
+         this.server = minecraftserver;
+         this.tracker = new EntityTracker(this);
+-        this.manager = new PlayerChunkMap(this, minecraftserver.getPlayerList().o());
++        this.manager = new PlayerChunkMap(this, getWorld().viewDistance); // Spigot
+         if (this.entitiesById == null) {
+             this.entitiesById = new IntHashMap();
          }
  
          if (this.L == null) {
@@ -1687,7 +1806,7 @@ index c3b9113..e34e781 100644
          }
  
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-index 936cbc6..67593d5 100644
+index 936cbc6..047378a 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 @@ -146,7 +146,7 @@ public final class CraftServer implements Server {
@@ -1714,7 +1833,7 @@ index 936cbc6..67593d5 100644
  
      static {
          ConfigurationSerialization.registerClass(CraftOfflinePlayer.class);
-@@ -208,12 +216,37 @@ public final class CraftServer implements Server {
+@@ -208,12 +216,44 @@ public final class CraftServer implements Server {
          chunkGCLoadThresh = configuration.getInt("chunk-gc.load-threshold");
  
          updater = new AutoUpdater(new BukkitDLUpdaterService(configuration.getString("auto-updater.host")), getLogger(), configuration.getString("auto-updater.preferred-channel"));
@@ -1729,7 +1848,14 @@ index 936cbc6..67593d5 100644
 +        commandMap.register("bukkit", new org.bukkit.craftbukkit.command.RestartCommand("restart"));
 +        commandMap.register("bukkit", new org.bukkit.craftbukkit.command.TicksPerSecondCommand("tps"));
 +
-+        org.bukkit.craftbukkit.util.WatchdogThread.startThread(configuration.getInt("settings.timeout-time", 180), configuration.getBoolean("settings.restart-on-crash", false));
++        int timeout = configuration.getInt("settings.timeout-time", 300);
++        if (timeout == 180) {
++            timeout = 300;
++            getLogger().info("Migrating to new timeout time of 300");
++            configuration.set("settings.timeout-time", timeout);
++            saveConfig();
++        }
++        org.bukkit.craftbukkit.util.WatchdogThread.startThread(timeout, configuration.getBoolean("settings.restart-on-crash", false));
 +
 +        whitelistMessage = configuration.getString("settings.whitelist-message", whitelistMessage);
 +        stopMessage = configuration.getString("settings.stop-message", stopMessage);
@@ -1753,7 +1879,7 @@ index 936cbc6..67593d5 100644
          loadPlugins();
          enablePlugins(PluginLoadOrder.STARTUP);
      }
-@@ -222,7 +255,7 @@ public final class CraftServer implements Server {
+@@ -222,7 +262,7 @@ public final class CraftServer implements Server {
          return (File) console.options.valueOf("bukkit-settings");
      }
  
@@ -1762,7 +1888,7 @@ index 936cbc6..67593d5 100644
          try {
              configuration.save(getConfigFile());
          } catch (IOException ex) {
-@@ -1036,11 +1069,8 @@ public final class CraftServer implements Server {
+@@ -1036,11 +1076,8 @@ public final class CraftServer implements Server {
          return count;
      }
  
@@ -1775,7 +1901,7 @@ index 936cbc6..67593d5 100644
          OfflinePlayer result = getPlayerExact(name);
          String lname = name.toLowerCase();
  
-@@ -1048,17 +1078,7 @@ public final class CraftServer implements Server {
+@@ -1048,17 +1085,7 @@ public final class CraftServer implements Server {
              result = offlinePlayers.get(lname);
  
              if (result == null) {
@@ -1794,7 +1920,7 @@ index 936cbc6..67593d5 100644
                  result = new CraftOfflinePlayer(this, name);
                  offlinePlayers.put(lname, result);
              }
-@@ -1196,7 +1216,7 @@ public final class CraftServer implements Server {
+@@ -1196,7 +1223,7 @@ public final class CraftServer implements Server {
          Set<OfflinePlayer> players = new HashSet<OfflinePlayer>();
  
          for (String file : files) {
@@ -1803,7 +1929,7 @@ index 936cbc6..67593d5 100644
          }
          players.addAll(Arrays.asList(getOnlinePlayers()));
  
-@@ -1302,7 +1322,7 @@ public final class CraftServer implements Server {
+@@ -1302,7 +1329,7 @@ public final class CraftServer implements Server {
      public List<String> tabCompleteCommand(Player player, String message) {
          List<String> completions = null;
          try {
@@ -1812,7 +1938,7 @@ index 936cbc6..67593d5 100644
          } catch (CommandException ex) {
              player.sendMessage(ChatColor.RED + "An internal error occurred while attempting to tab-complete this command");
              getLogger().log(Level.SEVERE, "Exception when " + player.getName() + " attempted to tab complete " + message, ex);
-@@ -1338,4 +1358,52 @@ public final class CraftServer implements Server {
+@@ -1338,4 +1365,52 @@ public final class CraftServer implements Server {
      public CraftItemFactory getItemFactory() {
          return CraftItemFactory.instance();
      }
@@ -1866,10 +1992,10 @@ index 936cbc6..67593d5 100644
 +    // Spigot end
  }
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
-index cb20066..3544aa3 100644
+index cb20066..856307f 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
-@@ -73,7 +73,81 @@ public class CraftWorld implements World {
+@@ -73,7 +73,86 @@ public class CraftWorld implements World {
          if (server.chunkGCPeriod > 0) {
              chunkGCTickCount = rand.nextInt(server.chunkGCPeriod);
          }
@@ -1915,6 +2041,9 @@ index cb20066..3544aa3 100644
 +        treeGrowthModifier = configuration.getInt("world-settings." + name + ".tree-growth-modifier", treeGrowthModifier);
 +        mushroomGrowthModifier = configuration.getInt("world-settings." + name + ".mushroom-growth-modifier", mushroomGrowthModifier);
 +
++        viewDistance = Bukkit.getServer().getViewDistance();
++        viewDistance = configuration.getInt("world-settings." + name + ".view-distance", viewDistance);
++
 +        server.getLogger().info("-------------- Spigot ----------------");
 +        server.getLogger().info("-------- World Settings For [" + name + "] --------");
 +        server.getLogger().info("Growth Per Chunk: " + growthPerTick);
@@ -1930,6 +2059,7 @@ index cb20066..3544aa3 100644
 +        server.getLogger().info("Sugar Growth Modifier: " + sugarGrowthModifier);
 +        server.getLogger().info("Tree Growth Modifier: " + treeGrowthModifier);
 +        server.getLogger().info("Mushroom Growth Modifier: " + mushroomGrowthModifier);
++        server.getLogger().info("View distance: " + viewDistance);
 +        server.getLogger().info("-------------------------------------------------");
 +        // Spigot end
 +    }
@@ -1940,6 +2070,7 @@ index cb20066..3544aa3 100644
 +    public boolean randomLightingUpdates = false;
 +    public int mobSpawnRange = 4;
 +    public int aggregateTicks = 4;
++    public int viewDistance;
 +    //Crop growth rates:
 +    public int wheatGrowthModifier = 100;
 +    public int cactusGrowthModifier = 100;
@@ -3144,15 +3275,15 @@ index 0000000..9e92ea2
 +    }
 +}
 diff --git a/src/main/resources/configurations/bukkit.yml b/src/main/resources/configurations/bukkit.yml
-index 61a95e3..e192700 100644
+index 61a95e3..c41fac1 100644
 --- a/src/main/resources/configurations/bukkit.yml
 +++ b/src/main/resources/configurations/bukkit.yml
-@@ -25,6 +25,61 @@ settings:
+@@ -25,6 +25,62 @@ settings:
      query-plugins: true
      deprecated-verbose: default
      shutdown-message: Server closed
 +    restart-script-location: start.bat
-+    timeout-time: 180
++    timeout-time: 300
 +    restart-on-crash: false
 +    filter-unsafe-ips: false
 +    whitelist-message: You are not white-listed on this server!
@@ -3178,6 +3309,7 @@ index 61a95e3..e192700 100644
 +    world:
 +        growth-chunks-per-tick: 1000
 +    world_nether:
++        view-distance: 5
 +        growth-chunks-per-tick: 0
 +        random-light-updates: true
 +        water-creatures-per-chunk: 0
