@@ -4,6 +4,9 @@ basedir=$(dirname $basedir)
 echo "Rebuilding Forked projects.... "
 function applyPatch {
     what=$1
+    if [ ! -d "$basedir/EMC-$what" ]; then
+        git clone github.com:aikar/EMC-$what EMC-$what
+    fi
     cd $basedir/EMC-$what
     echo "Synchronizing EMC-$what/master to $what/master"
     git remote rm upstream
