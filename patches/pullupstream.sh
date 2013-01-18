@@ -6,11 +6,13 @@ cd $basedir/Bukkit
 git fetch origin
 bdiff=$(git log --oneline origin/master...HEAD)
 git reset --hard origin/master
+git branch -f upstream
 bdesc=$(git describe)
 cd $basedir/CraftBukkit
 git fetch origin
 cbdiff=$(git log --oneline origin/master...HEAD)
 git reset --hard origin/master
+git branch -f upstream
 cbdesc=$(git describe)
 
 cd ..
