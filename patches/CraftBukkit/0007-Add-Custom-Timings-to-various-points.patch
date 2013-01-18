@@ -1,15 +1,16 @@
-From 0520169e238e4001a93463229f06cead33ec0403 Mon Sep 17 00:00:00 2001
+From f33de59951e2e2b0b0a8b74d0af42563e7fc72ca Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Thu, 10 Jan 2013 00:18:11 -0500
 Subject: [PATCH] Add Custom Timings to various points
 
 ---
  .../net/minecraft/server/ChunkProviderServer.java  |    4 ++++
+ .../java/net/minecraft/server/EntityLiving.java    |   21 ++++++++++++++++++++
  .../net/minecraft/server/PlayerConnection.java     |    7 +++++++
  src/main/java/net/minecraft/server/World.java      |    9 +++++++++
  .../java/net/minecraft/server/WorldServer.java     |    4 ++++
- .../java/org/bukkit/event/WorldTimingsHandler.java |   20 ++++++++++++++++++++
- 5 files changed, 44 insertions(+)
+ .../java/org/bukkit/event/WorldTimingsHandler.java |   20 +++++++++++++++++++
+ 6 files changed, 65 insertions(+)
  create mode 100644 src/main/java/org/bukkit/event/WorldTimingsHandler.java
 
 diff --git a/src/main/java/net/minecraft/server/ChunkProviderServer.java b/src/main/java/net/minecraft/server/ChunkProviderServer.java
@@ -48,6 +49,114 @@ index c0bab0f..5dc0ef3 100644
          }
  
          // CraftBukkit start - If we didn't need to load the chunk run the callback now
+diff --git a/src/main/java/net/minecraft/server/EntityLiving.java b/src/main/java/net/minecraft/server/EntityLiving.java
+index 005b861..c08b85c 100644
+--- a/src/main/java/net/minecraft/server/EntityLiving.java
++++ b/src/main/java/net/minecraft/server/EntityLiving.java
+@@ -8,6 +8,7 @@ import java.util.Random;
+ 
+ // CraftBukkit start
+ import org.bukkit.craftbukkit.event.CraftEventFactory;
++import org.bukkit.event.CustomTimingsHandler;
+ import org.bukkit.event.entity.EntityDamageByBlockEvent;
+ import org.bukkit.event.entity.EntityDamageEvent;
+ import org.bukkit.event.entity.EntityRegainHealthEvent;
+@@ -110,6 +111,14 @@ public abstract class EntityLiving extends Entity {
+     public int expToDrop = 0;
+     public int maxAirTicks = 300;
+     public int maxHealth = this.getMaxHealth();
++    // EMC Start
++    public static CustomTimingsHandler timerEntityBaseTick = new CustomTimingsHandler("entityBaseTick");
++    public static CustomTimingsHandler timerEntityAI = new CustomTimingsHandler("entityAI");
++    public static CustomTimingsHandler timerEntityAIJump = new CustomTimingsHandler("entityAIJump");
++    public static CustomTimingsHandler timerEntityAIMove = new CustomTimingsHandler("entityAIMove");
++    public static CustomTimingsHandler timerEntityAILoot = new CustomTimingsHandler("entityAILoot");
++    public static CustomTimingsHandler timerEntityTickRest = new CustomTimingsHandler("entityTickRest");
++    // EMC End
+     // CraftBukkit end
+ 
+     public EntityLiving(World world) {
+@@ -505,6 +514,7 @@ public abstract class EntityLiving extends Entity {
+     }
+ 
+     public void j_() {
++        timerEntityBaseTick.startTiming(); // EMC
+         super.j_();
+         if (!this.world.isStatic) {
+             int i;
+@@ -531,7 +541,9 @@ public abstract class EntityLiving extends Entity {
+             }
+         }
+ 
++        timerEntityBaseTick.stopTiming(); // EMC
+         this.c();
++        timerEntityTickRest.startTiming(); // EMC
+         double d0 = this.locX - this.lastX;
+         double d1 = this.locZ - this.lastZ;
+         float f = (float) (d0 * d0 + d1 * d1);
+@@ -622,6 +634,7 @@ public abstract class EntityLiving extends Entity {
+ 
+         this.world.methodProfiler.b();
+         this.aD += f2;
++        timerEntityTickRest.stopTiming(); // EMC
+     }
+ 
+     // CraftBukkit start - delegate so we can handle providing a reason for health being regained
+@@ -1228,6 +1241,7 @@ public abstract class EntityLiving extends Entity {
+     }
+ 
+     public void c() {
++        timerEntityAI.startTiming(); // EMC
+         if (this.bV > 0) {
+             --this.bV;
+         }
+@@ -1279,9 +1293,11 @@ public abstract class EntityLiving extends Entity {
+                 this.az = this.yaw;
+             }
+         }
++        timerEntityAI.stopTiming(); // EMC
+ 
+         this.world.methodProfiler.b();
+         this.world.methodProfiler.a("jump");
++        timerEntityAIJump.startTiming(); // EMC
+         if (this.bF) {
+             if (!this.H() && !this.J()) {
+                 if (this.onGround && this.bV == 0) {
+@@ -1295,8 +1311,10 @@ public abstract class EntityLiving extends Entity {
+             this.bV = 0;
+         }
+ 
++        timerEntityAIJump.stopTiming(); // EMC
+         this.world.methodProfiler.b();
+         this.world.methodProfiler.a("travel");
++        timerEntityAIMove.startTiming(); // EMC
+         this.bC *= 0.98F;
+         this.bD *= 0.98F;
+         this.bE *= 0.9F;
+@@ -1305,6 +1323,7 @@ public abstract class EntityLiving extends Entity {
+         this.aN *= this.bB();
+         this.e(this.bC, this.bD);
+         this.aN = f;
++        timerEntityAIMove.stopTiming(); // EMC
+         this.world.methodProfiler.b();
+         this.world.methodProfiler.a("push");
+         if (!this.world.isStatic) {
+@@ -1313,6 +1332,7 @@ public abstract class EntityLiving extends Entity {
+ 
+         this.world.methodProfiler.b();
+         this.world.methodProfiler.a("looting");
++        timerEntityAILoot.startTiming(); // EMC
+         // CraftBukkit - Don't run mob pickup code on players
+         if (!this.world.isStatic && !(this instanceof EntityPlayer) && this.canPickUpLoot && !this.bc && this.world.getGameRules().getBoolean("mobGriefing")) {
+             List list = this.world.a(EntityItem.class, this.boundingBox.grow(1.0D, 0.0D, 1.0D));
+@@ -1377,6 +1397,7 @@ public abstract class EntityLiving extends Entity {
+             }
+         }
+ 
++        timerEntityAILoot.stopTiming(); // EMC
+         this.world.methodProfiler.b();
+     }
+ 
 diff --git a/src/main/java/net/minecraft/server/PlayerConnection.java b/src/main/java/net/minecraft/server/PlayerConnection.java
 index 474284e..cf0116c 100644
 --- a/src/main/java/net/minecraft/server/PlayerConnection.java
