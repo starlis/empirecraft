@@ -1,6 +1,6 @@
-From e7d6077306e441ecacaf4a69c282affa8b366446 Mon Sep 17 00:00:00 2001
+From afda4ae37f324859de3beec047b49cee5d49e30a Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Sun, 30 Dec 2012 23:56:05 -0600
+Date: Wed, 16 Jan 2013 11:15:25 -0500
 Subject: [PATCH] Spigot
 
 ---
@@ -25,7 +25,8 @@ Subject: [PATCH] Spigot
  .../java/net/minecraft/server/MinecraftServer.java |   51 +-
  .../java/net/minecraft/server/NibbleArray.java     |  158 +++++++
  .../java/net/minecraft/server/OldChunkLoader.java  |  122 +++++
- .../net/minecraft/server/Packet51MapChunk.java     |   28 +-
+ .../net/minecraft/server/Packet51MapChunk.java     |   41 +-
+ .../java/net/minecraft/server/PlayerChunk.java     |    2 +-
  .../net/minecraft/server/PlayerConnection.java     |   18 +-
  src/main/java/net/minecraft/server/PlayerList.java |   10 +-
  .../java/net/minecraft/server/SpawnerCreature.java |   26 +-
@@ -51,7 +52,7 @@ Subject: [PATCH] Spigot
  .../org/bukkit/craftbukkit/util/Versioning.java    |    2 +-
  .../bukkit/craftbukkit/util/WatchdogThread.java    |   88 ++++
  src/main/resources/configurations/bukkit.yml       |   56 +++
- 47 files changed, 2040 insertions(+), 213 deletions(-)
+ 48 files changed, 2054 insertions(+), 214 deletions(-)
  create mode 100644 src/main/java/net/minecraft/server/NibbleArray.java
  create mode 100644 src/main/java/net/minecraft/server/OldChunkLoader.java
  create mode 100644 src/main/java/org/bukkit/craftbukkit/command/RestartCommand.java
@@ -988,10 +989,35 @@ index 0000000..0b3bd0d
 +}
 \ No newline at end of file
 diff --git a/src/main/java/net/minecraft/server/Packet51MapChunk.java b/src/main/java/net/minecraft/server/Packet51MapChunk.java
-index 14a6245..ee179be 100644
+index 14a6245..b51d90c 100644
 --- a/src/main/java/net/minecraft/server/Packet51MapChunk.java
 +++ b/src/main/java/net/minecraft/server/Packet51MapChunk.java
-@@ -139,16 +139,22 @@ public class Packet51MapChunk extends Packet {
+@@ -18,11 +18,24 @@ public class Packet51MapChunk extends Packet {
+     public boolean e;
+     private int size;
+     private static byte[] buildBuffer = new byte[196864];
++    private static final byte[] unloadSequence = new byte[]{0x78, (byte) 0x9C, 0x63, 0x64, 0x1C, (byte) 0xD9, 0x00, 0x00, (byte) 0x81, (byte) 0x80, 0x01, 0x01}; // Spigot
+ 
+     public Packet51MapChunk() {
+         this.lowPriority = true;
+     }
+ 
++    // Spigot start - add constructor for chunk removals for the client
++    public Packet51MapChunk(int x, int z) {
++        this.a = x;
++        this.b = z;
++        this.e = true;
++        this.c = 0;
++        this.d = 0;
++        this.size = unloadSequence.length;
++        this.buffer = unloadSequence;
++    }
++    // Spigot end
++
+     public Packet51MapChunk(Chunk chunk, boolean flag, int i) {
+         this.lowPriority = true;
+         this.a = chunk.x;
+@@ -139,16 +152,22 @@ public class Packet51MapChunk extends Packet {
          for (l = 0; l < achunksection.length; ++l) {
              if (achunksection[l] != null && (!flag || !achunksection[l].a()) && (i & 1 << l) != 0) {
                  nibblearray = achunksection[l].j();
@@ -1018,7 +1044,7 @@ index 14a6245..ee179be 100644
              }
          }
  
-@@ -156,8 +162,11 @@ public class Packet51MapChunk extends Packet {
+@@ -156,8 +175,11 @@ public class Packet51MapChunk extends Packet {
              for (l = 0; l < achunksection.length; ++l) {
                  if (achunksection[l] != null && (!flag || !achunksection[l].a()) && (i & 1 << l) != 0) {
                      nibblearray = achunksection[l].l();
@@ -1032,7 +1058,7 @@ index 14a6245..ee179be 100644
                  }
              }
          }
-@@ -166,8 +175,11 @@ public class Packet51MapChunk extends Packet {
+@@ -166,8 +188,11 @@ public class Packet51MapChunk extends Packet {
              for (l = 0; l < achunksection.length; ++l) {
                  if (achunksection[l] != null && (!flag || !achunksection[l].a()) && achunksection[l].i() != null && (i & 1 << l) != 0) {
                      nibblearray = achunksection[l].i();
@@ -1046,6 +1072,19 @@ index 14a6245..ee179be 100644
                  }
              }
          }
+diff --git a/src/main/java/net/minecraft/server/PlayerChunk.java b/src/main/java/net/minecraft/server/PlayerChunk.java
+index 5350644..185a609 100644
+--- a/src/main/java/net/minecraft/server/PlayerChunk.java
++++ b/src/main/java/net/minecraft/server/PlayerChunk.java
+@@ -51,7 +51,7 @@ class PlayerChunk {
+ 
+     public void b(EntityPlayer entityplayer) {
+         if (this.b.contains(entityplayer)) {
+-            entityplayer.playerConnection.sendPacket(new Packet51MapChunk(PlayerChunkMap.a(this.playerChunkMap).getChunkAt(this.location.x, this.location.z), true, 0));
++            entityplayer.playerConnection.sendPacket(new Packet51MapChunk(this.location.x, this.location.z)); // Spigot - remove chunk load call just to unload in favour of specialized constructor
+             this.b.remove(entityplayer);
+             entityplayer.chunkCoordIntPairQueue.remove(this.location);
+             if (this.b.isEmpty()) {
 diff --git a/src/main/java/net/minecraft/server/PlayerConnection.java b/src/main/java/net/minecraft/server/PlayerConnection.java
 index dd29094..4a213bc 100644
 --- a/src/main/java/net/minecraft/server/PlayerConnection.java
