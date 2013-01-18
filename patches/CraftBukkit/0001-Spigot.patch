@@ -1,6 +1,6 @@
-From afda4ae37f324859de3beec047b49cee5d49e30a Mon Sep 17 00:00:00 2001
+From 91aca225be0207933719020698311cd09ede0c19 Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Wed, 16 Jan 2013 11:15:25 -0500
+Date: Fri, 18 Jan 2013 10:54:10 -0500
 Subject: [PATCH] Spigot
 
 ---
@@ -20,6 +20,7 @@ Subject: [PATCH] Spigot
  .../java/net/minecraft/server/EntityHuman.java     |    6 +
  src/main/java/net/minecraft/server/EntityItem.java |    3 +-
  .../java/net/minecraft/server/EntityPlayer.java    |    1 +
+ .../java/net/minecraft/server/EntityPotion.java    |    2 +-
  .../java/net/minecraft/server/EntitySquid.java     |    4 -
  .../net/minecraft/server/EntityTrackerEntry.java   |    2 +
  .../java/net/minecraft/server/MinecraftServer.java |   51 +-
@@ -40,6 +41,15 @@ Subject: [PATCH] Spigot
  .../bukkit/craftbukkit/command/RestartCommand.java |   24 +
  .../craftbukkit/command/TicksPerSecondCommand.java |   35 ++
  .../org/bukkit/craftbukkit/entity/CraftPlayer.java |    7 +
+ .../craftbukkit/inventory/CraftMetaBook.java       |    5 +
+ .../craftbukkit/inventory/CraftMetaCharge.java     |    6 +
+ .../inventory/CraftMetaEnchantedBook.java          |    6 +
+ .../craftbukkit/inventory/CraftMetaFirework.java   |    6 +
+ .../craftbukkit/inventory/CraftMetaItem.java       |  107 +++--
+ .../inventory/CraftMetaLeatherArmor.java           |    8 +-
+ .../bukkit/craftbukkit/inventory/CraftMetaMap.java |    5 +
+ .../craftbukkit/inventory/CraftMetaPotion.java     |    5 +
+ .../craftbukkit/inventory/CraftMetaSkull.java      |    5 +
  .../updater/BukkitDLUpdaterService.java            |   26 +-
  .../bukkit/craftbukkit/util/ExceptionHandler.java  |   31 ++
  .../bukkit/craftbukkit/util/ExceptionReporter.java |   26 ++
@@ -52,7 +62,9 @@ Subject: [PATCH] Spigot
  .../org/bukkit/craftbukkit/util/Versioning.java    |    2 +-
  .../bukkit/craftbukkit/util/WatchdogThread.java    |   88 ++++
  src/main/resources/configurations/bukkit.yml       |   56 +++
- 48 files changed, 2054 insertions(+), 214 deletions(-)
+ .../bukkit/craftbukkit/inventory/ItemMetaTest.java |   36 --
+ .../inventory/ItemStackFireworkTest.java           |    4 +-
+ 60 files changed, 2167 insertions(+), 296 deletions(-)
  create mode 100644 src/main/java/net/minecraft/server/NibbleArray.java
  create mode 100644 src/main/java/net/minecraft/server/OldChunkLoader.java
  create mode 100644 src/main/java/org/bukkit/craftbukkit/command/RestartCommand.java
@@ -76,7 +88,7 @@ index a689360..4138573 100644
 +
 +/dependency-reduced-pom.xml
 diff --git a/pom.xml b/pom.xml
-index 6a75d75..ea5435d 100644
+index f0b0bfb..e08f4fd 100644
 --- a/pom.xml
 +++ b/pom.xml
 @@ -1,12 +1,12 @@
@@ -88,7 +100,7 @@ index 6a75d75..ea5435d 100644
 +  <groupId>org.spigotmc</groupId>
 +  <artifactId>spigot</artifactId>
    <packaging>jar</packaging>
-   <version>1.4.6-R0.4-SNAPSHOT</version>
+   <version>1.4.7-R0.2-SNAPSHOT</version>
 -  <name>CraftBukkit</name>
 -  <url>http://www.bukkit.org</url>
 +  <name>Spigot</name>
@@ -97,7 +109,7 @@ index 6a75d75..ea5435d 100644
    <properties>
      <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 @@ -16,25 +16,6 @@
-     <minecraft_version>1_4_6</minecraft_version>
+     <minecraft_version>1_4_R1</minecraft_version>
    </properties>
  
 -  <scm>
@@ -234,7 +246,7 @@ index 79a007c..bf117bc 100644
                      int j1 = j + random.nextInt(5) - 3;
                      int k1 = k + random.nextInt(3) - 1;
 diff --git a/src/main/java/net/minecraft/server/BlockMushroom.java b/src/main/java/net/minecraft/server/BlockMushroom.java
-index bfc48d4..f66ea7a 100644
+index bfc48d4..a172ba2 100644
 --- a/src/main/java/net/minecraft/server/BlockMushroom.java
 +++ b/src/main/java/net/minecraft/server/BlockMushroom.java
 @@ -23,7 +23,7 @@ public class BlockMushroom extends BlockFlower {
@@ -242,7 +254,7 @@ index bfc48d4..f66ea7a 100644
  
      public void b(World world, int i, int j, int k, Random random) {
 -        if (random.nextInt(25) == 0) {
-+        if (random.nextInt((int) (world.growthOdds / world.getWorld().mushroomGrowthModifier * 25)) == 0) { // Spigot
++        if (random.nextInt(Math.max(1, (int) world.growthOdds / world.getWorld().mushroomGrowthModifier * 25)) == 0) { // Spigot
              byte b0 = 4;
              int l = 5;
  
@@ -287,7 +299,7 @@ index 9c94399..d30fe65 100644
                  } else {
                      this.grow(world, i, j, k, random, false, null, null); // CraftBukkit - added bonemeal, player and itemstack
 diff --git a/src/main/java/net/minecraft/server/BlockStem.java b/src/main/java/net/minecraft/server/BlockStem.java
-index ff1b89f..82be68e 100644
+index ff1b89f..86e7bba 100644
 --- a/src/main/java/net/minecraft/server/BlockStem.java
 +++ b/src/main/java/net/minecraft/server/BlockStem.java
 @@ -27,7 +27,7 @@ public class BlockStem extends BlockFlower {
@@ -295,7 +307,7 @@ index ff1b89f..82be68e 100644
              float f = this.n(world, i, j, k);
  
 -            if (random.nextInt((int) (25.0F / f) + 1) == 0) {
-+            if (random.nextInt((int) (world.growthOdds / (this.id == Block.PUMPKIN_STEM.id ? world.getWorld().pumpkinGrowthModifier : world.getWorld().melonGrowthModifier) * ((25.0F / f) + 1))) == 0) { // Spigot
++            if (random.nextInt((int) (world.growthOdds / (this.id == Block.PUMPKIN_STEM.id ? world.getWorld().pumpkinGrowthModifier : world.getWorld().melonGrowthModifier) * (25.0F / f)) + 1) == 0) { // Spigot
                  int l = world.getData(i, j, k);
  
                  if (l < 7) {
@@ -536,7 +548,7 @@ index 8566391..0b0c351 100644
          }
      }
 diff --git a/src/main/java/net/minecraft/server/EntityItem.java b/src/main/java/net/minecraft/server/EntityItem.java
-index 1cb66df..aefc806 100644
+index b8b6d52..a7baa0f 100644
 --- a/src/main/java/net/minecraft/server/EntityItem.java
 +++ b/src/main/java/net/minecraft/server/EntityItem.java
 @@ -61,6 +61,7 @@ public class EntityItem extends Entity {
@@ -557,7 +569,7 @@ index 1cb66df..aefc806 100644
          if (!this.world.isStatic && this.age >= 6000) {
              // CraftBukkit start
 diff --git a/src/main/java/net/minecraft/server/EntityPlayer.java b/src/main/java/net/minecraft/server/EntityPlayer.java
-index 86e6ea9..76135a2 100644
+index 99f1218..b28b364 100644
 --- a/src/main/java/net/minecraft/server/EntityPlayer.java
 +++ b/src/main/java/net/minecraft/server/EntityPlayer.java
 @@ -48,6 +48,7 @@ public class EntityPlayer extends EntityHuman implements ICrafting {
@@ -568,6 +580,19 @@ index 86e6ea9..76135a2 100644
  
      public EntityPlayer(MinecraftServer minecraftserver, World world, String s, PlayerInteractManager playerinteractmanager) {
          super(world);
+diff --git a/src/main/java/net/minecraft/server/EntityPotion.java b/src/main/java/net/minecraft/server/EntityPotion.java
+index ac570b6..5d402dc 100644
+--- a/src/main/java/net/minecraft/server/EntityPotion.java
++++ b/src/main/java/net/minecraft/server/EntityPotion.java
+@@ -68,7 +68,7 @@ public class EntityPotion extends EntityProjectile {
+                 AxisAlignedBB axisalignedbb = this.boundingBox.grow(4.0D, 2.0D, 4.0D);
+                 List list1 = this.world.a(EntityLiving.class, axisalignedbb);
+ 
+-                if (list1 != null) { // CraftBukkit - Run code even if there are no entities around
++                if (list1 != null && !list1.isEmpty()) {
+                     Iterator iterator = list1.iterator();
+ 
+                     // CraftBukkit
 diff --git a/src/main/java/net/minecraft/server/EntitySquid.java b/src/main/java/net/minecraft/server/EntitySquid.java
 index 961d83a..188d477 100644
 --- a/src/main/java/net/minecraft/server/EntitySquid.java
@@ -604,7 +629,7 @@ index a026c4c..cb91e30 100644
                      }
                  }
 diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
-index 2f20038..b0baa85 100644
+index 4bdf8aa..4ee2b8b 100644
 --- a/src/main/java/net/minecraft/server/MinecraftServer.java
 +++ b/src/main/java/net/minecraft/server/MinecraftServer.java
 @@ -86,6 +86,11 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
@@ -1086,7 +1111,7 @@ index 5350644..185a609 100644
              entityplayer.chunkCoordIntPairQueue.remove(this.location);
              if (this.b.isEmpty()) {
 diff --git a/src/main/java/net/minecraft/server/PlayerConnection.java b/src/main/java/net/minecraft/server/PlayerConnection.java
-index dd29094..4a213bc 100644
+index 94b62ac..80656b2 100644
 --- a/src/main/java/net/minecraft/server/PlayerConnection.java
 +++ b/src/main/java/net/minecraft/server/PlayerConnection.java
 @@ -851,8 +851,19 @@ public class PlayerConnection extends Connection {
@@ -1131,7 +1156,7 @@ index dd29094..4a213bc 100644
                      }
                  }
 diff --git a/src/main/java/net/minecraft/server/PlayerList.java b/src/main/java/net/minecraft/server/PlayerList.java
-index c43a6ed..ee241af 100644
+index 04ee0de..f165843 100644
 --- a/src/main/java/net/minecraft/server/PlayerList.java
 +++ b/src/main/java/net/minecraft/server/PlayerList.java
 @@ -250,7 +250,7 @@ public abstract class PlayerList {
@@ -1159,7 +1184,7 @@ index c43a6ed..ee241af 100644
      }
  
 diff --git a/src/main/java/net/minecraft/server/SpawnerCreature.java b/src/main/java/net/minecraft/server/SpawnerCreature.java
-index c0ffb1b..ee084a4 100644
+index 9b3e262..124b143 100644
 --- a/src/main/java/net/minecraft/server/SpawnerCreature.java
 +++ b/src/main/java/net/minecraft/server/SpawnerCreature.java
 @@ -16,6 +16,7 @@ public final class SpawnerCreature {
@@ -1214,10 +1239,10 @@ index c0ffb1b..ee084a4 100644
                          // CraftBukkit start
                          long key = ((Long) iterator.next()).longValue();
  
-@@ -157,6 +171,12 @@ public final class SpawnerCreature {
-                                                                 // CraftBukkit - added a reason for spawning this creature
-                                                                 worldserver.addEntity(entityliving, SpawnReason.NATURAL);
+@@ -158,6 +172,12 @@ public final class SpawnerCreature {
                                                                  a(entityliving, worldserver, f, f1, f2);
+                                                                 worldserver.addEntity(entityliving, SpawnReason.NATURAL);
+                                                                 // CraftBukkit end
 +                                                                // Spigot start
 +                                                                moblimit--;
 +                                                                if (moblimit <= 0) { // If we're past limit, stop spawn
@@ -2293,7 +2318,7 @@ index 0000000..e30615f
 +    }
 +}
 diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
-index 90abcce..3e9df39 100644
+index f0e24d2..1c61830 100644
 --- a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
 @@ -212,10 +212,17 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
@@ -2314,6 +2339,330 @@ index 90abcce..3e9df39 100644
  
      public void setCompassTarget(Location loc) {
          if (getHandle().playerConnection == null) return;
+diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaBook.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaBook.java
+index 0a65280..a2a91de 100644
+--- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaBook.java
++++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaBook.java
+@@ -259,4 +259,9 @@ class CraftMetaBook extends CraftMetaItem implements BookMeta {
+ 
+         return builder;
+     }
++
++    @Override
++    SerializableMeta.Deserializers deserializer() {
++        return SerializableMeta.Deserializers.BOOK;
++    }
+ }
+diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaCharge.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaCharge.java
+index bff3be9..40ac8ad 100644
+--- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaCharge.java
++++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaCharge.java
+@@ -8,6 +8,7 @@ import org.bukkit.FireworkEffect;
+ import org.bukkit.Material;
+ import org.bukkit.configuration.serialization.DelegateDeserialization;
+ import org.bukkit.craftbukkit.inventory.CraftMetaItem.SerializableMeta;
++import org.bukkit.craftbukkit.inventory.CraftMetaItem.SerializableMeta.Deserializers;
+ import org.bukkit.inventory.meta.FireworkEffectMeta;
+ 
+ import com.google.common.collect.ImmutableMap.Builder;
+@@ -125,4 +126,9 @@ class CraftMetaCharge extends CraftMetaItem implements FireworkEffectMeta {
+ 
+         return builder;
+     }
++
++    @Override
++    Deserializers deserializer() {
++        return Deserializers.FIREWORK_EFFECT;
++    }
+ }
+diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaEnchantedBook.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaEnchantedBook.java
+index 757c9d4..4dd3944 100644
+--- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaEnchantedBook.java
++++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaEnchantedBook.java
+@@ -8,6 +8,7 @@ import net.minecraft.server.NBTTagCompound;
+ import org.bukkit.Material;
+ import org.bukkit.configuration.serialization.DelegateDeserialization;
+ import org.bukkit.craftbukkit.inventory.CraftMetaItem.SerializableMeta;
++import org.bukkit.craftbukkit.inventory.CraftMetaItem.SerializableMeta.Deserializers;
+ import org.bukkit.enchantments.Enchantment;
+ import org.bukkit.inventory.meta.EnchantmentStorageMeta;
+ 
+@@ -122,6 +123,11 @@ class CraftMetaEnchantedBook extends CraftMetaItem implements EnchantmentStorage
+         return builder;
+     }
+ 
++    @Override
++    Deserializers deserializer() {
++        return Deserializers.ENCHANTED;
++    }
++
+     boolean isEnchantedEmpty() {
+         return !hasStoredEnchants();
+     }
+diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaFirework.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaFirework.java
+index 3f9e4a3..5d955ef 100644
+--- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaFirework.java
++++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaFirework.java
+@@ -17,6 +17,7 @@ import org.bukkit.configuration.serialization.DelegateDeserialization;
+ import org.bukkit.craftbukkit.inventory.CraftMetaItem.ItemMetaKey.Specific;
+ import org.bukkit.craftbukkit.inventory.CraftMetaItem.ItemMetaKey.Specific.To;
+ import org.bukkit.craftbukkit.inventory.CraftMetaItem.SerializableMeta;
++import org.bukkit.craftbukkit.inventory.CraftMetaItem.SerializableMeta.Deserializers;
+ import org.bukkit.inventory.meta.FireworkMeta;
+ 
+ import com.google.common.collect.ImmutableList;
+@@ -314,6 +315,11 @@ class CraftMetaFirework extends CraftMetaItem implements FireworkMeta {
+     }
+ 
+     @Override
++    Deserializers deserializer() {
++        return Deserializers.FIREWORK;
++    }
++
++    @Override
+     public CraftMetaFirework clone() {
+         CraftMetaFirework meta = (CraftMetaFirework) super.clone();
+ 
+diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java
+index 519d900..ea6efca 100644
+--- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java
++++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java
+@@ -4,8 +4,6 @@ import java.lang.annotation.ElementType;
+ import java.lang.annotation.Retention;
+ import java.lang.annotation.RetentionPolicy;
+ import java.lang.annotation.Target;
+-import java.lang.reflect.Constructor;
+-import java.lang.reflect.InvocationTargetException;
+ import java.util.ArrayList;
+ import java.util.Collection;
+ import java.util.HashMap;
+@@ -88,55 +86,79 @@ class CraftMetaItem implements ItemMeta, Repairable {
+     public static class SerializableMeta implements ConfigurationSerializable {
+         static final String TYPE_FIELD = "meta-type";
+ 
+-        static final ImmutableMap<Class<? extends CraftMetaItem>, String> classMap;
+-        static final ImmutableMap<String, Constructor<? extends CraftMetaItem>> constructorMap;
+-
+-        static {
+-            classMap = ImmutableMap.<Class<? extends CraftMetaItem>, String>builder()
+-                    .put(CraftMetaBook.class, "BOOK")
+-                    .put(CraftMetaSkull.class, "SKULL")
+-                    .put(CraftMetaLeatherArmor.class, "LEATHER_ARMOR")
+-                    .put(CraftMetaMap.class, "MAP")
+-                    .put(CraftMetaPotion.class, "POTION")
+-                    .put(CraftMetaEnchantedBook.class, "ENCHANTED")
+-                    .put(CraftMetaFirework.class, "FIREWORK")
+-                    .put(CraftMetaCharge.class, "FIREWORK_EFFECT")
+-                    .put(CraftMetaItem.class, "UNSPECIFIC")
+-                    .build();
+-
+-            final ImmutableMap.Builder<String, Constructor<? extends CraftMetaItem>> classConstructorBuilder = ImmutableMap.builder();
+-            for (Map.Entry<Class<? extends CraftMetaItem>, String> mapping : classMap.entrySet()) {
+-                try {
+-                    classConstructorBuilder.put(mapping.getValue(), mapping.getKey().getDeclaredConstructor(Map.class));
+-                } catch (NoSuchMethodException e) {
+-                    throw new AssertionError(e);
++        enum Deserializers {
++            BOOK {
++                @Override
++                CraftMetaBook deserialize(Map<String, Object> map) {
++                    return new CraftMetaBook(map);
+                 }
+-            }
+-            constructorMap = classConstructorBuilder.build();
++            },
++            SKULL {
++                @Override
++                CraftMetaSkull deserialize(Map<String, Object> map) {
++                    return new CraftMetaSkull(map);
++                }
++            },
++            LEATHER_ARMOR {
++                @Override
++                CraftMetaLeatherArmor deserialize(Map<String, Object> map) {
++                    return new CraftMetaLeatherArmor(map);
++                }
++            },
++            MAP {
++                @Override
++                CraftMetaMap deserialize(Map<String, Object> map) {
++                    return new CraftMetaMap(map);
++                }
++            },
++            POTION {
++                @Override
++                CraftMetaPotion deserialize(Map<String, Object> map) {
++                    return new CraftMetaPotion(map);
++                }
++            },
++            ENCHANTED {
++                @Override
++                CraftMetaEnchantedBook deserialize(Map<String, Object> map) {
++                    return new CraftMetaEnchantedBook(map);
++                }
++            },
++            FIREWORK {
++                @Override
++                CraftMetaFirework deserialize(Map<String, Object> map) {
++                    return new CraftMetaFirework(map);
++                }
++            },
++            FIREWORK_EFFECT {
++                @Override
++                CraftMetaCharge deserialize(Map<String, Object> map) {
++                    return new CraftMetaCharge(map);
++                }
++            },
++            UNSPECIFIC {
++                @Override
++                CraftMetaItem deserialize(Map<String, Object> map) {
++                    return new CraftMetaItem(map);
++                }
++            };
++
++            abstract CraftMetaItem deserialize(Map<String, Object> map);
+         }
+ 
+         private SerializableMeta() {
+         }
+ 
+-        public static ItemMeta deserialize(Map<String, Object> map) throws Throwable {
++        public static ItemMeta deserialize(Map<String, Object> map) {
+             Validate.notNull(map, "Cannot deserialize null map");
+ 
+             String type = getString(map, TYPE_FIELD, false);
+-            Constructor<? extends CraftMetaItem> constructor = constructorMap.get(type);
++            Deserializers deserializer = Deserializers.valueOf(type);
+ 
+-            if (constructor == null) {
++            if (deserializer == null) {
+                 throw new IllegalArgumentException(type + " is not a valid " + TYPE_FIELD);
+             }
+ 
+-            try {
+-                return constructor.newInstance(map);
+-            } catch (final InstantiationException e) {
+-                throw new AssertionError(e);
+-            } catch (final IllegalAccessException e) {
+-                throw new AssertionError(e);
+-            } catch (final InvocationTargetException e) {
+-                throw e.getCause();
+-            }
++            return deserializer.deserialize(map);
+         }
+ 
+         public Map<String, Object> serialize() {
+@@ -494,7 +516,7 @@ class CraftMetaItem implements ItemMeta, Repairable {
+ 
+     public final Map<String, Object> serialize() {
+         ImmutableMap.Builder<String, Object> map = ImmutableMap.builder();
+-        map.put(SerializableMeta.TYPE_FIELD, SerializableMeta.classMap.get(getClass()));
++        map.put(SerializableMeta.TYPE_FIELD, deserializer().name());
+         serialize(map);
+         return map.build();
+     }
+@@ -531,6 +553,11 @@ class CraftMetaItem implements ItemMeta, Repairable {
+         builder.put(key.BUKKIT, enchants.build());
+     }
+ 
++    @Overridden
++    SerializableMeta.Deserializers deserializer() {
++        return SerializableMeta.Deserializers.UNSPECIFIC;
++    }
++
+     static void safelyAdd(Iterable<?> addFrom, Collection<String> addTo, int maxItemLength) {
+         if (addFrom == null) {
+             return;
+@@ -557,6 +584,6 @@ class CraftMetaItem implements ItemMeta, Repairable {
+ 
+     @Override
+     public final String toString() {
+-        return SerializableMeta.classMap.get(getClass()) + "_META:" + serialize(); // TODO: cry
++        return deserializer().toString() + "_META:" + serialize(); // TODO: cry
+     }
+ }
+diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaLeatherArmor.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaLeatherArmor.java
+index 15bb438..6cb3bb1 100644
+--- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaLeatherArmor.java
++++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaLeatherArmor.java
+@@ -46,7 +46,6 @@ class CraftMetaLeatherArmor extends CraftMetaItem implements LeatherArmorMeta {
+         setColor(SerializableMeta.getObject(Color.class, map, COLOR.BUKKIT, true));
+     }
+ 
+-    @Override
+     void applyToItem(NBTTagCompound itemTag) {
+         super.applyToItem(itemTag);
+ 
+@@ -64,7 +63,6 @@ class CraftMetaLeatherArmor extends CraftMetaItem implements LeatherArmorMeta {
+         return !(hasColor());
+     }
+ 
+-    @Override
+     boolean applicableTo(Material type) {
+         switch(type) {
+             case LEATHER_HELMET:
+@@ -106,6 +104,11 @@ class CraftMetaLeatherArmor extends CraftMetaItem implements LeatherArmorMeta {
+     }
+ 
+     @Override
++    SerializableMeta.Deserializers deserializer() {
++        return SerializableMeta.Deserializers.LEATHER_ARMOR;
++    }
++
++    @Override
+     boolean equalsCommon(CraftMetaItem meta) {
+         if (!super.equalsCommon(meta)) {
+             return false;
+@@ -123,7 +126,6 @@ class CraftMetaLeatherArmor extends CraftMetaItem implements LeatherArmorMeta {
+         return super.notUncommon(meta) && (meta instanceof CraftMetaLeatherArmor || isLeatherArmorEmpty());
+     }
+ 
+-    @Override
+     int applyHash() {
+         final int original;
+         int hash = original = super.applyHash();
+diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaMap.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaMap.java
+index d8af390..5bad0ed 100644
+--- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaMap.java
++++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaMap.java
+@@ -132,4 +132,9 @@ class CraftMetaMap extends CraftMetaItem implements MapMeta {
+ 
+         return builder;
+     }
++
++    @Override
++    SerializableMeta.Deserializers deserializer() {
++        return SerializableMeta.Deserializers.MAP;
++    }
+ }
+diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaPotion.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaPotion.java
+index ca024d0..3d565f6 100644
+--- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaPotion.java
++++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaPotion.java
+@@ -252,4 +252,9 @@ class CraftMetaPotion extends CraftMetaItem implements PotionMeta {
+ 
+         return builder;
+     }
++
++    @Override
++    SerializableMeta.Deserializers deserializer() {
++        return SerializableMeta.Deserializers.POTION;
++    }
+ }
+diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaSkull.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaSkull.java
+index 41efa55..2bef968 100644
+--- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaSkull.java
++++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaSkull.java
+@@ -126,4 +126,9 @@ class CraftMetaSkull extends CraftMetaItem implements SkullMeta {
+         }
+         return builder;
+     }
++
++    @Override
++    SerializableMeta.Deserializers deserializer() {
++        return SerializableMeta.Deserializers.SKULL;
++    }
+ }
 diff --git a/src/main/java/org/bukkit/craftbukkit/updater/BukkitDLUpdaterService.java b/src/main/java/org/bukkit/craftbukkit/updater/BukkitDLUpdaterService.java
 index f027900..efc7889 100644
 --- a/src/main/java/org/bukkit/craftbukkit/updater/BukkitDLUpdaterService.java
@@ -3478,6 +3827,82 @@ index 61a95e3..c41fac1 100644
  spawn-limits:
      monsters: 70
      animals: 15
+diff --git a/src/test/java/org/bukkit/craftbukkit/inventory/ItemMetaTest.java b/src/test/java/org/bukkit/craftbukkit/inventory/ItemMetaTest.java
+index b59b36a..876cefc 100644
+--- a/src/test/java/org/bukkit/craftbukkit/inventory/ItemMetaTest.java
++++ b/src/test/java/org/bukkit/craftbukkit/inventory/ItemMetaTest.java
+@@ -6,7 +6,6 @@ import static org.hamcrest.Matchers.*;
+ import java.util.Arrays;
+ import java.util.List;
+ 
+-import org.bukkit.Bukkit;
+ import org.bukkit.Color;
+ import org.bukkit.FireworkEffect;
+ import org.bukkit.Material;
+@@ -31,41 +30,6 @@ import org.junit.Test;
+ 
+ public class ItemMetaTest extends AbstractTestingBase {
+ 
+-    static final int MAX_FIREWORK_POWER = 127; // Please update ItemStackFireworkTest if/when this gets changed.
+-
+-    @Test(expected=IllegalArgumentException.class)
+-    public void testPowerLimitExact() {
+-        newFireworkMeta().setPower(MAX_FIREWORK_POWER + 1);
+-    }
+-
+-    @Test(expected=IllegalArgumentException.class)
+-    public void testPowerLimitMax() {
+-        newFireworkMeta().setPower(Integer.MAX_VALUE);
+-    }
+-
+-    @Test(expected=IllegalArgumentException.class)
+-    public void testPowerLimitMin() {
+-        newFireworkMeta().setPower(Integer.MIN_VALUE);
+-    }
+-
+-    @Test(expected=IllegalArgumentException.class)
+-    public void testPowerLimitNegative() {
+-        newFireworkMeta().setPower(-1);
+-    }
+-
+-    @Test
+-    public void testPowers() {
+-        for (int i = 0; i <= MAX_FIREWORK_POWER; i++) {
+-            FireworkMeta firework = newFireworkMeta();
+-            firework.setPower(i);
+-            assertThat(String.valueOf(i), firework.getPower(), is(i));
+-        }
+-    }
+-
+-    private static FireworkMeta newFireworkMeta() {
+-        return ((FireworkMeta) Bukkit.getItemFactory().getItemMeta(Material.FIREWORK));
+-    }
+-
+     @Test
+     public void testCrazyEquality() {
+         CraftItemStack craft = CraftItemStack.asCraftCopy(new ItemStack(1));
+diff --git a/src/test/java/org/bukkit/craftbukkit/inventory/ItemStackFireworkTest.java b/src/test/java/org/bukkit/craftbukkit/inventory/ItemStackFireworkTest.java
+index 40b1d19..afacf3b 100644
+--- a/src/test/java/org/bukkit/craftbukkit/inventory/ItemStackFireworkTest.java
++++ b/src/test/java/org/bukkit/craftbukkit/inventory/ItemStackFireworkTest.java
+@@ -129,7 +129,7 @@ public class ItemStackFireworkTest extends ItemStackTest {
+                     new Operator() {
+                         public ItemStack operate(ItemStack cleanStack) {
+                             FireworkMeta meta = (FireworkMeta) cleanStack.getItemMeta();
+-                            meta.setPower(127);
++                            meta.setPower(150);
+                             cleanStack.setItemMeta(meta);
+                             return cleanStack;
+                         }
+@@ -148,7 +148,7 @@ public class ItemStackFireworkTest extends ItemStackTest {
+                     new Operator() {
+                         public ItemStack operate(ItemStack cleanStack) {
+                             FireworkMeta meta = (FireworkMeta) cleanStack.getItemMeta();
+-                            meta.setPower(42);
++                            meta.setPower(200);
+                             cleanStack.setItemMeta(meta);
+                             return cleanStack;
+                         }
 -- 
 1.7.10.4
 
