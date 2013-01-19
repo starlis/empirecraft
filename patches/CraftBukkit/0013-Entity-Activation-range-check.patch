@@ -1,0 +1,163 @@
+From ca183fa12130c84e86f2fb5f2cae6b04683e4efc Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Fri, 18 Jan 2013 18:58:25 -0500
+Subject: [PATCH] Entity Activation range check
+
+---
+ src/main/java/net/minecraft/server/Entity.java     |    9 +++++++++
+ .../java/net/minecraft/server/EntityLiving.java    |    1 +
+ src/main/java/net/minecraft/server/World.java      |    1 +
+ .../java/org/bukkit/craftbukkit/CraftWorld.java    |    9 ++++++++-
+ src/main/java/org/bukkit/craftbukkit/Spigot.java   |   21 ++++++++++++++++++++
+ src/main/resources/configurations/bukkit.yml       |    1 +
+ 6 files changed, 41 insertions(+), 1 deletion(-)
+
+diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
+index ebe0ed0..f1038d4 100644
+--- a/src/main/java/net/minecraft/server/Entity.java
++++ b/src/main/java/net/minecraft/server/Entity.java
+@@ -106,6 +106,14 @@ public abstract class Entity {
+     public EnumEntitySize as;
+     public UUID uniqueId = UUID.randomUUID(); // CraftBukkit
+     public boolean valid = false; // CraftBukkit
++    // Spigot start
++    public boolean inWater = false;
++    public boolean isActivated = true;
++
++    public boolean isActivated() {
++        return isActivated || world.getWorld().entityActivationRange == 0 || this instanceof EntityPlayer || this.ticksLived % 20 == 0 || !this.onGround || this.inWater;
++    }
++    // Spigot end
+ 
+     public Entity(World world) {
+         this.id = entityCount++;
+@@ -857,6 +865,7 @@ public abstract class Entity {
+             this.ad = false;
+         }
+ 
++        this.inWater = this.ad; // Spigot
+         return this.ad;
+     }
+ 
+diff --git a/src/main/java/net/minecraft/server/EntityLiving.java b/src/main/java/net/minecraft/server/EntityLiving.java
+index b2481aa..a86fc58 100644
+--- a/src/main/java/net/minecraft/server/EntityLiving.java
++++ b/src/main/java/net/minecraft/server/EntityLiving.java
+@@ -1241,6 +1241,7 @@ public abstract class EntityLiving extends Entity {
+     }
+ 
+     public void c() {
++        if (!this.isActivated()) { return; } // Spigot
+         timerEntityAI.startTiming(); // Spigot
+         if (this.bV > 0) {
+             --this.bV;
+diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
+index acadba6..fe00a9d 100644
+--- a/src/main/java/net/minecraft/server/World.java
++++ b/src/main/java/net/minecraft/server/World.java
+@@ -1269,6 +1269,7 @@ public abstract class World implements IBlockAccess {
+         this.methodProfiler.c("regular");
+         timings.entityBaseTick.stopTiming(); // Spigot
+ 
++        org.bukkit.craftbukkit.Spigot.activateEntities(this); // Spigot
+         timings.entityTick.startTiming(); // Spigot
+         for (i = 0; i < this.entityList.size(); ++i) {
+             entity = (Entity) this.entityList.get(i);
+diff --git a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
+index 856307f..99ad752 100644
+--- a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
++++ b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
+@@ -98,10 +98,12 @@ public class CraftWorld implements World {
+         treeGrowthModifier = configuration.getInt("world-settings.default.tree-growth-modifier", treeGrowthModifier);
+         mushroomGrowthModifier = configuration.getInt("world-settings.default.mushroom-growth-modifier", mushroomGrowthModifier);
+ 
++        entityActivationRange = configuration.getInt("world-settings.default.entity-activation-range", entityActivationRange);
++
+         //override defaults with world specific, if they exist
+         growthPerTick = configuration.getInt("world-settings." + name + ".growth-chunks-per-tick", growthPerTick);
+         itemMergeRadius = configuration.getDouble("world-settings." + name + ".item-merge-radius", itemMergeRadius);
+-      expMergeRadius = configuration.getDouble("world-settings." + name + ".exp-merge-radius", expMergeRadius);
++        expMergeRadius = configuration.getDouble("world-settings." + name + ".exp-merge-radius", expMergeRadius);
+         randomLightingUpdates = configuration.getBoolean("world-settings." + name + ".random-light-updates", randomLightingUpdates);
+         mobSpawnRange = configuration.getInt("world-settings." + name + ".mob-spawn-range", mobSpawnRange);
+         aggregateTicks = Math.max(1, configuration.getInt("world-settings." + name + ".aggregate-chunkticks", aggregateTicks));
+@@ -117,6 +119,8 @@ public class CraftWorld implements World {
+         viewDistance = Bukkit.getServer().getViewDistance();
+         viewDistance = configuration.getInt("world-settings." + name + ".view-distance", viewDistance);
+ 
++        entityActivationRange = configuration.getInt("world-settings." + name + ".entity-activation-range", entityActivationRange);
++
+         server.getLogger().info("-------------- Spigot ----------------");
+         server.getLogger().info("-------- World Settings For [" + name + "] --------");
+         server.getLogger().info("Growth Per Chunk: " + growthPerTick);
+@@ -133,6 +137,7 @@ public class CraftWorld implements World {
+         server.getLogger().info("Tree Growth Modifier: " + treeGrowthModifier);
+         server.getLogger().info("Mushroom Growth Modifier: " + mushroomGrowthModifier);
+         server.getLogger().info("View distance: " + viewDistance);
++        server.getLogger().info("Entity Activation Range: " + entityActivationRange);
+         server.getLogger().info("-------------------------------------------------");
+         // Spigot end
+     }
+@@ -152,6 +157,8 @@ public class CraftWorld implements World {
+     public int sugarGrowthModifier = 100;
+     public int treeGrowthModifier = 100;
+     public int mushroomGrowthModifier = 100;
++
++    public int entityActivationRange = 0;
+     // Spigot end
+ 
+     public Block getBlockAt(int x, int y, int z) {
+diff --git a/src/main/java/org/bukkit/craftbukkit/Spigot.java b/src/main/java/org/bukkit/craftbukkit/Spigot.java
+index a535b69..0137744 100644
+--- a/src/main/java/org/bukkit/craftbukkit/Spigot.java
++++ b/src/main/java/org/bukkit/craftbukkit/Spigot.java
+@@ -1,8 +1,12 @@
+ package org.bukkit.craftbukkit;
+ 
++import net.minecraft.server.Entity;
++import net.minecraft.server.World;
+ import org.bukkit.command.SimpleCommandMap;
+ import org.bukkit.configuration.file.YamlConfiguration;
+ 
++import java.util.List;
++
+ public class Spigot {
+     public static void initialize(CraftServer server, SimpleCommandMap commandMap, YamlConfiguration configuration) {
+         commandMap.register("bukkit", new org.bukkit.craftbukkit.command.RestartCommand("restart"));
+@@ -31,4 +35,21 @@ public class Spigot {
+ 
+         org.bukkit.craftbukkit.util.LightningSimulator.configure(configuration);
+     }
++
++    public static void activateEntities(World world) {
++        int activationRange = world.getWorld().entityActivationRange;
++        if (activationRange == 0) {
++            return;
++        }
++        for (Entity entity : (List<Entity>) world.entityList) {
++            entity.isActivated = false;
++        }
++
++        for (Entity player : (List<Entity>) world.players) {
++            List<Entity> list = world.getEntities(player, player.boundingBox.grow(activationRange, 256, activationRange));
++            for (Entity entity : list) {
++                entity.isActivated  = true;
++            }
++        }
++    }
+ }
+diff --git a/src/main/resources/configurations/bukkit.yml b/src/main/resources/configurations/bukkit.yml
+index c41fac1..623ca28 100644
+--- a/src/main/resources/configurations/bukkit.yml
++++ b/src/main/resources/configurations/bukkit.yml
+@@ -49,6 +49,7 @@ world-settings:
+         sugar-growth-modifier: 100
+         tree-growth-modifier: 100
+         mushroom-growth-modifier: 100
++        entity-activation-range: 0
+     world:
+         growth-chunks-per-tick: 1000
+     world_nether:
+-- 
+1.7.10.4
+

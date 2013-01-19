@@ -1,4 +1,4 @@
-From 32631219483558e5b3fd9e2c6f457f39c0085cdc Mon Sep 17 00:00:00 2001
+From 6253da67bd9afd843ecd9fb60b02b3d31ee35310 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Wed, 9 Jan 2013 22:18:26 -0500
 Subject: [PATCH] Add CustomTimingsHandler for adding new CraftBukkit custom
@@ -6,13 +6,13 @@ Subject: [PATCH] Add CustomTimingsHandler for adding new CraftBukkit custom
 
 ---
  .../org/bukkit/command/defaults/ReloadCommand.java |    2 +
- .../bukkit/command/defaults/TimingsCommand.java    |    3 +
+ .../bukkit/command/defaults/TimingsCommand.java    |    4 ++
  .../org/bukkit/event/CustomTimingsHandler.java     |   60 ++++++++++++++++++++
- 3 files changed, 65 insertions(+)
+ 3 files changed, 66 insertions(+)
  create mode 100644 src/main/java/org/bukkit/event/CustomTimingsHandler.java
 
 diff --git a/src/main/java/org/bukkit/command/defaults/ReloadCommand.java b/src/main/java/org/bukkit/command/defaults/ReloadCommand.java
-index fb3c90f..b2dc284 100644
+index fb3c90f..fffafa5 100644
 --- a/src/main/java/org/bukkit/command/defaults/ReloadCommand.java
 +++ b/src/main/java/org/bukkit/command/defaults/ReloadCommand.java
 @@ -6,6 +6,7 @@ import org.bukkit.Bukkit;
@@ -27,12 +27,12 @@ index fb3c90f..b2dc284 100644
      public boolean execute(CommandSender sender, String currentAlias, String[] args) {
          if (!testPermission(sender)) return true;
  
-+        CustomTimingsHandler.reload(); // EMC
++        CustomTimingsHandler.reload(); // Spigot
          Bukkit.reload();
          Command.broadcastCommandMessage(sender, ChatColor.GREEN + "Reload complete.");
  
 diff --git a/src/main/java/org/bukkit/command/defaults/TimingsCommand.java b/src/main/java/org/bukkit/command/defaults/TimingsCommand.java
-index 75c70a4..0f608d5 100644
+index 94cd62c..e0628d0 100644
 --- a/src/main/java/org/bukkit/command/defaults/TimingsCommand.java
 +++ b/src/main/java/org/bukkit/command/defaults/TimingsCommand.java
 @@ -10,6 +10,7 @@ import org.apache.commons.lang.Validate;
@@ -47,21 +47,24 @@ index 75c70a4..0f608d5 100644
                      }
                  }
              }
-+            CustomTimingsHandler.reload(); // EMC - Reset the timers
-             timingStart = System.nanoTime(); // EMC - Reset start time for sample
++            CustomTimingsHandler.reload(); // Spigot
+             timingStart = System.nanoTime(); // Spigot
              sender.sendMessage("Timings reset");
          } else if ("merged".equals(args[0]) || separate) {
-@@ -95,6 +97,7 @@ public class TimingsCommand extends BukkitCommand {
+@@ -95,8 +97,10 @@ public class TimingsCommand extends BukkitCommand {
                      }
                      fileTimings.println("    Total time " + totalTime + " (" + totalTime / 1000000000 + "s)");
                  }
-+                CustomTimingsHandler.printTimings(fileTimings); // EMC
-                 fileTimings.println("Sample time " + sampleTime + " (" + sampleTime / 1000000000 + "s)");
++                CustomTimingsHandler.printTimings(fileTimings); // Spigot
+                 fileTimings.println("Sample time " + sampleTime + " (" + sampleTime / 1000000000 + "s)"); // Spigot
                  sender.sendMessage("Timings written to " + timings.getPath());
++                sender.sendMessage("Paste contents of file into form at http://aikar.co/timings.php to read results."); // Spigot
                  if (separate) sender.sendMessage("Names written to " + names.getPath());
+             } catch (IOException e) {
+             } finally {
 diff --git a/src/main/java/org/bukkit/event/CustomTimingsHandler.java b/src/main/java/org/bukkit/event/CustomTimingsHandler.java
 new file mode 100644
-index 0000000..b1aea6b
+index 0000000..83294e3
 --- /dev/null
 +++ b/src/main/java/org/bukkit/event/CustomTimingsHandler.java
 @@ -0,0 +1,60 @@
@@ -90,7 +93,7 @@ index 0000000..b1aea6b
 +    }
 +
 +    static public void printTimings(PrintStream printStream) {
-+        printStream.println("Custom Timings");
++        printStream.println("Minecraft - ** indicates it's already counted by another timing");
 +        for (CustomTimingsHandler t : allList) {
 +            long time = t.totalTime;
 +            int count = t.count;
