@@ -17,7 +17,7 @@ function savePatches {
     cd $basedir/EMC-$what/
     rm $basedir/patches/$what/*.patch
     git co master
-    git format-patch --quiet -N -o $basedir/patches/$what upstream/master
+    git format-patch --quiet -N -o $basedir/patches/$what upstream/upstream
     cd $basedir
     git add $basedir/patches/$what
     cleanupPatches $basedir/patches/$what/
