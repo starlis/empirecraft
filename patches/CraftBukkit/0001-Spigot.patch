@@ -1,6 +1,6 @@
-From ebd3337315154214692325590dc15b3f43efd41e Mon Sep 17 00:00:00 2001
+From 032e702c206d6c5e2e85e0df7148aa9bc888fc96 Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Mon, 21 Jan 2013 23:23:36 -0500
+Date: Wed, 23 Jan 2013 22:09:03 -0500
 Subject: [PATCH] Spigot
 
 ---
@@ -37,22 +37,20 @@ Subject: [PATCH] Spigot
  src/main/java/net/minecraft/server/PlayerList.java |  44 +-
  .../java/net/minecraft/server/SpawnerCreature.java |  26 +-
  .../net/minecraft/server/ThreadLoginVerifier.java  |  23 +
- src/main/java/net/minecraft/server/World.java      | 202 +++++++--
- .../java/net/minecraft/server/WorldServer.java     | 139 ++++--
+ src/main/java/net/minecraft/server/World.java      | 200 +++++++--
+ .../java/net/minecraft/server/WorldServer.java     | 128 +++++-
  .../java/org/bukkit/craftbukkit/CraftChunk.java    |  44 +-
  .../java/org/bukkit/craftbukkit/CraftServer.java   | 105 ++++-
  .../java/org/bukkit/craftbukkit/CraftWorld.java    |  87 +++-
- .../bukkit/craftbukkit/OrebfuscatorManager.java    |  93 ++++
- src/main/java/org/bukkit/craftbukkit/Spigot.java   |  38 ++
+ .../bukkit/craftbukkit/OrebfuscatorManager.java    |  95 ++++
+ src/main/java/org/bukkit/craftbukkit/Spigot.java   |  36 ++
  .../craftbukkit/chunkio/ChunkIOProvider.java       |   2 +-
  .../bukkit/craftbukkit/command/RestartCommand.java |  24 +
  .../craftbukkit/command/TicksPerSecondCommand.java |  35 ++
  .../org/bukkit/craftbukkit/entity/CraftPlayer.java |   7 +
- .../updater/BukkitDLUpdaterService.java            |  26 +-
  .../bukkit/craftbukkit/util/ExceptionHandler.java  |  31 ++
  .../bukkit/craftbukkit/util/ExceptionReporter.java |  26 ++
  .../java/org/bukkit/craftbukkit/util/FlatMap.java  |  34 ++
- .../craftbukkit/util/LightningSimulator.java       | 184 ++++++++
  .../org/bukkit/craftbukkit/util/LongHashSet.java   |   9 +-
  .../bukkit/craftbukkit/util/LongObjectHashMap.java |   5 +
  .../java/org/bukkit/craftbukkit/util/Metrics.java  | 488 +++++++++++++++++++++
@@ -60,8 +58,8 @@ Subject: [PATCH] Spigot
  .../org/bukkit/craftbukkit/util/Versioning.java    |   2 +-
  .../bukkit/craftbukkit/util/WatchdogThread.java    |  88 ++++
  .../java/org/bukkit/event/WorldTimingsHandler.java |  20 +
- src/main/resources/configurations/bukkit.yml       |  61 +++
- 57 files changed, 2302 insertions(+), 239 deletions(-)
+ src/main/resources/configurations/bukkit.yml       |  36 ++
+ 55 files changed, 2073 insertions(+), 220 deletions(-)
  create mode 100644 src/main/java/net/minecraft/server/NibbleArray.java
  create mode 100644 src/main/java/net/minecraft/server/OldChunkLoader.java
  create mode 100644 src/main/java/org/bukkit/craftbukkit/OrebfuscatorManager.java
@@ -71,14 +69,13 @@ Subject: [PATCH] Spigot
  create mode 100644 src/main/java/org/bukkit/craftbukkit/util/ExceptionHandler.java
  create mode 100644 src/main/java/org/bukkit/craftbukkit/util/ExceptionReporter.java
  create mode 100644 src/main/java/org/bukkit/craftbukkit/util/FlatMap.java
- create mode 100644 src/main/java/org/bukkit/craftbukkit/util/LightningSimulator.java
  create mode 100644 src/main/java/org/bukkit/craftbukkit/util/Metrics.java
  create mode 100644 src/main/java/org/bukkit/craftbukkit/util/TimedThread.java
  create mode 100644 src/main/java/org/bukkit/craftbukkit/util/WatchdogThread.java
  create mode 100644 src/main/java/org/bukkit/event/WorldTimingsHandler.java
 
 diff --git a/.gitignore b/.gitignore
-index a689360..4138573 100644
+index a689360..b97a549 100644
 --- a/.gitignore
 +++ b/.gitignore
 @@ -34,3 +34,5 @@
@@ -87,6 +84,7 @@ index a689360..4138573 100644
  /src/main/resources/lang
 +
 +/dependency-reduced-pom.xml
+\ No newline at end of file
 diff --git a/pom.xml b/pom.xml
 index f0b0bfb..e08f4fd 100644
 --- a/pom.xml
@@ -1654,7 +1652,7 @@ index 0686ba0..58d30eb 100644
              URL url = new URL("http://session.minecraft.net/game/checkserver.jsp?user=" + URLEncoder.encode(PendingConnection.d(this.pendingConnection), "UTF-8") + "&serverId=" + URLEncoder.encode(s, "UTF-8"));
              BufferedReader bufferedreader = new BufferedReader(new InputStreamReader(url.openStream()));
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index e2fd0df..88b7f7a 100644
+index e2fd0df..adb1312 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
 @@ -14,6 +14,7 @@ import java.util.concurrent.Callable;
@@ -1665,17 +1663,16 @@ index e2fd0df..88b7f7a 100644
  import org.bukkit.generator.ChunkGenerator;
  import org.bukkit.craftbukkit.CraftServer;
  import org.bukkit.craftbukkit.CraftWorld;
-@@ -64,7 +65,8 @@ public abstract class World implements IBlockAccess {
+@@ -64,7 +65,7 @@ public abstract class World implements IBlockAccess {
      // CraftBukkit start - public, longhashset
      public boolean allowMonsters = true;
      public boolean allowAnimals = true;
 -    protected LongHashSet chunkTickList = new LongHashSet();
 +    protected gnu.trove.map.hash.TLongShortHashMap chunkTickList; // Spigot
-+    private org.bukkit.craftbukkit.util.LightningSimulator lightningSim = new org.bukkit.craftbukkit.util.LightningSimulator(this); // Spigot
      public long ticksPerAnimalSpawns;
      public long ticksPerMonsterSpawns;
      // CraftBukkit end
-@@ -72,7 +74,20 @@ public abstract class World implements IBlockAccess {
+@@ -72,7 +73,20 @@ public abstract class World implements IBlockAccess {
      int[] H;
      private List O;
      public boolean isStatic;
@@ -1696,7 +1693,7 @@ index e2fd0df..88b7f7a 100644
      public BiomeBase getBiome(int i, int j) {
          if (this.isLoaded(i, 0, j)) {
              Chunk chunk = this.getChunkAtWorldCoords(i, j);
-@@ -98,7 +113,9 @@ public abstract class World implements IBlockAccess {
+@@ -98,7 +112,9 @@ public abstract class World implements IBlockAccess {
      int lastXAccessed = Integer.MIN_VALUE;
      int lastZAccessed = Integer.MIN_VALUE;
      final Object chunkLock = new Object();
@@ -1706,7 +1703,7 @@ index e2fd0df..88b7f7a 100644
      public CraftWorld getWorld() {
          return this.world;
      }
-@@ -110,11 +127,18 @@ public abstract class World implements IBlockAccess {
+@@ -110,11 +126,18 @@ public abstract class World implements IBlockAccess {
      // Changed signature
      public World(IDataManager idatamanager, String s, WorldSettings worldsettings, WorldProvider worldprovider, MethodProfiler methodprofiler, ChunkGenerator gen, org.bukkit.World.Environment env) {
          this.generator = gen;
@@ -1725,7 +1722,7 @@ index e2fd0df..88b7f7a 100644
          this.N = this.random.nextInt(12000);
          this.H = new int['\u8000'];
          this.O = new UnsafeList(); // CraftBukkit - ArrayList -> UnsafeList
-@@ -122,7 +146,7 @@ public abstract class World implements IBlockAccess {
+@@ -122,7 +145,7 @@ public abstract class World implements IBlockAccess {
          this.dataManager = idatamanager;
          this.methodProfiler = methodprofiler;
          this.worldMaps = new WorldMapCollection(idatamanager);
@@ -1734,7 +1731,7 @@ index e2fd0df..88b7f7a 100644
          if (worldprovider != null) {
              this.worldProvider = worldprovider;
          } else if (this.worldData != null && this.worldData.j() != 0) {
-@@ -171,6 +195,7 @@ public abstract class World implements IBlockAccess {
+@@ -171,6 +194,7 @@ public abstract class World implements IBlockAccess {
          this.a();
  
          this.getServer().addWorld(this.world); // CraftBukkit
@@ -1742,7 +1739,7 @@ index e2fd0df..88b7f7a 100644
      }
  
      protected abstract IChunkProvider j();
-@@ -275,15 +300,13 @@ public abstract class World implements IBlockAccess {
+@@ -275,15 +299,13 @@ public abstract class World implements IBlockAccess {
  
      // CraftBukkit start
      public Chunk getChunkAt(int i, int j) {
@@ -1764,7 +1761,7 @@ index e2fd0df..88b7f7a 100644
          return result;
      }
      // CraftBukkit end
-@@ -903,6 +926,24 @@ public abstract class World implements IBlockAccess {
+@@ -903,6 +925,24 @@ public abstract class World implements IBlockAccess {
              event = CraftEventFactory.callCreatureSpawnEvent((EntityLiving) entity, spawnReason);
          } else if (entity instanceof EntityItem) {
              event = CraftEventFactory.callItemSpawnEvent((EntityItem) entity);
@@ -1789,7 +1786,7 @@ index e2fd0df..88b7f7a 100644
          } else if (entity.getBukkitEntity() instanceof org.bukkit.entity.Projectile) {
              // Not all projectiles extend EntityProjectile, so check for Bukkit interface instead
              event = CraftEventFactory.callProjectileLaunchEvent(entity);
-@@ -995,6 +1036,39 @@ public abstract class World implements IBlockAccess {
+@@ -995,6 +1035,39 @@ public abstract class World implements IBlockAccess {
          int i1 = MathHelper.floor(axisalignedbb.c);
          int j1 = MathHelper.floor(axisalignedbb.f + 1.0D);
  
@@ -1829,7 +1826,7 @@ index e2fd0df..88b7f7a 100644
          for (int k1 = i; k1 < j; ++k1) {
              for (int l1 = i1; l1 < j1; ++l1) {
                  if (this.isLoaded(k1, 64, l1)) {
-@@ -1008,6 +1082,7 @@ public abstract class World implements IBlockAccess {
+@@ -1008,6 +1081,7 @@ public abstract class World implements IBlockAccess {
                  }
              }
          }
@@ -1837,7 +1834,7 @@ index e2fd0df..88b7f7a 100644
  
          double d0 = 0.25D;
          List list = this.getEntities(entity, axisalignedbb.grow(d0, d0, d0));
-@@ -1113,6 +1188,7 @@ public abstract class World implements IBlockAccess {
+@@ -1113,6 +1187,7 @@ public abstract class World implements IBlockAccess {
          CrashReport crashreport;
          CrashReportSystemDetails crashreportsystemdetails;
  
@@ -1845,7 +1842,7 @@ index e2fd0df..88b7f7a 100644
          for (i = 0; i < this.i.size(); ++i) {
              entity = (Entity) this.i.get(i);
              // CraftBukkit start - fixed an NPE, don't process entities in chunks queued for unload
-@@ -1167,7 +1243,9 @@ public abstract class World implements IBlockAccess {
+@@ -1167,7 +1242,9 @@ public abstract class World implements IBlockAccess {
  
          this.f.clear();
          this.methodProfiler.c("regular");
@@ -1855,7 +1852,7 @@ index e2fd0df..88b7f7a 100644
          for (i = 0; i < this.entityList.size(); ++i) {
              entity = (Entity) this.entityList.get(i);
  
-@@ -1220,7 +1298,9 @@ public abstract class World implements IBlockAccess {
+@@ -1220,7 +1297,9 @@ public abstract class World implements IBlockAccess {
              this.methodProfiler.b();
          }
  
@@ -1865,7 +1862,7 @@ index e2fd0df..88b7f7a 100644
          this.M = true;
          Iterator iterator = this.tileEntityList.iterator();
  
-@@ -1299,6 +1379,7 @@ public abstract class World implements IBlockAccess {
+@@ -1299,6 +1378,7 @@ public abstract class World implements IBlockAccess {
              this.a.clear();
          }
  
@@ -1873,7 +1870,7 @@ index e2fd0df..88b7f7a 100644
          this.methodProfiler.b();
          this.methodProfiler.b();
      }
-@@ -1315,7 +1396,37 @@ public abstract class World implements IBlockAccess {
+@@ -1315,7 +1395,37 @@ public abstract class World implements IBlockAccess {
          this.entityJoinedWorld(entity, true);
      }
  
@@ -1912,15 +1909,7 @@ index e2fd0df..88b7f7a 100644
          int i = MathHelper.floor(entity.locX);
          int j = MathHelper.floor(entity.locZ);
          byte b0 = 32;
-@@ -1815,6 +1926,7 @@ public abstract class World implements IBlockAccess {
- 
-     protected void n() {
-         if (!this.worldProvider.f) {
-+            lightningSim.onTick(); // Spigot
-             int i = this.worldData.getThunderDuration();
- 
-             if (i <= 0) {
-@@ -1896,6 +2008,11 @@ public abstract class World implements IBlockAccess {
+@@ -1896,6 +2006,11 @@ public abstract class World implements IBlockAccess {
          this.worldData.setWeatherDuration(1);
      }
  
@@ -1932,7 +1921,7 @@ index e2fd0df..88b7f7a 100644
      protected void z() {
          // this.chunkTickList.clear(); // CraftBukkit - removed
          this.methodProfiler.a("buildList");
-@@ -1905,25 +2022,42 @@ public abstract class World implements IBlockAccess {
+@@ -1905,25 +2020,42 @@ public abstract class World implements IBlockAccess {
          int j;
          int k;
  
@@ -1989,7 +1978,7 @@ index e2fd0df..88b7f7a 100644
  
          this.methodProfiler.b();
          if (this.N > 0) {
-@@ -1931,7 +2065,7 @@ public abstract class World implements IBlockAccess {
+@@ -1931,7 +2063,7 @@ public abstract class World implements IBlockAccess {
          }
  
          this.methodProfiler.a("playerCheckLight");
@@ -1998,7 +1987,7 @@ index e2fd0df..88b7f7a 100644
              i = this.random.nextInt(this.players.size());
              entityhuman = (EntityHuman) this.players.get(i);
              j = MathHelper.floor(entityhuman.locX) + this.random.nextInt(11) - 5;
-@@ -1970,9 +2104,16 @@ public abstract class World implements IBlockAccess {
+@@ -1970,9 +2102,16 @@ public abstract class World implements IBlockAccess {
          chunk.o();
      }
  
@@ -2015,7 +2004,7 @@ index e2fd0df..88b7f7a 100644
  
      public boolean w(int i, int j, int k) {
          return this.c(i, j, k, false);
-@@ -2310,7 +2451,10 @@ public abstract class World implements IBlockAccess {
+@@ -2310,7 +2449,10 @@ public abstract class World implements IBlockAccess {
      }
  
      public List getEntities(Entity entity, AxisAlignedBB axisalignedbb) {
@@ -2027,7 +2016,7 @@ index e2fd0df..88b7f7a 100644
          int i = MathHelper.floor((axisalignedbb.a - 2.0D) / 16.0D);
          int j = MathHelper.floor((axisalignedbb.d + 2.0D) / 16.0D);
          int k = MathHelper.floor((axisalignedbb.c - 2.0D) / 16.0D);
-@@ -2319,12 +2463,12 @@ public abstract class World implements IBlockAccess {
+@@ -2319,12 +2461,12 @@ public abstract class World implements IBlockAccess {
          for (int i1 = i; i1 <= j; ++i1) {
              for (int j1 = k; j1 <= l; ++j1) {
                  if (this.isChunkLoaded(i1, j1)) {
@@ -2043,7 +2032,7 @@ index e2fd0df..88b7f7a 100644
  
      public List a(Class oclass, AxisAlignedBB axisalignedbb) {
 diff --git a/src/main/java/net/minecraft/server/WorldServer.java b/src/main/java/net/minecraft/server/WorldServer.java
-index 3f73ef9..b7ab326 100644
+index 3f73ef9..eb268ad 100644
 --- a/src/main/java/net/minecraft/server/WorldServer.java
 +++ b/src/main/java/net/minecraft/server/WorldServer.java
 @@ -1,5 +1,7 @@
@@ -2145,25 +2134,7 @@ index 3f73ef9..b7ab326 100644
              // ChunkCoordIntPair chunkcoordintpair = (ChunkCoordIntPair) iterator.next();
              int k = chunkX * 16;
              int l = chunkZ * 16;
-@@ -293,16 +317,7 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
-             int k1;
-             int l1;
- 
--            if (this.random.nextInt(100000) == 0 && this.N() && this.M()) {
--                this.k = this.k * 3 + 1013904223;
--                i1 = this.k >> 2;
--                j1 = k + (i1 & 15);
--                k1 = l + (i1 >> 8 & 15);
--                l1 = this.h(j1, k1);
--                if (this.D(j1, l1, k1)) {
--                    this.strikeLightning(new EntityLightning(this, (double) j1, (double) l1, (double) k1));
--                }
--            }
-+            // Spigot - remove lightning code
- 
-             this.methodProfiler.c("iceandsnow");
-             int i2;
-@@ -373,6 +388,14 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
+@@ -373,6 +397,14 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
  
                          if (block != null && block.isTicking()) {
                              ++i;
@@ -2178,7 +2149,7 @@ index 3f73ef9..b7ab326 100644
                              block.b(this, k2 + k, i3 + chunksection.d(), l2 + l, this.random);
                          }
                      }
-@@ -413,10 +436,11 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
+@@ -413,10 +445,11 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
                  nextticklistentry.a(j1);
              }
  
@@ -2194,7 +2165,7 @@ index 3f73ef9..b7ab326 100644
          }
      }
  
-@@ -427,10 +451,11 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
+@@ -427,10 +460,11 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
              nextticklistentry.a((long) i1 + this.worldData.getTime());
          }
  
@@ -2210,7 +2181,7 @@ index 3f73ef9..b7ab326 100644
      }
  
      public void tickEntities() {
-@@ -452,9 +477,9 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
+@@ -452,9 +486,9 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
      public boolean a(boolean flag) {
          int i = this.M.size();
  
@@ -2223,7 +2194,7 @@ index 3f73ef9..b7ab326 100644
              if (i > 1000) {
                  // CraftBukkit start - if the server has too much to process over time, try to alleviate that
                  if (i > 20 * 1000) {
-@@ -472,8 +497,11 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
+@@ -472,8 +506,11 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
                      break;
                  }
  
@@ -2237,7 +2208,7 @@ index 3f73ef9..b7ab326 100644
                  byte b0 = 8;
  
                  if (this.d(nextticklistentry.a - b0, nextticklistentry.b - b0, nextticklistentry.c - b0, nextticklistentry.a + b0, nextticklistentry.b + b0, nextticklistentry.c + b0)) {
-@@ -502,10 +530,12 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
+@@ -502,10 +539,12 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
              }
  
              return !this.M.isEmpty();
@@ -2251,7 +2222,7 @@ index 3f73ef9..b7ab326 100644
          ArrayList arraylist = null;
          ChunkCoordIntPair chunkcoordintpair = chunk.l();
          int i = chunkcoordintpair.x << 4;
-@@ -532,6 +562,7 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
+@@ -532,6 +571,7 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
          }
  
          return arraylist;
@@ -2259,7 +2230,7 @@ index 3f73ef9..b7ab326 100644
      }
  
      public void entityJoinedWorld(Entity entity, boolean flag) {
-@@ -610,7 +641,7 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
+@@ -610,7 +650,7 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
          }
  
          if (this.L == null) {
@@ -2268,7 +2239,7 @@ index 3f73ef9..b7ab326 100644
          }
  
          if (this.M == null) {
-@@ -883,4 +914,48 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
+@@ -883,4 +923,48 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
      public PortalTravelAgent s() {
          return this.P;
      }
@@ -2696,10 +2667,10 @@ index cb20066..21bd64a 100644
          return getChunkAt(x >> 4, z >> 4).getBlock(x & 0xF, y & 0xFF, z & 0xF);
 diff --git a/src/main/java/org/bukkit/craftbukkit/OrebfuscatorManager.java b/src/main/java/org/bukkit/craftbukkit/OrebfuscatorManager.java
 new file mode 100644
-index 0000000..6d5a519
+index 0000000..1ac8c26
 --- /dev/null
 +++ b/src/main/java/org/bukkit/craftbukkit/OrebfuscatorManager.java
-@@ -0,0 +1,93 @@
+@@ -0,0 +1,95 @@
 +package org.bukkit.craftbukkit;
 +
 +import net.minecraft.server.Block;
@@ -2749,7 +2720,9 @@ index 0000000..6d5a519
 +                                        buffer[index] = (byte) Block.STONE.id;
 +                                    }
 +                                }
-+                                index++;
++                                if (++index > buffer.length) {
++                                    return;
++                                }
 +                            }
 +                        }
 +                    }
@@ -2795,10 +2768,10 @@ index 0000000..6d5a519
 +}
 diff --git a/src/main/java/org/bukkit/craftbukkit/Spigot.java b/src/main/java/org/bukkit/craftbukkit/Spigot.java
 new file mode 100644
-index 0000000..9f0a99a
+index 0000000..83988c3
 --- /dev/null
 +++ b/src/main/java/org/bukkit/craftbukkit/Spigot.java
-@@ -0,0 +1,38 @@
+@@ -0,0 +1,36 @@
 +package org.bukkit.craftbukkit;
 +
 +import org.bukkit.command.SimpleCommandMap;
@@ -2833,8 +2806,6 @@ index 0000000..9f0a99a
 +            server.getLogger().severe("[Spigot] You should not disable chunk-gc. Resetting period-in-ticks to 600 ticks.");
 +            server.chunkGCPeriod = 600;
 +        }
-+
-+        org.bukkit.craftbukkit.util.LightningSimulator.configure(configuration);
 +    }
 +}
 diff --git a/src/main/java/org/bukkit/craftbukkit/chunkio/ChunkIOProvider.java b/src/main/java/org/bukkit/craftbukkit/chunkio/ChunkIOProvider.java
@@ -2944,76 +2915,6 @@ index f0e24d2..1c61830 100644
  
      public void setCompassTarget(Location loc) {
          if (getHandle().playerConnection == null) return;
-diff --git a/src/main/java/org/bukkit/craftbukkit/updater/BukkitDLUpdaterService.java b/src/main/java/org/bukkit/craftbukkit/updater/BukkitDLUpdaterService.java
-index f027900..efc7889 100644
---- a/src/main/java/org/bukkit/craftbukkit/updater/BukkitDLUpdaterService.java
-+++ b/src/main/java/org/bukkit/craftbukkit/updater/BukkitDLUpdaterService.java
-@@ -1,6 +1,6 @@
- package org.bukkit.craftbukkit.updater;
- 
--import com.google.gson.*;
-+// import com.google.gson.*; // Spigot
- import java.io.IOException;
- import java.io.InputStreamReader;
- import java.io.UnsupportedEncodingException;
-@@ -16,7 +16,7 @@ import java.util.logging.Logger;
- public class BukkitDLUpdaterService {
-     private static final String API_PREFIX_ARTIFACT = "/api/1.0/downloads/projects/craftbukkit/view/";
-     private static final String API_PREFIX_CHANNEL = "/api/1.0/downloads/channels/";
--    private static final DateDeserializer dateDeserializer = new DateDeserializer();
-+    // private static final DateDeserializer dateDeserializer = new DateDeserializer(); // Spigot
-     private final String host;
- 
-     public BukkitDLUpdaterService(String host) {
-@@ -47,8 +47,11 @@ public class BukkitDLUpdaterService {
-             URLConnection connection = url.openConnection();
-             connection.setRequestProperty("User-Agent", getUserAgent());
-             reader = new InputStreamReader(connection.getInputStream());
--            Gson gson = new GsonBuilder().registerTypeAdapter(Date.class, dateDeserializer).setFieldNamingPolicy(FieldNamingPolicy.LOWER_CASE_WITH_UNDERSCORES).create();
--            return gson.fromJson(reader, ArtifactDetails.class);
-+            // Spigot start
-+            // Gson gson = new GsonBuilder().registerTypeAdapter(Date.class, dateDeserializer).setFieldNamingPolicy(FieldNamingPolicy.LOWER_CASE_WITH_UNDERSCORES).create();
-+            // return gson.fromJson(reader, ArtifactDetails.class);
-+            // Spigot end
-+            return null;
-         } finally {
-             if (reader != null) {
-                 reader.close();
-@@ -76,10 +79,13 @@ public class BukkitDLUpdaterService {
-             URLConnection connection = url.openConnection();
-             connection.setRequestProperty("User-Agent", getUserAgent());
-             reader = new InputStreamReader(connection.getInputStream());
--            Gson gson = new GsonBuilder().registerTypeAdapter(Date.class, dateDeserializer).setFieldNamingPolicy(FieldNamingPolicy.LOWER_CASE_WITH_UNDERSCORES).create();
--            ArtifactDetails.ChannelDetails fromJson = gson.fromJson(reader, ArtifactDetails.ChannelDetails.class);
-+            // Spigot start
-+            // Gson gson = new GsonBuilder().registerTypeAdapter(Date.class, dateDeserializer).setFieldNamingPolicy(FieldNamingPolicy.LOWER_CASE_WITH_UNDERSCORES).create();
-+            // ArtifactDetails.ChannelDetails fromJson = gson.fromJson(reader, ArtifactDetails.ChannelDetails.class);
- 
--            return fromJson;
-+            //return fromJson;
-+            // Spigot end
-+            return null;
-         } finally {
-             if (reader != null) {
-                 reader.close();
-@@ -87,7 +93,9 @@ public class BukkitDLUpdaterService {
-         }
-     }
- 
--    static class DateDeserializer implements JsonDeserializer<Date> {
-+    // Spigot start
-+    /*
-+     static class DateDeserializer implements JsonDeserializer<Date> {
-         private static final SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
- 
-         public Date deserialize(JsonElement je, Type type, JsonDeserializationContext jdc) throws JsonParseException {
-@@ -97,5 +105,5 @@ public class BukkitDLUpdaterService {
-                 throw new JsonParseException("Date is not formatted correctly", ex);
-             }
-         }
--    }
-+    }*/// Spigot end
- }
 diff --git a/src/main/java/org/bukkit/craftbukkit/util/ExceptionHandler.java b/src/main/java/org/bukkit/craftbukkit/util/ExceptionHandler.java
 new file mode 100644
 index 0000000..392155e
@@ -3121,196 +3022,6 @@ index 0000000..e8a7725
 +
 +    public V get(long key) {
 +        return get(LongHash.msw(key), LongHash.lsw(key));
-+    }
-+}
-diff --git a/src/main/java/org/bukkit/craftbukkit/util/LightningSimulator.java b/src/main/java/org/bukkit/craftbukkit/util/LightningSimulator.java
-new file mode 100644
-index 0000000..3b12b19
---- /dev/null
-+++ b/src/main/java/org/bukkit/craftbukkit/util/LightningSimulator.java
-@@ -0,0 +1,184 @@
-+package org.bukkit.craftbukkit.util;
-+
-+import java.util.ArrayList;
-+import java.util.HashMap;
-+import java.util.List;
-+import java.util.Random;
-+import net.minecraft.server.EntityLightning;
-+import net.minecraft.server.EntityPlayer;
-+import net.minecraft.server.MathHelper;
-+import net.minecraft.server.World;
-+import org.bukkit.Bukkit;
-+import org.bukkit.configuration.file.YamlConfiguration;
-+import org.bukkit.event.weather.ThunderChangeEvent;
-+
-+public class LightningSimulator {
-+
-+    private static final int MAX_LIGHTNING_BRANCHES = 5;
-+    final World world;
-+    final HashMap<EntityPlayer, Integer> playerCountdown = new HashMap<EntityPlayer, Integer>();
-+    Intensity stormIntensity = null;
-+    boolean canceled = false;
-+
-+    public LightningSimulator(World world) {
-+        this.world = world;
-+    }
-+
-+    public static void configure(YamlConfiguration configuration) {
-+        Bukkit.getLogger().info("--------Setting up Storm Configuration--------");
-+        for (Intensity intensity : Intensity.values()) {
-+            String nameFormatted = intensity.name().toLowerCase().replaceAll("_", "-");
-+            intensity.chance = configuration.getInt("storm-settings." + nameFormatted + ".chance", intensity.chance);
-+            intensity.baseTicks = configuration.getInt("storm-settings." + nameFormatted + ".lightning-delay", intensity.baseTicks);
-+            intensity.randomTicks = configuration.getInt("storm-settings." + nameFormatted + ".lightning-random-delay", intensity.randomTicks);
-+            Bukkit.getLogger().info("    Storm Type: " + nameFormatted);
-+            Bukkit.getLogger().info("        Chance: " + intensity.chance);
-+            Bukkit.getLogger().info("        Lightning Delay Ticks: " + intensity.baseTicks);
-+            Bukkit.getLogger().info("        Lightning Random Delay Ticks: " + intensity.randomTicks);
-+        }
-+        Bukkit.getLogger().info("--------Finished Storm Configuration--------");
-+    }
-+
-+    public void onTick() {
-+        try {
-+            updatePlayerTimers();
-+        } catch (Exception e) {
-+            System.out.println("Spigot failed to calculate lightning for the server");
-+            System.out.println("Please report this to md_5");
-+            System.out.println("Spigot Version: " + Bukkit.getBukkitVersion());
-+            e.printStackTrace();
-+        }
-+    }
-+
-+    public void updatePlayerTimers() {
-+        if (world.getWorld().hasStorm()) {
-+            if (canceled) {
-+                return;
-+            }
-+            if (stormIntensity == null) {
-+                ThunderChangeEvent thunder = new ThunderChangeEvent(world.getWorld(), true);
-+                Bukkit.getPluginManager().callEvent(thunder);
-+                if (thunder.isCancelled()) {
-+                    canceled = true;
-+                    return;
-+                }
-+                stormIntensity = Intensity.getRandomIntensity(world.random);
-+                System.out.println("Started a storm of type " + stormIntensity.name() + " in world [" + world.worldData.getName() + "]");
-+            }
-+            List<EntityPlayer> toStrike = new ArrayList<EntityPlayer>();
-+            for (Object o : world.players) {
-+                if (o instanceof EntityPlayer) {
-+                    EntityPlayer player = (EntityPlayer) o;
-+                    Integer ticksLeft = playerCountdown.get(player);
-+                    if (ticksLeft == null) {
-+                        playerCountdown.put(player, getTicksBeforeNextLightning(world.random));
-+                    } else if (ticksLeft == 1) {
-+                        //weed out dc'd players
-+                        if (!player.playerConnection.disconnected) {
-+                            toStrike.add(player);
-+                            playerCountdown.put(player, getTicksBeforeNextLightning(world.random));
-+                        }
-+                    } else {
-+                        playerCountdown.put(player, ticksLeft - 1);
-+                    }
-+                }
-+            }
-+            strikePlayers(toStrike);
-+        } else {
-+            stormIntensity = null;
-+            canceled = false;
-+        }
-+    }
-+
-+    public void strikePlayers(List<EntityPlayer> toStrike) {
-+        for (EntityPlayer player : toStrike) {
-+            final int posX = MathHelper.floor(player.locX);
-+            final int posY = MathHelper.floor(player.locY);
-+            final int posZ = MathHelper.floor(player.locZ);
-+            for (int tries = 0; tries < 10; tries++) {
-+                //pick a random chunk between -4, -4, to 4, 4 relative to the player's position to strike at
-+                int cx = (world.random.nextBoolean() ? -1 : 1) * world.random.nextInt(5);
-+                int cz = (world.random.nextBoolean() ? -1 : 1) * world.random.nextInt(5);
-+
-+                //pick random coords to try to strike at inside the chunk (0, 0) to (15, 15)
-+                int rx = world.random.nextInt(16);
-+                int rz = world.random.nextInt(16);
-+
-+                //pick a offset from the player's y position to strike at (-15 - +15) of their position
-+                int offsetY = (world.random.nextBoolean() ? -1 : 1) * world.random.nextInt(15);
-+
-+                int x = cx * 16 + rx + posX;
-+                int y = posY + offsetY;
-+                int z = cz * 16 + rz + posZ;
-+
-+                if (isRainingAt(x, y, z)) {
-+                    int lightning = 1;
-+                    //30% chance of extra lightning at the spot
-+                    if (world.random.nextInt(10) < 3) {
-+                        lightning += world.random.nextInt(MAX_LIGHTNING_BRANCHES);
-+                    }
-+                    for (int strikes = 0; strikes < lightning; strikes++) {
-+                        double adjustX = 0.5D;
-+                        double adjustY = 0.0D;
-+                        double adjustZ = 0.5D;
-+                        //if there are extra strikes, tweak their placement slightly
-+                        if (strikes > 0) {
-+                            adjustX += (world.random.nextBoolean() ? -1 : 1) * world.random.nextInt(2);
-+                            adjustY += (world.random.nextBoolean() ? -1 : 1) * world.random.nextInt(8);
-+                            adjustZ += (world.random.nextBoolean() ? -1 : 1) * world.random.nextInt(2);
-+                        }
-+                        EntityLightning lightningStrike = new EntityLightning(world, x + adjustX, y + adjustY, z + adjustZ);
-+                        world.strikeLightning(lightningStrike);
-+                    }
-+                    //success, go to the next player
-+                    break;
-+                }
-+            }
-+        }
-+    }
-+
-+    public int getTicksBeforeNextLightning(Random rand) {
-+        return stormIntensity.baseTicks + rand.nextInt(stormIntensity.randomTicks);
-+    }
-+
-+    public boolean isRainingAt(int x, int y, int z) {
-+        return world.D(x, y, z);
-+    }
-+}
-+
-+enum Intensity {
-+
-+    STRONG_ELECTRICAL_STORM(5, 10, 20),
-+    ELECTRICAL_STORM(15, 40, 150),
-+    STRONG_THUNDERSTORM(30, 60, 250),
-+    THUNDERSTORM(50, 100, 500),
-+    WEAK_THUNDERSTORM(75, 300, 1000),
-+    RAINSTORM(100, 500, 2000);
-+    int chance, baseTicks, randomTicks;
-+
-+    Intensity(int chance, int baseTicks, int randomTicks) {
-+        this.chance = chance;
-+        this.baseTicks = baseTicks;
-+        this.randomTicks = randomTicks;
-+    }
-+
-+    public static Intensity getRandomIntensity(Random rand) {
-+        int r = rand.nextInt(100);
-+        if (r < STRONG_ELECTRICAL_STORM.chance) {
-+            return STRONG_ELECTRICAL_STORM;
-+        }
-+        if (r < ELECTRICAL_STORM.chance) {
-+            return ELECTRICAL_STORM;
-+        }
-+        if (r < STRONG_THUNDERSTORM.chance) {
-+            return STRONG_THUNDERSTORM;
-+        }
-+        if (r < THUNDERSTORM.chance) {
-+            return THUNDERSTORM;
-+        }
-+        if (r < WEAK_THUNDERSTORM.chance) {
-+            return WEAK_THUNDERSTORM;
-+        }
-+        return RAINSTORM;
 +    }
 +}
 diff --git a/src/main/java/org/bukkit/craftbukkit/util/LongHashSet.java b/src/main/java/org/bukkit/craftbukkit/util/LongHashSet.java
@@ -4068,10 +3779,10 @@ index 0000000..bb0c191
 +    }
 +}
 diff --git a/src/main/resources/configurations/bukkit.yml b/src/main/resources/configurations/bukkit.yml
-index 61a95e3..fee0bb1 100644
+index 61a95e3..6931712 100644
 --- a/src/main/resources/configurations/bukkit.yml
 +++ b/src/main/resources/configurations/bukkit.yml
-@@ -25,6 +25,62 @@ settings:
+@@ -25,6 +25,37 @@ settings:
      query-plugins: true
      deprecated-verbose: default
      shutdown-message: Server closed
@@ -4106,35 +3817,10 @@ index 61a95e3..fee0bb1 100644
 +        growth-chunks-per-tick: 0
 +        random-light-updates: true
 +        water-creatures-per-chunk: 0
-+storm-settings:
-+    strong-electrical-storm:
-+        chance: 5
-+        lightning-delay: 10
-+        lightning-random-delay: 20
-+    electrical-storm:
-+        chance: 15
-+        lightning-delay: 40
-+        lightning-random-delay: 150
-+    strong-thunderstorm:
-+        chance: 30
-+        lightning-delay: 60
-+        lightning-random-delay: 250
-+    thunderstorm:
-+        chance: 50
-+        lightning-delay: 100
-+        lightning-random-delay: 500
-+    weak-thunderstorm:
-+        chance: 75
-+        lightning-delay: 300
-+        lightning-random-delay: 1000
-+    rainstorm:
-+        chance: 100
-+        lightning-delay: 500
-+        lightning-random-delay: 2000
  spawn-limits:
      monsters: 70
      animals: 15
-@@ -53,3 +109,8 @@ database:
+@@ -53,3 +84,8 @@ database:
      driver: org.sqlite.JDBC
      password: walrus
      url: jdbc:sqlite:{DIR}{NAME}.db
