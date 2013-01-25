@@ -1,0 +1,100 @@
+From 496f3a153e6915c343060307e8368a80ac434d76 Mon Sep 17 00:00:00 2001
+From: EdGruberman <ed@rjump.com>
+Date: Thu, 24 Jan 2013 13:44:31 -0700
+Subject: [PATCH] Target default world when returning from The End; Fixes
+ BUKKIT-3494
+
+Due to the having to generate new logic to avoid using the customized
+PlayerConnection.moveToWorld, entities returning from The End were not
+properly calculating their exit target.  This commit corrects that
+logic.
+---
+ src/main/java/net/minecraft/server/Entity.java            |  2 ++
+ src/main/java/net/minecraft/server/PlayerList.java        | 14 ++++++++++----
+ src/main/java/net/minecraft/server/PortalTravelAgent.java |  6 +++---
+ 3 files changed, 15 insertions(+), 7 deletions(-)
+
+diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
+index bbbab5c..bbfb1b9 100644
+--- a/src/main/java/net/minecraft/server/Entity.java
++++ b/src/main/java/net/minecraft/server/Entity.java
+@@ -1772,9 +1772,11 @@ public abstract class Entity {
+ 
+             Location enter = this.getBukkitEntity().getLocation();
+             Location exit = exitWorld != null ? minecraftserver.getPlayerList().calculateTarget(enter, minecraftserver.getWorldServer(i)) : null;
++            boolean useTravelAgent = exitWorld != null && !(this.dimension == 1 && exitWorld.dimension == 1) ? true : false; // don't use agent for custom worlds or return from THE_END
+ 
+             TravelAgent agent = exit != null ? (TravelAgent) ((CraftWorld) exit.getWorld()).getHandle().s() : null;
+             EntityPortalEvent event = new EntityPortalEvent(this.getBukkitEntity(), enter, exit, agent);
++            event.useTravelAgent(useTravelAgent);
+             event.getEntity().getServer().getPluginManager().callEvent(event);
+             if (event.isCancelled() || event.getTo() == null || !this.isAlive()) {
+                 return;
+diff --git a/src/main/java/net/minecraft/server/PlayerList.java b/src/main/java/net/minecraft/server/PlayerList.java
+index dee6579..a52d0e4 100644
+--- a/src/main/java/net/minecraft/server/PlayerList.java
++++ b/src/main/java/net/minecraft/server/PlayerList.java
+@@ -436,18 +436,22 @@ public abstract class PlayerList {
+ 
+         Location enter = entityplayer.getBukkitEntity().getLocation();
+         Location exit = null;
++        boolean useTravelAgent = false; // don't use agent for custom worlds or return from THE_END
+         if (exitWorld != null) {
+             if ((cause == TeleportCause.END_PORTAL) && (i == 0)) {
+-                // THE_END -> NORMAL; use bed if available
++                // THE_END -> NORMAL; use bed if available, otherwise default spawn
+                 exit = ((CraftPlayer) entityplayer.getBukkitEntity()).getBedSpawnLocation();
+-            }
+-            if (exit == null) {
++                if (exit == null) exit = exitWorld.getWorld().getSpawnLocation();
++            } else {
++                // NORMAL <-> NETHER or NORMAL -> THE_END
+                 exit = this.calculateTarget(enter, exitWorld);
++                useTravelAgent = true;
+             }
+         }
+ 
+         TravelAgent agent = exit != null ? (TravelAgent) ((CraftWorld) exit.getWorld()).getHandle().s() : null;
+         PlayerPortalEvent event = new PlayerPortalEvent(entityplayer.getBukkitEntity(), enter, exit, agent, cause);
++        event.useTravelAgent(useTravelAgent);
+         Bukkit.getServer().getPluginManager().callEvent(event);
+         if (event.isCancelled() || event.getTo() == null) {
+             return;
+@@ -517,6 +521,8 @@ public abstract class PlayerList {
+             ChunkCoordinates chunkcoordinates;
+ 
+             if (i == 1) {
++                // use default NORMAL world spawn instead of target
++                worldserver1 = this.server.worlds.get(0);
+                 chunkcoordinates = worldserver1.getSpawn();
+             } else {
+                 chunkcoordinates = worldserver1.getDimensionSpawn();
+@@ -553,7 +559,7 @@ public abstract class PlayerList {
+         }
+ 
+         // entity.spawnIn(worldserver1);
+-        return new Location(target.getWorld(), d0, y, d1, yaw, pitch);
++        return new Location(worldserver1.getWorld(), d0, y, d1, yaw, pitch);
+     }
+ 
+     // copy of original a(Entity, int, WorldServer, WorldServer) method with only entity repositioning logic
+diff --git a/src/main/java/net/minecraft/server/PortalTravelAgent.java b/src/main/java/net/minecraft/server/PortalTravelAgent.java
+index 7733e80..5d5774e 100644
+--- a/src/main/java/net/minecraft/server/PortalTravelAgent.java
++++ b/src/main/java/net/minecraft/server/PortalTravelAgent.java
+@@ -185,9 +185,9 @@ public class PortalTravelAgent {
+             // entity.setPositionRotation((double) i, (double) j, (double) k, entity.yaw, 0.0F);
+             // entity.motX = entity.motY = entity.motZ = 0.0D;
+             position.setPitch(0.0F);
+-            position.setX(0);
+-            position.setY(0);
+-            position.setZ(0);
++            velocity.setX(0);
++            velocity.setY(0);
++            velocity.setZ(0);
+         } else {
+             double d4;
+             int k1;
+-- 
+1.8.0.3
+
