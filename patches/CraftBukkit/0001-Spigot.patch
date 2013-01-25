@@ -1,6 +1,6 @@
-From 032e702c206d6c5e2e85e0df7148aa9bc888fc96 Mon Sep 17 00:00:00 2001
+From e687ffaa50ab47d225c6e7fabf2ea926cf574a2a Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Wed, 23 Jan 2013 22:09:03 -0500
+Date: Thu, 24 Jan 2013 19:21:27 -0500
 Subject: [PATCH] Spigot
 
 ---
@@ -34,14 +34,14 @@ Subject: [PATCH] Spigot
  .../java/net/minecraft/server/PlayerChunk.java     |   2 +-
  .../net/minecraft/server/PlayerConnection.java     |  25 +-
  .../minecraft/server/PlayerInteractManager.java    |   5 +
- src/main/java/net/minecraft/server/PlayerList.java |  44 +-
+ src/main/java/net/minecraft/server/PlayerList.java |  10 +-
  .../java/net/minecraft/server/SpawnerCreature.java |  26 +-
  .../net/minecraft/server/ThreadLoginVerifier.java  |  23 +
  src/main/java/net/minecraft/server/World.java      | 200 +++++++--
  .../java/net/minecraft/server/WorldServer.java     | 128 +++++-
  .../java/org/bukkit/craftbukkit/CraftChunk.java    |  44 +-
- .../java/org/bukkit/craftbukkit/CraftServer.java   | 105 ++++-
- .../java/org/bukkit/craftbukkit/CraftWorld.java    |  87 +++-
+ .../java/org/bukkit/craftbukkit/CraftServer.java   | 103 ++++-
+ .../java/org/bukkit/craftbukkit/CraftWorld.java    |  85 +++-
  .../bukkit/craftbukkit/OrebfuscatorManager.java    |  95 ++++
  src/main/java/org/bukkit/craftbukkit/Spigot.java   |  36 ++
  .../craftbukkit/chunkio/ChunkIOProvider.java       |   2 +-
@@ -59,7 +59,7 @@ Subject: [PATCH] Spigot
  .../bukkit/craftbukkit/util/WatchdogThread.java    |  88 ++++
  .../java/org/bukkit/event/WorldTimingsHandler.java |  20 +
  src/main/resources/configurations/bukkit.yml       |  36 ++
- 55 files changed, 2073 insertions(+), 220 deletions(-)
+ 55 files changed, 2045 insertions(+), 210 deletions(-)
  create mode 100644 src/main/java/net/minecraft/server/NibbleArray.java
  create mode 100644 src/main/java/net/minecraft/server/OldChunkLoader.java
  create mode 100644 src/main/java/org/bukkit/craftbukkit/OrebfuscatorManager.java
@@ -554,7 +554,7 @@ index 90e0636..42e669c 100644
 +    // Spigot end
  }
 diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
-index e1d611e..83f7ae8 100644
+index dffa97f..066143c 100644
 --- a/src/main/java/net/minecraft/server/Entity.java
 +++ b/src/main/java/net/minecraft/server/Entity.java
 @@ -423,6 +423,7 @@ public abstract class Entity {
@@ -1471,7 +1471,7 @@ index 5faee12..55f9ffa 100644
  
          if (false) { // Never trigger
 diff --git a/src/main/java/net/minecraft/server/PlayerList.java b/src/main/java/net/minecraft/server/PlayerList.java
-index 2fb83cf..642a4d9 100644
+index f669a00..dee6579 100644
 --- a/src/main/java/net/minecraft/server/PlayerList.java
 +++ b/src/main/java/net/minecraft/server/PlayerList.java
 @@ -253,7 +253,7 @@ public abstract class PlayerList {
@@ -1483,57 +1483,7 @@ index 2fb83cf..642a4d9 100644
          } else {
              String s2 = socketaddress.toString();
  
-@@ -424,24 +424,40 @@ public abstract class PlayerList {
- 
-     // CraftBukkit start - Replaced the standard handling of portals with a more customised method.
-     public void changeDimension(EntityPlayer entityplayer, int i, TeleportCause cause) {
--        WorldServer exitWorld = this.server.getWorldServer(i);
-+        WorldServer exitWorld = null;
-+        if (entityplayer.dimension < CraftWorld.CUSTOM_DIMENSION_OFFSET) { // plugins must specify exit from custom Bukkit worlds
-+            // only target existing worlds (compensate for allow-nether/allow-end as false)
-+            for (WorldServer world : this.server.worlds) {
-+                if (world.dimension == i) {
-+                    exitWorld = world;
-+                }
-+            }
-+        }
-+
-         Location enter = entityplayer.getBukkitEntity().getLocation();
-         Location exit = null;
--        if ((cause == TeleportCause.END_PORTAL) && (i == 0)) {
--            // THE_END -> NORMAL; use bed if available
--            exit = ((CraftPlayer) entityplayer.getBukkitEntity()).getBedSpawnLocation();
--        }
--        if (exit == null) {
--            exit = this.calculateTarget(enter, exitWorld);
-+        if (exitWorld != null) {
-+            if ((cause == TeleportCause.END_PORTAL) && (i == 0)) {
-+                // THE_END -> NORMAL; use bed if available
-+                exit = ((CraftPlayer) entityplayer.getBukkitEntity()).getBedSpawnLocation();
-+            }
-+            if (exit == null) {
-+                exit = this.calculateTarget(enter, exitWorld);
-+            }
-         }
- 
--        TravelAgent agent = (TravelAgent) ((CraftWorld) exit.getWorld()).getHandle().s();
-+        TravelAgent agent = exit != null ? (TravelAgent) ((CraftWorld) exit.getWorld()).getHandle().s() : null;
-         PlayerPortalEvent event = new PlayerPortalEvent(entityplayer.getBukkitEntity(), enter, exit, agent, cause);
-         Bukkit.getServer().getPluginManager().callEvent(event);
-         if (event.isCancelled() || event.getTo() == null) {
-             return;
-         }
--        exit = event.useTravelAgent() ? event.getPortalTravelAgent().findOrCreate(exit) : event.getTo();
-+
-+        if (event.useTravelAgent() && event.getPortalTravelAgent() != null) {
-+            exit = event.getPortalTravelAgent().findOrCreate(exit);
-+        } else {
-+            exit = event.getTo();
-+        }
-         exitWorld = ((CraftWorld) exit.getWorld()).getHandle();
- 
-         Vector velocity = entityplayer.getBukkitEntity().getVelocity();
-@@ -901,7 +917,13 @@ public abstract class PlayerList {
+@@ -913,7 +913,13 @@ public abstract class PlayerList {
  
      public void r() {
          while (!this.players.isEmpty()) {
@@ -2361,7 +2311,7 @@ index c3b9113..e34e781 100644
          }
  
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-index 936cbc6..e7a459b 100644
+index e7c0760..ef52f32 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 @@ -146,7 +146,7 @@ public final class CraftServer implements Server {
@@ -2440,7 +2390,7 @@ index 936cbc6..e7a459b 100644
          boolean animals = config.getBoolean("spawn-animals", console.getSpawnAnimals());
          boolean monsters = config.getBoolean("spawn-monsters", console.worlds.get(0).difficulty > 0);
          int difficulty = config.getInt("difficulty", console.worlds.get(0).difficulty);
-@@ -588,6 +615,7 @@ public final class CraftServer implements Server {
+@@ -591,6 +618,7 @@ public final class CraftServer implements Server {
                  "This plugin is not properly shutting down its async tasks when it is being reloaded.  This may cause conflicts with the newly loaded version of the plugin"
              ));
          }
@@ -2448,16 +2398,7 @@ index 936cbc6..e7a459b 100644
          loadPlugins();
          enablePlugins(PluginLoadOrder.STARTUP);
          enablePlugins(PluginLoadOrder.POSTWORLD);
-@@ -691,7 +719,7 @@ public final class CraftServer implements Server {
-             converter.convert(name, new ConvertProgressUpdater(console));
-         }
- 
--        int dimension = 10 + console.worlds.size();
-+        int dimension = CraftWorld.CUSTOM_DIMENSION_OFFSET + console.worlds.size();
-         boolean used = false;
-         do {
-             for (WorldServer server : console.worlds) {
-@@ -1036,11 +1064,8 @@ public final class CraftServer implements Server {
+@@ -1039,11 +1067,8 @@ public final class CraftServer implements Server {
          return count;
      }
  
@@ -2470,7 +2411,7 @@ index 936cbc6..e7a459b 100644
          OfflinePlayer result = getPlayerExact(name);
          String lname = name.toLowerCase();
  
-@@ -1048,17 +1073,7 @@ public final class CraftServer implements Server {
+@@ -1051,17 +1076,7 @@ public final class CraftServer implements Server {
              result = offlinePlayers.get(lname);
  
              if (result == null) {
@@ -2489,7 +2430,7 @@ index 936cbc6..e7a459b 100644
                  result = new CraftOfflinePlayer(this, name);
                  offlinePlayers.put(lname, result);
              }
-@@ -1196,7 +1211,7 @@ public final class CraftServer implements Server {
+@@ -1199,7 +1214,7 @@ public final class CraftServer implements Server {
          Set<OfflinePlayer> players = new HashSet<OfflinePlayer>();
  
          for (String file : files) {
@@ -2498,7 +2439,7 @@ index 936cbc6..e7a459b 100644
          }
          players.addAll(Arrays.asList(getOnlinePlayers()));
  
-@@ -1302,7 +1317,7 @@ public final class CraftServer implements Server {
+@@ -1305,7 +1320,7 @@ public final class CraftServer implements Server {
      public List<String> tabCompleteCommand(Player player, String message) {
          List<String> completions = null;
          try {
@@ -2507,7 +2448,7 @@ index 936cbc6..e7a459b 100644
          } catch (CommandException ex) {
              player.sendMessage(ChatColor.RED + "An internal error occurred while attempting to tab-complete this command");
              getLogger().log(Level.SEVERE, "Exception when " + player.getName() + " attempted to tab complete " + message, ex);
-@@ -1338,4 +1353,52 @@ public final class CraftServer implements Server {
+@@ -1341,4 +1356,52 @@ public final class CraftServer implements Server {
      public CraftItemFactory getItemFactory() {
          return CraftItemFactory.instance();
      }
@@ -2561,19 +2502,10 @@ index 936cbc6..e7a459b 100644
 +    // Spigot end
  }
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
-index cb20066..21bd64a 100644
+index 6e364b1..21bd64a 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
-@@ -49,6 +49,8 @@ import org.bukkit.plugin.messaging.StandardMessenger;
- import org.bukkit.craftbukkit.util.LongHash;
- 
- public class CraftWorld implements World {
-+    public static final int CUSTOM_DIMENSION_OFFSET = 10;
-+
-     private final WorldServer world;
-     private Environment environment;
-     private final CraftServer server = (CraftServer) Bukkit.getServer();
-@@ -73,7 +75,90 @@ public class CraftWorld implements World {
+@@ -75,7 +75,90 @@ public class CraftWorld implements World {
          if (server.chunkGCPeriod > 0) {
              chunkGCTickCount = rand.nextInt(server.chunkGCPeriod);
          }
@@ -2667,7 +2599,7 @@ index cb20066..21bd64a 100644
          return getChunkAt(x >> 4, z >> 4).getBlock(x & 0xF, y & 0xFF, z & 0xF);
 diff --git a/src/main/java/org/bukkit/craftbukkit/OrebfuscatorManager.java b/src/main/java/org/bukkit/craftbukkit/OrebfuscatorManager.java
 new file mode 100644
-index 0000000..1ac8c26
+index 0000000..7178dfb
 --- /dev/null
 +++ b/src/main/java/org/bukkit/craftbukkit/OrebfuscatorManager.java
 @@ -0,0 +1,95 @@
@@ -2720,7 +2652,7 @@ index 0000000..1ac8c26
 +                                        buffer[index] = (byte) Block.STONE.id;
 +                                    }
 +                                }
-+                                if (++index > buffer.length) {
++                                if (++index >= buffer.length) {
 +                                    return;
 +                                }
 +                            }
