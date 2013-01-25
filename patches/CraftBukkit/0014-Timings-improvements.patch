@@ -1,0 +1,193 @@
+From 6d09133010942835eaf600c6642ddb37f63321a2 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Thu, 24 Jan 2013 21:01:32 -0500
+Subject: [PATCH] Timings improvements
+
+---
+ src/main/java/net/minecraft/server/Entity.java          |  2 ++
+ src/main/java/net/minecraft/server/EntityLiving.java    | 17 +++++++----------
+ src/main/java/net/minecraft/server/World.java           | 13 +++++++++----
+ src/main/java/org/bukkit/event/WorldTimingsHandler.java |  4 ++--
+ 4 files changed, 20 insertions(+), 16 deletions(-)
+
+diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
+index bbfb1b9..8af9ca9 100644
+--- a/src/main/java/net/minecraft/server/Entity.java
++++ b/src/main/java/net/minecraft/server/Entity.java
+@@ -15,6 +15,7 @@ import org.bukkit.block.BlockFace;
+ import org.bukkit.entity.LivingEntity;
+ import org.bukkit.entity.Painting;
+ import org.bukkit.entity.Vehicle;
++import org.bukkit.event.CustomTimingsHandler; // Spigot
+ import org.bukkit.event.entity.EntityCombustByEntityEvent;
+ import org.bukkit.event.painting.PaintingBreakByEntityEvent;
+ import org.bukkit.event.vehicle.VehicleBlockCollisionEvent;
+@@ -111,6 +112,7 @@ public abstract class Entity {
+     public UUID uniqueId = UUID.randomUUID(); // CraftBukkit
+     public boolean valid = false; // CraftBukkit
+     // Spigot start
++    static public CustomTimingsHandler entityMoveTimer = new CustomTimingsHandler("** entityMove");
+     public boolean inWater = false;
+     public boolean isActivated = true;
+ 
+diff --git a/src/main/java/net/minecraft/server/EntityLiving.java b/src/main/java/net/minecraft/server/EntityLiving.java
+index e2917d5..a193964 100644
+--- a/src/main/java/net/minecraft/server/EntityLiving.java
++++ b/src/main/java/net/minecraft/server/EntityLiving.java
+@@ -112,12 +112,11 @@ public abstract class EntityLiving extends Entity {
+     public int maxAirTicks = 300;
+     public int maxHealth = this.getMaxHealth();
+     // Spigot Start
+-    public static CustomTimingsHandler timerEntityBaseTick = new CustomTimingsHandler("** entityBaseTick");
+-    public static CustomTimingsHandler timerEntityAI = new CustomTimingsHandler("** entityAI");
+-    public static CustomTimingsHandler timerEntityAIJump = new CustomTimingsHandler("** entityAIJump");
+-    public static CustomTimingsHandler timerEntityAIMove = new CustomTimingsHandler("** entityAIMove");
+-    public static CustomTimingsHandler timerEntityAILoot = new CustomTimingsHandler("** entityAILoot");
+-    public static CustomTimingsHandler timerEntityTickRest = new CustomTimingsHandler("** entityTickRest");
++    public static CustomTimingsHandler timerEntityBaseTick = new CustomTimingsHandler("** livingEntityBaseTick");
++    public static CustomTimingsHandler timerEntityAI = new CustomTimingsHandler("** livingEntityAI");
++    public static CustomTimingsHandler timerEntityAICollision = new CustomTimingsHandler("** livingEntityAICollision");
++    public static CustomTimingsHandler timerEntityAIMove = new CustomTimingsHandler("** livingEntityAIMove");
++    public static CustomTimingsHandler timerEntityTickRest = new CustomTimingsHandler("** livingEntityTickRest");
+     // Spigot End
+     // CraftBukkit end
+ 
+@@ -1298,7 +1297,6 @@ public abstract class EntityLiving extends Entity {
+ 
+         this.world.methodProfiler.b();
+         this.world.methodProfiler.a("jump");
+-        timerEntityAIJump.startTiming(); // Spigot
+         if (this.bF) {
+             if (!this.H() && !this.J()) {
+                 if (this.onGround && this.bV == 0) {
+@@ -1312,7 +1310,6 @@ public abstract class EntityLiving extends Entity {
+             this.bV = 0;
+         }
+ 
+-        timerEntityAIJump.stopTiming(); // Spigot
+         this.world.methodProfiler.b();
+         this.world.methodProfiler.a("travel");
+         timerEntityAIMove.startTiming(); // Spigot
+@@ -1327,13 +1324,14 @@ public abstract class EntityLiving extends Entity {
+         timerEntityAIMove.stopTiming(); // Spigot
+         this.world.methodProfiler.b();
+         this.world.methodProfiler.a("push");
++        timerEntityAICollision.startTiming(); // Spigot
+         if (!this.world.isStatic) {
+             this.bd();
+         }
++        timerEntityAICollision.stopTiming(); // Spigot
+ 
+         this.world.methodProfiler.b();
+         this.world.methodProfiler.a("looting");
+-        timerEntityAILoot.startTiming(); // Spigot
+         // CraftBukkit - Don't run mob pickup code on players
+         if (!this.world.isStatic && !(this instanceof EntityPlayer) && this.canPickUpLoot && !this.bc && this.world.getGameRules().getBoolean("mobGriefing")) {
+             List list = this.world.a(EntityItem.class, this.boundingBox.grow(1.0D, 0.0D, 1.0D));
+@@ -1398,7 +1396,6 @@ public abstract class EntityLiving extends Entity {
+             }
+         }
+ 
+-        timerEntityAILoot.stopTiming(); // Spigot
+         this.world.methodProfiler.b();
+     }
+ 
+diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
+index 0e9fb28..e6a618f 100644
+--- a/src/main/java/net/minecraft/server/World.java
++++ b/src/main/java/net/minecraft/server/World.java
+@@ -14,7 +14,8 @@ import java.util.concurrent.Callable;
+ import org.bukkit.Bukkit;
+ import org.bukkit.craftbukkit.util.LongHashSet;
+ import org.bukkit.craftbukkit.util.UnsafeList;
+-import org.bukkit.event.WorldTimingsHandler;
++import org.bukkit.event.CustomTimingsHandler; // Spigot
++import org.bukkit.event.WorldTimingsHandler; // Spigot
+ import org.bukkit.generator.ChunkGenerator;
+ import org.bukkit.craftbukkit.CraftServer;
+ import org.bukkit.craftbukkit.CraftWorld;
+@@ -115,6 +116,8 @@ public abstract class World implements IBlockAccess {
+     private byte chunkTickRadius;
+ 
+     public WorldTimingsHandler timings; // Spigot
++    CustomTimingsHandler tickEntityTimer = new CustomTimingsHandler("** tickEntity"); // Spigot
++
+     public CraftWorld getWorld() {
+         return this.world;
+     }
+@@ -1187,7 +1190,6 @@ public abstract class World implements IBlockAccess {
+         CrashReport crashreport;
+         CrashReportSystemDetails crashreportsystemdetails;
+ 
+-        timings.entityBaseTick.startTiming(); // Spigot
+         for (i = 0; i < this.i.size(); ++i) {
+             entity = (Entity) this.i.get(i);
+             // CraftBukkit start - fixed an NPE, don't process entities in chunks queued for unload
+@@ -1242,7 +1244,6 @@ public abstract class World implements IBlockAccess {
+ 
+         this.f.clear();
+         this.methodProfiler.c("regular");
+-        timings.entityBaseTick.stopTiming(); // Spigot
+ 
+         org.bukkit.craftbukkit.Spigot.activateEntities(this); // Spigot
+         timings.entityTick.startTiming(); // Spigot
+@@ -1341,6 +1342,8 @@ public abstract class World implements IBlockAccess {
+             }
+         }
+ 
++        timings.tileEntityTick.stopTiming(); // Spigot
++        timings.tileEntityPending.startTiming(); // Spigot
+         this.M = false;
+         if (!this.b.isEmpty()) {
+             this.tileEntityList.removeAll(this.b);
+@@ -1379,7 +1382,7 @@ public abstract class World implements IBlockAccess {
+             this.a.clear();
+         }
+ 
+-        timings.tileEntityTick.stopTiming(); // Spigot
++        timings.tileEntityPending.startTiming(); // Spigot
+         this.methodProfiler.b();
+         this.methodProfiler.b();
+     }
+@@ -1426,6 +1429,7 @@ public abstract class World implements IBlockAccess {
+     }
+ 
+     public void tickEntity(Entity entity, boolean flag) {
++        tickEntityTimer.startTiming();
+         // Spigot end
+         int i = MathHelper.floor(entity.locX);
+         int j = MathHelper.floor(entity.locZ);
+@@ -1494,6 +1498,7 @@ public abstract class World implements IBlockAccess {
+                 }
+             }
+         }
++        tickEntityTimer.stopTiming(); // Spigot
+     }
+ 
+     public boolean b(AxisAlignedBB axisalignedbb) {
+diff --git a/src/main/java/org/bukkit/event/WorldTimingsHandler.java b/src/main/java/org/bukkit/event/WorldTimingsHandler.java
+index bb0c191..689d57b 100644
+--- a/src/main/java/org/bukkit/event/WorldTimingsHandler.java
++++ b/src/main/java/org/bukkit/event/WorldTimingsHandler.java
+@@ -5,16 +5,16 @@ import net.minecraft.server.World;
+ public class WorldTimingsHandler {
+     public CustomTimingsHandler mobSpawn;
+     public CustomTimingsHandler doTickRest;
+-    public CustomTimingsHandler entityBaseTick;
+     public CustomTimingsHandler entityTick;
+     public CustomTimingsHandler tileEntityTick;
++    public CustomTimingsHandler tileEntityPending;
+     public WorldTimingsHandler(World server) {
+         String name = server.worldData.getName() +" - ";
+ 
+         mobSpawn       = new CustomTimingsHandler(name + "mobSpawn");
+         doTickRest     = new CustomTimingsHandler(name + "doTickRest");
+-        entityBaseTick = new CustomTimingsHandler(name + "entityBaseTick");
+         entityTick     = new CustomTimingsHandler(name + "entityTick");
+         tileEntityTick = new CustomTimingsHandler(name + "tileEntityTick");
++        tileEntityPending = new CustomTimingsHandler(name + "tileEntityPending");
+     }
+ }
+-- 
+1.8.0.3
+
