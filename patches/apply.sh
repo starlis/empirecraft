@@ -4,6 +4,7 @@ basedir=$(dirname $basedir)
 echo "Rebuilding Forked projects.... "
 function applyPatch {
     what=$1
+    cd $basedir
     if [ ! -d "$basedir/EMC-$what" ]; then
         git clone github.com:aikar/EMC-$what EMC-$what
     fi
