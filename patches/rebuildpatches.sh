@@ -15,9 +15,11 @@ function cleanupPatches {
 
 
         if [ "x$diffs" == "x" ] ; then
-
             git reset HEAD $patch >/dev/null
             git checkout -- $patch >/dev/null
+        else
+            sed -i 's/\(Subject.\+\?\)\#/&\n/g' $patch
+            git add $patch
         fi
     done
 }
