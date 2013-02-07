@@ -1,6 +1,8 @@
 #!/bin/bash
 basedir=$(dirname $(readlink -f $0))
 basedir=$(dirname $basedir)
+cd $basedir/CraftBukkit
+git branch -f upstream
 cd $basedir/EMC-CraftBukkit
 git co spigot
 git fetch spigot
