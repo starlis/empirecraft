@@ -1,0 +1,116 @@
+From ad0f75e30250a1f127f2ef547a406b2a331efa55 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Thu, 7 Feb 2013 13:22:45 -0500
+Subject: [PATCH] Support TimingsOnDemand
+
+---
+ .../bukkit/command/defaults/TimingsCommand.java    | 24 +++++++++++++++++-----
+ .../org/bukkit/plugin/TimedRegisteredListener.java |  2 ++
+ .../org/bukkit/plugin/java/JavaPluginLoader.java   |  2 +-
+ 3 files changed, 22 insertions(+), 6 deletions(-)
+
+diff --git a/src/main/java/org/bukkit/command/defaults/TimingsCommand.java b/src/main/java/org/bukkit/command/defaults/TimingsCommand.java
+index c4c6514..b9f57fd 100644
+--- a/src/main/java/org/bukkit/command/defaults/TimingsCommand.java
++++ b/src/main/java/org/bukkit/command/defaults/TimingsCommand.java
+@@ -15,6 +15,7 @@ import org.bukkit.event.Event;
+ import org.bukkit.event.HandlerList;
+ import org.bukkit.plugin.Plugin;
+ import org.bukkit.plugin.RegisteredListener;
++import org.bukkit.plugin.SimplePluginManager; // Spigots
+ import org.bukkit.plugin.TimedRegisteredListener;
+ import org.bukkit.util.StringUtil;
+ 
+@@ -27,24 +28,27 @@ public class TimingsCommand extends BukkitCommand {
+     public TimingsCommand(String name) {
+         super(name);
+         this.description = "Records timings for all plugin events";
+-        this.usageMessage = "/timings <reset|merged|separate>";
++        this.usageMessage = "/timings <reset|merged|separate|start|stop>"; // Spigot
+         this.setPermission("bukkit.command.timings");
+     }
+ 
+     @Override
+     public boolean execute(CommandSender sender, String currentAlias, String[] args) {
+         if (!testPermission(sender)) return true;
+-        if (args.length != 1)  {
++        if (args.length < 1)  { // Spigot
+             sender.sendMessage(ChatColor.RED + "Usage: " + usageMessage);
+             return false;
+         }
+-        if (!sender.getServer().getPluginManager().useTimings()) {
++        // Spigot start - this is dynamic now
++        /*if (!sender.getServer().getPluginManager().useTimings()) {
+             sender.sendMessage("Please enable timings by setting \"settings.plugin-profiling\" to true in bukkit.yml");
+             return true;
+-        }
++        }*/
++        // Spigot end
+ 
+         boolean separate = "separate".equals(args[0]);
+-        if ("reset".equals(args[0])) {
++        if ("start".equals(args[0]) || "reset".equals(args[0])) {
++            if (!Bukkit.getServer().getPluginManager().useTimings()) {sender.sendMessage("Please enable timings by typing /timings start"); return true; } // Spigot
+             for (HandlerList handlerList : HandlerList.getHandlerLists()) {
+                 for (RegisteredListener listener : handlerList.getRegisteredListeners()) {
+                     if (listener instanceof TimedRegisteredListener) {
+@@ -57,6 +61,7 @@ public class TimingsCommand extends BukkitCommand {
+             sender.sendMessage("Timings reset");
+         } else if ("merged".equals(args[0]) || separate) {
+ 
++            if (!Bukkit.getServer().getPluginManager().useTimings()) {sender.sendMessage("Please enable timings by typing /timings start"); return true; } // Spigot
+             long sampleTime = System.nanoTime() - timingStart; // Spigot
+             int index = 0;
+             int pluginIdx = 0;
+@@ -111,7 +116,16 @@ public class TimingsCommand extends BukkitCommand {
+                     fileNames.close();
+                 }
+             }
++        // Spigot start
++        }
++        if ("start".equals(args[0])) {
++            ((SimplePluginManager)Bukkit.getServer().getPluginManager()).useTimings(true);
++            sender.sendMessage("Enabled Timings");
++        } else if ("stop".equals(args[0])) {
++            ((SimplePluginManager)Bukkit.getServer().getPluginManager()).useTimings(false);
++            sender.sendMessage("Disabled Timings");
+         }
++        // Spigot end
+         return true;
+     }
+ 
+diff --git a/src/main/java/org/bukkit/plugin/TimedRegisteredListener.java b/src/main/java/org/bukkit/plugin/TimedRegisteredListener.java
+index ed25e17..61865c4 100644
+--- a/src/main/java/org/bukkit/plugin/TimedRegisteredListener.java
++++ b/src/main/java/org/bukkit/plugin/TimedRegisteredListener.java
+@@ -1,5 +1,6 @@
+ package org.bukkit.plugin;
+ 
++import org.bukkit.Bukkit; // Spigot
+ import org.bukkit.event.Event;
+ import org.bukkit.event.EventException;
+ import org.bukkit.event.EventPriority;
+@@ -20,6 +21,7 @@ public class TimedRegisteredListener extends RegisteredListener {
+ 
+     @Override
+     public void callEvent(Event event) throws EventException {
++        if (!Bukkit.getServer().getPluginManager().useTimings()) { super.callEvent(event);return; } // Spigot
+         if (event.isAsynchronous()) {
+             super.callEvent(event);
+             return;
+diff --git a/src/main/java/org/bukkit/plugin/java/JavaPluginLoader.java b/src/main/java/org/bukkit/plugin/java/JavaPluginLoader.java
+index 10fc26a..9c7288e 100644
+--- a/src/main/java/org/bukkit/plugin/java/JavaPluginLoader.java
++++ b/src/main/java/org/bukkit/plugin/java/JavaPluginLoader.java
+@@ -430,7 +430,7 @@ public class JavaPluginLoader implements PluginLoader {
+                     }
+                 }
+             };
+-            if (useTimings) {
++            if (true) { // Spigot - TRL handles useTimings check now
+                 eventSet.add(new TimedRegisteredListener(listener, executor, eh.priority(), plugin, eh.ignoreCancelled()));
+             } else {
+                 eventSet.add(new RegisteredListener(listener, executor, eh.priority(), plugin, eh.ignoreCancelled()));
+-- 
+1.8.1.1
+
