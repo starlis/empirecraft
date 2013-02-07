@@ -1,4 +1,4 @@
-From 168165c5b8278bbfedf3e3774c36242b64aaa79d Mon Sep 17 00:00:00 2001
+From c9fa47ec0da1014569dc562bd2f8c714375a666a Mon Sep 17 00:00:00 2001
 From: EdGruberman <ed@rjump.com>
 Date: Sat, 2 Feb 2013 14:34:23 -0700
 Subject: [PATCH] Combination of portal fixes#
@@ -8,89 +8,12 @@ Subject: [PATCH] Combination of portal fixes#
 
 Plus my own fix to Eds patch about default PTA
 ---
- src/main/java/net/minecraft/server/Entity.java     |  4 ++--
- src/main/java/net/minecraft/server/PlayerList.java | 12 +++++-----
- .../net/minecraft/server/PortalTravelAgent.java    | 28 +++++++++++++++-------
- .../org/bukkit/craftbukkit/CraftTravelAgent.java   |  4 ++++
- .../org/bukkit/craftbukkit/entity/CraftPlayer.java |  2 +-
- 5 files changed, 33 insertions(+), 17 deletions(-)
+ src/main/java/net/minecraft/server/PortalTravelAgent.java  | 12 ++++++++----
+ src/main/java/org/bukkit/craftbukkit/CraftTravelAgent.java |  3 ++-
+ 2 files changed, 10 insertions(+), 5 deletions(-)
 
-diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
-index 157cc4d..74bc474 100644
---- a/src/main/java/net/minecraft/server/Entity.java
-+++ b/src/main/java/net/minecraft/server/Entity.java
-@@ -1771,14 +1771,14 @@ public abstract class Entity {
-             Location exit = exitWorld != null ? minecraftserver.getPlayerList().calculateTarget(enter, minecraftserver.getWorldServer(i)) : null;
-             boolean useTravelAgent = exitWorld != null && !(this.dimension == 1 && exitWorld.dimension == 1); // don't use agent for custom worlds or return from THE_END
- 
--            TravelAgent agent = exit != null ? (TravelAgent) ((CraftWorld) exit.getWorld()).getHandle().s() : null;
-+            TravelAgent agent = exit != null ? (TravelAgent) ((CraftWorld) exit.getWorld()).getHandle().s() : org.bukkit.craftbukkit.CraftTravelAgent.DEFAULT; // return arbitrary TA to compensate for implementation dependent plugins 
-             EntityPortalEvent event = new EntityPortalEvent(this.getBukkitEntity(), enter, exit, agent);
-             event.useTravelAgent(useTravelAgent);
-             event.getEntity().getServer().getPluginManager().callEvent(event);
-             if (event.isCancelled() || event.getTo() == null || !this.isAlive()) {
-                 return;
-             }
--            exit = event.useTravelAgent() ? event.getPortalTravelAgent().findOrCreate(exit) : event.getTo();
-+            exit = event.useTravelAgent() ? event.getPortalTravelAgent().findOrCreate(event.getTo()) : event.getTo();
-             this.teleportTo(exit, true);
-         }
-     }
-diff --git a/src/main/java/net/minecraft/server/PlayerList.java b/src/main/java/net/minecraft/server/PlayerList.java
-index b15a1d1..6d40a15 100644
---- a/src/main/java/net/minecraft/server/PlayerList.java
-+++ b/src/main/java/net/minecraft/server/PlayerList.java
-@@ -322,10 +322,10 @@ public abstract class PlayerList {
- 
-     // CraftBukkit start
-     public EntityPlayer moveToWorld(EntityPlayer entityplayer, int i, boolean flag) {
--        return this.moveToWorld(entityplayer, i, flag, null);
-+        return this.moveToWorld(entityplayer, i, flag, null, true);
-     }
- 
--    public EntityPlayer moveToWorld(EntityPlayer entityplayer, int i, boolean flag, Location location) {
-+    public EntityPlayer moveToWorld(EntityPlayer entityplayer, int i, boolean flag, Location location, boolean avoidSuffocation) {
-         // CraftBukkit end
-         entityplayer.p().getTracker().untrackPlayer(entityplayer);
-         // entityplayer.p().getTracker().untrackEntity(entityplayer); // CraftBukkit
-@@ -378,7 +378,7 @@ public abstract class PlayerList {
- 
-         worldserver.chunkProviderServer.getChunkAt((int) entityplayer1.locX >> 4, (int) entityplayer1.locZ >> 4);
- 
--        while (!worldserver.getCubes(entityplayer1, entityplayer1.boundingBox).isEmpty()) {
-+        while (avoidSuffocation && !worldserver.getCubes(entityplayer1, entityplayer1.boundingBox).isEmpty()) { // CraftBukkit - allow for skipping check
-             entityplayer1.setPosition(entityplayer1.locX, entityplayer1.locY + 1.0D, entityplayer1.locZ);
-         }
- 
-@@ -451,7 +451,7 @@ public abstract class PlayerList {
-             }
-         }
- 
--        TravelAgent agent = exit != null ? (TravelAgent) ((CraftWorld) exit.getWorld()).getHandle().s() : null;
-+        TravelAgent agent = exit != null ? (TravelAgent) ((CraftWorld) exit.getWorld()).getHandle().s() : org.bukkit.craftbukkit.CraftTravelAgent.DEFAULT; // return arbitrary TA to compensate for implementation dependent plugins
-         PlayerPortalEvent event = new PlayerPortalEvent(entityplayer.getBukkitEntity(), enter, exit, agent, cause);
-         event.useTravelAgent(useTravelAgent);
-         Bukkit.getServer().getPluginManager().callEvent(event);
-@@ -459,7 +459,7 @@ public abstract class PlayerList {
-             return;
-         }
- 
--        exit = event.useTravelAgent() ? event.getPortalTravelAgent().findOrCreate(exit) : event.getTo();
-+        exit = event.useTravelAgent() ? event.getPortalTravelAgent().findOrCreate(event.getTo()) : event.getTo();
-         exitWorld = ((CraftWorld) exit.getWorld()).getHandle();
- 
-         Vector velocity = entityplayer.getBukkitEntity().getVelocity();
-@@ -468,7 +468,7 @@ public abstract class PlayerList {
-         exitWorld.s().adjustExit(entityplayer, exit, velocity);
-         exitWorld.chunkProviderServer.forceChunkLoad = before;
- 
--        this.moveToWorld(entityplayer, exitWorld.dimension, true, exit);
-+        this.moveToWorld(entityplayer, exitWorld.dimension, true, exit, false); // Vanilla doesn't check for suffocation when handling portals, so neither should we
-         if (entityplayer.motX != velocity.getX() || entityplayer.motY != velocity.getY() || entityplayer.motZ != velocity.getZ()) {
-             entityplayer.getBukkitEntity().setVelocity(velocity);
-         }
 diff --git a/src/main/java/net/minecraft/server/PortalTravelAgent.java b/src/main/java/net/minecraft/server/PortalTravelAgent.java
-index 5d5774e..0954b67 100644
+index cb5a0ad..0954b67 100644
 --- a/src/main/java/net/minecraft/server/PortalTravelAgent.java
 +++ b/src/main/java/net/minecraft/server/PortalTravelAgent.java
 @@ -223,8 +223,10 @@ public class PortalTravelAgent {
@@ -119,32 +42,8 @@ index 5d5774e..0954b67 100644
                  }
  
                  float f1 = 0.5F;
-@@ -301,11 +305,19 @@ public class PortalTravelAgent {
-         this.a.getServer().getPluginManager().callEvent(event);
-         Location to = event.getTo();
-         if (event.isCancelled() || to == null || !entity.isAlive()) {
--            position = from;
--            velocity = before;
-+            position.setX(from.getX());
-+            position.setY(from.getY());
-+            position.setZ(from.getZ());
-+            position.setYaw(from.getYaw());
-+            position.setPitch(from.getPitch());
-+            velocity.copy(before);
-         } else {
--            position = to;
--            velocity = event.getAfter();
-+            position.setX(to.getX());
-+            position.setY(to.getY());
-+            position.setZ(to.getZ());
-+            position.setYaw(to.getYaw());
-+            position.setPitch(to.getPitch());
-+            velocity.copy(event.getAfter()); // event.getAfter() will never be null, as setAfter() will cause an NPE if null is passed in
-         }
-         // CraftBukkit end
-     }
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftTravelAgent.java b/src/main/java/org/bukkit/craftbukkit/CraftTravelAgent.java
-index b21714e..c1e9bb7 100644
+index 3a313e5..215c034 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftTravelAgent.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftTravelAgent.java
 @@ -1,6 +1,7 @@
@@ -155,35 +54,15 @@ index b21714e..c1e9bb7 100644
  import net.minecraft.server.PortalTravelAgent;
  import net.minecraft.server.WorldServer;
  
-@@ -9,12 +10,15 @@ import org.bukkit.TravelAgent;
- 
- public class CraftTravelAgent extends PortalTravelAgent implements TravelAgent {
- 
-+    public static TravelAgent DEFAULT = null;
-+
-     private int searchRadius = 128;
-     private int creationRadius = 16;
-     private boolean canCreatePortal = true;
- 
+@@ -18,7 +19,7 @@ public class CraftTravelAgent extends PortalTravelAgent implements TravelAgent {
      public CraftTravelAgent(WorldServer worldserver) {
          super(worldserver);
-+        if (DEFAULT == null) DEFAULT = (TravelAgent) worldserver.s();
+         if (DEFAULT == null && worldserver.dimension == 0) {
+-            DEFAULT = (TravelAgent) worldserver.s();
++            DEFAULT = (TravelAgent) this;
+         }
      }
  
-     public Location findOrCreate(Location target) {
-diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
-index 992131c..747a88e 100644
---- a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
-+++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
-@@ -396,7 +396,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
-             if (getHandle().activeContainer != getHandle().defaultContainer){
-                 getHandle().closeInventory();
-             }
--            server.getHandle().moveToWorld(entity, toWorld.dimension, true, to);
-+            server.getHandle().moveToWorld(entity, toWorld.dimension, true, to, true);
-         }
-         return true;
-     }
 -- 
 1.8.1.1
 
