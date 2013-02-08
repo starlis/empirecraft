@@ -1,4 +1,4 @@
-From 650b82d556deb174560bcde069b1c38869fd44a0 Mon Sep 17 00:00:00 2001
+From faf62d25b48f1a2cc693aadaf8f3060942f500a1 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Thu, 24 Jan 2013 21:01:32 -0500
 Subject: [PATCH] Timings improvements
@@ -12,9 +12,9 @@ Subject: [PATCH] Timings improvements
  src/main/java/net/minecraft/server/World.java      | 21 +++++--
  .../bukkit/craftbukkit/OrebfuscatorManager.java    |  2 +-
  .../java/org/bukkit/craftbukkit/SpigotTimings.java | 67 ++++++++++++++++++++++
- .../bukkit/craftbukkit/scheduler/CraftTask.java    | 14 +++++
+ .../bukkit/craftbukkit/scheduler/CraftTask.java    | 18 ++++++
  .../java/org/bukkit/event/WorldTimingsHandler.java | 20 -------
- 10 files changed, 115 insertions(+), 40 deletions(-)
+ 10 files changed, 119 insertions(+), 40 deletions(-)
  create mode 100644 src/main/java/org/bukkit/craftbukkit/SpigotTimings.java
  delete mode 100644 src/main/java/org/bukkit/event/WorldTimingsHandler.java
 
@@ -32,7 +32,7 @@ index 279ba9e..662b420 100644
  // CraftBukkit end
  
 diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
-index 2340fad..157cc4d 100644
+index d0a58f8..74bc474 100644
 --- a/src/main/java/net/minecraft/server/Entity.java
 +++ b/src/main/java/net/minecraft/server/Entity.java
 @@ -15,6 +15,7 @@ import org.bukkit.block.BlockFace;
@@ -355,7 +355,7 @@ index 0000000..4dd2f96
 +    }
 +}
 diff --git a/src/main/java/org/bukkit/craftbukkit/scheduler/CraftTask.java b/src/main/java/org/bukkit/craftbukkit/scheduler/CraftTask.java
-index 55db3ff..17dc8db 100644
+index 55db3ff..a9f9f06 100644
 --- a/src/main/java/org/bukkit/craftbukkit/scheduler/CraftTask.java
 +++ b/src/main/java/org/bukkit/craftbukkit/scheduler/CraftTask.java
 @@ -1,6 +1,8 @@
@@ -375,7 +375,7 @@ index 55db3ff..17dc8db 100644
      CraftTask() {
          this(null, null, -1, -1);
      }
-@@ -50,7 +53,18 @@ class CraftTask implements BukkitTask, Runnable {
+@@ -50,7 +53,22 @@ class CraftTask implements BukkitTask, Runnable {
      }
  
      public void run() {
@@ -384,12 +384,16 @@ index 55db3ff..17dc8db 100644
 +            task.run();
 +            return;
 +        }
-+        if (timings == null) {
++        if (timings == null && this.getOwner() != null) {
 +            timings = SpigotTimings.getPluginTaskTimings(this, period);
 +        }
-+        timings.startTiming();
++        if (timings != null) {
++            timings.startTiming();
++        }
          task.run();
-+        timings.stopTiming();
++        if (timings != null) {
++            timings.stopTiming();
++        }
 +        // Spigot end
      }
  
