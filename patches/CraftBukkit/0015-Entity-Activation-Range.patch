@@ -1,4 +1,4 @@
-From ca2438732013f960715ccd09ee6eea5f538c2bab Mon Sep 17 00:00:00 2001
+From ae08b93ad51dd45be0d7c843067c1473ed5bd535 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Sun, 3 Feb 2013 05:10:21 -0500
 Subject: [PATCH] Entity Activation Range#
@@ -11,18 +11,28 @@ This change can have dramatic impact on gameplay if configured too low. Balance 
 ---
  src/main/java/net/minecraft/server/Entity.java     |  12 +-
  .../java/net/minecraft/server/EntityArrow.java     |   2 +-
- src/main/java/net/minecraft/server/World.java      |  10 +-
- .../java/org/bukkit/craftbukkit/CraftWorld.java    |  15 ++-
- src/main/java/org/bukkit/craftbukkit/Spigot.java   | 143 +++++++++++++++++++++
- .../java/org/bukkit/craftbukkit/SpigotTimings.java |   2 +
+ src/main/java/net/minecraft/server/EntityItem.java |   5 +-
+ src/main/java/net/minecraft/server/World.java      |  12 +-
+ .../java/org/bukkit/craftbukkit/CraftWorld.java    |  15 +-
+ src/main/java/org/bukkit/craftbukkit/Spigot.java   | 157 +++++++++++++++++++++
+ .../java/org/bukkit/craftbukkit/SpigotTimings.java |   4 +
  src/main/resources/configurations/bukkit.yml       |   3 +
- 7 files changed, 182 insertions(+), 5 deletions(-)
+ 8 files changed, 202 insertions(+), 8 deletions(-)
 
 diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
-index 74bc474..abc3582 100644
+index 74bc474..d2ca7e5 100644
 --- a/src/main/java/net/minecraft/server/Entity.java
 +++ b/src/main/java/net/minecraft/server/Entity.java
-@@ -112,8 +112,15 @@ public abstract class Entity {
+@@ -89,7 +89,7 @@ public abstract class Entity {
+     public int ticksLived;
+     public int maxFireTicks;
+     public int fireTicks; // CraftBukkit - private -> public
+-    protected boolean ad;
++    public boolean ad; // Spigot - private -> public isInWater - If this renames, update Spigot.checkIfActive
+     public int noDamageTicks;
+     private boolean justCreated;
+     protected boolean fireProof;
+@@ -112,8 +112,14 @@ public abstract class Entity {
      public UUID uniqueId = UUID.randomUUID(); // CraftBukkit
      public boolean valid = false; // CraftBukkit
  
@@ -31,7 +41,6 @@ index 74bc474..abc3582 100644
 +    // Spigot start
 +    static public CustomTimingsHandler entityMoveTimer = new CustomTimingsHandler("** entityMove");
 +    public CustomTimingsHandler tickTimer = org.bukkit.craftbukkit.SpigotTimings.getEntityTimings(this);
-+    public boolean inWater = false;
 +
 +    public final byte activationType = org.bukkit.craftbukkit.Spigot.initializeEntityActivationType(this);
 +    public final boolean defaultActivationState = org.bukkit.craftbukkit.Spigot.initializeEntityActivationState(this);
@@ -40,16 +49,8 @@ index 74bc474..abc3582 100644
  
      public Entity(World world) {
          this.id = entityCount++;
-@@ -868,6 +875,7 @@ public abstract class Entity {
-             this.ad = false;
-         }
- 
-+        this.inWater = this.ad; // Spigot
-         return this.ad;
-     }
- 
 diff --git a/src/main/java/net/minecraft/server/EntityArrow.java b/src/main/java/net/minecraft/server/EntityArrow.java
-index 916b9dc..3fc4356 100644
+index 916b9dc..bdd18f6 100644
 --- a/src/main/java/net/minecraft/server/EntityArrow.java
 +++ b/src/main/java/net/minecraft/server/EntityArrow.java
 @@ -16,7 +16,7 @@ public class EntityArrow extends Entity implements IProjectile {
@@ -57,15 +58,31 @@ index 916b9dc..3fc4356 100644
      private int g = 0;
      private int h = 0;
 -    private boolean inGround = false;
-+    public boolean inGround = false; // Spigot - private->public
++    public boolean inGround = false; // Spigot - private -> public
      public int fromPlayer = 0;
      public int shake = 0;
      public Entity shooter;
+diff --git a/src/main/java/net/minecraft/server/EntityItem.java b/src/main/java/net/minecraft/server/EntityItem.java
+index 5e3ac84..fdfd763 100644
+--- a/src/main/java/net/minecraft/server/EntityItem.java
++++ b/src/main/java/net/minecraft/server/EntityItem.java
+@@ -100,8 +100,9 @@ public class EntityItem extends Entity {
+         if (this.onGround) {
+             this.motY *= -0.5D;
+         }
+-        } // Spigot
+-        ++this.age;
++        }
++        this.age = ticksLived;
++        // Spigot
+         if (!this.world.isStatic && this.age >= 6000) {
+             // CraftBukkit start
+             if (org.bukkit.craftbukkit.event.CraftEventFactory.callItemDespawnEvent(this).isCancelled()) {
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index 2122e9c..32be502 100644
+index d70b4e9..76c2035 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
-@@ -1243,6 +1243,7 @@ public abstract class World implements IBlockAccess {
+@@ -1240,6 +1240,7 @@ public abstract class World implements IBlockAccess {
          this.f.clear();
          this.methodProfiler.c("regular");
  
@@ -73,27 +90,29 @@ index 2122e9c..32be502 100644
          timings.entityTick.startTiming(); // Spigot
          for (i = 0; i < this.entityList.size(); ++i) {
              entity = (Entity) this.entityList.get(i);
-@@ -1412,6 +1413,13 @@ public abstract class World implements IBlockAccess {
+@@ -1411,6 +1412,15 @@ public abstract class World implements IBlockAccess {
          if (entity == null) {
              return;
          }
-+        if (!entity.isActivated && !org.bukkit.craftbukkit.Spigot.checkIfActive(entity)) {
-+            if (entity.vehicle == null) {
-+                entity.ticksLived++;
-+            }
++
++        this.timings.checkIfActive.startTiming();
++        boolean isActivated = entity.isActivated || org.bukkit.craftbukkit.Spigot.checkIfActive(entity);
++        this.timings.checkIfActive.stopTiming();
++        if (!isActivated) {
++            entity.ticksLived++;
 +            return;
 +        }
 +        entity.isActivated = entity.defaultActivationState;
          try {
              tickEntity(entity, flag);
          } catch (Exception e) {
-@@ -1441,7 +1449,7 @@ public abstract class World implements IBlockAccess {
+@@ -1440,7 +1450,7 @@ public abstract class World implements IBlockAccess {
          int j = MathHelper.floor(entity.locZ);
          byte b0 = 32;
  
 -        if (!flag || this.d(i - b0, 0, j - b0, i + b0, 0, j + b0)) {
 +        if (entity instanceof EntityFireworks || !flag || this.d(i - b0, 0, j - b0, i + b0, 0, j + b0)) { // Spigot - Not safe to skip a firework.
-             entity.tickTimer.startTiming(tickEntityTimer); // Spigot
+             entity.tickTimer.startTiming(SpigotTimings.activatedEntityTimer); // Spigot
              entity.T = entity.locX;
              entity.U = entity.locY;
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
@@ -147,7 +166,7 @@ index 21bd64a..d03064e 100644
  
      public Block getBlockAt(int x, int y, int z) {
 diff --git a/src/main/java/org/bukkit/craftbukkit/Spigot.java b/src/main/java/org/bukkit/craftbukkit/Spigot.java
-index 83988c3..592820f 100644
+index 83988c3..54aacd9 100644
 --- a/src/main/java/org/bukkit/craftbukkit/Spigot.java
 +++ b/src/main/java/org/bukkit/craftbukkit/Spigot.java
 @@ -1,8 +1,11 @@
@@ -162,7 +181,7 @@ index 83988c3..592820f 100644
  public class Spigot {
      public static void initialize(CraftServer server, SimpleCommandMap commandMap, YamlConfiguration configuration) {
          commandMap.register("bukkit", new org.bukkit.craftbukkit.command.RestartCommand("restart"));
-@@ -32,5 +35,145 @@ public class Spigot {
+@@ -32,5 +35,159 @@ public class Spigot {
              server.getLogger().severe("[Spigot] You should not disable chunk-gc. Resetting period-in-ticks to 600 ticks.");
              server.chunkGCPeriod = 600;
          }
@@ -170,8 +189,8 @@ index 83988c3..592820f 100644
 +    }
 +
 +    /**
-+     * Initializes an entities type on construction to specify what
-+     * group this entity is in for activation ranges.
++     * Initializes an entities type on construction to specify what group this
++     * entity is in for activation ranges.
 +     * @param entity
 +     * @return group id
 +     */
@@ -184,23 +203,23 @@ index 83988c3..592820f 100644
 +            return 3; // Misc
 +        }
 +    }
++
 +    /**
 +     * These entities are excluded from Activation range checks.
 +     * @param entity
 +     * @return boolean If it should always tick.
 +     */
 +    public static boolean initializeEntityActivationState(Entity entity) {
-+        if (entity instanceof EntityHuman ||
-+            entity instanceof EntityArrow ||
-+            entity instanceof EntityProjectile ||
-+            entity instanceof EntityEnderDragon ||
-+            entity instanceof EntityComplexPart ||
-+            entity instanceof EntityWither ||
-+            entity instanceof EntityFireball ||
-+            entity instanceof EntityWeather ||
-+            entity instanceof EntityTNTPrimed ||
-+            entity instanceof EntityEnderCrystal ||
-+            entity instanceof EntityFireworks
++        if (entity instanceof EntityHuman
++            || entity instanceof EntityProjectile
++            || entity instanceof EntityEnderDragon
++            || entity instanceof EntityComplexPart
++            || entity instanceof EntityWither
++            || entity instanceof EntityFireball
++            || entity instanceof EntityWeather
++            || entity instanceof EntityTNTPrimed
++            || entity instanceof EntityEnderCrystal
++            || entity instanceof EntityFireworks
 +            ) {
 +            return true;
 +        }
@@ -208,8 +227,8 @@ index 83988c3..592820f 100644
 +    }
 +
 +    /**
-+     * Utility method to grow an AABB without creating a new AABB or
-+     * touching the pool, so we can re-use ones we have.
++     * Utility method to grow an AABB without creating a new AABB or touching
++     * the pool, so we can re-use ones we have.
 +     * @param target
 +     * @param source
 +     * @param x
@@ -226,7 +245,8 @@ index 83988c3..592820f 100644
 +    }
 +
 +    /**
-+     * Find what entities are in range of the players in the world and set active if in range.
++     * Find what entities are in range of the players in the world and set
++     * active if in range.
 +     * @param world
 +     */
 +    public static void activateEntities(World world) {
@@ -245,16 +265,16 @@ index 83988c3..592820f 100644
 +            maxRange = Math.min(world.getWorld().viewDistance << 4, maxRange); // Do not tick on edge of unloaded chunks - vanilla behavior.
 +        }
 +
-+        AxisAlignedBB maxBB     = AxisAlignedBB.a(0,0,0,0,0,0);
-+        AxisAlignedBB miscBB    = AxisAlignedBB.a(0,0,0,0,0,0);
-+        AxisAlignedBB animalBB  = AxisAlignedBB.a(0,0,0,0,0,0);
++        AxisAlignedBB maxBB = AxisAlignedBB.a(0,0,0,0,0,0);
++        AxisAlignedBB miscBB = AxisAlignedBB.a(0,0,0,0,0,0);
++        AxisAlignedBB animalBB = AxisAlignedBB.a(0,0,0,0,0,0);
 +        AxisAlignedBB monsterBB = AxisAlignedBB.a(0,0,0,0,0,0);
 +
 +
 +        for (Entity player : (List<Entity>) world.players) {
-+            growBB(maxBB,     player.boundingBox, maxRange,               256, maxRange);
-+            growBB(miscBB,    player.boundingBox, miscActivationRange,    256, miscActivationRange);
-+            growBB(animalBB,  player.boundingBox, animalActivationRange,  256, animalActivationRange);
++            growBB(maxBB, player.boundingBox, maxRange, 256, maxRange);
++            growBB(miscBB, player.boundingBox, miscActivationRange, 256, miscActivationRange);
++            growBB(animalBB, player.boundingBox, animalActivationRange, 256, animalActivationRange);
 +            growBB(monsterBB, player.boundingBox, monsterActivationRange, 256, monsterActivationRange);
 +
 +            final List<Entity> list = world.getEntities(player, maxBB);
@@ -287,44 +307,59 @@ index 83988c3..592820f 100644
 +    }
 +
 +    /**
-+     * If an entity is not in range, do some more checks to see if we should give it a shot.
++     * If an entity is not in range, do some more checks to see if we should
++     * give it a shot.
 +     * @param entity
 +     * @return
 +     */
 +    public static boolean checkIfActive(Entity entity) {
 +        // quick checks.
-+        if (entity.ticksLived % 20 == 0 || !entity.onGround || entity.inWater || entity.passenger != null || entity.vehicle != null) {
++        if (entity.ticksLived % 20 == 0 || !entity.onGround || entity.ad /* isInWater */
++            || entity.passenger != null || entity.vehicle != null || entity.fireTicks > 0) {
 +            return true;
 +        }
 +        // special cases.
-+        if (entity instanceof EntityAnimal) {
-+            EntityAnimal animal = (EntityAnimal)entity;
-+            if (animal.isBaby() || animal.r() /*love*/) {
++        if (entity instanceof EntityLiving) {
++            EntityLiving living = (EntityLiving) entity;
++            if (living.attackTicks > 0 || living.hurtTicks > 0) {
 +                return true;
 +            }
-+            return (entity instanceof EntitySheep && ((EntitySheep) entity).isSheared());
++            if (entity instanceof EntityCreature && ((EntityCreature) entity).target != null) {
++                return true;
++            }
++            if (entity instanceof EntityAnimal) {
++                EntityAnimal animal = (EntityAnimal) entity;
++                if (animal.isBaby() || animal.r() /*love*/) {
++                    return true;
++                }
++                if (entity instanceof EntitySheep && ((EntitySheep) entity).isSheared()) {
++                    return true;
++                }
++            }
 +        }
-+        return (entity instanceof EntityArrow && !((EntityArrow)entity).inGround);
++        return (entity instanceof EntityArrow && !((EntityArrow) entity).inGround);
 +
      }
  }
 diff --git a/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java b/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java
-index 9e019eb..ad87955 100644
+index cfdff82..ba7a575 100644
 --- a/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java
 +++ b/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java
-@@ -54,6 +54,7 @@ public class SpigotTimings {
-         public CustomTimingsHandler entityTick;
-         public CustomTimingsHandler tileEntityTick;
-         public CustomTimingsHandler tileEntityPending;
-+        public CustomTimingsHandler activationCheck;
+@@ -84,6 +84,8 @@ public class SpigotTimings {
+         public final CustomTimingsHandler tileEntityTick;
+         public final CustomTimingsHandler tileEntityPending;
+         public final CustomTimingsHandler tracker;
++        public final CustomTimingsHandler activationCheck;
++        public final CustomTimingsHandler checkIfActive;
+ 
          public WorldTimingsHandler(World server) {
              String name = server.worldData.getName() +" - ";
- 
-@@ -62,6 +63,7 @@ public class SpigotTimings {
-             entityTick     = new CustomTimingsHandler(name + "entityTick");
+@@ -94,6 +96,8 @@ public class SpigotTimings {
              tileEntityTick = new CustomTimingsHandler(name + "tileEntityTick");
              tileEntityPending = new CustomTimingsHandler(name + "tileEntityPending");
+             tracker = new CustomTimingsHandler("** " + name + "tracker");
 +            activationCheck = new CustomTimingsHandler("** " + name + "activateEntities");
++            checkIfActive = new CustomTimingsHandler("** " + name + "checkIfActive");
          }
      }
  }
