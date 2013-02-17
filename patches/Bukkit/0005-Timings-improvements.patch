@@ -1,43 +1,54 @@
-From 91a6f49ccab6bd898c6d85023006d69bd3edc02d Mon Sep 17 00:00:00 2001
+From db3f6904e30beeb1ffc7eaba808009969f8c7107 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Thu, 7 Feb 2013 11:34:50 -0500
 Subject: [PATCH] Timings improvements.
 
 ---
- src/main/java/org/bukkit/CustomTimingsHandler.java | 74 ++++++++++++++++++++++
+ src/main/java/org/bukkit/CustomTimingsHandler.java | 84 ++++++++++++++++++++++
  .../org/bukkit/command/defaults/ReloadCommand.java |  2 +-
- .../bukkit/command/defaults/TimingsCommand.java    |  2 +-
- .../org/bukkit/event/CustomTimingsHandler.java     | 60 ------------------
- 4 files changed, 76 insertions(+), 62 deletions(-)
+ .../bukkit/command/defaults/TimingsCommand.java    | 22 ++++--
+ .../org/bukkit/event/CustomTimingsHandler.java     | 60 ----------------
+ .../org/bukkit/plugin/TimedRegisteredListener.java |  2 +
+ .../org/bukkit/plugin/java/JavaPluginLoader.java   |  2 +-
+ 6 files changed, 105 insertions(+), 67 deletions(-)
  create mode 100644 src/main/java/org/bukkit/CustomTimingsHandler.java
  delete mode 100644 src/main/java/org/bukkit/event/CustomTimingsHandler.java
 
 diff --git a/src/main/java/org/bukkit/CustomTimingsHandler.java b/src/main/java/org/bukkit/CustomTimingsHandler.java
 new file mode 100644
-index 0000000..e8482c5
+index 0000000..4001eee
 --- /dev/null
 +++ b/src/main/java/org/bukkit/CustomTimingsHandler.java
-@@ -0,0 +1,74 @@
+@@ -0,0 +1,84 @@
 +package org.bukkit;
 +
 +import java.io.PrintStream;
 +import java.util.ArrayList;
++import java.util.LinkedList;
++import java.util.List;
 +
 +/**
-+ * Extends RegisteredListener to include timing information
++ * Provides custom timing sections for /timings merged
 + */
 +public class CustomTimingsHandler {
 +
-+    final String name;
++    final public String name;
 +    public long count = 0;
 +    public long totalTime = 0;
-+    public long start = 0;
-+    CustomTimingsHandler other = null;
++    public long violations = 0;
++    CustomTimingsHandler parent = null;
++    final public LinkedList<Long> currentStack = new LinkedList<Long>();
 +
-+    static public ArrayList<CustomTimingsHandler> allList = new ArrayList<>();
++    final public static List<CustomTimingsHandler> allList = new ArrayList<CustomTimingsHandler>();
++
++
 +    public CustomTimingsHandler(String name) {
 +        this.name = name;
 +        allList.add(this);
++    }
++    public CustomTimingsHandler(String name, CustomTimingsHandler parent) {
++        this(name);
++        this.parent = parent;
 +    }
 +
 +    static public void printTimings(PrintStream printStream) {
@@ -59,36 +70,37 @@ index 0000000..e8482c5
 +        }
 +    }
 +
-+    public void startTiming(CustomTimingsHandler other) {
-+        if (!Bukkit.getServer().getPluginManager().useTimings()) return;
-+        startTiming();
-+        other.start = start;
-+        this.other = other;
-+    }
-+
 +    public void startTiming() {
 +        if (!Bukkit.getServer().getPluginManager().useTimings()) return;
-+        start = System.nanoTime();
++        long start = System.nanoTime();
++        currentStack.addLast(start);
++        if (parent != null) {
++            parent.currentStack.addLast(start);
++        }
 +    }
 +
 +    public void stopTiming() {
-+        if (!Bukkit.getServer().getPluginManager().useTimings() || start == 0) return;
++        if (!Bukkit.getServer().getPluginManager().useTimings()) return;
 +
++        Long start = currentStack.pollLast();
++        if (start == null) {
++            return;
++        }
 +        long diff = System.nanoTime() - start;
 +        totalTime += diff;
++        if (diff > 50000000) {
++            violations++;
++        }
 +        count++;
-+        if (other != null) {
-+            other.totalTime += diff;
-+            other.count++;
-+            other = null;
++        if (parent != null) {
++            parent.stopTiming();
 +        }
 +    }
 +
 +    public void reset() {
 +        count = 0;
-+        start = 0;
++        violations = 0;
 +        totalTime = 0;
-+        other = null;
 +    }
 +}
 +
@@ -106,10 +118,10 @@ index fffafa5..89c8414 100644
  public class ReloadCommand extends BukkitCommand {
      public ReloadCommand(String name) {
 diff --git a/src/main/java/org/bukkit/command/defaults/TimingsCommand.java b/src/main/java/org/bukkit/command/defaults/TimingsCommand.java
-index e0628d0..c4c6514 100644
+index e0628d0..588cbc3 100644
 --- a/src/main/java/org/bukkit/command/defaults/TimingsCommand.java
 +++ b/src/main/java/org/bukkit/command/defaults/TimingsCommand.java
-@@ -10,7 +10,7 @@ import org.apache.commons.lang.Validate;
+@@ -10,11 +10,12 @@ import org.apache.commons.lang.Validate;
  import org.bukkit.Bukkit;
  import org.bukkit.ChatColor;
  import org.bukkit.command.CommandSender;
@@ -118,6 +130,58 @@ index e0628d0..c4c6514 100644
  import org.bukkit.event.Event;
  import org.bukkit.event.HandlerList;
  import org.bukkit.plugin.Plugin;
+ import org.bukkit.plugin.RegisteredListener;
++import org.bukkit.plugin.SimplePluginManager; // Spigot
+ import org.bukkit.plugin.TimedRegisteredListener;
+ import org.bukkit.util.StringUtil;
+ 
+@@ -27,24 +28,34 @@ public class TimingsCommand extends BukkitCommand {
+     public TimingsCommand(String name) {
+         super(name);
+         this.description = "Records timings for all plugin events";
+-        this.usageMessage = "/timings <reset|merged|separate>";
++        this.usageMessage = "/timings <reset|merged|separate|on|off>"; // Spigot
+         this.setPermission("bukkit.command.timings");
+     }
+ 
+     @Override
+     public boolean execute(CommandSender sender, String currentAlias, String[] args) {
+         if (!testPermission(sender)) return true;
+-        if (args.length != 1)  {
++        if (args.length < 1)  { // Spigot
+             sender.sendMessage(ChatColor.RED + "Usage: " + usageMessage);
+             return false;
+         }
+-        if (!sender.getServer().getPluginManager().useTimings()) {
++        // Spigot start - this is dynamic now
++        /*if (!sender.getServer().getPluginManager().useTimings()) {
+             sender.sendMessage("Please enable timings by setting \"settings.plugin-profiling\" to true in bukkit.yml");
+             return true;
++        }*/
++        if ("on".equals(args[0])) {
++            ((SimplePluginManager)Bukkit.getServer().getPluginManager()).useTimings(true);
++            sender.sendMessage("Enabled Timings");
++        } else if ("off".equals(args[0])) {
++            ((SimplePluginManager)Bukkit.getServer().getPluginManager()).useTimings(false);
++            sender.sendMessage("Disabled Timings");
+         }
++        // Spigot end
+ 
+         boolean separate = "separate".equals(args[0]);
+-        if ("reset".equals(args[0])) {
++        if ("on".equals(args[0]) || "reset".equals(args[0])) { // Spigot
++            if (!"on".equals(args[0]) && !Bukkit.getServer().getPluginManager().useTimings()) {sender.sendMessage("Please enable timings by typing /timings on"); return true; } // Spigot
+             for (HandlerList handlerList : HandlerList.getHandlerLists()) {
+                 for (RegisteredListener listener : handlerList.getRegisteredListeners()) {
+                     if (listener instanceof TimedRegisteredListener) {
+@@ -57,6 +68,7 @@ public class TimingsCommand extends BukkitCommand {
+             sender.sendMessage("Timings reset");
+         } else if ("merged".equals(args[0]) || separate) {
+ 
++            if (!Bukkit.getServer().getPluginManager().useTimings()) {sender.sendMessage("Please enable timings by typing /timings on"); return true; } // Spigot
+             long sampleTime = System.nanoTime() - timingStart; // Spigot
+             int index = 0;
+             int pluginIdx = 0;
 diff --git a/src/main/java/org/bukkit/event/CustomTimingsHandler.java b/src/main/java/org/bukkit/event/CustomTimingsHandler.java
 deleted file mode 100644
 index 83294e3..0000000
@@ -184,6 +248,38 @@ index 83294e3..0000000
 -    }
 -}
 -
+diff --git a/src/main/java/org/bukkit/plugin/TimedRegisteredListener.java b/src/main/java/org/bukkit/plugin/TimedRegisteredListener.java
+index ed25e17..61865c4 100644
+--- a/src/main/java/org/bukkit/plugin/TimedRegisteredListener.java
++++ b/src/main/java/org/bukkit/plugin/TimedRegisteredListener.java
+@@ -1,5 +1,6 @@
+ package org.bukkit.plugin;
+ 
++import org.bukkit.Bukkit; // Spigot
+ import org.bukkit.event.Event;
+ import org.bukkit.event.EventException;
+ import org.bukkit.event.EventPriority;
+@@ -20,6 +21,7 @@ public class TimedRegisteredListener extends RegisteredListener {
+ 
+     @Override
+     public void callEvent(Event event) throws EventException {
++        if (!Bukkit.getServer().getPluginManager().useTimings()) { super.callEvent(event);return; } // Spigot
+         if (event.isAsynchronous()) {
+             super.callEvent(event);
+             return;
+diff --git a/src/main/java/org/bukkit/plugin/java/JavaPluginLoader.java b/src/main/java/org/bukkit/plugin/java/JavaPluginLoader.java
+index 10fc26a..9c7288e 100644
+--- a/src/main/java/org/bukkit/plugin/java/JavaPluginLoader.java
++++ b/src/main/java/org/bukkit/plugin/java/JavaPluginLoader.java
+@@ -430,7 +430,7 @@ public class JavaPluginLoader implements PluginLoader {
+                     }
+                 }
+             };
+-            if (useTimings) {
++            if (true) { // Spigot - TRL handles useTimings check now
+                 eventSet.add(new TimedRegisteredListener(listener, executor, eh.priority(), plugin, eh.ignoreCancelled()));
+             } else {
+                 eventSet.add(new RegisteredListener(listener, executor, eh.priority(), plugin, eh.ignoreCancelled()));
 -- 
 1.8.1.1
 
