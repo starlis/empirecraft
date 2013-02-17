@@ -1,0 +1,65 @@
+From b3d7c3b954ed61d281b1de6e739f655c13f861c8 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Sat, 16 Feb 2013 14:55:30 -0500
+Subject: [PATCH] Enable sending of pings to users with an improved
+ implementation
+
+---
+ .../java/net/minecraft/server/EntityPlayer.java    |  1 +
+ src/main/java/net/minecraft/server/PlayerList.java | 24 ++++++++++++++--------
+ 2 files changed, 16 insertions(+), 9 deletions(-)
+
+diff --git a/src/main/java/net/minecraft/server/EntityPlayer.java b/src/main/java/net/minecraft/server/EntityPlayer.java
+index 8d61ca6..3c7fa22 100644
+--- a/src/main/java/net/minecraft/server/EntityPlayer.java
++++ b/src/main/java/net/minecraft/server/EntityPlayer.java
+@@ -48,6 +48,7 @@ public class EntityPlayer extends EntityHuman implements ICrafting {
+     public int newLevel = 0;
+     public int newTotalExp = 0;
+     public boolean keepLevel = false;
++    public int lastPing = -1; // Spigot
+     // CraftBukkit end
+ 
+     public EntityPlayer(MinecraftServer minecraftserver, World world, String s, PlayerInteractManager playerinteractmanager) {
+diff --git a/src/main/java/net/minecraft/server/PlayerList.java b/src/main/java/net/minecraft/server/PlayerList.java
+index d13fa19..00b090f 100644
+--- a/src/main/java/net/minecraft/server/PlayerList.java
++++ b/src/main/java/net/minecraft/server/PlayerList.java
+@@ -650,19 +650,25 @@ public abstract class PlayerList {
+         // CraftBukkit end
+     }
+ 
++    // Spigot
++    static final int PING_CHANGE_THRESHOLD = 20;
+     public void tick() {
+-        if (++this.o > 600) {
+-            this.o = 0;
++        if (this.players.size() == 0) {
++            return;
+         }
+-
+-        /* CraftBukkit start - remove updating of lag to players -- it spams way to much on big servers.
+-        if (this.o < this.players.size()) {
+-            EntityPlayer entityplayer = (EntityPlayer) this.players.get(this.o);
+-
+-            this.sendAll(new Packet201PlayerInfo(entityplayer.name, true, entityplayer.ping));
++        int index = MinecraftServer.currentTick % this.players.size();
++        EntityPlayer player = (EntityPlayer) this.players.get(index);
++        if (player.lastPing == -1 || Math.abs(player.ping - player.lastPing) > PING_CHANGE_THRESHOLD) {
++            Packet packet = new Packet201PlayerInfo(player.listName, true, player.ping);
++            for (EntityPlayer splayer : (List<EntityPlayer>) this.players) {
++                if (splayer.getBukkitEntity().canSee(player.getBukkitEntity())) {
++                    splayer.playerConnection.sendPacket(packet);
++                }
++            }
++            player.lastPing = player.ping;
+         }
+-        // CraftBukkit end */
+     }
++    // Spigot end
+ 
+     public void sendAll(Packet packet) {
+         for (int i = 0; i < this.players.size(); ++i) {
+-- 
+1.8.1.1
+
