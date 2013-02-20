@@ -1,58 +1,84 @@
-From b97f2c9620217239ec8f4d91e46c3ed46f312b40 Mon Sep 17 00:00:00 2001
+From 33472c7e09028c3775c4258a500f88a88a204de8 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Fri, 15 Feb 2013 22:20:14 -0500
-Subject: [PATCH] Fix map in itemframes lag.
+Subject: [PATCH] Fix map in itemframes lag
 
 ---
- .../net/minecraft/server/EntityTrackerEntry.java   | 28 ++++++++++++++++++++--
- 1 file changed, 26 insertions(+), 2 deletions(-)
+ .../net/minecraft/server/EntityTrackerEntry.java   | 27 ++++++++++++++++------
+ 1 file changed, 20 insertions(+), 7 deletions(-)
 
 diff --git a/src/main/java/net/minecraft/server/EntityTrackerEntry.java b/src/main/java/net/minecraft/server/EntityTrackerEntry.java
-index f42cfdf..e8d29a9 100644
+index f42cfdf..cf72cd4 100644
 --- a/src/main/java/net/minecraft/server/EntityTrackerEntry.java
 +++ b/src/main/java/net/minecraft/server/EntityTrackerEntry.java
-@@ -73,7 +73,7 @@ public class EntityTrackerEntry {
+@@ -36,6 +36,7 @@ public class EntityTrackerEntry {
+     public boolean n = false;
+     public Set trackedPlayers = new HashSet();
+ 
++    public List<EntityPlayer> playersToUpdate = new java.util.ArrayList<EntityPlayer>(); // Spigot
+     public EntityTrackerEntry(Entity entity, int i, int j, boolean flag) {
+         this.tracker = entity;
+         this.b = i;
+@@ -73,17 +74,17 @@ public class EntityTrackerEntry {
              this.broadcast(new Packet39AttachEntity(this.tracker, this.tracker.vehicle));
          }
  
 -        if (this.tracker instanceof EntityItemFrame && this.m % 10000 == 0) {
-+        /*if (this.tracker instanceof EntityItemFrame && this.m % 10 == 0) { // Spigot - moved to updatePlayer
++        if (this.tracker instanceof EntityItemFrame && this.m % 10 == 0) {
              EntityItemFrame i4 = (EntityItemFrame) this.tracker;
              ItemStack i5 = i4.i();
  
-@@ -101,7 +101,7 @@ public class EntityTrackerEntry {
+-            if (i5 != null && i5.getItem() instanceof ItemWorldMap) {
++            if (i5 != null && i5.getItem() instanceof ItemWorldMap && playersToUpdate.size() > 0) { // Spigot
+                 WorldMap i7 = Item.MAP.getSavedMap(i5, this.tracker.world);
+-                Iterator j0 = list.iterator();
++                Iterator j0 = playersToUpdate.iterator(); // Spigot
+ 
+                 while (j0.hasNext()) {
+-                    EntityHuman j1 = (EntityHuman) j0.next();
+-                    EntityPlayer j2 = (EntityPlayer) j1;
++                    //EntityHuman j1 = (EntityHuman) j0.next(); // Spigot - unused
++                    EntityPlayer j2 = (EntityPlayer) j0.next(); // Spigot
+ 
+                     i7.a(j2, i5);
+                     if (j2.playerConnection.lowPriorityCount() <= 5) {
+@@ -91,7 +92,7 @@ public class EntityTrackerEntry {
+ 
+                         if (j3 != null) {
+                             j2.playerConnection.sendPacket(j3);
+-                        }
++                        } else { j0.remove(); } // Spigot
+                     }
+                 }
+             }
+@@ -101,7 +102,7 @@ public class EntityTrackerEntry {
              if (i9.a()) {
                  this.broadcastIncludingSelf(new Packet40EntityMetadata(this.tracker.id, i9, false));
              }
 -        } else if (this.m++ % this.c == 0 || this.tracker.am) {
-+        } else */if (this.m++ % this.c == 0 || this.tracker.am) {
++        } else if (this.m % this.c == 0 || this.tracker.am) { // Spigot - Remove ++, down below.
              int i;
              int j;
  
-@@ -329,6 +329,30 @@ public class EntityTrackerEntry {
+@@ -220,6 +221,7 @@ public class EntityTrackerEntry {
+ 
+             this.tracker.am = false;
+         }
++        this.m++; // Spigot
+ 
+         if (this.tracker.velocityChanged) {
+             // CraftBukkit start - create PlayerVelocity event
+@@ -329,6 +331,17 @@ public class EntityTrackerEntry {
                          }
                      }
  
-+                    // Spigot start - update client of map in item frame upon tracking.
++                    // Spigot start -
 +                    if (this.tracker instanceof EntityItemFrame) {
 +                        EntityItemFrame i4 = (EntityItemFrame) this.tracker;
 +                        ItemStack i5 = i4.i();
 +
 +                        if (i5 != null && i5.getItem() instanceof ItemWorldMap) {
-+                            WorldMap i7 = Item.MAP.getSavedMap(i5, this.tracker.world);
-+                            i7.a(entityplayer, i5);
-+
-+                            Packet j3 = Item.MAP.c(i5, this.tracker.world, entityplayer);
-+
-+                            if (j3 != null) {
-+                                entityplayer.playerConnection.sendPacket(j3);
-+                            }
-+                        }
-+
-+                        DataWatcher i9 = this.tracker.getDataWatcher();
-+
-+                        if (i9.a()) {
-+                            entityplayer.playerConnection.sendPacket(new Packet40EntityMetadata(this.tracker.id, i9, false));
++                            this.playersToUpdate.add(entityplayer);
 +                        }
 +                    }
 +                    // Spigot end
