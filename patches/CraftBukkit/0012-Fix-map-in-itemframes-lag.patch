@@ -1,0 +1,65 @@
+From b97f2c9620217239ec8f4d91e46c3ed46f312b40 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Fri, 15 Feb 2013 22:20:14 -0500
+Subject: [PATCH] Fix map in itemframes lag.
+
+---
+ .../net/minecraft/server/EntityTrackerEntry.java   | 28 ++++++++++++++++++++--
+ 1 file changed, 26 insertions(+), 2 deletions(-)
+
+diff --git a/src/main/java/net/minecraft/server/EntityTrackerEntry.java b/src/main/java/net/minecraft/server/EntityTrackerEntry.java
+index f42cfdf..e8d29a9 100644
+--- a/src/main/java/net/minecraft/server/EntityTrackerEntry.java
++++ b/src/main/java/net/minecraft/server/EntityTrackerEntry.java
+@@ -73,7 +73,7 @@ public class EntityTrackerEntry {
+             this.broadcast(new Packet39AttachEntity(this.tracker, this.tracker.vehicle));
+         }
+ 
+-        if (this.tracker instanceof EntityItemFrame && this.m % 10000 == 0) {
++        /*if (this.tracker instanceof EntityItemFrame && this.m % 10 == 0) { // Spigot - moved to updatePlayer
+             EntityItemFrame i4 = (EntityItemFrame) this.tracker;
+             ItemStack i5 = i4.i();
+ 
+@@ -101,7 +101,7 @@ public class EntityTrackerEntry {
+             if (i9.a()) {
+                 this.broadcastIncludingSelf(new Packet40EntityMetadata(this.tracker.id, i9, false));
+             }
+-        } else if (this.m++ % this.c == 0 || this.tracker.am) {
++        } else */if (this.m++ % this.c == 0 || this.tracker.am) {
+             int i;
+             int j;
+ 
+@@ -329,6 +329,30 @@ public class EntityTrackerEntry {
+                         }
+                     }
+ 
++                    // Spigot start - update client of map in item frame upon tracking.
++                    if (this.tracker instanceof EntityItemFrame) {
++                        EntityItemFrame i4 = (EntityItemFrame) this.tracker;
++                        ItemStack i5 = i4.i();
++
++                        if (i5 != null && i5.getItem() instanceof ItemWorldMap) {
++                            WorldMap i7 = Item.MAP.getSavedMap(i5, this.tracker.world);
++                            i7.a(entityplayer, i5);
++
++                            Packet j3 = Item.MAP.c(i5, this.tracker.world, entityplayer);
++
++                            if (j3 != null) {
++                                entityplayer.playerConnection.sendPacket(j3);
++                            }
++                        }
++
++                        DataWatcher i9 = this.tracker.getDataWatcher();
++
++                        if (i9.a()) {
++                            entityplayer.playerConnection.sendPacket(new Packet40EntityMetadata(this.tracker.id, i9, false));
++                        }
++                    }
++                    // Spigot end
++
+                     if (this.tracker instanceof EntityHuman) {
+                         EntityHuman entityhuman = (EntityHuman) this.tracker;
+ 
+-- 
+1.8.1.1
+

@@ -1,22 +1,22 @@
-From db3f6904e30beeb1ffc7eaba808009969f8c7107 Mon Sep 17 00:00:00 2001
+From 20ff2ec10c50c808ea4a8e472d7b20334620a7f8 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Thu, 7 Feb 2013 11:34:50 -0500
-Subject: [PATCH] Timings improvements.
+Subject: [PATCH] Timings improvements
 
 ---
  src/main/java/org/bukkit/CustomTimingsHandler.java | 84 ++++++++++++++++++++++
  .../org/bukkit/command/defaults/ReloadCommand.java |  2 +-
- .../bukkit/command/defaults/TimingsCommand.java    | 22 ++++--
+ .../bukkit/command/defaults/TimingsCommand.java    | 24 +++++--
  .../org/bukkit/event/CustomTimingsHandler.java     | 60 ----------------
- .../org/bukkit/plugin/TimedRegisteredListener.java |  2 +
+ .../org/bukkit/plugin/TimedRegisteredListener.java | 11 ++-
  .../org/bukkit/plugin/java/JavaPluginLoader.java   |  2 +-
- 6 files changed, 105 insertions(+), 67 deletions(-)
+ 6 files changed, 114 insertions(+), 69 deletions(-)
  create mode 100644 src/main/java/org/bukkit/CustomTimingsHandler.java
  delete mode 100644 src/main/java/org/bukkit/event/CustomTimingsHandler.java
 
 diff --git a/src/main/java/org/bukkit/CustomTimingsHandler.java b/src/main/java/org/bukkit/CustomTimingsHandler.java
 new file mode 100644
-index 0000000..4001eee
+index 0000000..70403d5
 --- /dev/null
 +++ b/src/main/java/org/bukkit/CustomTimingsHandler.java
 @@ -0,0 +1,84 @@
@@ -59,7 +59,7 @@ index 0000000..4001eee
 +            if (count == 0) continue;
 +            long avg = time / count;
 +
-+            printStream.println("    " + timings.name + " Time: " + time + " Count: " + count + " Avg: " + avg);
++            printStream.println("    " + timings.name + " Time: " + time + " Count: " + count + " Avg: " + avg + " Violations: " + timings.violations);
 +        }
 +    }
 +
@@ -118,7 +118,7 @@ index fffafa5..89c8414 100644
  public class ReloadCommand extends BukkitCommand {
      public ReloadCommand(String name) {
 diff --git a/src/main/java/org/bukkit/command/defaults/TimingsCommand.java b/src/main/java/org/bukkit/command/defaults/TimingsCommand.java
-index e0628d0..588cbc3 100644
+index e0628d0..00c33f5 100644
 --- a/src/main/java/org/bukkit/command/defaults/TimingsCommand.java
 +++ b/src/main/java/org/bukkit/command/defaults/TimingsCommand.java
 @@ -10,11 +10,12 @@ import org.apache.commons.lang.Validate;
@@ -182,6 +182,15 @@ index e0628d0..588cbc3 100644
              long sampleTime = System.nanoTime() - timingStart; // Spigot
              int index = 0;
              int pluginIdx = 0;
+@@ -91,7 +103,7 @@ public class TimingsCommand extends BukkitCommand {
+                             totalTime += time;
+                             Event event = trl.getEvent();
+                             if (count > 0 && event != null) {
+-                                fileTimings.println("    " + event.getClass().getSimpleName() + (trl.hasMultiple() ? " (and others)" : "") + " Time: " + time + " Count: " + count + " Avg: " + avg);
++                                fileTimings.println("    " + event.getClass().getSimpleName() + (trl.hasMultiple() ? " (and others)" : "") + " Time: " + time + " Count: " + count + " Avg: " + avg + " Violations: " + trl.violations); // Spigot
+                             }
+                         }
+                     }
 diff --git a/src/main/java/org/bukkit/event/CustomTimingsHandler.java b/src/main/java/org/bukkit/event/CustomTimingsHandler.java
 deleted file mode 100644
 index 83294e3..0000000
@@ -249,7 +258,7 @@ index 83294e3..0000000
 -}
 -
 diff --git a/src/main/java/org/bukkit/plugin/TimedRegisteredListener.java b/src/main/java/org/bukkit/plugin/TimedRegisteredListener.java
-index ed25e17..61865c4 100644
+index ed25e17..4153af3 100644
 --- a/src/main/java/org/bukkit/plugin/TimedRegisteredListener.java
 +++ b/src/main/java/org/bukkit/plugin/TimedRegisteredListener.java
 @@ -1,5 +1,6 @@
@@ -259,7 +268,15 @@ index ed25e17..61865c4 100644
  import org.bukkit.event.Event;
  import org.bukkit.event.EventException;
  import org.bukkit.event.EventPriority;
-@@ -20,6 +21,7 @@ public class TimedRegisteredListener extends RegisteredListener {
+@@ -11,6 +12,7 @@ import org.bukkit.event.Listener;
+ public class TimedRegisteredListener extends RegisteredListener {
+     private int count;
+     private long totalTime;
++    public long violations = 0; // Spigot
+     private Event event;
+     private boolean multiple = false;
+ 
+@@ -20,6 +22,7 @@ public class TimedRegisteredListener extends RegisteredListener {
  
      @Override
      public void callEvent(Event event) throws EventException {
@@ -267,6 +284,21 @@ index ed25e17..61865c4 100644
          if (event.isAsynchronous()) {
              super.callEvent(event);
              return;
+@@ -33,7 +36,13 @@ public class TimedRegisteredListener extends RegisteredListener {
+         }
+         long start = System.nanoTime();
+         super.callEvent(event);
+-        totalTime += System.nanoTime() - start;
++        // Spigot start
++        long diff = System.nanoTime() - start;
++        if (diff > 50000000) {
++            violations++;
++        }
++        totalTime += diff;
++        // Spigot end
+     }
+ 
+     /**
 diff --git a/src/main/java/org/bukkit/plugin/java/JavaPluginLoader.java b/src/main/java/org/bukkit/plugin/java/JavaPluginLoader.java
 index 10fc26a..9c7288e 100644
 --- a/src/main/java/org/bukkit/plugin/java/JavaPluginLoader.java
