@@ -1,4 +1,4 @@
-From d59c080683f2f94f1f00ff8ab7ff1c995c0eeb28 Mon Sep 17 00:00:00 2001
+From f80d22aea3f98028ab1c7abd8ddbff821206ede7 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Sun, 3 Feb 2013 05:10:21 -0500
 Subject: [PATCH] Entity Activation Range
@@ -13,10 +13,10 @@ This change can have dramatic impact on gameplay if configured too low. Balance 
  src/main/java/net/minecraft/server/EntityItem.java |   5 +-
  src/main/java/net/minecraft/server/World.java      |  15 +-
  .../java/org/bukkit/craftbukkit/CraftWorld.java    |  15 +-
- src/main/java/org/bukkit/craftbukkit/Spigot.java   | 206 +++++++++++++++++++++
+ src/main/java/org/bukkit/craftbukkit/Spigot.java   | 214 +++++++++++++++++++++
  .../java/org/bukkit/craftbukkit/SpigotTimings.java |   3 +
  src/main/resources/configurations/bukkit.yml       |   3 +
- 8 files changed, 245 insertions(+), 12 deletions(-)
+ 8 files changed, 253 insertions(+), 12 deletions(-)
 
 diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
 index bf9108a..e2ee960 100644
@@ -183,7 +183,7 @@ index 21bd64a..33df602 100644
  
      public Block getBlockAt(int x, int y, int z) {
 diff --git a/src/main/java/org/bukkit/craftbukkit/Spigot.java b/src/main/java/org/bukkit/craftbukkit/Spigot.java
-index 83988c3..7575dc4 100644
+index 83988c3..a29a45d 100644
 --- a/src/main/java/org/bukkit/craftbukkit/Spigot.java
 +++ b/src/main/java/org/bukkit/craftbukkit/Spigot.java
 @@ -1,9 +1,17 @@
@@ -204,7 +204,7 @@ index 83988c3..7575dc4 100644
      public static void initialize(CraftServer server, SimpleCommandMap commandMap, YamlConfiguration configuration) {
          commandMap.register("bukkit", new org.bukkit.craftbukkit.command.RestartCommand("restart"));
          commandMap.register("bukkit", new org.bukkit.craftbukkit.command.TicksPerSecondCommand("tps"));
-@@ -32,5 +40,203 @@ public class Spigot {
+@@ -32,5 +40,211 @@ public class Spigot {
              server.getLogger().severe("[Spigot] You should not disable chunk-gc. Resetting period-in-ticks to 600 ticks.");
              server.chunkGCPeriod = 600;
          }
@@ -246,6 +246,7 @@ index 83988c3..7575dc4 100644
 +            ) {
 +            return true;
 +        }
++
 +        return false;
 +    }
 +
@@ -318,7 +319,6 @@ index 83988c3..7575dc4 100644
 +     */
 +    private static void activateChunkEntities(Chunk chunk) {
 +        for (List<Entity> slice : chunk.entitySlices) {
-+
 +            for (Entity entity : slice) {
 +                if (MinecraftServer.currentTick > entity.activatedTick) {
 +                    if (entity.defaultActivationState) {
@@ -355,8 +355,15 @@ index 83988c3..7575dc4 100644
 +     */
 +    public static boolean checkEntityImmunities(Entity entity) {
 +        // quick checks.
-+        if (!entity.onGround || entity.ad /* isInWater */
-+            || entity.passenger != null || entity.vehicle != null || entity.fireTicks > 0) {
++        if (entity.ad /* isInWater */ || entity.fireTicks > 0) {
++            return true;
++        }
++        if (!(entity instanceof EntityArrow)) {
++            if (!entity.onGround || entity.passenger != null
++                || entity.vehicle != null) {
++                return true;
++            }
++        } else if (!((EntityArrow) entity).inGround) {
 +            return true;
 +        }
 +        // special cases.
@@ -378,21 +385,22 @@ index 83988c3..7575dc4 100644
 +                }
 +            }
 +        }
-+        if (   (entity.activationType == 3 && entity.world.getWorld().miscEntityActivationRange == 0)
++        return (entity.activationType == 3 && entity.world.getWorld().miscEntityActivationRange == 0)
 +            || (entity.activationType == 2 && entity.world.getWorld().animalEntityActivationRange == 0)
-+            || (entity.activationType == 1 && entity.world.getWorld().monsterEntityActivationRange == 0)
-+            ) {
-+            return true;
-+        }
-+        return (entity instanceof EntityArrow && !((EntityArrow) entity).inGround);
++            || (entity.activationType == 1 && entity.world.getWorld().monsterEntityActivationRange == 0);
 +    }
 +
++    /**
++     * Checks if the entity is active for this tick.
++     * @param entity
++     * @return
++     */
 +    public static boolean checkIfActive(Entity entity) {
 +        SpigotTimings.checkIfActiveTimer.startTiming();
 +        boolean isActive = entity.activatedTick >= MinecraftServer.currentTick || entity.defaultActivationState;
 +        // Should this entity tick?
 +        if (!isActive) {
-+            if ((MinecraftServer.currentTick - entity.activatedTick) % 20 == 0) {
++            if ((MinecraftServer.currentTick - entity.activatedTick - 1) % 20 == 0) {
 +                // Check immunities every 20 ticks.
 +                if (checkEntityImmunities(entity)) {
 +                    // Triggered some sort of immunity, give 20 full ticks before we check again.
