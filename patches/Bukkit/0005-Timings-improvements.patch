@@ -1,31 +1,29 @@
-From 20ff2ec10c50c808ea4a8e472d7b20334620a7f8 Mon Sep 17 00:00:00 2001
+From cedee04909653f489ba2c013cafac1b79d17cae5 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Thu, 7 Feb 2013 11:34:50 -0500
 Subject: [PATCH] Timings improvements
 
 ---
- src/main/java/org/bukkit/CustomTimingsHandler.java | 84 ++++++++++++++++++++++
- .../org/bukkit/command/defaults/ReloadCommand.java |  2 +-
- .../bukkit/command/defaults/TimingsCommand.java    | 24 +++++--
- .../org/bukkit/event/CustomTimingsHandler.java     | 60 ----------------
- .../org/bukkit/plugin/TimedRegisteredListener.java | 11 ++-
- .../org/bukkit/plugin/java/JavaPluginLoader.java   |  2 +-
- 6 files changed, 114 insertions(+), 69 deletions(-)
+ src/main/java/org/bukkit/CustomTimingsHandler.java | 117 +++++++++++++++++++++
+ .../org/bukkit/command/defaults/ReloadCommand.java |   2 +-
+ .../bukkit/command/defaults/TimingsCommand.java    |  26 +++--
+ .../org/bukkit/event/CustomTimingsHandler.java     |  60 -----------
+ .../org/bukkit/plugin/TimedRegisteredListener.java |  11 +-
+ .../org/bukkit/plugin/java/JavaPluginLoader.java   |   2 +-
+ 6 files changed, 148 insertions(+), 70 deletions(-)
  create mode 100644 src/main/java/org/bukkit/CustomTimingsHandler.java
  delete mode 100644 src/main/java/org/bukkit/event/CustomTimingsHandler.java
 
 diff --git a/src/main/java/org/bukkit/CustomTimingsHandler.java b/src/main/java/org/bukkit/CustomTimingsHandler.java
 new file mode 100644
-index 0000000..70403d5
+index 0000000..25a278a
 --- /dev/null
 +++ b/src/main/java/org/bukkit/CustomTimingsHandler.java
-@@ -0,0 +1,84 @@
+@@ -0,0 +1,117 @@
 +package org.bukkit;
 +
 +import java.io.PrintStream;
-+import java.util.ArrayList;
-+import java.util.LinkedList;
-+import java.util.List;
++import java.util.concurrent.ConcurrentLinkedQueue;
 +
 +/**
 + * Provides custom timing sections for /timings merged
@@ -34,13 +32,14 @@ index 0000000..70403d5
 +
 +    final public String name;
 +    public long count = 0;
++    public long start = 0;
++    public long timingDepth = 0;
 +    public long totalTime = 0;
++    public long curTickTotal = 0;
 +    public long violations = 0;
 +    CustomTimingsHandler parent = null;
-+    final public LinkedList<Long> currentStack = new LinkedList<Long>();
 +
-+    final public static List<CustomTimingsHandler> allList = new ArrayList<CustomTimingsHandler>();
-+
++    final public static ConcurrentLinkedQueue<CustomTimingsHandler> allList = new ConcurrentLinkedQueue<CustomTimingsHandler>();
 +
 +    public CustomTimingsHandler(String name) {
 +        this.name = name;
@@ -51,8 +50,12 @@ index 0000000..70403d5
 +        this.parent = parent;
 +    }
 +
-+    static public void printTimings(PrintStream printStream) {
-+        printStream.println("Minecraft - ** indicates it's already counted by another timing");
++    /**
++     * Prints the timings and extra data to the printstream
++     * @param printStream
++     */
++    public static void printTimings(PrintStream printStream) {
++        printStream.println("Minecraft");
 +        for (CustomTimingsHandler timings : allList) {
 +            long time = timings.totalTime;
 +            long count = timings.count;
@@ -61,37 +64,66 @@ index 0000000..70403d5
 +
 +            printStream.println("    " + timings.name + " Time: " + time + " Count: " + count + " Avg: " + avg + " Violations: " + timings.violations);
 +        }
++        printStream.println("# Version " + Bukkit.getVersion());
++        int entities = 0;
++        int livingEntities = 0;
++        for (World world : Bukkit.getWorlds()) {
++            entities += world.getEntities().size();
++            livingEntities += world.getLivingEntities().size();
++        }
++        printStream.println("# Entities " + entities);
++        printStream.println("# LivingEntities " + livingEntities);
 +    }
 +
-+    static public void reload() {
++    /**
++     * Resets all timings
++     */
++    public static void reload() {
 +        if (!Bukkit.getServer().getPluginManager().useTimings()) return;
 +        for (CustomTimingsHandler timings : allList) {
 +            timings.reset();
 +        }
 +    }
 +
++    /**
++     * Ticked every tick by CraftBukkit to count the number of times a timer caused TPS loss.
++     */
++    public static void tick() {
++        if (!Bukkit.getServer().getPluginManager().useTimings()) return;
++        for (CustomTimingsHandler timings : allList) {
++            if (timings.curTickTotal > 50000000 || timings.start != 0) {
++                timings.violations++;
++            }
++            timings.curTickTotal = 0;
++        }
++    }
++
++    /**
++     * Starts timing to track a section of code.
++     */
 +    public void startTiming() {
 +        if (!Bukkit.getServer().getPluginManager().useTimings()) return;
-+        long start = System.nanoTime();
-+        currentStack.addLast(start);
++
++        if (++timingDepth != 1) {
++            return; // Already timing.
++        }
++        start = System.nanoTime();
++
 +        if (parent != null) {
-+            parent.currentStack.addLast(start);
++            parent.start = start;
 +        }
 +    }
 +
 +    public void stopTiming() {
 +        if (!Bukkit.getServer().getPluginManager().useTimings()) return;
-+
-+        Long start = currentStack.pollLast();
-+        if (start == null) {
++        if (--timingDepth != 0 || start == 0) {
 +            return;
 +        }
 +        long diff = System.nanoTime() - start;
 +        totalTime += diff;
-+        if (diff > 50000000) {
-+            violations++;
-+        }
++        curTickTotal += diff;
 +        count++;
++        start = 0;
 +        if (parent != null) {
 +            parent.stopTiming();
 +        }
@@ -100,6 +132,7 @@ index 0000000..70403d5
 +    public void reset() {
 +        count = 0;
 +        violations = 0;
++        curTickTotal = 0;
 +        totalTime = 0;
 +    }
 +}
@@ -118,10 +151,10 @@ index fffafa5..89c8414 100644
  public class ReloadCommand extends BukkitCommand {
      public ReloadCommand(String name) {
 diff --git a/src/main/java/org/bukkit/command/defaults/TimingsCommand.java b/src/main/java/org/bukkit/command/defaults/TimingsCommand.java
-index e0628d0..00c33f5 100644
+index e0628d0..f1fcbe1 100644
 --- a/src/main/java/org/bukkit/command/defaults/TimingsCommand.java
 +++ b/src/main/java/org/bukkit/command/defaults/TimingsCommand.java
-@@ -10,11 +10,12 @@ import org.apache.commons.lang.Validate;
+@@ -10,41 +10,52 @@ import org.apache.commons.lang.Validate;
  import org.bukkit.Bukkit;
  import org.bukkit.ChatColor;
  import org.bukkit.command.CommandSender;
@@ -135,7 +168,13 @@ index e0628d0..00c33f5 100644
  import org.bukkit.plugin.TimedRegisteredListener;
  import org.bukkit.util.StringUtil;
  
-@@ -27,24 +28,34 @@ public class TimingsCommand extends BukkitCommand {
+ import com.google.common.collect.ImmutableList;
+ 
+ public class TimingsCommand extends BukkitCommand {
+-    private static final List<String> TIMINGS_SUBCOMMANDS = ImmutableList.of("merged", "reset", "separate");
++    private static final List<String> TIMINGS_SUBCOMMANDS = ImmutableList.of("merged", "reset", "separate", "on", "off");
+ 
+     public static long timingStart =  0; // Spigot
      public TimingsCommand(String name) {
          super(name);
          this.description = "Records timings for all plugin events";

@@ -1,4 +1,4 @@
-From 2dd186e5dc5b29fdd9c1048ee2f2034542c05e16 Mon Sep 17 00:00:00 2001
+From 9d7eb914086946b3f0e078a6b957307134be8f34 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Thu, 24 Jan 2013 21:01:32 -0500
 Subject: [PATCH] Timings improvements
@@ -7,15 +7,15 @@ Subject: [PATCH] Timings improvements
  .../net/minecraft/server/ChunkProviderServer.java  |   6 +-
  src/main/java/net/minecraft/server/Entity.java     |   5 +
  .../java/net/minecraft/server/EntityLiving.java    |  31 ++----
- .../java/net/minecraft/server/MinecraftServer.java |  11 +++
+ .../java/net/minecraft/server/MinecraftServer.java |  17 +++-
  .../net/minecraft/server/PlayerConnection.java     |  12 +--
  src/main/java/net/minecraft/server/TileEntity.java |   2 +
  src/main/java/net/minecraft/server/World.java      |  20 ++--
  .../bukkit/craftbukkit/OrebfuscatorManager.java    |   2 +-
- .../java/org/bukkit/craftbukkit/SpigotTimings.java | 109 +++++++++++++++++++++
+ .../java/org/bukkit/craftbukkit/SpigotTimings.java | 111 +++++++++++++++++++++
  .../bukkit/craftbukkit/scheduler/CraftTask.java    |  18 ++++
  .../java/org/bukkit/event/WorldTimingsHandler.java |  20 ----
- 11 files changed, 177 insertions(+), 59 deletions(-)
+ 11 files changed, 184 insertions(+), 60 deletions(-)
  create mode 100644 src/main/java/org/bukkit/craftbukkit/SpigotTimings.java
  delete mode 100644 src/main/java/org/bukkit/event/WorldTimingsHandler.java
 
@@ -214,10 +214,18 @@ index bbbb008..01b16ac 100644
      }
  
 diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
-index c9b51ce..62ffdb4 100644
+index c9b51ce..faa79c8 100644
 --- a/src/main/java/net/minecraft/server/MinecraftServer.java
 +++ b/src/main/java/net/minecraft/server/MinecraftServer.java
-@@ -21,6 +21,7 @@ import jline.console.ConsoleReader;
+@@ -6,7 +6,6 @@ import java.security.KeyPair;
+ import java.text.SimpleDateFormat;
+ import java.util.ArrayList;
+ import java.util.Date;
+-import java.util.Iterator;
+ import java.util.List;
+ import java.util.concurrent.Callable;
+ import java.util.logging.Level;
+@@ -21,6 +20,7 @@ import jline.console.ConsoleReader;
  import joptsimple.OptionSet;
  
  import org.bukkit.World.Environment;
@@ -225,7 +233,18 @@ index c9b51ce..62ffdb4 100644
  import org.bukkit.craftbukkit.util.Waitable;
  import org.bukkit.event.server.RemoteServerCommandEvent;
  import org.bukkit.event.world.WorldSaveEvent;
-@@ -520,6 +521,7 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+@@ -419,7 +419,10 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+                     currentTPS = (currentTPS * 0.95) + (1E9 / (curTime - lastTick) * 0.05);
+                     lastTick = curTime;
+                     MinecraftServer.currentTick++;
++                    SpigotTimings.serverTickTimer.startTiming();
+                     this.q();
++                    SpigotTimings.serverTickTimer.stopTiming();
++                    org.bukkit.CustomTimingsHandler.tick();
+                 }
+                 // Spigot end
+             } else {
+@@ -520,6 +523,7 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
          this.methodProfiler.a("levels");
  
          // CraftBukkit start - only send timeupdates to the people in that world
@@ -233,7 +252,7 @@ index c9b51ce..62ffdb4 100644
          this.server.getScheduler().mainThreadHeartbeat(this.ticks);
  
          // Run tasks that are waiting on processing
-@@ -527,7 +529,10 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+@@ -527,7 +531,10 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
              processQueue.remove().run();
          }
  
@@ -244,7 +263,7 @@ index c9b51ce..62ffdb4 100644
  
          // Send timeupdates to everyone, it will get the right time from the world the player is in.
          if (this.ticks % 20 == 0) {
-@@ -579,7 +584,9 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+@@ -579,7 +586,9 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
  
                  this.methodProfiler.b();
                  this.methodProfiler.a("tracker");
@@ -254,7 +273,7 @@ index c9b51ce..62ffdb4 100644
                  this.methodProfiler.b();
                  this.methodProfiler.b();
              // } // CraftBukkit
-@@ -588,14 +595,18 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+@@ -588,14 +597,20 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
          }
  
          this.methodProfiler.c("connection");
@@ -262,7 +281,9 @@ index c9b51ce..62ffdb4 100644
          this.ae().b();
 +        SpigotTimings.connectionTimer.stopTiming(); // Spigot
          this.methodProfiler.c("players");
++        SpigotTimings.playerListTimer.startTiming(); // Spigot
          this.t.tick();
++        SpigotTimings.playerListTimer.stopTiming(); // Spigot
          this.methodProfiler.c("tickables");
  
 +        SpigotTimings.tickablesTimer.startTiming(); // Spigot
@@ -467,10 +488,10 @@ index c0ee505..6c6517f 100644
  
 diff --git a/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java b/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java
 new file mode 100644
-index 0000000..61bf7e5
+index 0000000..df837a3
 --- /dev/null
 +++ b/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java
-@@ -0,0 +1,109 @@
+@@ -0,0 +1,111 @@
 +package org.bukkit.craftbukkit;
 +
 +import net.minecraft.server.*;
@@ -482,6 +503,8 @@ index 0000000..61bf7e5
 +
 +public class SpigotTimings {
 +
++    public static final CustomTimingsHandler serverTickTimer = new CustomTimingsHandler("** Full Server Tick");
++    public static final CustomTimingsHandler playerListTimer = new CustomTimingsHandler("Player List");
 +    public static final CustomTimingsHandler connectionTimer = new CustomTimingsHandler("Connection");
 +    public static final CustomTimingsHandler tickablesTimer = new CustomTimingsHandler("Tickables");
 +    public static final CustomTimingsHandler schedulerTimer = new CustomTimingsHandler("Scheduler");
@@ -576,7 +599,7 @@ index 0000000..61bf7e5
 +            entityTick = new CustomTimingsHandler(name + "entityTick");
 +            tileEntityTick = new CustomTimingsHandler(name + "tileEntityTick");
 +            tileEntityPending = new CustomTimingsHandler(name + "tileEntityPending");
-+            tracker = new CustomTimingsHandler("** " + name + "tracker");
++            tracker = new CustomTimingsHandler(name + "tracker");
 +        }
 +    }
 +}
