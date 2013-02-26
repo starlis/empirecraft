@@ -1,4 +1,4 @@
-From ddaece95d3d20f67fb6b226bc1b01feefb49690d Mon Sep 17 00:00:00 2001
+From 134221f4d6e740f0e2afabb203b75669f1c41294 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Sun, 3 Feb 2013 05:10:21 -0500
 Subject: [PATCH] Entity Activation Range
@@ -8,18 +8,18 @@ This feature gives 3 new configurable ranges that if an entity of the matching t
 This will drastically cut down on tick timings for entities that are not in range of a user to actually be "used".
 This change can have dramatic impact on gameplay if configured too low. Balance according to your servers desired gameplay.
 ---
- src/main/java/net/minecraft/server/Entity.java     |   8 +-
+ src/main/java/net/minecraft/server/Entity.java     |   9 +-
  .../java/net/minecraft/server/EntityArrow.java     |   2 +-
  src/main/java/net/minecraft/server/EntityItem.java |   5 +-
  src/main/java/net/minecraft/server/World.java      |  15 +-
  .../java/org/bukkit/craftbukkit/CraftWorld.java    |  15 +-
- src/main/java/org/bukkit/craftbukkit/Spigot.java   | 219 +++++++++++++++++++++
+ src/main/java/org/bukkit/craftbukkit/Spigot.java   | 220 +++++++++++++++++++++
  .../java/org/bukkit/craftbukkit/SpigotTimings.java |   3 +
  src/main/resources/configurations/bukkit.yml       |   3 +
- 8 files changed, 258 insertions(+), 12 deletions(-)
+ 8 files changed, 260 insertions(+), 12 deletions(-)
 
 diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
-index bf9108a..e2ee960 100644
+index bf9108a..807b4d1 100644
 --- a/src/main/java/net/minecraft/server/Entity.java
 +++ b/src/main/java/net/minecraft/server/Entity.java
 @@ -89,7 +89,7 @@ public abstract class Entity {
@@ -39,13 +39,21 @@ index bf9108a..e2ee960 100644
      public CustomTimingsHandler tickTimer = org.bukkit.craftbukkit.SpigotTimings.getEntityTimings(this); // Spigot
  
 +    public final byte activationType = org.bukkit.craftbukkit.Spigot.initializeEntityActivationType(this);
-+    public final boolean defaultActivationState = org.bukkit.craftbukkit.Spigot.initializeEntityActivationState(this);
++    public final boolean defaultActivationState;
 +    public long activatedTick = 0;
 +    // Spigot end
 +
      public Entity(World world) {
          this.id = entityCount++;
          this.l = 1.0D;
+@@ -150,6 +156,7 @@ public abstract class Entity {
+         this.invulnerable = false;
+         this.as = EnumEntitySize.SIZE_2;
+         this.world = world;
++        this.defaultActivationState = org.bukkit.craftbukkit.Spigot.initializeEntityActivationState(this, world.getWorld()); // Spigot
+         this.setPosition(0.0D, 0.0D, 0.0D);
+         if (world != null) {
+             this.dimension = world.worldProvider.dimension;
 diff --git a/src/main/java/net/minecraft/server/EntityArrow.java b/src/main/java/net/minecraft/server/EntityArrow.java
 index 916b9dc..bdd18f6 100644
 --- a/src/main/java/net/minecraft/server/EntityArrow.java
@@ -183,7 +191,7 @@ index 21bd64a..33df602 100644
  
      public Block getBlockAt(int x, int y, int z) {
 diff --git a/src/main/java/org/bukkit/craftbukkit/Spigot.java b/src/main/java/org/bukkit/craftbukkit/Spigot.java
-index 83988c3..fb6938f 100644
+index 83988c3..44db0ff 100644
 --- a/src/main/java/org/bukkit/craftbukkit/Spigot.java
 +++ b/src/main/java/org/bukkit/craftbukkit/Spigot.java
 @@ -1,9 +1,17 @@
@@ -204,7 +212,7 @@ index 83988c3..fb6938f 100644
      public static void initialize(CraftServer server, SimpleCommandMap commandMap, YamlConfiguration configuration) {
          commandMap.register("bukkit", new org.bukkit.craftbukkit.command.RestartCommand("restart"));
          commandMap.register("bukkit", new org.bukkit.craftbukkit.command.TicksPerSecondCommand("tps"));
-@@ -32,5 +40,216 @@ public class Spigot {
+@@ -32,5 +40,217 @@ public class Spigot {
              server.getLogger().severe("[Spigot] You should not disable chunk-gc. Resetting period-in-ticks to 600 ticks.");
              server.chunkGCPeriod = 600;
          }
@@ -229,11 +237,17 @@ index 83988c3..fb6938f 100644
 +
 +    /**
 +     * These entities are excluded from Activation range checks.
++     *
 +     * @param entity
++     * @param world
 +     * @return boolean If it should always tick.
 +     */
-+    public static boolean initializeEntityActivationState(Entity entity) {
-+        if (entity instanceof EntityHuman
++    public static boolean initializeEntityActivationState(Entity entity, CraftWorld world) {
++        if (   (entity.activationType == 3 && world.miscEntityActivationRange == 0)
++            || (entity.activationType == 2 && world.animalEntityActivationRange == 0)
++            || (entity.activationType == 1 && world.monsterEntityActivationRange == 0)
++            || entity instanceof EntityHuman
++            || entity instanceof EntityItemFrame
 +            || entity instanceof EntityProjectile
 +            || entity instanceof EntityEnderDragon
 +            || entity instanceof EntityComplexPart
@@ -281,13 +295,7 @@ index 83988c3..fb6938f 100644
 +
 +        int maxRange = Math.max(monsterActivationRange, animalActivationRange);
 +        maxRange = Math.max(maxRange, miscActivationRange);
-+        if (miscActivationRange == 0 || animalActivationRange == 0 || monsterActivationRange == 0) {
-+            // One of them is disabled, set to view-distance
-+            maxRange = (world.getWorld().viewDistance << 4) - 8;
-+        } else {
-+            maxRange = Math.min((world.getWorld().viewDistance << 4) - 8, maxRange); // Do not tick on edge of unloaded chunks - vanilla behavior.
-+        }
-+
++        maxRange = Math.min((world.getWorld().viewDistance << 4) - 8, maxRange);
 +
 +        for (Entity player : (List<Entity>) world.players) {
 +
@@ -385,9 +393,7 @@ index 83988c3..fb6938f 100644
 +                }
 +            }
 +        }
-+        return (entity.activationType == 3 && entity.world.getWorld().miscEntityActivationRange == 0)
-+            || (entity.activationType == 2 && entity.world.getWorld().animalEntityActivationRange == 0)
-+            || (entity.activationType == 1 && entity.world.getWorld().monsterEntityActivationRange == 0);
++        return false;
 +    }
 +
 +    /**
@@ -397,21 +403,24 @@ index 83988c3..fb6938f 100644
 +     */
 +    public static boolean checkIfActive(Entity entity) {
 +        SpigotTimings.checkIfActiveTimer.startTiming();
++        int x = MathHelper.floor(entity.locX);
++        int z = MathHelper.floor(entity.locZ);
++        // Make sure not on edge of unloaded chunk
++        if (!entity.world.areChunksLoaded(x, 0, z, 16)) {
++            SpigotTimings.checkIfActiveTimer.stopTiming();
++            return false;
++        }
 +        boolean isActive = entity.activatedTick >= MinecraftServer.currentTick || entity.defaultActivationState;
++
 +        // Should this entity tick?
 +        if (!isActive) {
 +            if ((MinecraftServer.currentTick - entity.activatedTick - 1) % 20 == 0) {
-+                int x = MathHelper.floor(entity.locX);
-+                int z = MathHelper.floor(entity.locZ);
-+                // Make sure not on edge of unloaded chunk
-+                if (entity.world.areChunksLoaded(x, 0, z, 15)) {
-+                    // Check immunities every 20 ticks.
-+                    if (checkEntityImmunities(entity)) {
-+                        // Triggered some sort of immunity, give 20 full ticks before we check again.
-+                        entity.activatedTick = MinecraftServer.currentTick + 20;
-+                    }
-+                    isActive = true;
++                // Check immunities every 20 ticks.
++                if (checkEntityImmunities(entity)) {
++                    // Triggered some sort of immunity, give 20 full ticks before we check again.
++                    entity.activatedTick = MinecraftServer.currentTick + 20;
 +                }
++                isActive = true;
 +            }
 +            // Add a little performance juice to active entities. Skip 1/4 if not immune.
 +        } else if (!entity.defaultActivationState && entity.ticksLived % 4 == 0 && !checkEntityImmunities(entity)) {
@@ -422,7 +431,7 @@ index 83988c3..fb6938f 100644
      }
  }
 diff --git a/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java b/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java
-index 3107585..318e4d6 100644
+index df837a3..9a1bcc5 100644
 --- a/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java
 +++ b/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java
 @@ -30,6 +30,9 @@ public class SpigotTimings {
