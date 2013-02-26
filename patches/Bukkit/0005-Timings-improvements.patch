@@ -1,26 +1,31 @@
-From cedee04909653f489ba2c013cafac1b79d17cae5 Mon Sep 17 00:00:00 2001
+From 6604657a867a8f6364f40cb6b3ca891f66aa0e52 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Thu, 7 Feb 2013 11:34:50 -0500
 Subject: [PATCH] Timings improvements
 
 ---
- src/main/java/org/bukkit/CustomTimingsHandler.java | 117 +++++++++++++++++++++
+ src/main/java/org/bukkit/CustomTimingsHandler.java | 134 +++++++++++++++++++++
  .../org/bukkit/command/defaults/ReloadCommand.java |   2 +-
- .../bukkit/command/defaults/TimingsCommand.java    |  26 +++--
- .../org/bukkit/event/CustomTimingsHandler.java     |  60 -----------
- .../org/bukkit/plugin/TimedRegisteredListener.java |  11 +-
+ .../bukkit/command/defaults/TimingsCommand.java    |  26 ++--
+ .../org/bukkit/event/CustomTimingsHandler.java     |  60 ---------
+ .../org/bukkit/plugin/TimedRegisteredListener.java |  12 +-
  .../org/bukkit/plugin/java/JavaPluginLoader.java   |   2 +-
- 6 files changed, 148 insertions(+), 70 deletions(-)
+ 6 files changed, 166 insertions(+), 70 deletions(-)
  create mode 100644 src/main/java/org/bukkit/CustomTimingsHandler.java
  delete mode 100644 src/main/java/org/bukkit/event/CustomTimingsHandler.java
 
 diff --git a/src/main/java/org/bukkit/CustomTimingsHandler.java b/src/main/java/org/bukkit/CustomTimingsHandler.java
 new file mode 100644
-index 0000000..25a278a
+index 0000000..8c00824
 --- /dev/null
 +++ b/src/main/java/org/bukkit/CustomTimingsHandler.java
-@@ -0,0 +1,117 @@
+@@ -0,0 +1,134 @@
 +package org.bukkit;
++
++import org.bukkit.event.HandlerList;
++import org.bukkit.plugin.Plugin;
++import org.bukkit.plugin.RegisteredListener;
++import org.bukkit.plugin.TimedRegisteredListener;
 +
 +import java.io.PrintStream;
 +import java.util.concurrent.ConcurrentLinkedQueue;
@@ -91,10 +96,22 @@ index 0000000..25a278a
 +    public static void tick() {
 +        if (!Bukkit.getServer().getPluginManager().useTimings()) return;
 +        for (CustomTimingsHandler timings : allList) {
-+            if (timings.curTickTotal > 50000000 || timings.start != 0) {
-+                timings.violations++;
++            if (timings.curTickTotal > 50000000) {
++                timings.violations += Math.ceil(timings.curTickTotal / 50000000);
 +            }
 +            timings.curTickTotal = 0;
++        }
++
++        for (Plugin plugin : Bukkit.getPluginManager().getPlugins()) {
++            for (RegisteredListener listener : HandlerList.getRegisteredListeners(plugin)) {
++                if (listener instanceof TimedRegisteredListener) {
++                    TimedRegisteredListener timings = (TimedRegisteredListener) listener;
++                    if (timings.curTickTotal > 50000000) {
++                        timings.violations += Math.ceil(timings.curTickTotal / 50000000);
++                    }
++                    timings.curTickTotal = 0;
++                }
++            }
 +        }
 +    }
 +
@@ -109,7 +126,7 @@ index 0000000..25a278a
 +        }
 +        start = System.nanoTime();
 +
-+        if (parent != null) {
++        if (parent != null && ++parent.timingDepth == 1) {
 +            parent.start = start;
 +        }
 +    }
@@ -297,7 +314,7 @@ index 83294e3..0000000
 -}
 -
 diff --git a/src/main/java/org/bukkit/plugin/TimedRegisteredListener.java b/src/main/java/org/bukkit/plugin/TimedRegisteredListener.java
-index ed25e17..4153af3 100644
+index ed25e17..47dab3e 100644
 --- a/src/main/java/org/bukkit/plugin/TimedRegisteredListener.java
 +++ b/src/main/java/org/bukkit/plugin/TimedRegisteredListener.java
 @@ -1,5 +1,6 @@
@@ -307,15 +324,16 @@ index ed25e17..4153af3 100644
  import org.bukkit.event.Event;
  import org.bukkit.event.EventException;
  import org.bukkit.event.EventPriority;
-@@ -11,6 +12,7 @@ import org.bukkit.event.Listener;
+@@ -11,6 +12,8 @@ import org.bukkit.event.Listener;
  public class TimedRegisteredListener extends RegisteredListener {
      private int count;
      private long totalTime;
++    public long curTickTotal = 0; // Spigot
 +    public long violations = 0; // Spigot
      private Event event;
      private boolean multiple = false;
  
-@@ -20,6 +22,7 @@ public class TimedRegisteredListener extends RegisteredListener {
+@@ -20,6 +23,7 @@ public class TimedRegisteredListener extends RegisteredListener {
  
      @Override
      public void callEvent(Event event) throws EventException {
@@ -323,18 +341,25 @@ index ed25e17..4153af3 100644
          if (event.isAsynchronous()) {
              super.callEvent(event);
              return;
-@@ -33,7 +36,13 @@ public class TimedRegisteredListener extends RegisteredListener {
+@@ -33,7 +37,11 @@ public class TimedRegisteredListener extends RegisteredListener {
          }
          long start = System.nanoTime();
          super.callEvent(event);
 -        totalTime += System.nanoTime() - start;
 +        // Spigot start
 +        long diff = System.nanoTime() - start;
-+        if (diff > 50000000) {
-+            violations++;
-+        }
++        curTickTotal += diff;
 +        totalTime += diff;
 +        // Spigot end
+     }
+ 
+     /**
+@@ -42,6 +50,8 @@ public class TimedRegisteredListener extends RegisteredListener {
+     public void reset() {
+         count = 0;
+         totalTime = 0;
++        curTickTotal = 0; // Spigot
++        violations = 0; // Spigot
      }
  
      /**
