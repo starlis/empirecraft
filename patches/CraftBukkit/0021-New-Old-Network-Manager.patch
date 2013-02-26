@@ -1,0 +1,193 @@
+From 81572bfe654cc2945101401216db942d3ce781ad Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Fri, 15 Feb 2013 20:10:44 -0500
+Subject: [PATCH] New Old Network Manager
+
+Not ready to move to netty yet, and want to test some things.
+---
+ .../java/net/minecraft/server/NetworkManager.java  | 96 ++++++++++++++++------
+ .../net/minecraft/server/Packet56MapChunkBulk.java |  3 +-
+ 2 files changed, 71 insertions(+), 28 deletions(-)
+
+diff --git a/src/main/java/net/minecraft/server/NetworkManager.java b/src/main/java/net/minecraft/server/NetworkManager.java
+index 7c64e9b..32d1867 100644
+--- a/src/main/java/net/minecraft/server/NetworkManager.java
++++ b/src/main/java/net/minecraft/server/NetworkManager.java
+@@ -8,15 +8,15 @@ import java.net.Socket;
+ import java.net.SocketAddress;
+ import java.net.SocketException;
+ import java.security.PrivateKey;
+-import java.util.ArrayList;
+-import java.util.Collections;
+-import java.util.Iterator;
+-import java.util.List;
++import java.util.*;
++import java.util.concurrent.ConcurrentLinkedQueue;
+ import java.util.concurrent.atomic.AtomicInteger;
+ import javax.crypto.SecretKey;
+ 
+ import java.io.IOException; // CraftBukkit
+ 
++
++
+ public class NetworkManager implements INetworkManager {
+ 
+     public static AtomicInteger a = new AtomicInteger();
+@@ -29,8 +29,43 @@ public class NetworkManager implements INetworkManager {
+     private volatile boolean m = true;
+     private volatile boolean n = false;
+     private java.util.Queue inboundQueue = new java.util.concurrent.ConcurrentLinkedQueue(); // CraftBukkit - Concurrent linked queue
+-    private List highPriorityQueue = Collections.synchronizedList(new ArrayList());
+-    private List lowPriorityQueue = Collections.synchronizedList(new ArrayList());
++    // EMC start
++    public PacketQueue highPriorityQueue = new PacketQueue();
++    public PacketQueue lowPriorityQueue = new PacketQueue();
++    public long packetCounter = 1;
++    static org.bukkit.CustomTimingsHandler timer = new org.bukkit.CustomTimingsHandler("Network Manager - Nom Queue");
++    class PacketQueue extends AbstractList<Packet> {
++        ConcurrentLinkedQueue<Packet> queue = new ConcurrentLinkedQueue<Packet>();
++        ConcurrentLinkedQueue<Long> orderQueue = new ConcurrentLinkedQueue<Long>();
++        @Override
++        public boolean add(Packet element) {
++            orderQueue.offer(packetCounter++);
++            return queue.offer(element);
++        }
++
++        @Override
++        public Packet get(int index) {
++            return poll();
++        }
++
++        public Packet poll() {
++            orderQueue.poll();
++            return queue.poll();
++        }
++        public Long orderId() {
++            Long res = orderQueue.peek();
++            return res == null ? 0 : res;
++        }
++        @Override
++        public int size() {
++            return queue.isEmpty() ? 0 : 1;
++        }
++        @Override
++        public boolean isEmpty() {
++            return queue.isEmpty();
++        }
++    }
++    // EMC end
+     private Connection connection;
+     private boolean s = false;
+     private Thread t;
+@@ -75,12 +110,13 @@ public class NetworkManager implements INetworkManager {
+ 
+     public void queue(Packet packet) {
+         if (!this.s) {
+-            Object object = this.h;
+-
+-            synchronized (this.h) {
+-                this.y += packet.a() + 1;
+-                this.highPriorityQueue.add(packet);
+-            }
++            // EMC start
++            timer.startTiming();
++            this.y += packet.a() + 1;
++            List<Packet> queue = packet.lowPriority ? lowPriorityQueue : highPriorityQueue;
++            queue.add(packet);
++            timer.stopTiming();
++            // EMc end
+         }
+     }
+ 
+@@ -89,10 +125,10 @@ public class NetworkManager implements INetworkManager {
+ 
+         try {
+             Packet packet;
+-            int i;
+-            int[] aint;
++            //int i;
++            //int[] aint;
+ 
+-            if (this.e == 0 || !this.highPriorityQueue.isEmpty() && System.currentTimeMillis() - ((Packet) this.highPriorityQueue.get(0)).timestamp >= (long) this.e) {
++            if (!this.highPriorityQueue.isEmpty()) {
+                 packet = this.a(false);
+                 if (packet != null) {
+                     Packet.a(packet, this.output);
+@@ -104,22 +140,22 @@ public class NetworkManager implements INetworkManager {
+                         this.k();
+                     }
+ 
+-                    aint = d;
+-                    i = packet.k();
+-                    aint[i] += packet.a() + 1;
++                    //aint = d;
++                    //i = packet.k();
++                    //aint[i] += packet.a() + 1;
+                     flag = true;
+                 }
+             }
+ 
+             // CraftBukkit - don't allow low priority packet to be sent unless it was placed in the queue before the first packet on the high priority queue TODO: is this still right?
+-            if ((flag || this.lowPriorityQueueDelay-- <= 0) && !this.lowPriorityQueue.isEmpty() && (this.highPriorityQueue.isEmpty() || ((Packet) this.highPriorityQueue.get(0)).timestamp > ((Packet) this.lowPriorityQueue.get(0)).timestamp)) {
++            if (!this.lowPriorityQueue.isEmpty() && (this.highPriorityQueue.isEmpty() || this.highPriorityQueue.orderId() > this.lowPriorityQueue.orderId())) { // EMC
+                 packet = this.a(true);
+                 if (packet != null) {
+                     Packet.a(packet, this.output);
+-                    aint = d;
+-                    i = packet.k();
+-                    aint[i] += packet.a() + 1;
+-                    this.lowPriorityQueueDelay = 0;
++                    //aint = d;
++                    //i = packet.k();
++                    //aint[i] += packet.a() + 1;
++                    //this.lowPriorityQueueDelay = 0;
+                     flag = true;
+                 }
+             }
+@@ -135,9 +171,14 @@ public class NetworkManager implements INetworkManager {
+     }
+ 
+     private Packet a(boolean flag) {
+-        Packet packet = null;
+-        List list = flag ? this.lowPriorityQueue : this.highPriorityQueue;
+-        Object object = this.h;
++        PacketQueue list = flag ? this.lowPriorityQueue : this.highPriorityQueue;
++        Packet packet = list.poll();
++        if (packet != null) {
++            this.y -= packet.a() + 1;
++        }
++        return packet;
++        // EMC start
++        /*Object object = this.h;
+ 
+         synchronized (this.h) {
+             while (!list.isEmpty() && packet == null) {
+@@ -149,7 +190,8 @@ public class NetworkManager implements INetworkManager {
+             }
+ 
+             return packet;
+-        }
++        }*/
++        // EMC end
+     }
+ 
+     private boolean a(Packet packet, boolean flag) {
+diff --git a/src/main/java/net/minecraft/server/Packet56MapChunkBulk.java b/src/main/java/net/minecraft/server/Packet56MapChunkBulk.java
+index 9d0da0d..0f91c72 100644
+--- a/src/main/java/net/minecraft/server/Packet56MapChunkBulk.java
++++ b/src/main/java/net/minecraft/server/Packet56MapChunkBulk.java
+@@ -30,9 +30,10 @@ public class Packet56MapChunkBulk extends Packet {
+     // CraftBukkit end
+     private World world; // Spigot (Orebfuscator) Keep track of world
+ 
+-    public Packet56MapChunkBulk() {}
++    public Packet56MapChunkBulk() {this.lowPriority=true;} // EMC - Make low priority to fix sign issues and match 51
+ 
+     public Packet56MapChunkBulk(List list) {
++        this.lowPriority=true; // EMC - Make low priority to fix sign issues and match 51
+         int i = list.size();
+ 
+         this.c = new int[i];
+-- 
+1.8.1.1
+
