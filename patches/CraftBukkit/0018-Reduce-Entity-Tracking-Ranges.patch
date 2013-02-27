@@ -1,4 +1,4 @@
-From ac1d4cf416238b6d0de1d34c96edf8a36eec3787 Mon Sep 17 00:00:00 2001
+From 7fe0c7ab27d2fc122bebeb2f9aed0fd68a252bf9 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Wed, 20 Feb 2013 11:58:47 -0500
 Subject: [PATCH] Reduce Entity Tracking Ranges
@@ -12,10 +12,10 @@ This has multiple benefits:
 4) Less client lag - Not trying to render distant item frames and paintings and entities will reduce entity count on the client, which is major for shop/town worlds which may use tons of item frames.
 ---
  .../java/net/minecraft/server/EntityTracker.java   |  1 +
- .../java/org/bukkit/craftbukkit/CraftWorld.java    | 21 ++++++++++++++++++++
- src/main/java/org/bukkit/craftbukkit/Spigot.java   | 23 ++++++++++++++++++++++
- src/main/resources/configurations/bukkit.yml       |  5 +++++
- 4 files changed, 50 insertions(+)
+ .../java/org/bukkit/craftbukkit/CraftWorld.java    | 21 ++++++++++++
+ src/main/java/org/bukkit/craftbukkit/Spigot.java   | 37 ++++++++++++++++++----
+ src/main/resources/configurations/bukkit.yml       |  5 +++
+ 4 files changed, 57 insertions(+), 7 deletions(-)
 
 diff --git a/src/main/java/net/minecraft/server/EntityTracker.java b/src/main/java/net/minecraft/server/EntityTracker.java
 index d2d6ff0..176690a 100644
@@ -83,10 +83,34 @@ index 33df602..c87d493 100644
  
      public Block getBlockAt(int x, int y, int z) {
 diff --git a/src/main/java/org/bukkit/craftbukkit/Spigot.java b/src/main/java/org/bukkit/craftbukkit/Spigot.java
-index 44db0ff..8f32577 100644
+index 44db0ff..a15c0bb 100644
 --- a/src/main/java/org/bukkit/craftbukkit/Spigot.java
 +++ b/src/main/java/org/bukkit/craftbukkit/Spigot.java
-@@ -253,4 +253,27 @@ public class Spigot {
+@@ -227,13 +227,7 @@ public class Spigot {
+      */
+     public static boolean checkIfActive(Entity entity) {
+         SpigotTimings.checkIfActiveTimer.startTiming();
+-        int x = MathHelper.floor(entity.locX);
+-        int z = MathHelper.floor(entity.locZ);
+-        // Make sure not on edge of unloaded chunk
+-        if (!entity.world.areChunksLoaded(x, 0, z, 16)) {
+-            SpigotTimings.checkIfActiveTimer.stopTiming();
+-            return false;
+-        }
++
+         boolean isActive = entity.activatedTick >= MinecraftServer.currentTick || entity.defaultActivationState;
+ 
+         // Should this entity tick?
+@@ -250,7 +244,36 @@ public class Spigot {
+         } else if (!entity.defaultActivationState && entity.ticksLived % 4 == 0 && !checkEntityImmunities(entity)) {
+             isActive = false;
+         }
++        int x = MathHelper.floor(entity.locX);
++        int z = MathHelper.floor(entity.locZ);
++        // Make sure not on edge of unloaded chunk
++        if (isActive && !entity.world.areChunksLoaded(x, 0, z, 16)) {
++            isActive = false;
++        }
          SpigotTimings.checkIfActiveTimer.stopTiming();
          return isActive;
      }
