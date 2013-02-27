@@ -1,6 +1,6 @@
-From f8a91ac604ce0d6e91897e7814d2878aa7cc3e98 Mon Sep 17 00:00:00 2001
+From 4361a4aa5ba8e5b2ecae7b2da75c7d88c5b001e0 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
-Date: Tue, 12 Feb 2013 15:13:35 -0500
+Date: Thu, 22 Nov 2012 21:30:59 -0500
 Subject: [PATCH] Misc EMC Changes
 
 Only spawn 1 ocelot ever from eggs.
@@ -8,15 +8,32 @@ Load custom permissions before plugins
 Proper colors in console
 Unload plugins after everything else
 Dragon eggs break all blocks
+Fix boat wood gen exploit
+Remove CraftBukkit "Feature" of ItemStack's having infinite use if less than 0 stack size.
 ---
+ src/main/java/net/minecraft/server/EntityBoat.java |  1 +
  .../java/net/minecraft/server/EntityOcelot.java    |  2 +-
  src/main/java/net/minecraft/server/ItemStack.java  |  2 +-
  .../java/net/minecraft/server/MinecraftServer.java | 12 ++++----
+ .../net/minecraft/server/PlayerConnection.java     |  2 +-
+ .../minecraft/server/PlayerInteractManager.java    |  2 +-
  .../java/net/minecraft/server/PlayerInventory.java |  1 +
  .../java/org/bukkit/craftbukkit/CraftServer.java   |  3 +-
  .../craftbukkit/command/ColouredConsoleSender.java | 32 +++++++++++-----------
- 6 files changed, 28 insertions(+), 24 deletions(-)
+ 9 files changed, 31 insertions(+), 26 deletions(-)
 
+diff --git a/src/main/java/net/minecraft/server/EntityBoat.java b/src/main/java/net/minecraft/server/EntityBoat.java
+index 8fce559..388df14 100644
+--- a/src/main/java/net/minecraft/server/EntityBoat.java
++++ b/src/main/java/net/minecraft/server/EntityBoat.java
+@@ -146,6 +146,7 @@ public class EntityBoat extends Entity {
+     }
+ 
+     public void j_() {
++        if (this.dead) return; // EMC - Fix wood generator exploit
+         // CraftBukkit start
+         double prevX = this.locX;
+         double prevY = this.locY;
 diff --git a/src/main/java/net/minecraft/server/EntityOcelot.java b/src/main/java/net/minecraft/server/EntityOcelot.java
 index 68b08ae..e04c69e 100644
 --- a/src/main/java/net/minecraft/server/EntityOcelot.java
@@ -31,10 +48,10 @@ index 68b08ae..e04c69e 100644
                  EntityOcelot entityocelot = new EntityOcelot(this.world);
  
 diff --git a/src/main/java/net/minecraft/server/ItemStack.java b/src/main/java/net/minecraft/server/ItemStack.java
-index 85fe0a0..1faf752 100644
+index 8f0a5ad..38c5664 100644
 --- a/src/main/java/net/minecraft/server/ItemStack.java
 +++ b/src/main/java/net/minecraft/server/ItemStack.java
-@@ -218,7 +218,7 @@ public final class ItemStack {
+@@ -212,7 +212,7 @@ public final class ItemStack {
      }
  
      public boolean b(Block block) {
@@ -73,6 +90,32 @@ index 99a6cf4..c9b51ce 100644
              if (this.n != null && this.n.d()) {
                  this.n.e();
              }
+diff --git a/src/main/java/net/minecraft/server/PlayerConnection.java b/src/main/java/net/minecraft/server/PlayerConnection.java
+index 7ca0acf..0aabc64 100644
+--- a/src/main/java/net/minecraft/server/PlayerConnection.java
++++ b/src/main/java/net/minecraft/server/PlayerConnection.java
+@@ -692,7 +692,7 @@ public class PlayerConnection extends Connection {
+         }
+ 
+         itemstack = this.player.inventory.getItemInHand();
+-        if (itemstack != null && itemstack.count == 0) {
++        if (itemstack != null && itemstack.count <= 0) { // CraftBukkit - Handle infinite use item bug.
+             this.player.inventory.items[this.player.inventory.itemInHandIndex] = null;
+             itemstack = null;
+         }
+diff --git a/src/main/java/net/minecraft/server/PlayerInteractManager.java b/src/main/java/net/minecraft/server/PlayerInteractManager.java
+index 55f9ffa..8dc94d4 100644
+--- a/src/main/java/net/minecraft/server/PlayerInteractManager.java
++++ b/src/main/java/net/minecraft/server/PlayerInteractManager.java
+@@ -360,7 +360,7 @@ public class PlayerInteractManager {
+                 }
+             }
+ 
+-            if (itemstack1.count == 0) {
++            if (itemstack1.count <= 0) { // CraftBukkit - Handle infinite use item bug.
+                 entityhuman.inventory.items[entityhuman.inventory.itemInHandIndex] = null;
+             }
+ 
 diff --git a/src/main/java/net/minecraft/server/PlayerInventory.java b/src/main/java/net/minecraft/server/PlayerInventory.java
 index f40b1e9..a694e82 100644
 --- a/src/main/java/net/minecraft/server/PlayerInventory.java
