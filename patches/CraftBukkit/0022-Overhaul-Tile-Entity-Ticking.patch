@@ -1,0 +1,261 @@
+From 85ce653b9bfa86e293b35ac0292acb3cf2f8b19f Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Fri, 1 Mar 2013 00:56:37 -0500
+Subject: [PATCH] Overhaul Tile Entity Ticking
+
+TileEntity Ticking would call isChunkLoaded for every single tile entity, which can be expensive
+Also, the worlds tile entity list was used only to have a controlled list for what tile entity needs to tick and protect it from modification during ticking.
+
+With a simple watcher for modification instructions, we can remove usage of the master list.
+This reduces memory usage
+This also reduces lag by List resizing (which may happen often on large servers)
+
+We now simply iterate over every loaded chunk (and check that its not in the unload queue, much faster than checking is a chunk loaded), then iterate its tile entity list
+In local testing on dev server (performs worse than production), I was able to tick 109k chests/tick without TPS loss (the heaviest tile entity)
+---
+ src/main/java/net/minecraft/server/Chunk.java |  4 +-
+ src/main/java/net/minecraft/server/World.java | 39 ++++++++++++++-----
+ src/main/java/org/spigotmc/MapWatcher.java    | 55 +++++++++++++++++++++++++++
+ src/main/java/org/spigotmc/NullOpList.java    | 45 ++++++++++++++++++++++
+ 4 files changed, 132 insertions(+), 11 deletions(-)
+ create mode 100644 src/main/java/org/spigotmc/MapWatcher.java
+ create mode 100644 src/main/java/org/spigotmc/NullOpList.java
+
+diff --git a/src/main/java/net/minecraft/server/Chunk.java b/src/main/java/net/minecraft/server/Chunk.java
+index 93c343e..165c6b8 100644
+--- a/src/main/java/net/minecraft/server/Chunk.java
++++ b/src/main/java/net/minecraft/server/Chunk.java
+@@ -26,7 +26,7 @@ public class Chunk {
+     public final int x;
+     public final int z;
+     private boolean t;
+-    public Map tileEntities;
++    public org.spigotmc.MapWatcher<ChunkPosition, TileEntity> tileEntities; // Spigot - use MapWatcher
+     public List[] entitySlices;
+     public boolean done;
+     public boolean l;
+@@ -43,7 +43,7 @@ public class Chunk {
+         this.b = new int[256];
+         this.c = new boolean[256];
+         this.t = false;
+-        this.tileEntities = new HashMap();
++        this.tileEntities = new org.spigotmc.MapWatcher<ChunkPosition, TileEntity>(); // Spigot
+         this.done = false;
+         this.l = false;
+         this.m = false;
+diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
+index 9a382e2..c465771 100644
+--- a/src/main/java/net/minecraft/server/World.java
++++ b/src/main/java/net/minecraft/server/World.java
+@@ -29,9 +29,9 @@ public abstract class World implements IBlockAccess {
+     public boolean d = false;
+     public List entityList = new ArrayList();
+     protected List f = new ArrayList();
+-    public List tileEntityList = new ArrayList();
+-    private List a = new ArrayList();
+-    private List b = new ArrayList();
++    public List tileEntityList = new org.spigotmc.NullOpList(); // Spigot - ArrayList > NullOpList - this is not used anymore.
++    private List a = new org.spigotmc.NullOpList(); // Spigot - ArrayList > NullOpList - this is not used anymore.
++    private List b = new org.spigotmc.NullOpList(); // Spigot - ArrayList > NullOpList - this is not used anymore.
+     public List players = new ArrayList();
+     public List i = new ArrayList();
+     private long c = 16777215L;
+@@ -1297,9 +1297,17 @@ public abstract class World implements IBlockAccess {
+         timings.entityTick.stopTiming(); // Spigot
+         this.methodProfiler.c("tileEntities");
+         timings.tileEntityTick.startTiming(); // Spigot
+-        this.M = true;
+-        Iterator iterator = this.tileEntityList.iterator();
+-
++        // Spigot start
++        //this.M = true;
++        //Iterator iterator = this.tileEntityList.iterator();
++        ChunkProviderServer chunkProviderServer = ((WorldServer) this).chunkProviderServer;
++        for (Chunk chunk : chunkProviderServer.chunks.values()) {
++            if (chunk == null || chunkProviderServer.unloadQueue.contains(chunk.x, chunk.z)) {
++                continue;
++            }
++            chunk.tileEntities.startWatch(); // Prevents modifications during ticking
++            Iterator iterator = chunk.tileEntities.values().iterator();
++        // Spigot end
+         while (iterator.hasNext()) {
+             TileEntity tileentity = (TileEntity) iterator.next();
+             // Spigot start
+@@ -1310,18 +1318,23 @@ public abstract class World implements IBlockAccess {
+             }
+             // Spigot end
+             // CraftBukkit start - don't tick entities in chunks queued for unload
++            // Spigot start - moved up
++            /*
+             ChunkProviderServer chunkProviderServer = ((WorldServer) this).chunkProviderServer;
+             if (chunkProviderServer.unloadQueue.contains(tileentity.x >> 4, tileentity.z >> 4)) {
+                 continue;
+             }
+             // CraftBukkit end
++            */
++            // Spigot end
+ 
+-            if (!tileentity.r() && tileentity.o() && this.isLoaded(tileentity.x, tileentity.y, tileentity.z)) {
++            if (!tileentity.r() && tileentity.o() /*&& this.isLoaded(tileentity.x, tileentity.y, tileentity.z)*/) { // Spigot
+                 try {
+                     tileentity.tickTimer.startTiming(); // Spigot
+                     tileentity.g();
+                     tileentity.tickTimer.stopTiming(); // Spigot
+                 } catch (Throwable throwable2) {
++                    throwable2.printStackTrace(); // Spigot
+                     tileentity.tickTimer.stopTiming(); // Spigot
+                     crashreport = CrashReport.a(throwable2, "Ticking tile entity");
+                     crashreportsystemdetails = crashreport.a("Tile entity being ticked");
+@@ -1334,7 +1347,12 @@ public abstract class World implements IBlockAccess {
+                     throw new ReportedException(crashreport);
+                 }
+             }
++            // Spigot start - this is now chunk based, the iterator remove does the removal
++            else {
++                iterator.remove();
++            }
+ 
++            /*
+             if (tileentity.r()) {
+                 iterator.remove();
+                 if (this.isChunkLoaded(tileentity.x >> 4, tileentity.z >> 4)) {
+@@ -1345,10 +1363,13 @@ public abstract class World implements IBlockAccess {
+                     }
+                 }
+             }
++            */ // Spigot end
+         }
++            chunk.tileEntities.stopWatch(); // Adds and removes any modifications done during the tick
++        } // Spigot - end chunk iteration
+ 
+         timings.tileEntityTick.stopTiming(); // Spigot
+-        timings.tileEntityPending.startTiming(); // Spigot
++        if (false) { // Spigot - These were handled above already
+         this.M = false;
+         if (!this.b.isEmpty()) {
+             this.tileEntityList.removeAll(this.b);
+@@ -1386,8 +1407,8 @@ public abstract class World implements IBlockAccess {
+ 
+             this.a.clear();
+         }
++        } // Spigot - null out the tile entity modification lists
+ 
+-        timings.tileEntityPending.stopTiming(); // Spigot
+         this.methodProfiler.b();
+         this.methodProfiler.b();
+     }
+diff --git a/src/main/java/org/spigotmc/MapWatcher.java b/src/main/java/org/spigotmc/MapWatcher.java
+new file mode 100644
+index 0000000..24f21f8
+--- /dev/null
++++ b/src/main/java/org/spigotmc/MapWatcher.java
+@@ -0,0 +1,55 @@
++package org.spigotmc;
++
++import java.util.*;
++
++public class MapWatcher<K, V> extends HashMap<K, V> {
++    public HashMap<K, V> toAdd = new HashMap<K, V>();
++    public HashSet<K> toRemove = new HashSet<K>();
++
++    boolean watching = false;
++    @Override
++    public V get(Object key) {
++        if (this.watching && toRemove.contains(key)) {
++            return null;
++        } else {
++            return super.get(key);
++        }
++    }
++    @Override
++    public V put(K key, V value) {
++        if (watching) {
++            toAdd.put(key, value);
++            toRemove.remove(key);
++            return value;
++        } else {
++            return super.put(key, value);
++        }
++    }
++
++    @Override
++    public V remove(Object key) {
++        if (watching) {
++            V ret = get(key);
++            toAdd.remove(key);
++            toRemove.add((K) key);
++            return ret;
++        } else {
++            return super.remove(key);
++        }
++    }
++
++    public void startWatch() {
++        this.watching = true;
++    }
++    public void stopWatch() {
++        this.watching = false;
++        for (Map.Entry<K, V> entry : toAdd.entrySet()) {
++            super.put(entry.getKey(), entry.getValue());
++        }
++        for (K key : toRemove) {
++            super.remove(key);
++        }
++        toAdd.clear();
++        toRemove.clear();
++    }
++}
+diff --git a/src/main/java/org/spigotmc/NullOpList.java b/src/main/java/org/spigotmc/NullOpList.java
+new file mode 100644
+index 0000000..15bcab3
+--- /dev/null
++++ b/src/main/java/org/spigotmc/NullOpList.java
+@@ -0,0 +1,45 @@
++package org.spigotmc;
++
++import java.util.AbstractList;
++import java.util.Collection;
++
++public final class NullOpList<E> extends AbstractList<E> {
++    public final int size() {
++        return 0;
++    }
++
++    public final boolean add(E e) {
++        return true;
++    }
++
++    public final E get(int index) {
++        return null;
++    }
++
++    public final E set(int index, E element) {
++        return null;
++    }
++
++    public final void add(int index, E element) {
++    }
++
++    public final E remove(int index) {
++        return null;
++    }
++
++    public final int indexOf(Object o) {
++        return -1;
++    }
++
++    public final int lastIndexOf(Object o) {
++        return -1;
++    }
++
++    public final void clear() {
++    }
++
++    public final boolean addAll(int index, Collection<? extends E> c) {
++        return false;
++    }
++}
++
+-- 
+1.8.1.1
+

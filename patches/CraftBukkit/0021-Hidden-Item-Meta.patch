@@ -1,0 +1,73 @@
+From c741f50eec6bf41ba7e3236593d9eb2a35f04586 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Wed, 27 Feb 2013 23:27:45 -0500
+Subject: [PATCH] Hidden Item Meta
+
+This adds the ability to store hidden metadata in item lore.
+
+Simply set a line to "&&::META" and every blank line before, that line, and every line after will be hidden from view on the client.
+
+for example, you can set &&::META on line 20, and there will not be 19 blank lines before it.
+Then you can store Data on 21+
+---
+ src/main/java/net/minecraft/server/Packet.java | 37 ++++++++++++++++++++++++++
+ 1 file changed, 37 insertions(+)
+
+diff --git a/src/main/java/net/minecraft/server/Packet.java b/src/main/java/net/minecraft/server/Packet.java
+index 7472d44..0af0d85 100644
+--- a/src/main/java/net/minecraft/server/Packet.java
++++ b/src/main/java/net/minecraft/server/Packet.java
+@@ -204,6 +204,17 @@ public abstract class Packet {
+ 
+             itemstack = new ItemStack(short1, b0, short2);
+             itemstack.tag = d(datainputstream);
++            // EMC start - get around creative menu having ultimate control of the NBT...
++            if (itemstack.tag != null) {
++                if (itemstack.tag.hasKey("display")) {
++                    NBTTagCompound display = itemstack.tag.getCompound("display");
++                    if (display.hasKey("OriginalLore")) {
++                        display.set("Lore", display.getList("OriginalLore"));
++                        display.remove("OriginalLore");
++                    }
++                }
++            }
++            // EMC end
+         }
+ 
+         return itemstack;
+@@ -220,6 +231,32 @@ public abstract class Packet {
+ 
+             if (itemstack.getItem().n() || itemstack.getItem().q()) {
+                 nbttagcompound = itemstack.tag;
++                // EMC start
++                if (nbttagcompound != null && nbttagcompound.hasKey("display")) {
++                    NBTTagCompound display = nbttagcompound.getCompound("display");
++                    if (display.hasKey("Lore")) {
++                        NBTTagList lore = display.getList("Lore");
++                        int lastLine = 0;
++                        for (int i = 0; i < lore.size(); i++) {
++                            String line = ((NBTTagString) lore.get(i)).data;
++
++                            if (line.equals("&&::META")) {
++                                NBTTagList newlore = new NBTTagList("Lore");
++                                for (int x = 0; x < lastLine; x++) {
++                                    newlore.add(lore.get(x));
++                                }
++                                nbttagcompound = (NBTTagCompound) nbttagcompound.clone();
++                                display = nbttagcompound.getCompound("display");
++                                display.set("Lore", newlore);
++                                display.set("OriginalLore", lore);
++                                break;
++                            } else if (!line.isEmpty()) {
++                                lastLine = i+1;
++                            }
++                        }
++                    }
++                }
++                // EMC end
+             }
+ 
+             a(nbttagcompound, dataoutputstream);
+-- 
+1.8.1.1
+
