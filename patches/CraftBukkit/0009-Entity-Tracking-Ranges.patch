@@ -1,7 +1,7 @@
-From a073a393b12807b2302da43cbcfa6079d54f1532 Mon Sep 17 00:00:00 2001
+From 14484a385818adb44587c93bd904d4a3e29d1c62 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Wed, 20 Feb 2013 11:58:47 -0500
-Subject: [PATCH] Reduce Entity Tracking Ranges
+Subject: [PATCH] Entity Tracking Ranges
 
 This will let you configure how far to track entities in range from players, so that the entity does not render on the client if out of this range.
 This has multiple benefits:
@@ -12,10 +12,10 @@ This has multiple benefits:
 4) Less client lag - Not trying to render distant item frames and paintings and entities will reduce entity count on the client, which is major for shop/town worlds which may use tons of item frames.
 ---
  .../java/net/minecraft/server/EntityTracker.java   |  1 +
- .../java/org/bukkit/craftbukkit/CraftWorld.java    | 21 ++++++++++++
- src/main/java/org/bukkit/craftbukkit/Spigot.java   | 37 ++++++++++++++++++----
- src/main/resources/configurations/bukkit.yml       |  5 +++
- 4 files changed, 57 insertions(+), 7 deletions(-)
+ .../java/org/bukkit/craftbukkit/CraftWorld.java    | 21 +++++++++++++++++
+ src/main/java/org/bukkit/craftbukkit/Spigot.java   | 26 ++++++++++++++++++++++
+ src/main/resources/configurations/bukkit.yml       |  5 +++++
+ 4 files changed, 53 insertions(+)
 
 diff --git a/src/main/java/net/minecraft/server/EntityTracker.java b/src/main/java/net/minecraft/server/EntityTracker.java
 index d2d6ff0..176690a 100644
@@ -83,36 +83,12 @@ index 33df602..c87d493 100644
  
      public Block getBlockAt(int x, int y, int z) {
 diff --git a/src/main/java/org/bukkit/craftbukkit/Spigot.java b/src/main/java/org/bukkit/craftbukkit/Spigot.java
-index 44db0ff..a15c0bb 100644
+index 7785d45..611ff0e 100644
 --- a/src/main/java/org/bukkit/craftbukkit/Spigot.java
 +++ b/src/main/java/org/bukkit/craftbukkit/Spigot.java
-@@ -227,13 +227,7 @@ public class Spigot {
-      */
-     public static boolean checkIfActive(Entity entity) {
-         SpigotTimings.checkIfActiveTimer.startTiming();
--        int x = MathHelper.floor(entity.locX);
--        int z = MathHelper.floor(entity.locZ);
--        // Make sure not on edge of unloaded chunk
--        if (!entity.world.areChunksLoaded(x, 0, z, 16)) {
--            SpigotTimings.checkIfActiveTimer.stopTiming();
--            return false;
--        }
-+
-         boolean isActive = entity.activatedTick >= MinecraftServer.currentTick || entity.defaultActivationState;
- 
-         // Should this entity tick?
-@@ -250,7 +244,36 @@ public class Spigot {
-         } else if (!entity.defaultActivationState && entity.ticksLived % 4 == 0 && !checkEntityImmunities(entity)) {
-             isActive = false;
+@@ -338,4 +338,30 @@ public class Spigot {
+             ex.printStackTrace();
          }
-+        int x = MathHelper.floor(entity.locX);
-+        int z = MathHelper.floor(entity.locZ);
-+        // Make sure not on edge of unloaded chunk
-+        if (isActive && !entity.world.areChunksLoaded(x, 0, z, 16)) {
-+            isActive = false;
-+        }
-         SpigotTimings.checkIfActiveTimer.stopTiming();
-         return isActive;
      }
 +
 +    /**
@@ -135,14 +111,17 @@ index 44db0ff..a15c0bb 100644
 +        } else if (entity instanceof EntityItemFrame || entity instanceof EntityPainting || entity instanceof EntityItem || entity instanceof EntityExperienceOrb) {
 +            range = world.miscTrackingRange;
 +        }
++        if (range == 0) {
++            return defaultRange;
++        }
 +        return Math.min(world.maxTrackingRange, range);
 +    }
  }
 diff --git a/src/main/resources/configurations/bukkit.yml b/src/main/resources/configurations/bukkit.yml
-index 76f331d..fb55192 100644
+index aac1406..d37f6b4 100644
 --- a/src/main/resources/configurations/bukkit.yml
 +++ b/src/main/resources/configurations/bukkit.yml
-@@ -52,6 +52,11 @@ world-settings:
+@@ -53,6 +53,11 @@ world-settings:
          entity-activation-range-animals: 32
          entity-activation-range-monsters: 32
          entity-activation-range-misc: 16
