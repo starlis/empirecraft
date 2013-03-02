@@ -1,6 +1,6 @@
-From 7df65bbfd1a24defa6a177bcaeb47afa3559d720 Mon Sep 17 00:00:00 2001
+From 35c0ffeb01967a4fef8468cfcf5a739a8cc9ac04 Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Fri, 1 Mar 2013 18:19:34 -0500
+Date: Sat, 2 Mar 2013 17:20:52 -0500
 Subject: [PATCH] Spigot
 
 ---
@@ -25,7 +25,7 @@ Subject: [PATCH] Spigot
  .../java/net/minecraft/server/EntityArrow.java     |   2 +-
  .../net/minecraft/server/EntityFallingBlock.java   |   1 +
  .../java/net/minecraft/server/EntityHanging.java   |  15 +
- .../java/net/minecraft/server/EntityHuman.java     |   6 +
+ .../java/net/minecraft/server/EntityHuman.java     |  34 ++
  src/main/java/net/minecraft/server/EntityItem.java |  19 +-
  .../java/net/minecraft/server/EntityLiving.java    |  18 +
  .../java/net/minecraft/server/EntityPlayer.java    |   8 +-
@@ -33,12 +33,14 @@ Subject: [PATCH] Spigot
  .../net/minecraft/server/EntityTrackerEntry.java   |  25 +-
  src/main/java/net/minecraft/server/Explosion.java  |   1 +
  .../java/net/minecraft/server/INetworkManager.java |  24 +
- .../java/net/minecraft/server/MinecraftServer.java |  69 ++-
+ src/main/java/net/minecraft/server/ItemStack.java  |   1 +
+ .../java/net/minecraft/server/MinecraftServer.java |  71 ++-
  .../java/net/minecraft/server/NibbleArray.java     | 158 +++++
  .../java/net/minecraft/server/OldChunkLoader.java  | 122 ++++
+ .../net/minecraft/server/Packet100OpenWindow.java  |  46 ++
  .../net/minecraft/server/Packet51MapChunk.java     |  44 +-
  .../net/minecraft/server/Packet56MapChunkBulk.java |  23 +-
- .../net/minecraft/server/PendingConnection.java    |  11 +-
+ .../net/minecraft/server/PendingConnection.java    |  17 +-
  .../java/net/minecraft/server/PlayerChunk.java     |   2 +-
  .../java/net/minecraft/server/PlayerChunkMap.java  |   2 +-
  .../net/minecraft/server/PlayerConnection.java     |  34 +-
@@ -54,8 +56,8 @@ Subject: [PATCH] Spigot
  .../java/org/bukkit/craftbukkit/CraftServer.java   |  51 +-
  .../java/org/bukkit/craftbukkit/CraftWorld.java    |  98 +++-
  .../bukkit/craftbukkit/OrebfuscatorManager.java    | 146 +++++
- src/main/java/org/bukkit/craftbukkit/Spigot.java   | 341 +++++++++++
- .../java/org/bukkit/craftbukkit/SpigotTimings.java | 114 ++++
+ src/main/java/org/bukkit/craftbukkit/Spigot.java   | 349 +++++++++++
+ .../java/org/bukkit/craftbukkit/SpigotTimings.java | 113 ++++
  .../craftbukkit/chunkio/ChunkIOProvider.java       |   2 +-
  .../craftbukkit/command/ColouredConsoleSender.java |  34 +-
  .../craftbukkit/command/TicksPerSecondCommand.java |  35 ++
@@ -78,11 +80,12 @@ Subject: [PATCH] Spigot
  .../java/org/spigotmc/netty/PacketEncoder.java     |  43 ++
  .../java/org/spigotmc/netty/PacketListener.java    | 100 ++++
  src/main/java/org/spigotmc/netty/ReadState.java    |  16 +
- src/main/resources/configurations/bukkit.yml       |  41 ++
- 75 files changed, 3630 insertions(+), 273 deletions(-)
+ src/main/resources/configurations/bukkit.yml       |  43 ++
+ 77 files changed, 3718 insertions(+), 277 deletions(-)
  create mode 100644 src/main/java/net/minecraft/server/INetworkManager.java
  create mode 100644 src/main/java/net/minecraft/server/NibbleArray.java
  create mode 100644 src/main/java/net/minecraft/server/OldChunkLoader.java
+ create mode 100644 src/main/java/net/minecraft/server/Packet100OpenWindow.java
  create mode 100644 src/main/java/org/bukkit/craftbukkit/OrebfuscatorManager.java
  create mode 100644 src/main/java/org/bukkit/craftbukkit/Spigot.java
  create mode 100644 src/main/java/org/bukkit/craftbukkit/SpigotTimings.java
@@ -755,23 +758,61 @@ index 8cc80b9..77f9c76 100644
              this.h();
          }
 diff --git a/src/main/java/net/minecraft/server/EntityHuman.java b/src/main/java/net/minecraft/server/EntityHuman.java
-index 7afa68e..c6f8ff9 100644
+index 7afa68e..028ba0c 100644
 --- a/src/main/java/net/minecraft/server/EntityHuman.java
 +++ b/src/main/java/net/minecraft/server/EntityHuman.java
-@@ -4,10 +4,12 @@ import java.util.Iterator;
+@@ -4,13 +4,17 @@ import java.util.Iterator;
  import java.util.List;
  
  // CraftBukkit start
 +import org.bukkit.Bukkit;
  import org.bukkit.craftbukkit.entity.CraftHumanEntity;
  import org.bukkit.craftbukkit.entity.CraftItem;
++import org.bukkit.craftbukkit.inventory.CraftItemStack;
  import org.bukkit.entity.Player;
  import org.bukkit.event.entity.EntityCombustByEntityEvent;
 +import org.bukkit.event.inventory.InventoryCloseEvent;
  import org.bukkit.event.player.PlayerBedEnterEvent;
  import org.bukkit.event.player.PlayerBedLeaveEvent;
  import org.bukkit.event.player.PlayerDropItemEvent;
-@@ -883,6 +885,10 @@ public abstract class EntityHuman extends EntityLiving implements ICommandListen
++import org.bukkit.event.player.PlayerItemConsumeEvent;
+ // CraftBukkit end
+ 
+ public abstract class EntityHuman extends EntityLiving implements ICommandListener {
+@@ -246,6 +250,32 @@ public abstract class EntityHuman extends EntityLiving implements ICommandListen
+         if (this.f != null) {
+             this.c(this.f, 16);
+             int i = this.f.count;
++
++            // CraftBukkit start
++            org.bukkit.inventory.ItemStack craftItem = CraftItemStack.asBukkitCopy(this.f);
++            PlayerItemConsumeEvent event = new PlayerItemConsumeEvent((Player) this.getBukkitEntity(), craftItem);
++            world.getServer().getPluginManager().callEvent(event);
++
++            if (event.isCancelled()) {
++                // Update client
++                if (this instanceof EntityPlayer) {
++                    ((EntityPlayer) this).playerConnection.sendPacket(new Packet103SetSlot((byte) 0, activeContainer.a((IInventory) this.inventory, this.inventory.itemInHandIndex).index, this.f));
++                }
++                return;
++            }
++
++            // Plugin modified the item, process it but don't remove it
++            if (!craftItem.equals(event.getItem())) {
++                CraftItemStack.asNMSCopy(event.getItem()).b(this.world, this);
++
++                // Update client
++                if (this instanceof EntityPlayer) {
++                    ((EntityPlayer) this).playerConnection.sendPacket(new Packet103SetSlot((byte) 0, activeContainer.a((IInventory) this.inventory, this.inventory.itemInHandIndex).index, this.f));
++                }
++                return;
++            }
++            // CraftBukkit end
++
+             ItemStack itemstack = this.f.b(this.world, this);
+ 
+             if (itemstack != this.f || itemstack != null && itemstack.count != i) {
+@@ -883,6 +913,10 @@ public abstract class EntityHuman extends EntityLiving implements ICommandListen
          super.die();
          this.defaultContainer.b(this);
          if (this.activeContainer != null) {
@@ -1083,8 +1124,20 @@ index 0000000..ff3daae
 +    
 +    java.net.Socket getSocket();
 +}
+diff --git a/src/main/java/net/minecraft/server/ItemStack.java b/src/main/java/net/minecraft/server/ItemStack.java
+index 8f0a5ad..3043db9 100644
+--- a/src/main/java/net/minecraft/server/ItemStack.java
++++ b/src/main/java/net/minecraft/server/ItemStack.java
+@@ -38,6 +38,7 @@ public final class ItemStack {
+         this.f = null;
+         this.id = i;
+         this.count = j;
++        if (org.bukkit.craftbukkit.Spigot.snapshotSupport && this.id >= 146 && this.id <= 158) this.id = 0; // Spigot
+         this.setData(k); // CraftBukkit
+     }
+ 
 diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
-index 4bdf8aa..6005fac 100644
+index 4bdf8aa..79b4369 100644
 --- a/src/main/java/net/minecraft/server/MinecraftServer.java
 +++ b/src/main/java/net/minecraft/server/MinecraftServer.java
 @@ -6,7 +6,6 @@ import java.security.KeyPair;
@@ -1232,6 +1285,15 @@ index 4bdf8aa..6005fac 100644
  
          this.methodProfiler.b();
      }
+@@ -758,7 +765,7 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+     }
+ 
+     public String getVersion() {
+-        return "1.4.7";
++        return (org.bukkit.craftbukkit.Spigot.snapshotSupport) ? org.bukkit.craftbukkit.Spigot.snapshotVersion : "1.4.7";
+     }
+ 
+     public int y() {
 diff --git a/src/main/java/net/minecraft/server/NibbleArray.java b/src/main/java/net/minecraft/server/NibbleArray.java
 new file mode 100644
 index 0000000..c9bc20c
@@ -1525,6 +1587,58 @@ index 0000000..0b3bd0d
 +    }
 +}
 \ No newline at end of file
+diff --git a/src/main/java/net/minecraft/server/Packet100OpenWindow.java b/src/main/java/net/minecraft/server/Packet100OpenWindow.java
+new file mode 100644
+index 0000000..5182bfa
+--- /dev/null
++++ b/src/main/java/net/minecraft/server/Packet100OpenWindow.java
+@@ -0,0 +1,46 @@
++package net.minecraft.server;
++
++import java.io.DataInputStream;
++import java.io.DataOutputStream;
++import java.io.IOException;
++
++public class Packet100OpenWindow extends Packet {
++
++    public int a;
++    public int b;
++    public String c;
++    public int d;
++
++    public Packet100OpenWindow() {}
++
++    public Packet100OpenWindow(int i, int j, String s, int k) {
++        this.a = i;
++        this.b = j;
++        this.c = s;
++        this.d = k;
++    }
++
++    public void handle(Connection connection) {
++        connection.a(this);
++    }
++
++    public void a(DataInputStream datainputstream) throws IOException {
++        this.a = datainputstream.readByte() & 255;
++        this.b = datainputstream.readByte() & 255;
++        this.c = a(datainputstream, 32);
++        this.d = datainputstream.readByte() & 255;
++        if (org.bukkit.craftbukkit.Spigot.snapshotSupport) datainputstream.readBoolean(); // Spigot
++    }
++
++    public void a(DataOutputStream dataoutputstream) throws IOException {
++        dataoutputstream.writeByte(this.a & 255);
++        dataoutputstream.writeByte(this.b & 255);
++        a(this.c, dataoutputstream);
++        dataoutputstream.writeByte(this.d & 255);
++        if (org.bukkit.craftbukkit.Spigot.snapshotSupport) dataoutputstream.writeBoolean(false); // Spigot
++    }
++
++    public int a() {
++        return 3 + this.c.length();
++    }
++}
 diff --git a/src/main/java/net/minecraft/server/Packet51MapChunk.java b/src/main/java/net/minecraft/server/Packet51MapChunk.java
 index 14a6245..2ba0464 100644
 --- a/src/main/java/net/minecraft/server/Packet51MapChunk.java
@@ -1680,7 +1794,7 @@ index 867ebd3..8486d82 100644
          deflater.reset();
          deflater.setInput(this.buildBuffer);
 diff --git a/src/main/java/net/minecraft/server/PendingConnection.java b/src/main/java/net/minecraft/server/PendingConnection.java
-index 8413a15..cdd456f 100644
+index 8413a15..08aa314 100644
 --- a/src/main/java/net/minecraft/server/PendingConnection.java
 +++ b/src/main/java/net/minecraft/server/PendingConnection.java
 @@ -17,7 +17,7 @@ public class PendingConnection extends Connection {
@@ -1709,15 +1823,29 @@ index 8413a15..cdd456f 100644
      }
  
      // CraftBukkit start
-@@ -147,7 +152,7 @@ public class PendingConnection extends Connection {
+@@ -73,8 +78,8 @@ public class PendingConnection extends Connection {
+         } else {
+             PublicKey publickey = this.server.F().getPublic();
+ 
+-            if (packet2handshake.d() != 51) {
+-                if (packet2handshake.d() > 51) {
++            if (packet2handshake.d() != ((org.bukkit.craftbukkit.Spigot.snapshotSupport) ? org.bukkit.craftbukkit.Spigot.snapshotProtocolVersion : 51)) {
++                if (packet2handshake.d() > ((org.bukkit.craftbukkit.Spigot.snapshotSupport) ? org.bukkit.craftbukkit.Spigot.snapshotProtocolVersion : 51)) {
+                     this.disconnect("Outdated server!");
+                 } else {
+                     this.disconnect("Outdated client!");
+@@ -147,9 +152,9 @@ public class PendingConnection extends Connection {
              // CraftBukkit
              org.bukkit.event.server.ServerListPingEvent pingEvent = org.bukkit.craftbukkit.event.CraftEventFactory.callServerListPingEvent(this.server.server, getSocket().getInetAddress(), this.server.getMotd(), playerlist.getPlayerCount(), playerlist.getMaxPlayers());
  
 -            if (packet254getinfo.a == 1) {
 +            if (true) {
                  // CraftBukkit start - fix decompile issues, don't create a list from an array
-                 Object[] list = new Object[] { 1, 51, this.server.getVersion(), pingEvent.getMotd(), playerlist.getPlayerCount(), pingEvent.getMaxPlayers() };
+-                Object[] list = new Object[] { 1, 51, this.server.getVersion(), pingEvent.getMotd(), playerlist.getPlayerCount(), pingEvent.getMaxPlayers() };
++                Object[] list = new Object[] { 1, ((org.bukkit.craftbukkit.Spigot.snapshotSupport) ? org.bukkit.craftbukkit.Spigot.snapshotProtocolVersion : 51), this.server.getVersion(), pingEvent.getMotd(), playerlist.getPlayerCount(), pingEvent.getMaxPlayers() };
  
+                 for (Object object : list) {
+                     if (s == null) {
 diff --git a/src/main/java/net/minecraft/server/PlayerChunk.java b/src/main/java/net/minecraft/server/PlayerChunk.java
 index 5350644..185a609 100644
 --- a/src/main/java/net/minecraft/server/PlayerChunk.java
@@ -3267,10 +3395,10 @@ index 0000000..5213f99
 +}
 diff --git a/src/main/java/org/bukkit/craftbukkit/Spigot.java b/src/main/java/org/bukkit/craftbukkit/Spigot.java
 new file mode 100644
-index 0000000..7785d45
+index 0000000..b8d7652
 --- /dev/null
 +++ b/src/main/java/org/bukkit/craftbukkit/Spigot.java
-@@ -0,0 +1,341 @@
+@@ -0,0 +1,349 @@
 +package org.bukkit.craftbukkit;
 +
 +import java.io.File;
@@ -3296,6 +3424,9 @@ index 0000000..7785d45
 +
 +    public static boolean tabPing = false;
 +    private static Metrics metrics;
++    public static boolean snapshotSupport;
++    public static int snapshotProtocolVersion = 60;
++    public static String snapshotVersion = "13w09c";
 +
 +    public static void initialize(CraftServer server, SimpleCommandMap commandMap, YamlConfiguration configuration) {
 +        commandMap.register("bukkit", new org.bukkit.craftbukkit.command.TicksPerSecondCommand("tps"));
@@ -3332,6 +3463,11 @@ index 0000000..7785d45
 +        }
 +
 +        tabPing = configuration.getBoolean("settings.tab-ping", tabPing);
++
++        snapshotSupport = configuration.getBoolean("settings.snapshot-protocol", snapshotSupport);
++        if (snapshotSupport) {
++            server.getLogger().log(Level.INFO, "Enabled support for pre release / snapshot version {0}", snapshotVersion);
++        }
 +
 +        if (metrics == null) {
 +            try {
@@ -3614,15 +3750,14 @@ index 0000000..7785d45
 +}
 diff --git a/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java b/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java
 new file mode 100644
-index 0000000..c4e7dda
+index 0000000..d8f73ad
 --- /dev/null
 +++ b/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java
-@@ -0,0 +1,114 @@
+@@ -0,0 +1,113 @@
 +package org.bukkit.craftbukkit;
 +
 +import net.minecraft.server.*;
 +import org.bukkit.CustomTimingsHandler;
-+import org.bukkit.plugin.Plugin;
 +import org.bukkit.scheduler.BukkitTask;
 +
 +import java.util.HashMap;
@@ -3631,7 +3766,7 @@ index 0000000..c4e7dda
 +
 +    public static final CustomTimingsHandler serverTickTimer = new CustomTimingsHandler("** Full Server Tick");
 +    public static final CustomTimingsHandler playerListTimer = new CustomTimingsHandler("Player List");
-+    public static final CustomTimingsHandler connectionTimer = new CustomTimingsHandler("Connection");
++    public static final CustomTimingsHandler connectionTimer = new CustomTimingsHandler("Player Tick");
 +    public static final CustomTimingsHandler tickablesTimer = new CustomTimingsHandler("Tickables");
 +    public static final CustomTimingsHandler schedulerTimer = new CustomTimingsHandler("Scheduler");
 +    public static final CustomTimingsHandler chunkIOTickTimer = new CustomTimingsHandler("ChunkIOTick");
@@ -5801,10 +5936,10 @@ index 0000000..5dc3754
 +    DATA;
 +}
 diff --git a/src/main/resources/configurations/bukkit.yml b/src/main/resources/configurations/bukkit.yml
-index 61a95e3..aac1406 100644
+index 61a95e3..0351530 100644
 --- a/src/main/resources/configurations/bukkit.yml
 +++ b/src/main/resources/configurations/bukkit.yml
-@@ -25,6 +25,41 @@ settings:
+@@ -25,6 +25,43 @@ settings:
      query-plugins: true
      deprecated-verbose: default
      shutdown-message: Server closed
@@ -5818,6 +5953,8 @@ index 61a95e3..aac1406 100644
 +    timeout-time: 30
 +    restart-on-crash: false
 +    restart-script-location: /path/to/server/start.sh
++    # fakes the latest pre release / snapshot
++    snapshot-protocol: false
 +world-settings:
 +    default:
 +        growth-chunks-per-tick: 650
@@ -5846,7 +5983,7 @@ index 61a95e3..aac1406 100644
  spawn-limits:
      monsters: 70
      animals: 15
-@@ -53,3 +88,9 @@ database:
+@@ -53,3 +90,9 @@ database:
      driver: org.sqlite.JDBC
      password: walrus
      url: jdbc:sqlite:{DIR}{NAME}.db
