@@ -1,16 +1,19 @@
-From d299193ea096d174fbd2841ecf07a65368b31d1f Mon Sep 17 00:00:00 2001
+From bf5a9fa149e352af98a835c28a0d3005cf8f8fd4 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Fri, 15 Feb 2013 20:10:44 -0500
 Subject: [PATCH] New Old Network Manager
 
-Not ready to move to netty yet, improve the existing network manager
+Not ready to move to netty yet
+improve the existing network manager
+fixed size thread pool for writes reducing threads by players size
 ---
  .../java/net/minecraft/server/DedicatedServer.java |  2 +-
- .../java/net/minecraft/server/NetworkManager.java  | 67 +++++++++++++---------
- .../net/minecraft/server/Packet56MapChunkBulk.java |  3 +-
- src/main/java/org/spigotmc/PacketQueue.java        | 51 ++++++++++++++++
- 4 files changed, 93 insertions(+), 30 deletions(-)
- create mode 100644 src/main/java/org/spigotmc/PacketQueue.java
+ .../java/net/minecraft/server/NetworkManager.java  | 54 +++++++++++++++-------
+ .../net/minecraft/server/NetworkWriterThread.java  |  4 +-
+ .../net/minecraft/server/Packet56MapChunkBulk.java |  2 +-
+ src/main/java/org/spigotmc/nom/PacketQueue.java    | 53 +++++++++++++++++++++
+ 5 files changed, 96 insertions(+), 19 deletions(-)
+ create mode 100644 src/main/java/org/spigotmc/nom/PacketQueue.java
 
 diff --git a/src/main/java/net/minecraft/server/DedicatedServer.java b/src/main/java/net/minecraft/server/DedicatedServer.java
 index aefe20f..3d44192 100644
@@ -26,37 +29,32 @@ index aefe20f..3d44192 100644
                      : new DedicatedServerConnection(this, inetaddress, this.G());
              // Spigot end
 diff --git a/src/main/java/net/minecraft/server/NetworkManager.java b/src/main/java/net/minecraft/server/NetworkManager.java
-index 7c64e9b..84a192a 100644
+index 7c64e9b..30f1fb8 100644
 --- a/src/main/java/net/minecraft/server/NetworkManager.java
 +++ b/src/main/java/net/minecraft/server/NetworkManager.java
-@@ -1,5 +1,7 @@
+@@ -1,5 +1,8 @@
  package net.minecraft.server;
  
-+import org.spigotmc.PacketQueue; // EMC
++import org.bukkit.CustomTimingsHandler;
++import org.spigotmc.nom.PacketQueue; // EMC
 +
  import java.io.BufferedOutputStream;
  import java.io.DataInputStream;
  import java.io.DataOutputStream;
-@@ -8,15 +10,14 @@ import java.net.Socket;
+@@ -8,10 +11,10 @@ import java.net.Socket;
  import java.net.SocketAddress;
  import java.net.SocketException;
  import java.security.PrivateKey;
 -import java.util.ArrayList;
 -import java.util.Collections;
--import java.util.Iterator;
--import java.util.List;
-+import java.util.*;
+ import java.util.Iterator;
+ import java.util.List;
++import java.util.concurrent.LinkedBlockingQueue;
++import java.util.concurrent.atomic.AtomicBoolean;
  import java.util.concurrent.atomic.AtomicInteger;
  import javax.crypto.SecretKey;
  
- import java.io.IOException; // CraftBukkit
- 
-+
-+
- public class NetworkManager implements INetworkManager {
- 
-     public static AtomicInteger a = new AtomicInteger();
-@@ -29,8 +30,11 @@ public class NetworkManager implements INetworkManager {
+@@ -29,8 +32,12 @@ public class NetworkManager implements INetworkManager {
      private volatile boolean m = true;
      private volatile boolean n = false;
      private java.util.Queue inboundQueue = new java.util.concurrent.ConcurrentLinkedQueue(); // CraftBukkit - Concurrent linked queue
@@ -66,11 +64,12 @@ index 7c64e9b..84a192a 100644
 +    PacketQueue.PacketCounter counter = new PacketQueue.PacketCounter();
 +    public PacketQueue highPriorityQueue = new PacketQueue(counter);
 +    public PacketQueue lowPriorityQueue = new PacketQueue(counter);
++    public final Object activityQueue = new Object();
 +    // EMC end
      private Connection connection;
      private boolean s = false;
      private Thread t;
-@@ -38,7 +42,7 @@ public class NetworkManager implements INetworkManager {
+@@ -38,7 +45,7 @@ public class NetworkManager implements INetworkManager {
      private String v = "";
      private Object[] w;
      private int x = 0;
@@ -79,8 +78,11 @@ index 7c64e9b..84a192a 100644
      public static int[] c = new int[256];
      public static int[] d = new int[256];
      public int e = 0;
-@@ -75,12 +79,11 @@ public class NetworkManager implements INetworkManager {
+@@ -73,17 +80,23 @@ public class NetworkManager implements INetworkManager {
+         this.connection = connection;
+     }
  
++    static CustomTimingsHandler timer = new CustomTimingsHandler("Nom Queue");
      public void queue(Packet packet) {
          if (!this.s) {
 -            Object object = this.h;
@@ -88,41 +90,33 @@ index 7c64e9b..84a192a 100644
 -            synchronized (this.h) {
 -                this.y += packet.a() + 1;
 -                this.highPriorityQueue.add(packet);
--            }
 +            // EMC start
++            timer.startTiming();
 +            this.y += packet.a() + 1;
 +            List<Packet> queue = packet.lowPriority ? lowPriorityQueue : highPriorityQueue;
 +            queue.add(packet);
++            synchronized (activityQueue) {
++                activityQueue.notify();
+             }
++            timer.stopTiming();
 +            // EMc end
          }
      }
  
-@@ -89,10 +92,10 @@ public class NetworkManager implements INetworkManager {
++    public boolean sendPackets() { return h(); } // EMC
+     private boolean h() {
+         boolean flag = false;
  
-         try {
-             Packet packet;
--            int i;
--            int[] aint;
-+            //int i;
-+            //int[] aint;
+@@ -92,7 +105,7 @@ public class NetworkManager implements INetworkManager {
+             int i;
+             int[] aint;
  
 -            if (this.e == 0 || !this.highPriorityQueue.isEmpty() && System.currentTimeMillis() - ((Packet) this.highPriorityQueue.get(0)).timestamp >= (long) this.e) {
 +            if (!this.highPriorityQueue.isEmpty()) {
                  packet = this.a(false);
                  if (packet != null) {
                      Packet.a(packet, this.output);
-@@ -104,22 +107,24 @@ public class NetworkManager implements INetworkManager {
-                         this.k();
-                     }
- 
--                    aint = d;
--                    i = packet.k();
--                    aint[i] += packet.a() + 1;
-+                    //aint = d;
-+                    //i = packet.k();
-+                    //aint[i] += packet.a() + 1;
-                     flag = true;
-                 }
+@@ -112,7 +125,9 @@ public class NetworkManager implements INetworkManager {
              }
  
              // CraftBukkit - don't allow low priority packet to be sent unless it was placed in the queue before the first packet on the high priority queue TODO: is this still right?
@@ -133,18 +127,7 @@ index 7c64e9b..84a192a 100644
                  packet = this.a(true);
                  if (packet != null) {
                      Packet.a(packet, this.output);
--                    aint = d;
--                    i = packet.k();
--                    aint[i] += packet.a() + 1;
--                    this.lowPriorityQueueDelay = 0;
-+                    //aint = d;
-+                    //i = packet.k();
-+                    //aint[i] += packet.a() + 1;
-+                    //this.lowPriorityQueueDelay = 0;
-                     flag = true;
-                 }
-             }
-@@ -135,9 +140,14 @@ public class NetworkManager implements INetworkManager {
+@@ -135,9 +150,14 @@ public class NetworkManager implements INetworkManager {
      }
  
      private Packet a(boolean flag) {
@@ -162,7 +145,7 @@ index 7c64e9b..84a192a 100644
  
          synchronized (this.h) {
              while (!list.isEmpty() && packet == null) {
-@@ -149,7 +159,8 @@ public class NetworkManager implements INetworkManager {
+@@ -149,7 +169,8 @@ public class NetworkManager implements INetworkManager {
              }
  
              return packet;
@@ -172,29 +155,47 @@ index 7c64e9b..84a192a 100644
      }
  
      private boolean a(Packet packet, boolean flag) {
+@@ -367,4 +388,5 @@ public class NetworkManager implements INetworkManager {
+     static Thread h(NetworkManager networkmanager) {
+         return networkmanager.t;
+     }
++
+ }
+diff --git a/src/main/java/net/minecraft/server/NetworkWriterThread.java b/src/main/java/net/minecraft/server/NetworkWriterThread.java
+index 68d84de..3a37dd3 100644
+--- a/src/main/java/net/minecraft/server/NetworkWriterThread.java
++++ b/src/main/java/net/minecraft/server/NetworkWriterThread.java
+@@ -35,7 +35,9 @@ class NetworkWriterThread extends Thread {
+                 }
+ 
+                 try {
+-                    sleep(2L);
++                    synchronized (this.a.activityQueue) {
++                        this.a.activityQueue.wait(50); // EMC
++                    }
+                 } catch (InterruptedException interruptedexception) {
+                     ;
+                 }
 diff --git a/src/main/java/net/minecraft/server/Packet56MapChunkBulk.java b/src/main/java/net/minecraft/server/Packet56MapChunkBulk.java
-index 8486d82..2cc3539 100644
+index 8486d82..e8cede6 100644
 --- a/src/main/java/net/minecraft/server/Packet56MapChunkBulk.java
 +++ b/src/main/java/net/minecraft/server/Packet56MapChunkBulk.java
-@@ -30,9 +30,10 @@ public class Packet56MapChunkBulk extends Packet {
+@@ -29,7 +29,7 @@ public class Packet56MapChunkBulk extends Packet {
+     };
      // CraftBukkit end
      private World world; // Spigot (Orebfuscator) Keep track of world
- 
--    public Packet56MapChunkBulk() {}
-+    public Packet56MapChunkBulk() {this.lowPriority=true;} // EMC - Make low priority to fix sign issues and match 51
+-
++    {lowPriority=true;} // EMC - this is not as important
+     public Packet56MapChunkBulk() {}
  
      public Packet56MapChunkBulk(List list) {
-+        this.lowPriority=true; // EMC - Make low priority to fix sign issues and match 51
-         int i = list.size();
- 
-         this.c = new int[i];
-diff --git a/src/main/java/org/spigotmc/PacketQueue.java b/src/main/java/org/spigotmc/PacketQueue.java
+diff --git a/src/main/java/org/spigotmc/nom/PacketQueue.java b/src/main/java/org/spigotmc/nom/PacketQueue.java
 new file mode 100644
-index 0000000..d29e81a
+index 0000000..45d67f7
 --- /dev/null
-+++ b/src/main/java/org/spigotmc/PacketQueue.java
-@@ -0,0 +1,51 @@
-+package org.spigotmc;
++++ b/src/main/java/org/spigotmc/nom/PacketQueue.java
+@@ -0,0 +1,53 @@
++package org.spigotmc.nom;
 +
 +import net.minecraft.server.Packet;
 +
@@ -236,10 +237,12 @@ index 0000000..d29e81a
 +        Long res = orderQueue.peek();
 +        return res == null ? 0 : res;
 +    }
++
 +    @Override
 +    public int size() {
 +        return queue.isEmpty() ? 0 : 1;
 +    }
++
 +    @Override
 +    public boolean isEmpty() {
 +        return queue.isEmpty();
