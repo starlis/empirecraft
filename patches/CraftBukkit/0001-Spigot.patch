@@ -1,6 +1,6 @@
-From 35c0ffeb01967a4fef8468cfcf5a739a8cc9ac04 Mon Sep 17 00:00:00 2001
+From 42ef9f94fd3d5e6d5df84b8698f471790139e108 Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Sat, 2 Mar 2013 17:20:52 -0500
+Date: Sat, 2 Mar 2013 17:46:15 -0500
 Subject: [PATCH] Spigot
 
 ---
@@ -18,14 +18,13 @@ Subject: [PATCH] Spigot
  .../net/minecraft/server/ChunkProviderServer.java  |   2 +
  .../net/minecraft/server/ChunkRegionLoader.java    |  45 +-
  .../java/net/minecraft/server/ChunkSection.java    |  47 +-
- .../minecraft/server/ContainerBrewingStand.java    |   4 +-
  .../java/net/minecraft/server/DedicatedServer.java |   8 +-
  .../server/DispenseBehaviorEmptyBucket.java        |   2 +-
  src/main/java/net/minecraft/server/Entity.java     |  19 +-
  .../java/net/minecraft/server/EntityArrow.java     |   2 +-
  .../net/minecraft/server/EntityFallingBlock.java   |   1 +
  .../java/net/minecraft/server/EntityHanging.java   |  15 +
- .../java/net/minecraft/server/EntityHuman.java     |  34 ++
+ .../java/net/minecraft/server/EntityHuman.java     |   6 +
  src/main/java/net/minecraft/server/EntityItem.java |  19 +-
  .../java/net/minecraft/server/EntityLiving.java    |  18 +
  .../java/net/minecraft/server/EntityPlayer.java    |   8 +-
@@ -43,7 +42,7 @@ Subject: [PATCH] Spigot
  .../net/minecraft/server/PendingConnection.java    |  17 +-
  .../java/net/minecraft/server/PlayerChunk.java     |   2 +-
  .../java/net/minecraft/server/PlayerChunkMap.java  |   2 +-
- .../net/minecraft/server/PlayerConnection.java     |  34 +-
+ .../net/minecraft/server/PlayerConnection.java     |  23 +-
  .../minecraft/server/PlayerInteractManager.java    |   5 +
  src/main/java/net/minecraft/server/PlayerList.java |  37 +-
  .../java/net/minecraft/server/SpawnerCreature.java |  46 +-
@@ -81,7 +80,7 @@ Subject: [PATCH] Spigot
  .../java/org/spigotmc/netty/PacketListener.java    | 100 ++++
  src/main/java/org/spigotmc/netty/ReadState.java    |  16 +
  src/main/resources/configurations/bukkit.yml       |  43 ++
- 77 files changed, 3718 insertions(+), 277 deletions(-)
+ 76 files changed, 3680 insertions(+), 272 deletions(-)
  create mode 100644 src/main/java/net/minecraft/server/INetworkManager.java
  create mode 100644 src/main/java/net/minecraft/server/NibbleArray.java
  create mode 100644 src/main/java/net/minecraft/server/OldChunkLoader.java
@@ -579,28 +578,6 @@ index 90e0636..42e669c 100644
      }
 +    // Spigot end
  }
-diff --git a/src/main/java/net/minecraft/server/ContainerBrewingStand.java b/src/main/java/net/minecraft/server/ContainerBrewingStand.java
-index 3bfa802..3411dbb 100644
---- a/src/main/java/net/minecraft/server/ContainerBrewingStand.java
-+++ b/src/main/java/net/minecraft/server/ContainerBrewingStand.java
-@@ -1,7 +1,7 @@
- package net.minecraft.server;
- 
- // CraftBukkit start
--import org.bukkit.craftbukkit.inventory.CraftInventory;
-+import org.bukkit.craftbukkit.inventory.CraftInventoryBrewer;
- import org.bukkit.craftbukkit.inventory.CraftInventoryView;
- // CraftBukkit end
- 
-@@ -118,7 +118,7 @@ public class ContainerBrewingStand extends Container {
-             return bukkitEntity;
-         }
- 
--        CraftInventory inventory = new CraftInventory(this.brewingStand);
-+        CraftInventoryBrewer inventory = new CraftInventoryBrewer(this.brewingStand);
-         bukkitEntity = new CraftInventoryView(this.player.player.getBukkitEntity(), inventory, this);
-         return bukkitEntity;
-     }
 diff --git a/src/main/java/net/minecraft/server/DedicatedServer.java b/src/main/java/net/minecraft/server/DedicatedServer.java
 index bd0377a..aefe20f 100644
 --- a/src/main/java/net/minecraft/server/DedicatedServer.java
@@ -758,61 +735,24 @@ index 8cc80b9..77f9c76 100644
              this.h();
          }
 diff --git a/src/main/java/net/minecraft/server/EntityHuman.java b/src/main/java/net/minecraft/server/EntityHuman.java
-index 7afa68e..028ba0c 100644
+index ce0715b..028ba0c 100644
 --- a/src/main/java/net/minecraft/server/EntityHuman.java
 +++ b/src/main/java/net/minecraft/server/EntityHuman.java
-@@ -4,13 +4,17 @@ import java.util.Iterator;
+@@ -4,11 +4,13 @@ import java.util.Iterator;
  import java.util.List;
  
  // CraftBukkit start
 +import org.bukkit.Bukkit;
  import org.bukkit.craftbukkit.entity.CraftHumanEntity;
  import org.bukkit.craftbukkit.entity.CraftItem;
-+import org.bukkit.craftbukkit.inventory.CraftItemStack;
+ import org.bukkit.craftbukkit.inventory.CraftItemStack;
  import org.bukkit.entity.Player;
  import org.bukkit.event.entity.EntityCombustByEntityEvent;
 +import org.bukkit.event.inventory.InventoryCloseEvent;
  import org.bukkit.event.player.PlayerBedEnterEvent;
  import org.bukkit.event.player.PlayerBedLeaveEvent;
  import org.bukkit.event.player.PlayerDropItemEvent;
-+import org.bukkit.event.player.PlayerItemConsumeEvent;
- // CraftBukkit end
- 
- public abstract class EntityHuman extends EntityLiving implements ICommandListener {
-@@ -246,6 +250,32 @@ public abstract class EntityHuman extends EntityLiving implements ICommandListen
-         if (this.f != null) {
-             this.c(this.f, 16);
-             int i = this.f.count;
-+
-+            // CraftBukkit start
-+            org.bukkit.inventory.ItemStack craftItem = CraftItemStack.asBukkitCopy(this.f);
-+            PlayerItemConsumeEvent event = new PlayerItemConsumeEvent((Player) this.getBukkitEntity(), craftItem);
-+            world.getServer().getPluginManager().callEvent(event);
-+
-+            if (event.isCancelled()) {
-+                // Update client
-+                if (this instanceof EntityPlayer) {
-+                    ((EntityPlayer) this).playerConnection.sendPacket(new Packet103SetSlot((byte) 0, activeContainer.a((IInventory) this.inventory, this.inventory.itemInHandIndex).index, this.f));
-+                }
-+                return;
-+            }
-+
-+            // Plugin modified the item, process it but don't remove it
-+            if (!craftItem.equals(event.getItem())) {
-+                CraftItemStack.asNMSCopy(event.getItem()).b(this.world, this);
-+
-+                // Update client
-+                if (this instanceof EntityPlayer) {
-+                    ((EntityPlayer) this).playerConnection.sendPacket(new Packet103SetSlot((byte) 0, activeContainer.a((IInventory) this.inventory, this.inventory.itemInHandIndex).index, this.f));
-+                }
-+                return;
-+            }
-+            // CraftBukkit end
-+
-             ItemStack itemstack = this.f.b(this.world, this);
- 
-             if (itemstack != this.f || itemstack != null && itemstack.count != i) {
-@@ -883,6 +913,10 @@ public abstract class EntityHuman extends EntityLiving implements ICommandListen
+@@ -911,6 +913,10 @@ public abstract class EntityHuman extends EntityLiving implements ICommandListen
          super.die();
          this.defaultContainer.b(this);
          if (this.activeContainer != null) {
@@ -1873,7 +1813,7 @@ index f788a62..98d6dd2 100644
          } else {
              this.e = i;
 diff --git a/src/main/java/net/minecraft/server/PlayerConnection.java b/src/main/java/net/minecraft/server/PlayerConnection.java
-index fac9ea5..b960a87 100644
+index 65ec70a..72f172d 100644
 --- a/src/main/java/net/minecraft/server/PlayerConnection.java
 +++ b/src/main/java/net/minecraft/server/PlayerConnection.java
 @@ -852,8 +852,19 @@ public class PlayerConnection extends Connection {
@@ -1941,66 +1881,6 @@ index fac9ea5..b960a87 100644
                          }
                      }
                  }
-@@ -1464,6 +1481,7 @@ public class PlayerConnection extends Connection {
-                 }
-             } catch (Exception exception) {
-                 exception.printStackTrace();
-+                this.disconnect("Invalid book data!"); // CraftBukkit - prevent exception spam
-             }
-         } else if ("MC|BSign".equals(packet250custompayload.tag)) {
-             try {
-@@ -1481,9 +1499,8 @@ public class PlayerConnection extends Connection {
-                     itemstack1.id = Item.WRITTEN_BOOK.id;
-                 }
-             } catch (Exception exception1) {
--                // CraftBukkit start
--                // exception1.printStackTrace();
--                // CraftBukkit end
-+                exception1.printStackTrace();
-+                this.disconnect("Invalid book data!"); // CraftBukkit - prevent exception spam
-             }
-         } else {
-             int i;
-@@ -1499,6 +1516,7 @@ public class PlayerConnection extends Connection {
-                     }
-                 } catch (Exception exception2) {
-                     exception2.printStackTrace();
-+                    this.disconnect("Invalid trade data!"); // CraftBukkit - prevent exception spam
-                 }
-             } else {
-                 int j;
-@@ -1522,6 +1540,7 @@ public class PlayerConnection extends Connection {
-                             }
-                         } catch (Exception exception3) {
-                             exception3.printStackTrace();
-+                            this.disconnect("Invalid CommandBlock data!"); // CraftBukkit - prevent exception spam
-                         }
-                     } else {
-                         this.player.sendMessage(this.player.a("advMode.notAllowed", new Object[0]));
-@@ -1545,6 +1564,7 @@ public class PlayerConnection extends Connection {
-                             }
-                         } catch (Exception exception4) {
-                             exception4.printStackTrace();
-+                            this.disconnect("Invalid beacon data!"); // CraftBukkit - prevent exception spam
-                         }
-                     }
-                 } else if ("MC|ItemName".equals(packet250custompayload.tag) && this.player.activeContainer instanceof ContainerAnvil) {
-@@ -1569,6 +1589,7 @@ public class PlayerConnection extends Connection {
-                         }
-                     } catch (UnsupportedEncodingException ex) {
-                         Logger.getLogger(PlayerConnection.class.getName()).log(Level.SEVERE, "Could not parse REGISTER payload in plugin message packet", ex);
-+                        throw new AssertionError("UTF-8 is an unknown encoding");
-                     }
-                 } else if (packet250custompayload.tag.equals("UNREGISTER")) {
-                     try {
-@@ -1578,6 +1599,7 @@ public class PlayerConnection extends Connection {
-                         }
-                     } catch (UnsupportedEncodingException ex) {
-                         Logger.getLogger(PlayerConnection.class.getName()).log(Level.SEVERE, "Could not parse UNREGISTER payload in plugin message packet", ex);
-+                        throw new AssertionError("UTF-8 is an unknown encoding");
-                     }
-                 } else {
-                     server.getMessenger().dispatchIncomingMessage(player.getBukkitEntity(), packet250custompayload.tag, packet250custompayload.data);
 diff --git a/src/main/java/net/minecraft/server/PlayerInteractManager.java b/src/main/java/net/minecraft/server/PlayerInteractManager.java
 index 5faee12..55f9ffa 100644
 --- a/src/main/java/net/minecraft/server/PlayerInteractManager.java

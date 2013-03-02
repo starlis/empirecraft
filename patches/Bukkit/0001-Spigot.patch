@@ -1,6 +1,6 @@
-From 4a56dce1ebe2c786b53c29d9055c20e70b1954e5 Mon Sep 17 00:00:00 2001
+From 643b81a284111658bd99f8e82d1bc99ef552aea2 Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Sat, 2 Mar 2013 17:28:53 -0500
+Date: Sat, 2 Mar 2013 17:46:13 -0500
 Subject: [PATCH] Spigot
 
 ---
@@ -8,14 +8,12 @@ Subject: [PATCH] Spigot
  src/main/java/org/bukkit/CustomTimingsHandler.java | 134 +++++++++++++++++++++
  .../org/bukkit/command/defaults/ReloadCommand.java |   2 +
  .../bukkit/command/defaults/TimingsCommand.java    |  92 ++++++++++++--
- .../event/player/PlayerItemConsumeEvent.java       |  75 ++++++++++++
  .../org/bukkit/plugin/SimplePluginManager.java     |   2 +
  .../org/bukkit/plugin/TimedRegisteredListener.java |  12 +-
  .../org/bukkit/plugin/java/JavaPluginLoader.java   |   2 +-
  .../org/bukkit/plugin/java/PluginClassLoader.java  |   7 ++
- 9 files changed, 327 insertions(+), 45 deletions(-)
+ 8 files changed, 252 insertions(+), 45 deletions(-)
  create mode 100644 src/main/java/org/bukkit/CustomTimingsHandler.java
- create mode 100644 src/main/java/org/bukkit/event/player/PlayerItemConsumeEvent.java
 
 diff --git a/pom.xml b/pom.xml
 index 18bda4b..ca4c1c4 100644
@@ -404,87 +402,6 @@ index 29ebbe0..426f9b4 100644
 +    }
 +    // Spigot end
  }
-diff --git a/src/main/java/org/bukkit/event/player/PlayerItemConsumeEvent.java b/src/main/java/org/bukkit/event/player/PlayerItemConsumeEvent.java
-new file mode 100644
-index 0000000..5932412
---- /dev/null
-+++ b/src/main/java/org/bukkit/event/player/PlayerItemConsumeEvent.java
-@@ -0,0 +1,75 @@
-+package org.bukkit.event.player;
-+
-+import org.bukkit.Material;
-+import org.bukkit.entity.Player;
-+import org.bukkit.event.Cancellable;
-+import org.bukkit.event.HandlerList;
-+import org.bukkit.inventory.ItemStack;
-+
-+/**
-+ * This event will fire when a player is finishing consuming an item (food,
-+ * potion, milk bucket).
-+ * <br>
-+ * If the ItemStack is modified the server will use the effects of the new
-+ * item and not remove the original one from the player's inventory.
-+ * <br>
-+ * If the event is cancelled the effect will not be applied and the item will
-+ * not be removed from the player's inventory.
-+ */
-+public class PlayerItemConsumeEvent extends PlayerEvent implements Cancellable {
-+    private static final HandlerList handlers = new HandlerList();
-+    private boolean isCancelled = false;
-+    private ItemStack item;
-+
-+    /**
-+     *
-+     * @param player the player consuming
-+     * @param item the ItemStack being consumed
-+     */
-+    public PlayerItemConsumeEvent(final Player player, final ItemStack item) {
-+        super(player);
-+
-+        this.item = item;
-+    }
-+
-+    /**
-+     * Gets the item that is being consumed. Modifying the returned item will
-+     * have no effect, you must use {@link
-+     * #setItem(org.bukkit.inventory.ItemStack)} instead.
-+     *
-+     * @return an ItemStack for the item being consumed
-+     */
-+    public ItemStack getItem() {
-+        return item.clone();
-+    }
-+
-+    /**
-+     * Set the item being consumed
-+     *
-+     * @param item the item being consumed
-+     */
-+    public void setItem(ItemStack item) {
-+        if (item == null) {
-+            this.item = new ItemStack(Material.AIR);
-+        } else {
-+            this.item = item;
-+        }
-+    }
-+
-+    public boolean isCancelled() {
-+        return this.isCancelled;
-+    }
-+
-+    public void setCancelled(boolean cancel) {
-+        this.isCancelled = cancel;
-+    }
-+
-+    @Override
-+    public HandlerList getHandlers() {
-+        return handlers;
-+    }
-+
-+    public static HandlerList getHandlerList() {
-+        return handlers;
-+    }
-+}
 diff --git a/src/main/java/org/bukkit/plugin/SimplePluginManager.java b/src/main/java/org/bukkit/plugin/SimplePluginManager.java
 index d4f6bf3..4049d3a 100644
 --- a/src/main/java/org/bukkit/plugin/SimplePluginManager.java
