@@ -1,0 +1,32 @@
+From cf07eb9cc598ee2aee30d312f244cad2f8f6e5f8 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Mon, 4 Mar 2013 23:46:10 -0500
+Subject: [PATCH] Chunk Save Reattempt
+
+We commonly have "Stream Closed" errors on chunk saving, so this code should re-try to save the chunk in the event of failure and hopefully prevent rollbacks.
+---
+ src/main/java/net/minecraft/server/ChunkRegionLoader.java | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/src/main/java/net/minecraft/server/ChunkRegionLoader.java b/src/main/java/net/minecraft/server/ChunkRegionLoader.java
+index a901bc2..d0795b5 100644
+--- a/src/main/java/net/minecraft/server/ChunkRegionLoader.java
++++ b/src/main/java/net/minecraft/server/ChunkRegionLoader.java
+@@ -182,11 +182,14 @@ public class ChunkRegionLoader implements IAsyncChunkSaver, IChunkLoader {
+         }
+ 
+         if (pendingchunktosave != null) {
++            int attempts = 0; while (attempts++ < 5) { // EMC
+             try {
+                 this.a(pendingchunktosave);
++                if (attempts > 1) { System.err.println("Successfully prevented a chunk rollback with " + attempts + " attempts."); } break; // EMC
+             } catch (Exception exception) {
+                 exception.printStackTrace();
+             }
++            try {Thread.sleep(10);} catch (InterruptedException e) {e.printStackTrace();} } // EMC
+         }
+ 
+         return true;
+-- 
+1.8.1.5
+
