@@ -1,4 +1,4 @@
-From 970850bbc06fe901285a8a7449658ad7b6731181 Mon Sep 17 00:00:00 2001
+From b118166c17d0b9574d7d44a89f7fe5344c9b7e87 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Mon, 4 Mar 2013 23:35:02 -0500
 Subject: [PATCH] Block Meta API
@@ -7,20 +7,20 @@ This adds an API for getting and setting PERSISTENT MetaData on a block level.
 
 Meta is is provided in a simple Map/List setup and does not expose raw NBT access.
 ---
- .../java/com/empireminecraft/BlockMetaApi.java     | 110 ++++++++++
- .../net/minecraft/server/BlockMetaApiAccessor.java | 226 +++++++++++++++++++++
+ .../java/com/empireminecraft/BlockMetaApi.java     | 120 ++++++++++
+ .../net/minecraft/server/BlockMetaApiAccessor.java | 260 +++++++++++++++++++++
  src/main/java/net/minecraft/server/Chunk.java      |   1 +
  .../net/minecraft/server/ChunkRegionLoader.java    |  12 +-
- 4 files changed, 344 insertions(+), 5 deletions(-)
+ 4 files changed, 388 insertions(+), 5 deletions(-)
  create mode 100644 src/main/java/com/empireminecraft/BlockMetaApi.java
  create mode 100644 src/main/java/net/minecraft/server/BlockMetaApiAccessor.java
 
 diff --git a/src/main/java/com/empireminecraft/BlockMetaApi.java b/src/main/java/com/empireminecraft/BlockMetaApi.java
 new file mode 100644
-index 0000000..7faa3c0
+index 0000000..9c736f4
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/BlockMetaApi.java
-@@ -0,0 +1,110 @@
+@@ -0,0 +1,120 @@
 +package com.empireminecraft;
 +
 +import net.minecraft.server.BlockMetaApiAccessor;
@@ -38,11 +38,21 @@ index 0000000..7faa3c0
 +     * @param loc
 +     * @return
 +     */
-+    public MetaMap getBlockMeta(Location loc) {
++    public static MetaMap getBlockMeta(Location loc) {
 +        return BlockMetaApiAccessor.getMetaMap((CraftChunk) loc.getChunk(),
 +            loc.getBlockX(),
 +            loc.getBlockY(),
 +            loc.getBlockZ());
++    }
++
++    /**
++     * Checks if meta by the specified key exists for this block.
++     * @param loc
++     * @param key
++     * @return
++     */
++    public static boolean hasMeta(Location loc, String key) {
++        return getMeta(loc, key) != null;
 +    }
 +
 +    /**
@@ -52,7 +62,7 @@ index 0000000..7faa3c0
 +     * @param <T>
 +     * @return
 +     */
-+    public <T> T getMeta(Location loc, String key) {
++    public static <T> T getMeta(Location loc, String key) {
 +        return (T) BlockMetaApiAccessor.getMeta((CraftChunk) loc.getChunk(),
 +            loc.getBlockX(),
 +            loc.getBlockY(),
@@ -68,7 +78,7 @@ index 0000000..7faa3c0
 +     * @param <T>
 +     * @return
 +     */
-+    public <T> T setMeta(Location loc, String key, Object val) {
++    public static <T> T setMeta(Location loc, String key, Object val) {
 +        return (T) BlockMetaApiAccessor.setMeta((CraftChunk) loc.getChunk(),
 +            loc.getBlockX(),
 +            loc.getBlockY(),
@@ -133,10 +143,10 @@ index 0000000..7faa3c0
 +}
 diff --git a/src/main/java/net/minecraft/server/BlockMetaApiAccessor.java b/src/main/java/net/minecraft/server/BlockMetaApiAccessor.java
 new file mode 100644
-index 0000000..a0f7e6b
+index 0000000..dd143e9
 --- /dev/null
 +++ b/src/main/java/net/minecraft/server/BlockMetaApiAccessor.java
-@@ -0,0 +1,226 @@
+@@ -0,0 +1,260 @@
 +package net.minecraft.server;
 +
 +import com.empireminecraft.BlockMetaApi;
@@ -149,11 +159,29 @@ index 0000000..a0f7e6b
 +
 +public class BlockMetaApiAccessor {
 +
++    /**
++     * Util for getting a MetaMap by location
++     * @param chunk
++     * @param x
++     * @param y
++     * @param z
++     * @return
++     */
 +    public static MetaMap getMetaMap(CraftChunk chunk, int x, int y, int z) {
 +        ChunkMeta meta = chunk.getHandle().chunkMeta;
 +        ChunkCoordinates coords = new ChunkCoordinates(x, y, z);
 +        return meta.get(coords);
 +    }
++
++    /**
++     * Gets metadata at the specific location and key
++     * @param chunk
++     * @param x
++     * @param y
++     * @param z
++     * @param key
++     * @return
++     */
 +    public static Object getMeta(CraftChunk chunk, int x, int y, int z, String key) {
 +        MetaMap metaMap = getMetaMap(chunk, x, y, z);
 +        if (metaMap != null) {
@@ -162,13 +190,29 @@ index 0000000..a0f7e6b
 +        return null;
 +    }
 +
++    /**
++     * Sets metadata at the specific location and key
++     * @param chunk
++     * @param x
++     * @param y
++     * @param z
++     * @param key
++     * @param value
++     * @return
++     */
 +    public static Object setMeta(CraftChunk chunk, int x, int y, int z, String key, Object value) {
 +        MetaMap metaMap = getMetaMap(chunk, x, y, z);
-+        if (metaMap == null) {
++        if (metaMap == null && value != null) {
 +            metaMap = new MetaMap();
 +            ChunkMeta meta = chunk.getHandle().chunkMeta;
 +            ChunkCoordinates coords = new ChunkCoordinates(x, y, z);
 +            meta.put(coords, metaMap);
++        }
++        if (value == null) {
++            if (metaMap != null) {
++                return metaMap.remove(key);
++            }
++            return null;
 +        }
 +        return metaMap.put(key, value);
 +    }
@@ -364,7 +408,7 @@ index 0000000..a0f7e6b
 +    public static class ChunkMeta extends HashMap<ChunkCoordinates, MetaMap> {}
 +}
 diff --git a/src/main/java/net/minecraft/server/Chunk.java b/src/main/java/net/minecraft/server/Chunk.java
-index 165c6b8..041b54e 100644
+index 720a536..250828b 100644
 --- a/src/main/java/net/minecraft/server/Chunk.java
 +++ b/src/main/java/net/minecraft/server/Chunk.java
 @@ -73,6 +73,7 @@ public class Chunk {
