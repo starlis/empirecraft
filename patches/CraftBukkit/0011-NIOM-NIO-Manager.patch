@@ -1,0 +1,368 @@
+From 885e16453804e16960f0db2018789fc9e44ec0f7 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Fri, 15 Feb 2013 20:10:44 -0500
+Subject: [PATCH] NIOM - NIO Manager
+
+Alternative to Netty
+improve the existing network manager using Blocking NIO instead of IO (more effecient code)
+Writes use a direct memory buffer for zero copy writes, more stable memory usage.
+
+Reimplement Low Priority Queue
+Optimized Packet PacketQueue System that supports instant send notification to the writer thread
+Removed packet queue walking since it will very unlikely ever be hit now.
+Writer thread will now stay asleep until it has work to do
+Network threads are no longer interrupted every tick, letting them sleep as much as possible
+---
+ .../com/empireminecraft/niom/NiomOutputStream.java | 88 ++++++++++++++++++++++
+ .../java/com/empireminecraft/niom/PacketQueue.java | 53 +++++++++++++
+ .../java/net/minecraft/server/DedicatedServer.java |  2 +-
+ .../server/DedicatedServerConnectionThread.java    |  2 +-
+ .../java/net/minecraft/server/NetworkManager.java  | 40 +++++++---
+ .../net/minecraft/server/NetworkWriterThread.java  |  8 +-
+ .../net/minecraft/server/Packet51MapChunk.java     |  1 +
+ .../net/minecraft/server/Packet56MapChunkBulk.java |  1 +
+ 8 files changed, 183 insertions(+), 12 deletions(-)
+ create mode 100644 src/main/java/com/empireminecraft/niom/NiomOutputStream.java
+ create mode 100644 src/main/java/com/empireminecraft/niom/PacketQueue.java
+
+diff --git a/src/main/java/com/empireminecraft/niom/NiomOutputStream.java b/src/main/java/com/empireminecraft/niom/NiomOutputStream.java
+new file mode 100644
+index 0000000..c1b435d
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/niom/NiomOutputStream.java
+@@ -0,0 +1,88 @@
++package com.empireminecraft.niom;
++
++import java.io.IOException;
++import java.io.OutputStream;
++import java.net.*;
++import java.nio.ByteBuffer;
++import java.nio.channels.ServerSocketChannel;
++import java.nio.channels.SocketChannel;
++
++public class NiomOutputStream extends OutputStream {
++    private final ByteBuffer buffer;
++    private final SocketChannel channel;
++
++    /**
++     * Creates an NIO ServerSocket with proper performance preferences set (vanilla has broken logic on performance preferences)
++     * @param inetaddress
++     * @param port
++     * @return
++     * @throws IOException
++     */
++    public final static ServerSocket getServerSocket(InetAddress inetaddress, int port) throws IOException {
++        ServerSocketChannel serverSocketChannel = ServerSocketChannel.open();
++        ServerSocket socket = serverSocketChannel.socket();
++
++        InetSocketAddress bind = new InetSocketAddress(inetaddress == null ? socket.getInetAddress() : inetaddress, port);
++        serverSocketChannel.configureBlocking(true);
++        socket.setPerformancePreferences(0, 2, 1);
++        socket.bind(bind);
++        return socket;
++    }
++
++    /**
++     * Output stream that backed by a Direct Memory buffer for zero copy socket writing
++     * @param channel
++     */
++    public NiomOutputStream(SocketChannel channel) {
++        this.channel = channel;
++        int bufSize = 1024 * 8;
++        try {
++            bufSize = channel.getOption(StandardSocketOptions.SO_SNDBUF);
++        } catch (IOException e) {
++            e.printStackTrace();
++        }
++        this.buffer = ByteBuffer.allocateDirect(bufSize);
++    }
++
++    /**
++     * Writes the byte to the buffer, flushing if full
++     * @param b
++     * @throws IOException
++     */
++    @Override
++    public void write(int b) throws IOException {
++        if (buffer.position() >= buffer.capacity()) {
++            flush();
++        }
++        buffer.put((byte) b);
++    }
++
++    /**
++     * Sends the buffer to the channel and resets it.
++     * @throws IOException
++     */
++    @Override
++    public void flush() throws IOException {
++        if (buffer.position() > 0) {
++            buffer.flip();
++            while (buffer.hasRemaining()) {
++                channel.write(buffer);
++            }
++        }
++
++        buffer.clear();
++    }
++
++    /**
++     * Flushes the buffer and closes the channel
++     * @throws IOException
++     */
++    @Override
++    public void close() throws IOException {
++        try {
++            flush();
++        } catch (IOException ignored) {
++        }
++        channel.close();
++    }
++}
+diff --git a/src/main/java/com/empireminecraft/niom/PacketQueue.java b/src/main/java/com/empireminecraft/niom/PacketQueue.java
+new file mode 100644
+index 0000000..8dab796
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/niom/PacketQueue.java
+@@ -0,0 +1,53 @@
++package com.empireminecraft.niom;
++
++import net.minecraft.server.Packet;
++
++import java.util.AbstractList;
++import java.util.concurrent.ConcurrentLinkedQueue;
++
++public class PacketQueue extends AbstractList<Packet> {
++    ConcurrentLinkedQueue<Packet> queue = new ConcurrentLinkedQueue<Packet>();
++    ConcurrentLinkedQueue<Long> orderQueue = new ConcurrentLinkedQueue<Long>();
++
++    public static class PacketCounter {
++        long id = 1;
++        public long next() {
++            return id++;
++        }
++    }
++
++    PacketCounter counter;
++    public PacketQueue(PacketCounter counter) {
++        this.counter = counter;
++    }
++
++    @Override
++    public boolean add(Packet element) {
++        orderQueue.offer(counter.next());
++        return queue.offer(element);
++    }
++
++    @Override
++    public Packet get(int index) {
++        return poll();
++    }
++
++    public Packet poll() {
++        orderQueue.poll();
++        return queue.poll();
++    }
++    public long orderId() {
++        Long res = orderQueue.peek();
++        return res == null ? Long.MAX_VALUE : res;
++    }
++
++    @Override
++    public int size() {
++        return queue.isEmpty() ? 0 : 1;
++    }
++
++    @Override
++    public boolean isEmpty() {
++        return queue.isEmpty();
++    }
++}
+diff --git a/src/main/java/net/minecraft/server/DedicatedServer.java b/src/main/java/net/minecraft/server/DedicatedServer.java
+index aefe20f..3d44192 100644
+--- a/src/main/java/net/minecraft/server/DedicatedServer.java
++++ b/src/main/java/net/minecraft/server/DedicatedServer.java
+@@ -94,7 +94,7 @@ public class DedicatedServer extends MinecraftServer implements IMinecraftServer
+ 
+         try {
+             // Spigot start
+-            this.r = (!Boolean.getBoolean("org.spigotmc.netty.disabled"))
++            this.r = (!Boolean.getBoolean("org.spigotmc.netty.disabled")) && false // EMC - Disable netty
+                     ? new org.spigotmc.netty.NettyServerConnection(this, inetaddress, this.G())
+                     : new DedicatedServerConnection(this, inetaddress, this.G());
+             // Spigot end
+diff --git a/src/main/java/net/minecraft/server/DedicatedServerConnectionThread.java b/src/main/java/net/minecraft/server/DedicatedServerConnectionThread.java
+index 25e2ac1..2ed0310 100644
+--- a/src/main/java/net/minecraft/server/DedicatedServerConnectionThread.java
++++ b/src/main/java/net/minecraft/server/DedicatedServerConnectionThread.java
+@@ -28,7 +28,7 @@ public class DedicatedServerConnectionThread extends Thread {
+         super("Listen thread");
+         this.f = serverconnection;
+         this.h = i;
+-        this.e = new ServerSocket(i, 0, inetaddress);
++        this.e = com.empireminecraft.niom.NiomOutputStream.getServerSocket(inetaddress, i); // EMC
+         this.g = inetaddress == null ? this.e.getInetAddress() : inetaddress;
+         this.e.setPerformancePreferences(0, 2, 1);
+     }
+diff --git a/src/main/java/net/minecraft/server/NetworkManager.java b/src/main/java/net/minecraft/server/NetworkManager.java
+index 7c64e9b..14883d6 100644
+--- a/src/main/java/net/minecraft/server/NetworkManager.java
++++ b/src/main/java/net/minecraft/server/NetworkManager.java
+@@ -1,5 +1,12 @@
+ package net.minecraft.server;
+ 
++// EMC start
++import org.bukkit.CustomTimingsHandler;
++import com.empireminecraft.niom.NiomOutputStream;
++import com.empireminecraft.niom.PacketQueue;
++import java.nio.channels.ClosedByInterruptException;
++// EMC end
++
+ import java.io.BufferedOutputStream;
+ import java.io.DataInputStream;
+ import java.io.DataOutputStream;
+@@ -29,8 +36,14 @@ public class NetworkManager implements INetworkManager {
+     private volatile boolean m = true;
+     private volatile boolean n = false;
+     private java.util.Queue inboundQueue = new java.util.concurrent.ConcurrentLinkedQueue(); // CraftBukkit - Concurrent linked queue
+-    private List highPriorityQueue = Collections.synchronizedList(new ArrayList());
+-    private List lowPriorityQueue = Collections.synchronizedList(new ArrayList());
++    // EMC start
++    public final Object notifyLock = new Object();
++    static CustomTimingsHandler timer = new CustomTimingsHandler("Niom Queue");
++    public final NiomOutputStream outputStream;
++    PacketQueue.PacketCounter counter = new PacketQueue.PacketCounter();
++    public PacketQueue highPriorityQueue = new PacketQueue(counter);
++    public PacketQueue lowPriorityQueue = new PacketQueue(counter);
++    // EMC end
+     private Connection connection;
+     private boolean s = false;
+     private Thread t;
+@@ -62,7 +75,8 @@ public class NetworkManager implements INetworkManager {
+         }
+ 
+         this.input = new DataInputStream(socket.getInputStream());
+-        this.output = new DataOutputStream(new BufferedOutputStream(socket.getOutputStream(), 5120));
++        this.outputStream = new NiomOutputStream(socket.getChannel()); // EMC
++        this.output = new DataOutputStream(this.outputStream); // EMC
+         this.u = new NetworkReaderThread(this, s + " read thread");
+         this.t = new NetworkWriterThread(this, s + " write thread");
+         this.u.start();
+@@ -77,10 +91,13 @@ public class NetworkManager implements INetworkManager {
+         if (!this.s) {
+             Object object = this.h;
+ 
+-            synchronized (this.h) {
++            timer.startTiming(); // EMC
++            synchronized (notifyLock) { // EMC
+                 this.y += packet.a() + 1;
+-                this.highPriorityQueue.add(packet);
++                (packet.lowPriority ? lowPriorityQueue : highPriorityQueue).add(packet); // EMC
++                notifyLock.notify(); // EMC
+             }
++            timer.stopTiming(); // EMC
+         }
+     }
+ 
+@@ -92,7 +109,7 @@ public class NetworkManager implements INetworkManager {
+             int i;
+             int[] aint;
+ 
+-            if (this.e == 0 || !this.highPriorityQueue.isEmpty() && System.currentTimeMillis() - ((Packet) this.highPriorityQueue.get(0)).timestamp >= (long) this.e) {
++            if (!this.highPriorityQueue.isEmpty()) { // EMC
+                 packet = this.a(false);
+                 if (packet != null) {
+                     Packet.a(packet, this.output);
+@@ -112,7 +129,9 @@ public class NetworkManager implements INetworkManager {
+             }
+ 
+             // CraftBukkit - don't allow low priority packet to be sent unless it was placed in the queue before the first packet on the high priority queue TODO: is this still right?
+-            if ((flag || this.lowPriorityQueueDelay-- <= 0) && !this.lowPriorityQueue.isEmpty() && (this.highPriorityQueue.isEmpty() || ((Packet) this.highPriorityQueue.get(0)).timestamp > ((Packet) this.lowPriorityQueue.get(0)).timestamp)) {
++            long lowId = this.lowPriorityQueue.orderId(); // EMC
++            long highId = this.highPriorityQueue.orderId(); // EMC
++            if (lowId != Long.MAX_VALUE && (lowId < highId)) { // EMC
+                 packet = this.a(true);
+                 if (packet != null) {
+                     Packet.a(packet, this.output);
+@@ -135,6 +154,7 @@ public class NetworkManager implements INetworkManager {
+     }
+ 
+     private Packet a(boolean flag) {
++        if (true) {return (flag ? this.lowPriorityQueue : this.highPriorityQueue).poll();} // EMC
+         Packet packet = null;
+         List list = flag ? this.lowPriorityQueue : this.highPriorityQueue;
+         Object object = this.h;
+@@ -174,6 +194,7 @@ public class NetworkManager implements INetworkManager {
+     }
+ 
+     public void a() {
++        if (true) return; // EMC - Why... ?
+         if (this.u != null) {
+             this.u.interrupt();
+         }
+@@ -217,6 +238,7 @@ public class NetworkManager implements INetworkManager {
+             }
+ 
+             return flag;
++        } catch (ClosedByInterruptException cbie) { return false; // EMC
+         } catch (Exception exception) {
+             if (!this.n) {
+                 this.a(exception);
+@@ -319,9 +341,9 @@ public class NetworkManager implements INetworkManager {
+     private void k() throws IOException { // CraftBukkit - throws IOException
+         this.output.flush();
+         this.g = true;
+-        BufferedOutputStream bufferedoutputstream = new BufferedOutputStream(MinecraftEncryption.a(this.z, this.socket.getOutputStream()), 5120);
++        //BufferedOutputStream bufferedoutputstream = new BufferedOutputStream(MinecraftEncryption.a(this.z, this.socket.getOutputStream()), 5120); // EMC
+ 
+-        this.output = new DataOutputStream(bufferedoutputstream);
++        this.output = new DataOutputStream(MinecraftEncryption.a(this.z, this.outputStream)); // EMC
+     }
+ 
+     public int e() {
+diff --git a/src/main/java/net/minecraft/server/NetworkWriterThread.java b/src/main/java/net/minecraft/server/NetworkWriterThread.java
+index 68d84de..4e75410 100644
+--- a/src/main/java/net/minecraft/server/NetworkWriterThread.java
++++ b/src/main/java/net/minecraft/server/NetworkWriterThread.java
+@@ -35,7 +35,13 @@ class NetworkWriterThread extends Thread {
+                 }
+ 
+                 try {
+-                    sleep(2L);
++                    // EMC start - wait for notify
++                    synchronized (this.a.notifyLock) {
++                        if (this.a.highPriorityQueue.isEmpty() && this.a.lowPriorityQueue.isEmpty()) {
++                            this.a.notifyLock.wait();
++                        }
++                    }
++                    // EMC end
+                 } catch (InterruptedException interruptedexception) {
+                     ;
+                 }
+diff --git a/src/main/java/net/minecraft/server/Packet51MapChunk.java b/src/main/java/net/minecraft/server/Packet51MapChunk.java
+index 2ba0464..9313aca 100644
+--- a/src/main/java/net/minecraft/server/Packet51MapChunk.java
++++ b/src/main/java/net/minecraft/server/Packet51MapChunk.java
+@@ -33,6 +33,7 @@ public class Packet51MapChunk extends Packet {
+         this.d = 0;
+         this.size = unloadSequence.length;
+         this.buffer = unloadSequence;
++        this.lowPriority = true; // EMC
+     }
+     // Spigot end
+ 
+diff --git a/src/main/java/net/minecraft/server/Packet56MapChunkBulk.java b/src/main/java/net/minecraft/server/Packet56MapChunkBulk.java
+index 8486d82..d0dd6b9 100644
+--- a/src/main/java/net/minecraft/server/Packet56MapChunkBulk.java
++++ b/src/main/java/net/minecraft/server/Packet56MapChunkBulk.java
+@@ -30,6 +30,7 @@ public class Packet56MapChunkBulk extends Packet {
+     // CraftBukkit end
+     private World world; // Spigot (Orebfuscator) Keep track of world
+ 
++    {lowPriority=true;} // EMC
+     public Packet56MapChunkBulk() {}
+ 
+     public Packet56MapChunkBulk(List list) {
+-- 
+1.8.1.5
+
