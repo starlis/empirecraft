@@ -1,4 +1,4 @@
-From 0cbcf6af5f43a97f545dc69dd499fa82110fb799 Mon Sep 17 00:00:00 2001
+From cafeafd16a8d982e56ce3f64423ffeebaaaeefe6 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Fri, 1 Mar 2013 00:56:37 -0500
 Subject: [PATCH] Overhaul Tile Entity Ticking
@@ -12,13 +12,12 @@ This also reduces lag by List resizing (which may happen often on large servers)
 This also lets the JVM have better CPU cacheing potential by working on the same area at a time.
 
 We now simply iterate over every loaded chunk (and check that its not in the unload queue, much faster than checking is a chunk loaded), then iterate its tile entity list
-In local testing on dev server (performs worse than production), I was able to tick 109k chests/tick without TPS loss (the heaviest tile entity)
 ---
  src/main/java/net/minecraft/server/Chunk.java |  2 +-
- src/main/java/net/minecraft/server/World.java | 40 ++++++++++++++-----
- src/main/java/org/spigotmc/MapWatcher.java    | 55 +++++++++++++++++++++++++++
- src/main/java/org/spigotmc/NullOpList.java    | 45 ++++++++++++++++++++++
- 4 files changed, 132 insertions(+), 10 deletions(-)
+ src/main/java/net/minecraft/server/World.java | 40 +++++++++++++++-----
+ src/main/java/org/spigotmc/MapWatcher.java    | 53 +++++++++++++++++++++++++++
+ src/main/java/org/spigotmc/NullOpList.java    | 45 +++++++++++++++++++++++
+ 4 files changed, 130 insertions(+), 10 deletions(-)
  create mode 100644 src/main/java/org/spigotmc/MapWatcher.java
  create mode 100644 src/main/java/org/spigotmc/NullOpList.java
 
@@ -139,10 +138,10 @@ index 7d2bad3..3be7a2f 100644
      }
 diff --git a/src/main/java/org/spigotmc/MapWatcher.java b/src/main/java/org/spigotmc/MapWatcher.java
 new file mode 100644
-index 0000000..24f21f8
+index 0000000..5594d53
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/MapWatcher.java
-@@ -0,0 +1,55 @@
+@@ -0,0 +1,53 @@
 +package org.spigotmc;
 +
 +import java.util.*;
@@ -154,7 +153,7 @@ index 0000000..24f21f8
 +    boolean watching = false;
 +    @Override
 +    public V get(Object key) {
-+        if (this.watching && toRemove.contains(key)) {
++        if (watching && toRemove.contains(key)) {
 +            return null;
 +        } else {
 +            return super.get(key);
@@ -163,9 +162,9 @@ index 0000000..24f21f8
 +    @Override
 +    public V put(K key, V value) {
 +        if (watching) {
-+            toAdd.put(key, value);
++            V ret = toAdd.put(key, value);
 +            toRemove.remove(key);
-+            return value;
++            return ret;
 +        } else {
 +            return super.put(key, value);
 +        }
@@ -184,13 +183,11 @@ index 0000000..24f21f8
 +    }
 +
 +    public void startWatch() {
-+        this.watching = true;
++        watching = true;
 +    }
 +    public void stopWatch() {
-+        this.watching = false;
-+        for (Map.Entry<K, V> entry : toAdd.entrySet()) {
-+            super.put(entry.getKey(), entry.getValue());
-+        }
++        watching = false;
++        putAll(toAdd);
 +        for (K key : toRemove) {
 +            super.remove(key);
 +        }
