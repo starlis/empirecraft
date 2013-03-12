@@ -1,0 +1,108 @@
+From b8d5cf065140cf32bb92b914b2ef57a4f654406f Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Fri, 8 Mar 2013 12:17:19 -0500
+Subject: [PATCH] Flat map config work
+
+---
+ src/main/java/net/minecraft/server/ChunkProviderServer.java   |  6 ++++--
+ src/main/java/org/bukkit/craftbukkit/util/FlatMap.java        | 11 +++++++++--
+ src/main/java/org/bukkit/craftbukkit/util/LongHashSet.java    |  3 ++-
+ .../java/org/bukkit/craftbukkit/util/LongObjectHashMap.java   |  7 ++++++-
+ 4 files changed, 21 insertions(+), 6 deletions(-)
+
+diff --git a/src/main/java/net/minecraft/server/ChunkProviderServer.java b/src/main/java/net/minecraft/server/ChunkProviderServer.java
+index 5772932..924f9c5 100644
+--- a/src/main/java/net/minecraft/server/ChunkProviderServer.java
++++ b/src/main/java/net/minecraft/server/ChunkProviderServer.java
+@@ -21,12 +21,12 @@ import org.bukkit.event.world.ChunkUnloadEvent;
+ public class ChunkProviderServer implements IChunkProvider {
+ 
+     // CraftBukkit start
+-    public LongHashSet unloadQueue = new LongHashSet();
++    public LongHashSet unloadQueue; // Spigot
+     public Chunk emptyChunk;
+     public IChunkProvider chunkProvider; // CraftBukkit
+     private IChunkLoader e;
+     public boolean forceChunkLoad = false; // true -> false
+-    public LongObjectHashMap<Chunk> chunks = new LongObjectHashMap<Chunk>();
++    public LongObjectHashMap<Chunk> chunks; // Spigot
+     public WorldServer world;
+     // CraftBukkit end
+ 
+@@ -35,6 +35,8 @@ public class ChunkProviderServer implements IChunkProvider {
+         this.world = worldserver;
+         this.e = ichunkloader;
+         this.chunkProvider = ichunkprovider;
++        this.unloadQueue = new LongHashSet(3, world.getWorld().optimizedChunkSize); // Spigot
++        this.chunks = new LongObjectHashMap<Chunk>(3, world.getWorld().optimizedChunkSize); // Spigot
+     }
+ 
+     public boolean isChunkLoaded(int i, int j) {
+diff --git a/src/main/java/org/bukkit/craftbukkit/util/FlatMap.java b/src/main/java/org/bukkit/craftbukkit/util/FlatMap.java
+index e8a7725..1036485 100644
+--- a/src/main/java/org/bukkit/craftbukkit/util/FlatMap.java
++++ b/src/main/java/org/bukkit/craftbukkit/util/FlatMap.java
+@@ -1,9 +1,16 @@
+ package org.bukkit.craftbukkit.util;
+ 
+ public class FlatMap<V> {
++    private final int FLAT_LOOKUP_SIZE;
++    private final Object[][] flatLookup;
+ 
+-    private static final int FLAT_LOOKUP_SIZE = 512;
+-    private final Object[][] flatLookup = new Object[FLAT_LOOKUP_SIZE * 2][FLAT_LOOKUP_SIZE * 2];
++    public FlatMap() {
++        this(512);
++    }
++    public FlatMap(int FLAT_LOOKUP_SIZE) {
++        this.FLAT_LOOKUP_SIZE = FLAT_LOOKUP_SIZE;
++        this.flatLookup = new Object[FLAT_LOOKUP_SIZE * 2][FLAT_LOOKUP_SIZE * 2];
++    }
+ 
+     public void put(long msw, long lsw, V value) {
+         long acx = Math.abs(msw);
+diff --git a/src/main/java/org/bukkit/craftbukkit/util/LongHashSet.java b/src/main/java/org/bukkit/craftbukkit/util/LongHashSet.java
+index a1250d3..7095723 100644
+--- a/src/main/java/org/bukkit/craftbukkit/util/LongHashSet.java
++++ b/src/main/java/org/bukkit/craftbukkit/util/LongHashSet.java
+@@ -32,7 +32,7 @@ public class LongHashSet {
+     private long[] values;
+     private int modCount;
+     private static final Object PRESENT = new Object();
+-    private final FlatMap<Object> flat = new FlatMap<Object>();
++    private final FlatMap flat; // Spigot
+ 
+     public LongHashSet() {
+         this(INITIAL_SIZE);
+@@ -43,6 +43,7 @@ public class LongHashSet {
+         elements = 0;
+         freeEntries = values.length;
+         modCount = 0;
++        flat = new FlatMap();
+     }
+ 
+     public Iterator iterator() {
+diff --git a/src/main/java/org/bukkit/craftbukkit/util/LongObjectHashMap.java b/src/main/java/org/bukkit/craftbukkit/util/LongObjectHashMap.java
+index dbd33fa..9200d7d 100644
+--- a/src/main/java/org/bukkit/craftbukkit/util/LongObjectHashMap.java
++++ b/src/main/java/org/bukkit/craftbukkit/util/LongObjectHashMap.java
+@@ -28,10 +28,15 @@ public class LongObjectHashMap<V> implements Cloneable, Serializable {
+     private transient V[][]    values;
+     private transient int      modCount;
+     private transient int      size;
+-    private final FlatMap<V> flat = new FlatMap<V>(); // Spigot
++    private final FlatMap<V> flat; // Spigot
+ 
+     public LongObjectHashMap() {
+         initialize();
++        flat = new FlatMap(); // Spigot
++    }
++    public LongObjectHashMap(int flatMapSize) {
++        initialize();
++        flat = new FlatMap(flatMapSize); // Spigot
+     }
+ 
+     public LongObjectHashMap(Map<? extends Long, ? extends V> map) {
+-- 
+1.8.1.5
+
