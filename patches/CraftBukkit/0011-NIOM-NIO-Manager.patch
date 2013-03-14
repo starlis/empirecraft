@@ -1,4 +1,4 @@
-From 885e16453804e16960f0db2018789fc9e44ec0f7 Mon Sep 17 00:00:00 2001
+From cd8270ad34220b31fff512efda0de980a7555bbe Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Fri, 15 Feb 2013 20:10:44 -0500
 Subject: [PATCH] NIOM - NIO Manager
@@ -14,14 +14,14 @@ Writer thread will now stay asleep until it has work to do
 Network threads are no longer interrupted every tick, letting them sleep as much as possible
 ---
  .../com/empireminecraft/niom/NiomOutputStream.java | 88 ++++++++++++++++++++++
- .../java/com/empireminecraft/niom/PacketQueue.java | 53 +++++++++++++
+ .../java/com/empireminecraft/niom/PacketQueue.java | 58 ++++++++++++++
  .../java/net/minecraft/server/DedicatedServer.java |  2 +-
  .../server/DedicatedServerConnectionThread.java    |  2 +-
  .../java/net/minecraft/server/NetworkManager.java  | 40 +++++++---
  .../net/minecraft/server/NetworkWriterThread.java  |  8 +-
  .../net/minecraft/server/Packet51MapChunk.java     |  1 +
  .../net/minecraft/server/Packet56MapChunkBulk.java |  1 +
- 8 files changed, 183 insertions(+), 12 deletions(-)
+ 8 files changed, 188 insertions(+), 12 deletions(-)
  create mode 100644 src/main/java/com/empireminecraft/niom/NiomOutputStream.java
  create mode 100644 src/main/java/com/empireminecraft/niom/PacketQueue.java
 
@@ -121,10 +121,10 @@ index 0000000..c1b435d
 +}
 diff --git a/src/main/java/com/empireminecraft/niom/PacketQueue.java b/src/main/java/com/empireminecraft/niom/PacketQueue.java
 new file mode 100644
-index 0000000..8dab796
+index 0000000..142d98d
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/niom/PacketQueue.java
-@@ -0,0 +1,53 @@
+@@ -0,0 +1,58 @@
 +package com.empireminecraft.niom;
 +
 +import net.minecraft.server.Packet;
@@ -169,6 +169,11 @@ index 0000000..8dab796
 +    }
 +
 +    @Override
++    public Packet remove(int index) {
++        return poll();
++    }
++
++    @Override
 +    public int size() {
 +        return queue.isEmpty() ? 0 : 1;
 +    }
@@ -205,7 +210,7 @@ index 25e2ac1..2ed0310 100644
          this.e.setPerformancePreferences(0, 2, 1);
      }
 diff --git a/src/main/java/net/minecraft/server/NetworkManager.java b/src/main/java/net/minecraft/server/NetworkManager.java
-index 7c64e9b..14883d6 100644
+index 7c64e9b..9ded413 100644
 --- a/src/main/java/net/minecraft/server/NetworkManager.java
 +++ b/src/main/java/net/minecraft/server/NetworkManager.java
 @@ -1,5 +1,12 @@
@@ -284,14 +289,14 @@ index 7c64e9b..14883d6 100644
                  packet = this.a(true);
                  if (packet != null) {
                      Packet.a(packet, this.output);
-@@ -135,6 +154,7 @@ public class NetworkManager implements INetworkManager {
-     }
- 
-     private Packet a(boolean flag) {
-+        if (true) {return (flag ? this.lowPriorityQueue : this.highPriorityQueue).poll();} // EMC
-         Packet packet = null;
-         List list = flag ? this.lowPriorityQueue : this.highPriorityQueue;
-         Object object = this.h;
+@@ -143,6 +162,7 @@ public class NetworkManager implements INetworkManager {
+             while (!list.isEmpty() && packet == null) {
+                 packet = (Packet) list.remove(0);
+                 this.y -= packet.a() + 1;
++                if (true) return packet; // EMC - we don't need to walk the packet array checking for futue
+                 if (this.a(packet, flag)) {
+                     packet = null;
+                 }
 @@ -174,6 +194,7 @@ public class NetworkManager implements INetworkManager {
      }
  
