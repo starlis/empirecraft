@@ -1,30 +1,31 @@
-From 643b81a284111658bd99f8e82d1bc99ef552aea2 Mon Sep 17 00:00:00 2001
+From 0878dba582ad828bdb5a2a29153dff7bcc1e6ced Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Sat, 2 Mar 2013 17:46:13 -0500
+Date: Wed, 20 Mar 2013 02:01:56 -0400
 Subject: [PATCH] Spigot
 
 ---
- pom.xml                                            |  46 ++-----
+ pom.xml                                            |  44 ++-----
  src/main/java/org/bukkit/CustomTimingsHandler.java | 134 +++++++++++++++++++++
  .../org/bukkit/command/defaults/ReloadCommand.java |   2 +
  .../bukkit/command/defaults/TimingsCommand.java    |  92 ++++++++++++--
+ .../bukkit/event/player/PlayerItemDamageEvent.java |  54 +++++++++
  .../org/bukkit/plugin/SimplePluginManager.java     |   2 +
  .../org/bukkit/plugin/TimedRegisteredListener.java |  12 +-
  .../org/bukkit/plugin/java/JavaPluginLoader.java   |   2 +-
  .../org/bukkit/plugin/java/PluginClassLoader.java  |   7 ++
- 8 files changed, 252 insertions(+), 45 deletions(-)
+ 9 files changed, 305 insertions(+), 44 deletions(-)
  create mode 100644 src/main/java/org/bukkit/CustomTimingsHandler.java
+ create mode 100644 src/main/java/org/bukkit/event/player/PlayerItemDamageEvent.java
 
 diff --git a/pom.xml b/pom.xml
-index 18bda4b..ca4c1c4 100644
+index 059093b..f547613 100644
 --- a/pom.xml
 +++ b/pom.xml
 @@ -1,43 +1,23 @@
  <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
--    <modelVersion>4.0.0</modelVersion>
+     <modelVersion>4.0.0</modelVersion>
 -    <groupId>org.bukkit</groupId>
 -    <artifactId>bukkit</artifactId>
-+  <modelVersion>4.0.0</modelVersion>
 +
 +    <parent>
 +        <groupId>org.spigotmc</groupId>
@@ -35,7 +36,7 @@ index 18bda4b..ca4c1c4 100644
 +
 +    <groupId>org.spigotmc</groupId>
 +    <artifactId>spigot-api</artifactId>
-     <version>1.4.7-R1.1-SNAPSHOT</version>
+     <version>1.5-R0.1-SNAPSHOT</version>
 -    <name>Bukkit</name>
 -    <url>http://www.bukkit.org</url>
 +    <name>Spigot-API</name>
@@ -402,8 +403,68 @@ index 29ebbe0..426f9b4 100644
 +    }
 +    // Spigot end
  }
+diff --git a/src/main/java/org/bukkit/event/player/PlayerItemDamageEvent.java b/src/main/java/org/bukkit/event/player/PlayerItemDamageEvent.java
+new file mode 100644
+index 0000000..38a72ab
+--- /dev/null
++++ b/src/main/java/org/bukkit/event/player/PlayerItemDamageEvent.java
+@@ -0,0 +1,54 @@
++package org.bukkit.event.player;
++
++import org.bukkit.entity.Player;
++import org.bukkit.event.Cancellable;
++import org.bukkit.event.HandlerList;
++import org.bukkit.inventory.ItemStack;
++
++public class PlayerItemDamageEvent extends PlayerEvent implements Cancellable {
++
++    private static final HandlerList handlers = new HandlerList();
++    private final ItemStack item;
++    private int damage;
++    private boolean cancelled = false;
++
++    public PlayerItemDamageEvent(Player player, ItemStack what, int damage) {
++        super(player);
++        this.item = what;
++        this.damage = damage;
++    }
++
++    public ItemStack getItem() {
++        return item;
++    }
++
++    /**
++     * Gets the amount of durability damage this item will be taking.
++     *
++     * @return durability change
++     */
++    public int getDamage() {
++        return damage;
++    }
++
++    public void setDamage(int damage) {
++        this.damage = damage;
++    }
++
++    public boolean isCancelled() {
++        return cancelled;
++    }
++
++    public void setCancelled(boolean cancel) {
++        this.cancelled = cancel;
++    }
++
++    @Override
++    public HandlerList getHandlers() {
++        return handlers;
++    }
++
++    public static HandlerList getHandlerList() {
++        return handlers;
++    }
++}
 diff --git a/src/main/java/org/bukkit/plugin/SimplePluginManager.java b/src/main/java/org/bukkit/plugin/SimplePluginManager.java
-index d4f6bf3..4049d3a 100644
+index 8224d29..2527e71 100644
 --- a/src/main/java/org/bukkit/plugin/SimplePluginManager.java
 +++ b/src/main/java/org/bukkit/plugin/SimplePluginManager.java
 @@ -23,6 +23,7 @@ import org.bukkit.Server;
@@ -473,7 +534,7 @@ index ed25e17..47dab3e 100644
  
      /**
 diff --git a/src/main/java/org/bukkit/plugin/java/JavaPluginLoader.java b/src/main/java/org/bukkit/plugin/java/JavaPluginLoader.java
-index 10fc26a..9c7288e 100644
+index ea30d83..d905435 100644
 --- a/src/main/java/org/bukkit/plugin/java/JavaPluginLoader.java
 +++ b/src/main/java/org/bukkit/plugin/java/JavaPluginLoader.java
 @@ -430,7 +430,7 @@ public class JavaPluginLoader implements PluginLoader {
@@ -504,5 +565,5 @@ index 29ec3fc..a31500c 100644
  
          if (result == null) {
 -- 
-1.8.1.1
+1.8.2
 
