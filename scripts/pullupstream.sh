@@ -23,5 +23,5 @@ cbdesc=$(git describe)
 
 cd ..
 if [ "x${bdiff}x${cbdiff}" != "xx" ]; then
-	echo -e "Update Bukkit: $bdesc - CraftBukkit: $cbdesc\nBukkit:\n$bdiff\n\nCraftBukkit:\n$cbdiff" | git commit Bukkit CraftBukkit -F -
+	echo -e "Update B: $bdesc - CB: $cbdesc\n\nBukkit:\n$bdiff\n\nCraftBukkit:\n$cbdiff" | git commit Bukkit CraftBukkit -F -
 fi
