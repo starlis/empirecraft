@@ -1,4 +1,4 @@
-From cafeafd16a8d982e56ce3f64423ffeebaaaeefe6 Mon Sep 17 00:00:00 2001
+From a07ad0e0d0408980a85d726e352734ec64b59499 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Fri, 1 Mar 2013 00:56:37 -0500
 Subject: [PATCH] Overhaul Tile Entity Ticking
@@ -14,15 +14,15 @@ This also lets the JVM have better CPU cacheing potential by working on the same
 We now simply iterate over every loaded chunk (and check that its not in the unload queue, much faster than checking is a chunk loaded), then iterate its tile entity list
 ---
  src/main/java/net/minecraft/server/Chunk.java |  2 +-
- src/main/java/net/minecraft/server/World.java | 40 +++++++++++++++-----
+ src/main/java/net/minecraft/server/World.java | 41 +++++++++++++++++----
  src/main/java/org/spigotmc/MapWatcher.java    | 53 +++++++++++++++++++++++++++
  src/main/java/org/spigotmc/NullOpList.java    | 45 +++++++++++++++++++++++
- 4 files changed, 130 insertions(+), 10 deletions(-)
+ 4 files changed, 132 insertions(+), 9 deletions(-)
  create mode 100644 src/main/java/org/spigotmc/MapWatcher.java
  create mode 100644 src/main/java/org/spigotmc/NullOpList.java
 
 diff --git a/src/main/java/net/minecraft/server/Chunk.java b/src/main/java/net/minecraft/server/Chunk.java
-index 93c343e..720a536 100644
+index ce5c73b..ed10c8c 100644
 --- a/src/main/java/net/minecraft/server/Chunk.java
 +++ b/src/main/java/net/minecraft/server/Chunk.java
 @@ -43,7 +43,7 @@ public class Chunk {
@@ -35,7 +35,7 @@ index 93c343e..720a536 100644
          this.l = false;
          this.m = false;
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index 7d2bad3..3be7a2f 100644
+index a97649e..e4e32a0 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
 @@ -32,9 +32,9 @@ public abstract class World implements IBlockAccess {
@@ -51,15 +51,15 @@ index 7d2bad3..3be7a2f 100644
      public List players = new ArrayList();
      public List i = new ArrayList();
      private long c = 16777215L;
-@@ -1300,9 +1300,18 @@ public abstract class World implements IBlockAccess {
+@@ -1329,9 +1329,19 @@ public abstract class World implements IBlockAccess {
          timings.entityTick.stopTiming(); // Spigot
          this.methodProfiler.c("tileEntities");
          timings.tileEntityTick.startTiming(); // Spigot
--        this.M = true;
+-        this.N = true;
 -        Iterator iterator = this.tileEntityList.iterator();
--
+ 
 +        // Spigot start
-+        //this.M = true;
++        //this.N = true;
 +        //Iterator iterator = this.tileEntityList.iterator();
 +        ChunkProviderServer chunkProviderServer = ((WorldServer) this).chunkProviderServer;
 +        for (Chunk chunk : chunkProviderServer.chunks.values()) {
@@ -73,7 +73,7 @@ index 7d2bad3..3be7a2f 100644
          while (iterator.hasNext()) {
              TileEntity tileentity = (TileEntity) iterator.next();
              // Spigot start
-@@ -1313,18 +1322,23 @@ public abstract class World implements IBlockAccess {
+@@ -1342,18 +1352,23 @@ public abstract class World implements IBlockAccess {
              }
              // Spigot end
              // CraftBukkit start - don't tick entities in chunks queued for unload
@@ -91,14 +91,14 @@ index 7d2bad3..3be7a2f 100644
 +            if (!tileentity.r() && tileentity.o() /*&& this.isLoaded(tileentity.x, tileentity.y, tileentity.z)*/) { // Spigot
                  try {
                      tileentity.tickTimer.startTiming(); // Spigot
-                     tileentity.g();
+                     tileentity.h();
                      tileentity.tickTimer.stopTiming(); // Spigot
                  } catch (Throwable throwable2) {
 +                    throwable2.printStackTrace(); // Spigot
                      tileentity.tickTimer.stopTiming(); // Spigot
                      crashreport = CrashReport.a(throwable2, "Ticking tile entity");
                      crashreportsystemdetails = crashreport.a("Tile entity being ticked");
-@@ -1337,7 +1351,12 @@ public abstract class World implements IBlockAccess {
+@@ -1361,7 +1376,12 @@ public abstract class World implements IBlockAccess {
                      throw new ReportedException(crashreport);
                  }
              }
@@ -111,7 +111,7 @@ index 7d2bad3..3be7a2f 100644
              if (tileentity.r()) {
                  iterator.remove();
                  if (this.isChunkLoaded(tileentity.x >> 4, tileentity.z >> 4)) {
-@@ -1348,10 +1367,13 @@ public abstract class World implements IBlockAccess {
+@@ -1372,11 +1392,16 @@ public abstract class World implements IBlockAccess {
                      }
                  }
              }
@@ -122,11 +122,14 @@ index 7d2bad3..3be7a2f 100644
  
          timings.tileEntityTick.stopTiming(); // Spigot
 -        timings.tileEntityPending.startTiming(); // Spigot
++
 +        if (false) { // Spigot - These were handled above already
-         this.M = false;
+         this.N = false;
++
          if (!this.b.isEmpty()) {
              this.tileEntityList.removeAll(this.b);
-@@ -1389,8 +1411,8 @@ public abstract class World implements IBlockAccess {
+             this.b.clear();
+@@ -1413,8 +1438,8 @@ public abstract class World implements IBlockAccess {
  
              this.a.clear();
          }
@@ -247,5 +250,5 @@ index 0000000..15bcab3
 +}
 +
 -- 
-1.8.1.5
+1.8.2
 

@@ -1,20 +1,58 @@
-From 3b06dc7218b935bb2e013ddd6e3b6ce73b4af677 Mon Sep 17 00:00:00 2001
+From 1d7dd97684106c11591a892c9ad622f3b6931047 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Thu, 29 Nov 2012 10:48:07 -0500
 Subject: [PATCH] Mob Spawning Events
 
 Add 2 events for better control of mob spawning (Natural and Spawners) This allows us a much more powerful control over spawning and improve performance
 ---
+ .../net/minecraft/server/MobSpawnerAbstract.java   | 20 ++++++-
  .../java/net/minecraft/server/SpawnerCreature.java | 13 +++++
- .../net/minecraft/server/TileEntityMobSpawner.java | 16 +++++-
  .../org/bukkit/event/entity/SpawnTickEvent.java    | 62 +++++++++++++++++++++
  .../bukkit/event/entity/SpawnerInitiateEvent.java  | 65 ++++++++++++++++++++++
- 4 files changed, 155 insertions(+), 1 deletion(-)
+ 4 files changed, 159 insertions(+), 1 deletion(-)
  create mode 100644 src/main/java/org/bukkit/event/entity/SpawnTickEvent.java
  create mode 100644 src/main/java/org/bukkit/event/entity/SpawnerInitiateEvent.java
 
+diff --git a/src/main/java/net/minecraft/server/MobSpawnerAbstract.java b/src/main/java/net/minecraft/server/MobSpawnerAbstract.java
+index 4ba4735..28f4b3b 100644
+--- a/src/main/java/net/minecraft/server/MobSpawnerAbstract.java
++++ b/src/main/java/net/minecraft/server/MobSpawnerAbstract.java
+@@ -6,6 +6,8 @@ import java.util.Iterator;
+ import java.util.List;
+ 
+ import org.bukkit.event.entity.CreatureSpawnEvent; // CraftBukkit
++import org.bukkit.Bukkit; // EMC
++import org.bukkit.event.entity.SpawnerInitiateEvent; // EMC
+ 
+ public abstract class MobSpawnerAbstract {
+ 
+@@ -42,7 +44,23 @@ public abstract class MobSpawnerAbstract {
+     }
+ 
+     public boolean f() {
+-        return this.a().findNearbyPlayer((double) this.b() + 0.5D, (double) this.c() + 0.5D, (double) this.d() + 0.5D, (double) this.requiredPlayerRange) != null;
++        // EMC start - Add in SpawnerInitiateEvent
++        final World world = this.a();
++        final int x = this.b();
++        final int y = this.c();
++        final int z = this.d();
++        EntityHuman entity = world.findNearbyPlayer((double) x + 0.5D,
++            (double) y + 0.5D,
++            (double) z + 0.5D,
++            (double) this.requiredPlayerRange);
++        if (entity == null) {
++            return false;
++        }
++        org.bukkit.Location loc = new org.bukkit.Location(world.getWorld(), x, y, z);
++        SpawnerInitiateEvent event = new SpawnerInitiateEvent(this.mobName, world.getWorld(), loc, entity.getBukkitEntity());
++        Bukkit.getPluginManager().callEvent(event);
++        return !event.isCancelled();
++        // EMC end
+     }
+ 
+     public void g() {
 diff --git a/src/main/java/net/minecraft/server/SpawnerCreature.java b/src/main/java/net/minecraft/server/SpawnerCreature.java
-index 2173af7..b12049b 100644
+index de8f065..c67971e 100644
 --- a/src/main/java/net/minecraft/server/SpawnerCreature.java
 +++ b/src/main/java/net/minecraft/server/SpawnerCreature.java
 @@ -5,11 +5,15 @@ import java.util.HashMap;
@@ -49,40 +87,6 @@ index 2173af7..b12049b 100644
                  for (int l = -b0; l <= b0; ++l) {
                      for (int i1 = -b0; i1 <= b0; ++i1) {
                          boolean flag3 = l == -b0 || l == b0 || i1 == -b0 || i1 == b0;
-diff --git a/src/main/java/net/minecraft/server/TileEntityMobSpawner.java b/src/main/java/net/minecraft/server/TileEntityMobSpawner.java
-index e415b6a..626561a 100644
---- a/src/main/java/net/minecraft/server/TileEntityMobSpawner.java
-+++ b/src/main/java/net/minecraft/server/TileEntityMobSpawner.java
-@@ -4,6 +4,8 @@ import java.util.ArrayList;
- import java.util.Collection;
- import java.util.Iterator;
- import java.util.List;
-+import org.bukkit.Bukkit;
-+import org.bukkit.event.entity.SpawnerInitiateEvent;
- 
- public class TileEntityMobSpawner extends TileEntity {
- 
-@@ -34,7 +36,19 @@ public class TileEntityMobSpawner extends TileEntity {
-     }
- 
-     public boolean b() {
--        return this.world.findNearbyPlayer((double) this.x + 0.5D, (double) this.y + 0.5D, (double) this.z + 0.5D, (double) this.requiredPlayerRange) != null;
-+        // EMC start - Add in SpawnerInitiateEvent
-+        EntityHuman entity = this.world.findNearbyPlayer((double) this.x + 0.5D, (double) this.y + 0.5D, (double) this.z + 0.5D, (double) this.requiredPlayerRange);
-+        if (entity == null) {
-+            return false;
-+        }
-+        org.bukkit.Location loc = new org.bukkit.Location(this.world.getWorld(), this.x, this.y, this.z);
-+        SpawnerInitiateEvent event = new SpawnerInitiateEvent(this.mobName, this.world.getWorld(), loc, entity.getBukkitEntity());
-+        Bukkit.getPluginManager().callEvent(event);
-+        if (event.isCancelled()) {
-+            return false;
-+        }
-+        return true;
-+        // EMC end
-     }
- 
-     public void g() {
 diff --git a/src/main/java/org/bukkit/event/entity/SpawnTickEvent.java b/src/main/java/org/bukkit/event/entity/SpawnTickEvent.java
 new file mode 100644
 index 0000000..64e0311
@@ -223,5 +227,5 @@ index 0000000..3dac565
 +    }
 +}
 -- 
-1.8.1.1
+1.8.2
 

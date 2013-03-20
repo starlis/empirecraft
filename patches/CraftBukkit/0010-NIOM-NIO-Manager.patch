@@ -1,4 +1,4 @@
-From 67c72231223284ffc6c462c234506f5fa9749219 Mon Sep 17 00:00:00 2001
+From 6dd12ddf39f61ed70d4c98f8761b3fa1c0b4e3b7 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Fri, 15 Feb 2013 20:10:44 -0500
 Subject: [PATCH] NIOM - NIO Manager
@@ -184,10 +184,10 @@ index 0000000..142d98d
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/DedicatedServer.java b/src/main/java/net/minecraft/server/DedicatedServer.java
-index aefe20f..3d44192 100644
+index 70d05a6..1fba6cd 100644
 --- a/src/main/java/net/minecraft/server/DedicatedServer.java
 +++ b/src/main/java/net/minecraft/server/DedicatedServer.java
-@@ -94,7 +94,7 @@ public class DedicatedServer extends MinecraftServer implements IMinecraftServer
+@@ -95,7 +95,7 @@ public class DedicatedServer extends MinecraftServer implements IMinecraftServer
  
          try {
              // Spigot start
@@ -197,20 +197,20 @@ index aefe20f..3d44192 100644
                      : new DedicatedServerConnection(this, inetaddress, this.G());
              // Spigot end
 diff --git a/src/main/java/net/minecraft/server/DedicatedServerConnectionThread.java b/src/main/java/net/minecraft/server/DedicatedServerConnectionThread.java
-index 25e2ac1..2ed0310 100644
+index 5be8dc2..c6a55ff 100644
 --- a/src/main/java/net/minecraft/server/DedicatedServerConnectionThread.java
 +++ b/src/main/java/net/minecraft/server/DedicatedServerConnectionThread.java
-@@ -28,7 +28,7 @@ public class DedicatedServerConnectionThread extends Thread {
+@@ -25,7 +25,7 @@ public class DedicatedServerConnectionThread extends Thread {
          super("Listen thread");
-         this.f = serverconnection;
-         this.h = i;
--        this.e = new ServerSocket(i, 0, inetaddress);
-+        this.e = com.empireminecraft.niom.NiomOutputStream.getServerSocket(inetaddress, i); // EMC
-         this.g = inetaddress == null ? this.e.getInetAddress() : inetaddress;
-         this.e.setPerformancePreferences(0, 2, 1);
+         this.e = serverconnection;
+         this.g = i;
+-        this.d = new ServerSocket(i, 0, inetaddress);
++        this.d = com.empireminecraft.niom.NiomOutputStream.getServerSocket(inetaddress, i); // EMC
+         this.f = inetaddress == null ? this.d.getInetAddress() : inetaddress;
+         this.d.setPerformancePreferences(0, 2, 1);
      }
 diff --git a/src/main/java/net/minecraft/server/NetworkManager.java b/src/main/java/net/minecraft/server/NetworkManager.java
-index 7c64e9b..ff582d3 100644
+index 1862863..e2e957d 100644
 --- a/src/main/java/net/minecraft/server/NetworkManager.java
 +++ b/src/main/java/net/minecraft/server/NetworkManager.java
 @@ -1,5 +1,11 @@
@@ -229,14 +229,14 @@ index 7c64e9b..ff582d3 100644
  
      public static AtomicInteger a = new AtomicInteger();
      public static AtomicInteger b = new AtomicInteger();
--    private Object h = new Object();
-+    private Object h = new Object(); public final Object notifyLock = h; // EMC - Update notifyLock on rename
+-    private final Object h = new Object();
++    private final Object h = new Object();  public final Object notifyLock = h; // EMC - Update notifyLock on rename
+     private final IConsoleLogManager i;
      public Socket socket; // CraftBukkit - private -> public
-     private final SocketAddress j;
-     private volatile DataInputStream input;
-@@ -29,8 +35,12 @@ public class NetworkManager implements INetworkManager {
-     private volatile boolean m = true;
-     private volatile boolean n = false;
+     private final SocketAddress k;
+@@ -30,8 +36,12 @@ public class NetworkManager implements INetworkManager {
+     private volatile boolean n = true;
+     private volatile boolean o = false;
      private java.util.Queue inboundQueue = new java.util.concurrent.ConcurrentLinkedQueue(); // CraftBukkit - Concurrent linked queue
 -    private List highPriorityQueue = Collections.synchronizedList(new ArrayList());
 -    private List lowPriorityQueue = Collections.synchronizedList(new ArrayList());
@@ -247,29 +247,29 @@ index 7c64e9b..ff582d3 100644
 +    public PacketQueue lowPriorityQueue = new PacketQueue(counter);
 +    // EMC end
      private Connection connection;
-     private boolean s = false;
-     private Thread t;
-@@ -62,7 +72,8 @@ public class NetworkManager implements INetworkManager {
+     private boolean t = false;
+     private Thread u;
+@@ -64,7 +74,8 @@ public class NetworkManager implements INetworkManager {
          }
  
          this.input = new DataInputStream(socket.getInputStream());
 -        this.output = new DataOutputStream(new BufferedOutputStream(socket.getOutputStream(), 5120));
 +        this.outputStream = new NiomOutputStream(socket.getChannel()); // EMC
 +        this.output = new DataOutputStream(this.outputStream); // EMC
-         this.u = new NetworkReaderThread(this, s + " read thread");
-         this.t = new NetworkWriterThread(this, s + " write thread");
-         this.u.start();
-@@ -79,7 +90,8 @@ public class NetworkManager implements INetworkManager {
+         this.v = new NetworkReaderThread(this, s + " read thread");
+         this.u = new NetworkWriterThread(this, s + " write thread");
+         this.v.start();
+@@ -81,7 +92,8 @@ public class NetworkManager implements INetworkManager {
  
              synchronized (this.h) {
-                 this.y += packet.a() + 1;
+                 this.z += packet.a() + 1;
 -                this.highPriorityQueue.add(packet);
 +                if (lowPriorityQueue.isEmpty() && highPriorityQueue.isEmpty()) {this.h.notify();} // EMC
 +                (packet.lowPriority ? lowPriorityQueue : highPriorityQueue).add(packet); // EMC
              }
          }
      }
-@@ -92,7 +104,7 @@ public class NetworkManager implements INetworkManager {
+@@ -94,7 +106,7 @@ public class NetworkManager implements INetworkManager {
              int i;
              int[] aint;
  
@@ -278,7 +278,7 @@ index 7c64e9b..ff582d3 100644
                  packet = this.a(false);
                  if (packet != null) {
                      Packet.a(packet, this.output);
-@@ -112,7 +124,9 @@ public class NetworkManager implements INetworkManager {
+@@ -114,7 +126,9 @@ public class NetworkManager implements INetworkManager {
              }
  
              // CraftBukkit - don't allow low priority packet to be sent unless it was placed in the queue before the first packet on the high priority queue TODO: is this still right?
@@ -289,39 +289,39 @@ index 7c64e9b..ff582d3 100644
                  packet = this.a(true);
                  if (packet != null) {
                      Packet.a(packet, this.output);
-@@ -143,6 +157,7 @@ public class NetworkManager implements INetworkManager {
+@@ -145,6 +159,7 @@ public class NetworkManager implements INetworkManager {
              while (!list.isEmpty() && packet == null) {
                  packet = (Packet) list.remove(0);
-                 this.y -= packet.a() + 1;
+                 this.z -= packet.a() + 1;
 +                if (true) return packet; // EMC - we don't need to walk the packet array checking for futue
                  if (this.a(packet, flag)) {
                      packet = null;
                  }
-@@ -174,6 +189,7 @@ public class NetworkManager implements INetworkManager {
+@@ -176,6 +191,7 @@ public class NetworkManager implements INetworkManager {
      }
  
      public void a() {
-+        if (true) return; // EMC - Why... ?
-         if (this.u != null) {
-             this.u.interrupt();
++        if (true) return; // EMC
+         if (this.v != null) {
+             this.v.interrupt();
          }
-@@ -217,6 +233,7 @@ public class NetworkManager implements INetworkManager {
+@@ -219,6 +235,7 @@ public class NetworkManager implements INetworkManager {
              }
  
              return flag;
 +        } catch (ClosedByInterruptException cbie) { return false; // EMC
          } catch (Exception exception) {
-             if (!this.n) {
+             if (!this.o) {
                  this.a(exception);
-@@ -319,9 +336,9 @@ public class NetworkManager implements INetworkManager {
+@@ -321,9 +338,9 @@ public class NetworkManager implements INetworkManager {
      private void k() throws IOException { // CraftBukkit - throws IOException
          this.output.flush();
          this.g = true;
--        BufferedOutputStream bufferedoutputstream = new BufferedOutputStream(MinecraftEncryption.a(this.z, this.socket.getOutputStream()), 5120);
-+        //BufferedOutputStream bufferedoutputstream = new BufferedOutputStream(MinecraftEncryption.a(this.z, this.socket.getOutputStream()), 5120); // EMC
+-        BufferedOutputStream bufferedoutputstream = new BufferedOutputStream(MinecraftEncryption.a(this.A, this.socket.getOutputStream()), 5120);
++        //BufferedOutputStream bufferedoutputstream = new BufferedOutputStream(MinecraftEncryption.a(this.A, this.socket.getOutputStream()), 5120); // EMC
  
 -        this.output = new DataOutputStream(bufferedoutputstream);
-+        this.output = new DataOutputStream(MinecraftEncryption.a(this.z, this.outputStream)); // EMC
++        this.output = new DataOutputStream(MinecraftEncryption.a(this.A, this.outputStream)); // EMC
      }
  
      public int e() {
