@@ -1,6 +1,6 @@
-From 5c0ae0aac1e266c2decde9fd4b2614b33b80515c Mon Sep 17 00:00:00 2001
+From 35b68cd18a26b2a468515d45400b6da44f66d632 Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Wed, 20 Mar 2013 12:16:44 -0400
+Date: Wed, 20 Mar 2013 20:17:15 -0400
 Subject: [PATCH] Spigot
 
 ---
@@ -32,7 +32,7 @@ Subject: [PATCH] Spigot
  .../net/minecraft/server/EntityTrackerEntry.java   |  25 +-
  src/main/java/net/minecraft/server/Explosion.java  |   1 +
  .../java/net/minecraft/server/INetworkManager.java |  24 +
- src/main/java/net/minecraft/server/ItemStack.java  |  29 +-
+ src/main/java/net/minecraft/server/ItemStack.java  |  19 +-
  .../java/net/minecraft/server/MinecraftServer.java |  69 ++-
  .../java/net/minecraft/server/NibbleArray.java     | 158 +++++
  .../java/net/minecraft/server/OldChunkLoader.java  | 122 ++++
@@ -79,7 +79,7 @@ Subject: [PATCH] Spigot
  .../java/org/spigotmc/netty/PacketListener.java    | 100 ++++
  src/main/java/org/spigotmc/netty/ReadState.java    |  16 +
  src/main/resources/configurations/bukkit.yml       |  41 ++
- 75 files changed, 3543 insertions(+), 242 deletions(-)
+ 75 files changed, 3539 insertions(+), 236 deletions(-)
  create mode 100644 src/main/java/net/minecraft/server/INetworkManager.java
  create mode 100644 src/main/java/net/minecraft/server/NibbleArray.java
  create mode 100644 src/main/java/net/minecraft/server/OldChunkLoader.java
@@ -112,7 +112,7 @@ index a689360..b97a549 100644
 +/dependency-reduced-pom.xml
 \ No newline at end of file
 diff --git a/pom.xml b/pom.xml
-index 5a74ee9..7041c2a 100644
+index ce239ff..73c676a 100644
 --- a/pom.xml
 +++ b/pom.xml
 @@ -1,12 +1,20 @@
@@ -132,7 +132,7 @@ index 5a74ee9..7041c2a 100644
 +  <groupId>org.spigotmc</groupId>
 +  <artifactId>spigot</artifactId>
    <packaging>jar</packaging>
-   <version>1.5-R0.1-SNAPSHOT</version>
+   <version>1.5.1-R0.1-SNAPSHOT</version>
 -  <name>CraftBukkit</name>
 -  <url>http://www.bukkit.org</url>
 +  <name>Spigot</name>
@@ -141,7 +141,7 @@ index 5a74ee9..7041c2a 100644
    <properties>
      <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 @@ -16,25 +24,6 @@
-     <minecraft_version>1_5_R1</minecraft_version>
+     <minecraft_version>1_5_R2</minecraft_version>
    </properties>
  
 -  <scm>
@@ -584,7 +584,7 @@ index 90e0636..42e669c 100644
 +    // Spigot end
  }
 diff --git a/src/main/java/net/minecraft/server/DedicatedServer.java b/src/main/java/net/minecraft/server/DedicatedServer.java
-index f985c05..70d05a6 100644
+index bd7e41c..c189b1b 100644
 --- a/src/main/java/net/minecraft/server/DedicatedServer.java
 +++ b/src/main/java/net/minecraft/server/DedicatedServer.java
 @@ -34,7 +34,7 @@ public class DedicatedServer extends MinecraftServer implements IMinecraftServer
@@ -623,7 +623,7 @@ index 8f7e09b..ae65526 100644
  
          BlockDispenseEvent event = new BlockDispenseEvent(block, craftItem.clone(), new org.bukkit.util.Vector(0, 0, 0));
 diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
-index b9667a0..83e792c 100644
+index 2e7cb43..c4c2595 100644
 --- a/src/main/java/net/minecraft/server/Entity.java
 +++ b/src/main/java/net/minecraft/server/Entity.java
 @@ -14,6 +14,7 @@ import org.bukkit.block.BlockFace;
@@ -638,8 +638,8 @@ index b9667a0..83e792c 100644
      public int ticksLived;
      public int maxFireTicks;
      public int fireTicks; // CraftBukkit - private -> public
--    protected boolean ae;
-+    public boolean ae; // Spigot - private -> public isInWater - If this renames, update Spigot.checkEntityImmunities
+-    protected boolean inWater;
++    public boolean inWater; // Spigot - protected -> public
      public int noDamageTicks;
      private boolean justCreated;
      protected boolean fireProof;
@@ -747,7 +747,7 @@ index c35a88a..f88d337 100644
              this.h();
          }
 diff --git a/src/main/java/net/minecraft/server/EntityHuman.java b/src/main/java/net/minecraft/server/EntityHuman.java
-index bfcb6ce..552a013 100644
+index 1f7b8ad..6f77702 100644
 --- a/src/main/java/net/minecraft/server/EntityHuman.java
 +++ b/src/main/java/net/minecraft/server/EntityHuman.java
 @@ -5,11 +5,13 @@ import java.util.Iterator;
@@ -827,10 +827,10 @@ index ee775bf..430dd79 100644
              }
          } else {
 diff --git a/src/main/java/net/minecraft/server/EntityLiving.java b/src/main/java/net/minecraft/server/EntityLiving.java
-index 27b2ce2..9362b06 100644
+index 15fbf69..84a2926 100644
 --- a/src/main/java/net/minecraft/server/EntityLiving.java
 +++ b/src/main/java/net/minecraft/server/EntityLiving.java
-@@ -512,6 +512,7 @@ public abstract class EntityLiving extends Entity {
+@@ -513,6 +513,7 @@ public abstract class EntityLiving extends Entity {
      }
  
      public void l_() {
@@ -838,7 +838,7 @@ index 27b2ce2..9362b06 100644
          super.l_();
          if (!this.world.isStatic) {
              int i;
-@@ -538,7 +539,9 @@ public abstract class EntityLiving extends Entity {
+@@ -539,7 +540,9 @@ public abstract class EntityLiving extends Entity {
              }
          }
  
@@ -848,7 +848,7 @@ index 27b2ce2..9362b06 100644
          double d0 = this.locX - this.lastX;
          double d1 = this.locZ - this.lastZ;
          float f = (float) (d0 * d0 + d1 * d1);
-@@ -629,6 +632,7 @@ public abstract class EntityLiving extends Entity {
+@@ -630,6 +633,7 @@ public abstract class EntityLiving extends Entity {
  
          this.world.methodProfiler.b();
          this.aE += f2;
@@ -856,7 +856,7 @@ index 27b2ce2..9362b06 100644
      }
  
      // CraftBukkit start - delegate so we can handle providing a reason for health being regained
-@@ -1264,6 +1268,7 @@ public abstract class EntityLiving extends Entity {
+@@ -1265,6 +1269,7 @@ public abstract class EntityLiving extends Entity {
      }
  
      public void c() {
@@ -864,7 +864,7 @@ index 27b2ce2..9362b06 100644
          if (this.bX > 0) {
              --this.bX;
          }
-@@ -1315,6 +1320,7 @@ public abstract class EntityLiving extends Entity {
+@@ -1316,6 +1321,7 @@ public abstract class EntityLiving extends Entity {
                  this.aA = this.yaw;
              }
          }
@@ -872,7 +872,7 @@ index 27b2ce2..9362b06 100644
  
          this.world.methodProfiler.b();
          this.world.methodProfiler.a("jump");
-@@ -1333,6 +1339,7 @@ public abstract class EntityLiving extends Entity {
+@@ -1334,6 +1340,7 @@ public abstract class EntityLiving extends Entity {
  
          this.world.methodProfiler.b();
          this.world.methodProfiler.a("travel");
@@ -880,7 +880,7 @@ index 27b2ce2..9362b06 100644
          this.bD *= 0.98F;
          this.bE *= 0.98F;
          this.bF *= 0.9F;
-@@ -1341,11 +1348,14 @@ public abstract class EntityLiving extends Entity {
+@@ -1342,11 +1349,14 @@ public abstract class EntityLiving extends Entity {
          this.aO *= this.bE();
          this.e(this.bD, this.bE);
          this.aO = f;
@@ -895,7 +895,7 @@ index 27b2ce2..9362b06 100644
  
          this.world.methodProfiler.b();
          this.world.methodProfiler.a("looting");
-@@ -1417,12 +1427,20 @@ public abstract class EntityLiving extends Entity {
+@@ -1418,12 +1428,20 @@ public abstract class EntityLiving extends Entity {
      }
  
      protected void bg() {
@@ -917,7 +917,7 @@ index 27b2ce2..9362b06 100644
                      this.o(entity);
                  }
 diff --git a/src/main/java/net/minecraft/server/EntityPlayer.java b/src/main/java/net/minecraft/server/EntityPlayer.java
-index 03140c2..fc8797d 100644
+index 573c0f0..ba3fde9 100644
 --- a/src/main/java/net/minecraft/server/EntityPlayer.java
 +++ b/src/main/java/net/minecraft/server/EntityPlayer.java
 @@ -51,6 +51,7 @@ public class EntityPlayer extends EntityHuman implements ICrafting {
@@ -950,7 +950,7 @@ index 03140c2..fc8797d 100644
          if (this.isSleeping()) {
              this.o().getTracker().sendPacketToEntity(this, new Packet18ArmAnimation(this, 3));
 diff --git a/src/main/java/net/minecraft/server/EntitySquid.java b/src/main/java/net/minecraft/server/EntitySquid.java
-index 30259de..af42142 100644
+index 58a8110..c000125 100644
 --- a/src/main/java/net/minecraft/server/EntitySquid.java
 +++ b/src/main/java/net/minecraft/server/EntitySquid.java
 @@ -63,10 +63,6 @@ public class EntitySquid extends EntityWaterAnimal {
@@ -965,7 +965,7 @@ index 30259de..af42142 100644
          super.c();
          this.e = this.d;
 diff --git a/src/main/java/net/minecraft/server/EntityTrackerEntry.java b/src/main/java/net/minecraft/server/EntityTrackerEntry.java
-index 4948f23..45e469a 100644
+index ae9ed52..6fa425c 100644
 --- a/src/main/java/net/minecraft/server/EntityTrackerEntry.java
 +++ b/src/main/java/net/minecraft/server/EntityTrackerEntry.java
 @@ -36,6 +36,7 @@ public class EntityTrackerEntry {
@@ -1008,7 +1008,7 @@ index 4948f23..45e469a 100644
                      }
                  }
              }
-@@ -330,6 +331,17 @@ public class EntityTrackerEntry {
+@@ -332,6 +333,17 @@ public class EntityTrackerEntry {
                          }
                      }
  
@@ -1026,7 +1026,7 @@ index 4948f23..45e469a 100644
                      if (this.tracker instanceof EntityHuman) {
                          EntityHuman entityhuman = (EntityHuman) this.tracker;
  
-@@ -356,6 +368,7 @@ public class EntityTrackerEntry {
+@@ -358,6 +370,7 @@ public class EntityTrackerEntry {
                  }
              } else if (this.trackedPlayers.contains(entityplayer)) {
                  this.trackedPlayers.remove(entityplayer);
@@ -1077,27 +1077,10 @@ index 0000000..ff3daae
 +    java.net.Socket getSocket();
 +}
 diff --git a/src/main/java/net/minecraft/server/ItemStack.java b/src/main/java/net/minecraft/server/ItemStack.java
-index 68e481c..2e0312b 100644
+index 68e481c..de7e7ac 100644
 --- a/src/main/java/net/minecraft/server/ItemStack.java
 +++ b/src/main/java/net/minecraft/server/ItemStack.java
-@@ -40,12 +40,10 @@ public final class ItemStack {
-         this.f = null;
-         this.id = i;
-         this.count = j;
--        // CraftBukkit start - pass to setData to do filtering
--        this.setData(k);
--        //if (this.damage < 0) {
--        //    this.damage = 0;
--        //}
--        // CraftBukkit end
-+        this.setData(k); // CraftBukkit
-+        if (this.damage < 0) {
-+            this.damage = 0;
-+        }
-     }
- 
-     public static ItemStack createStack(NBTTagCompound nbttagcompound) {
-@@ -178,7 +176,13 @@ public final class ItemStack {
+@@ -178,7 +178,13 @@ public final class ItemStack {
          return Item.byId[this.id].getMaxDurability();
      }
  
@@ -1111,7 +1094,7 @@ index 68e481c..2e0312b 100644
          if (!this.g()) {
              return false;
          } else {
-@@ -193,7 +197,16 @@ public final class ItemStack {
+@@ -193,7 +199,16 @@ public final class ItemStack {
                  }
  
                  i -= k;
@@ -1129,7 +1112,7 @@ index 68e481c..2e0312b 100644
                      return false;
                  }
              }
-@@ -206,7 +219,7 @@ public final class ItemStack {
+@@ -206,7 +221,7 @@ public final class ItemStack {
      public void damage(int i, EntityLiving entityliving) {
          if (!(entityliving instanceof EntityHuman) || !((EntityHuman) entityliving).abilities.canInstantlyBuild) {
              if (this.g()) {
@@ -1139,7 +1122,7 @@ index 68e481c..2e0312b 100644
                      if (entityliving instanceof EntityHuman) {
                          ((EntityHuman) entityliving).a(StatisticList.F[this.id], 1);
 diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
-index d3f3f86..a4b43a0 100644
+index 5c535cc..3689a3d 100644
 --- a/src/main/java/net/minecraft/server/MinecraftServer.java
 +++ b/src/main/java/net/minecraft/server/MinecraftServer.java
 @@ -6,7 +6,6 @@ import java.security.KeyPair;
@@ -1885,7 +1868,7 @@ index 92e68be..62df1a3 100644
  
          if (false) { // Never trigger
 diff --git a/src/main/java/net/minecraft/server/PlayerList.java b/src/main/java/net/minecraft/server/PlayerList.java
-index d57ff15..16216e2 100644
+index 6efb5b6..ae7ed8f 100644
 --- a/src/main/java/net/minecraft/server/PlayerList.java
 +++ b/src/main/java/net/minecraft/server/PlayerList.java
 @@ -304,7 +304,7 @@ public abstract class PlayerList {
@@ -2120,7 +2103,7 @@ index db3fc42..174546d 100644
      private static Map b = new HashMap();
      protected World world;
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index 9c39815..a97649e 100644
+index b694789..9f7eea6 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
 @@ -13,6 +13,8 @@ import java.util.concurrent.Callable;
@@ -2395,7 +2378,7 @@ index 9c39815..a97649e 100644
          }
      }
  
-@@ -1942,6 +2042,11 @@ public abstract class World implements IBlockAccess {
+@@ -1946,6 +2046,11 @@ public abstract class World implements IBlockAccess {
          this.worldData.setWeatherDuration(1);
      }
  
@@ -2407,7 +2390,7 @@ index 9c39815..a97649e 100644
      protected void A() {
          // this.chunkTickList.clear(); // CraftBukkit - removed
          this.methodProfiler.a("buildList");
-@@ -1951,25 +2056,42 @@ public abstract class World implements IBlockAccess {
+@@ -1955,25 +2060,42 @@ public abstract class World implements IBlockAccess {
          int j;
          int k;
  
@@ -2464,7 +2447,7 @@ index 9c39815..a97649e 100644
  
          this.methodProfiler.b();
          if (this.O > 0) {
-@@ -1977,7 +2099,7 @@ public abstract class World implements IBlockAccess {
+@@ -1981,7 +2103,7 @@ public abstract class World implements IBlockAccess {
          }
  
          this.methodProfiler.a("playerCheckLight");
@@ -3101,7 +3084,7 @@ index 0000000..c04eec2
 +}
 diff --git a/src/main/java/org/bukkit/craftbukkit/Spigot.java b/src/main/java/org/bukkit/craftbukkit/Spigot.java
 new file mode 100644
-index 0000000..6323a15
+index 0000000..4b355c9
 --- /dev/null
 +++ b/src/main/java/org/bukkit/craftbukkit/Spigot.java
 @@ -0,0 +1,341 @@
@@ -3321,7 +3304,7 @@ index 0000000..6323a15
 +     */
 +    public static boolean checkEntityImmunities(Entity entity) {
 +        // quick checks.
-+        if (entity.ae /* isInWater */ || entity.fireTicks > 0) {
++        if (entity.inWater /* isInWater */ || entity.fireTicks > 0) {
 +            return true;
 +        }
 +        if (!(entity instanceof EntityArrow)) {
