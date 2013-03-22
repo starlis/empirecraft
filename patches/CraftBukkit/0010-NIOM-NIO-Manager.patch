@@ -1,11 +1,11 @@
-From 6dd12ddf39f61ed70d4c98f8761b3fa1c0b4e3b7 Mon Sep 17 00:00:00 2001
+From b69929de0500fbe1f9ff827712350c276cd3a786 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Fri, 15 Feb 2013 20:10:44 -0500
 Subject: [PATCH] NIOM - NIO Manager
 
 Alternative to Netty
 improve the existing network manager using Blocking NIO instead of IO (more effecient code)
-Writes use a direct memory buffer for zero copy writes, more stable memory usage.
+Writes use a direct memory buffer for less copying, and more stable memory usage.
 
 Reimplement Low Priority Queue
 Optimized PacketQueue System that supports instant send notification to the writer thread
@@ -17,11 +17,11 @@ Network threads are no longer interrupted every tick, letting them sleep as much
  .../java/com/empireminecraft/niom/PacketQueue.java | 58 ++++++++++++++
  .../java/net/minecraft/server/DedicatedServer.java |  2 +-
  .../server/DedicatedServerConnectionThread.java    |  2 +-
- .../java/net/minecraft/server/NetworkManager.java  | 35 ++++++---
+ .../java/net/minecraft/server/NetworkManager.java  | 34 +++++++--
  .../net/minecraft/server/NetworkWriterThread.java  |  8 +-
  .../net/minecraft/server/Packet51MapChunk.java     |  1 +
  .../net/minecraft/server/Packet56MapChunkBulk.java |  1 +
- 8 files changed, 183 insertions(+), 12 deletions(-)
+ 8 files changed, 183 insertions(+), 11 deletions(-)
  create mode 100644 src/main/java/com/empireminecraft/niom/NiomOutputStream.java
  create mode 100644 src/main/java/com/empireminecraft/niom/PacketQueue.java
 
@@ -184,7 +184,7 @@ index 0000000..142d98d
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/DedicatedServer.java b/src/main/java/net/minecraft/server/DedicatedServer.java
-index 70d05a6..1fba6cd 100644
+index c189b1b..d45cd04 100644
 --- a/src/main/java/net/minecraft/server/DedicatedServer.java
 +++ b/src/main/java/net/minecraft/server/DedicatedServer.java
 @@ -95,7 +95,7 @@ public class DedicatedServer extends MinecraftServer implements IMinecraftServer
@@ -197,7 +197,7 @@ index 70d05a6..1fba6cd 100644
                      : new DedicatedServerConnection(this, inetaddress, this.G());
              // Spigot end
 diff --git a/src/main/java/net/minecraft/server/DedicatedServerConnectionThread.java b/src/main/java/net/minecraft/server/DedicatedServerConnectionThread.java
-index 5be8dc2..c6a55ff 100644
+index fbe96fa..01bb68a 100644
 --- a/src/main/java/net/minecraft/server/DedicatedServerConnectionThread.java
 +++ b/src/main/java/net/minecraft/server/DedicatedServerConnectionThread.java
 @@ -25,7 +25,7 @@ public class DedicatedServerConnectionThread extends Thread {
@@ -210,7 +210,7 @@ index 5be8dc2..c6a55ff 100644
          this.d.setPerformancePreferences(0, 2, 1);
      }
 diff --git a/src/main/java/net/minecraft/server/NetworkManager.java b/src/main/java/net/minecraft/server/NetworkManager.java
-index 1862863..e2e957d 100644
+index 1862863..fc87456 100644
 --- a/src/main/java/net/minecraft/server/NetworkManager.java
 +++ b/src/main/java/net/minecraft/server/NetworkManager.java
 @@ -1,5 +1,11 @@
@@ -225,16 +225,15 @@ index 1862863..e2e957d 100644
  import java.io.BufferedOutputStream;
  import java.io.DataInputStream;
  import java.io.DataOutputStream;
-@@ -21,7 +27,7 @@ public class NetworkManager implements INetworkManager {
- 
+@@ -22,6 +28,7 @@ public class NetworkManager implements INetworkManager {
      public static AtomicInteger a = new AtomicInteger();
      public static AtomicInteger b = new AtomicInteger();
--    private final Object h = new Object();
-+    private final Object h = new Object();  public final Object notifyLock = h; // EMC - Update notifyLock on rename
+     private final Object h = new Object();
++    public final Object notifyLock = h; // EMC - Update notifyLock on rename
      private final IConsoleLogManager i;
      public Socket socket; // CraftBukkit - private -> public
      private final SocketAddress k;
-@@ -30,8 +36,12 @@ public class NetworkManager implements INetworkManager {
+@@ -30,8 +37,12 @@ public class NetworkManager implements INetworkManager {
      private volatile boolean n = true;
      private volatile boolean o = false;
      private java.util.Queue inboundQueue = new java.util.concurrent.ConcurrentLinkedQueue(); // CraftBukkit - Concurrent linked queue
@@ -243,13 +242,13 @@ index 1862863..e2e957d 100644
 +    // EMC start
 +    public final NiomOutputStream outputStream;
 +    PacketQueue.PacketCounter counter = new PacketQueue.PacketCounter();
-+    public PacketQueue highPriorityQueue = new PacketQueue(counter);
-+    public PacketQueue lowPriorityQueue = new PacketQueue(counter);
++    public List<Packet> highPriorityQueue = new PacketQueue(counter);
++    public List<Packet> lowPriorityQueue = new PacketQueue(counter);
 +    // EMC end
      private Connection connection;
      private boolean t = false;
      private Thread u;
-@@ -64,7 +74,8 @@ public class NetworkManager implements INetworkManager {
+@@ -64,7 +75,8 @@ public class NetworkManager implements INetworkManager {
          }
  
          this.input = new DataInputStream(socket.getInputStream());
@@ -259,7 +258,7 @@ index 1862863..e2e957d 100644
          this.v = new NetworkReaderThread(this, s + " read thread");
          this.u = new NetworkWriterThread(this, s + " write thread");
          this.v.start();
-@@ -81,7 +92,8 @@ public class NetworkManager implements INetworkManager {
+@@ -81,7 +93,8 @@ public class NetworkManager implements INetworkManager {
  
              synchronized (this.h) {
                  this.z += packet.a() + 1;
@@ -269,7 +268,7 @@ index 1862863..e2e957d 100644
              }
          }
      }
-@@ -94,7 +106,7 @@ public class NetworkManager implements INetworkManager {
+@@ -94,7 +107,7 @@ public class NetworkManager implements INetworkManager {
              int i;
              int[] aint;
  
@@ -278,18 +277,18 @@ index 1862863..e2e957d 100644
                  packet = this.a(false);
                  if (packet != null) {
                      Packet.a(packet, this.output);
-@@ -114,7 +126,9 @@ public class NetworkManager implements INetworkManager {
+@@ -114,7 +127,9 @@ public class NetworkManager implements INetworkManager {
              }
  
              // CraftBukkit - don't allow low priority packet to be sent unless it was placed in the queue before the first packet on the high priority queue TODO: is this still right?
 -            if ((flag || this.lowPriorityQueueDelay-- <= 0) && !this.lowPriorityQueue.isEmpty() && (this.highPriorityQueue.isEmpty() || ((Packet) this.highPriorityQueue.get(0)).timestamp > ((Packet) this.lowPriorityQueue.get(0)).timestamp)) {
-+            long lowId = this.lowPriorityQueue.orderId(); // EMC
-+            long highId = this.highPriorityQueue.orderId(); // EMC
++            long lowId = ((PacketQueue) this.lowPriorityQueue).orderId(); // EMC
++            long highId = ((PacketQueue) this.highPriorityQueue).orderId(); // EMC
 +            if (lowId != Long.MAX_VALUE && (lowId < highId)) { // EMC
                  packet = this.a(true);
                  if (packet != null) {
                      Packet.a(packet, this.output);
-@@ -145,6 +159,7 @@ public class NetworkManager implements INetworkManager {
+@@ -145,6 +160,7 @@ public class NetworkManager implements INetworkManager {
              while (!list.isEmpty() && packet == null) {
                  packet = (Packet) list.remove(0);
                  this.z -= packet.a() + 1;
@@ -297,7 +296,7 @@ index 1862863..e2e957d 100644
                  if (this.a(packet, flag)) {
                      packet = null;
                  }
-@@ -176,6 +191,7 @@ public class NetworkManager implements INetworkManager {
+@@ -176,6 +192,7 @@ public class NetworkManager implements INetworkManager {
      }
  
      public void a() {
@@ -305,7 +304,7 @@ index 1862863..e2e957d 100644
          if (this.v != null) {
              this.v.interrupt();
          }
-@@ -219,6 +235,7 @@ public class NetworkManager implements INetworkManager {
+@@ -219,6 +236,7 @@ public class NetworkManager implements INetworkManager {
              }
  
              return flag;
@@ -313,7 +312,7 @@ index 1862863..e2e957d 100644
          } catch (Exception exception) {
              if (!this.o) {
                  this.a(exception);
-@@ -321,9 +338,9 @@ public class NetworkManager implements INetworkManager {
+@@ -321,9 +339,9 @@ public class NetworkManager implements INetworkManager {
      private void k() throws IOException { // CraftBukkit - throws IOException
          this.output.flush();
          this.g = true;
