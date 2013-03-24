@@ -1,6 +1,6 @@
-From 15d2a53fc7015f97491a242eb8f9d59bf7a618b4 Mon Sep 17 00:00:00 2001
+From dbada64429516f7ac0b787070532553c9f160bd6 Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Fri, 22 Mar 2013 23:20:40 -0400
+Date: Sat, 23 Mar 2013 21:20:25 -0400
 Subject: [PATCH] Spigot
 
 ---
@@ -18,11 +18,10 @@ Subject: [PATCH] Spigot
  .../net/minecraft/server/ChunkProviderServer.java  |   2 +
  .../net/minecraft/server/ChunkRegionLoader.java    |  45 +-
  .../java/net/minecraft/server/ChunkSection.java    |  47 +-
- .../net/minecraft/server/ConsoleLogFormatter.java  |   2 +-
  .../java/net/minecraft/server/DataWatcher.java     | 287 +++++++++
  .../java/net/minecraft/server/DedicatedServer.java |   8 +-
  .../server/DispenseBehaviorEmptyBucket.java        |   2 +-
- src/main/java/net/minecraft/server/Entity.java     |  23 +-
+ src/main/java/net/minecraft/server/Entity.java     |  21 +-
  .../java/net/minecraft/server/EntityArrow.java     |   2 +-
  .../net/minecraft/server/EntityFallingBlock.java   |   1 +
  .../java/net/minecraft/server/EntityHanging.java   |  15 +
@@ -31,8 +30,8 @@ Subject: [PATCH] Spigot
  .../java/net/minecraft/server/EntityLiving.java    |  18 +
  .../java/net/minecraft/server/EntityPlayer.java    |   8 +-
  .../java/net/minecraft/server/EntitySquid.java     |   4 -
- .../java/net/minecraft/server/EntityTracker.java   |   3 +-
- .../net/minecraft/server/EntityTrackerEntry.java   |  25 +-
+ .../java/net/minecraft/server/EntityTracker.java   |   5 +-
+ .../net/minecraft/server/EntityTrackerEntry.java   |  27 +-
  src/main/java/net/minecraft/server/Explosion.java  |   1 +
  .../java/net/minecraft/server/INetworkManager.java |  26 +
  src/main/java/net/minecraft/server/ItemStack.java  |  19 +-
@@ -53,19 +52,20 @@ Subject: [PATCH] Spigot
  .../net/minecraft/server/ThreadLoginVerifier.java  |  22 +
  src/main/java/net/minecraft/server/TileEntity.java |   2 +
  .../java/net/minecraft/server/WatchableObject.java |  44 ++
- src/main/java/net/minecraft/server/World.java      | 174 +++++-
+ src/main/java/net/minecraft/server/World.java      | 176 +++++-
+ .../net/minecraft/server/WorldMapHumanTracker.java |  24 +-
  .../java/net/minecraft/server/WorldServer.java     |  63 +-
  .../java/org/bukkit/craftbukkit/CraftChunk.java    |  44 +-
  .../java/org/bukkit/craftbukkit/CraftServer.java   |  54 +-
- .../java/org/bukkit/craftbukkit/CraftWorld.java    | 122 +++-
- src/main/java/org/bukkit/craftbukkit/Spigot.java   | 372 ++++++++++++
+ .../java/org/bukkit/craftbukkit/CraftWorld.java    | 126 +++-
+ src/main/java/org/bukkit/craftbukkit/Spigot.java   | 377 ++++++++++++
  .../java/org/bukkit/craftbukkit/SpigotTimings.java | 113 ++++
  .../org/bukkit/craftbukkit/block/CraftSign.java    |   8 +-
  .../craftbukkit/chunkio/ChunkIOProvider.java       |   2 +-
- .../craftbukkit/command/ColouredConsoleSender.java |  34 +-
  .../craftbukkit/command/TicksPerSecondCommand.java |  35 ++
- .../org/bukkit/craftbukkit/entity/CraftPlayer.java |  31 +-
+ .../org/bukkit/craftbukkit/entity/CraftPlayer.java |  25 +-
  .../craftbukkit/inventory/CraftInventoryView.java  |   2 +-
+ .../org/bukkit/craftbukkit/map/CraftMapView.java   |   2 +-
  .../craftbukkit/scheduler/CraftScheduler.java      |   2 +-
  .../bukkit/craftbukkit/scheduler/CraftTask.java    |  18 +
  .../java/org/bukkit/craftbukkit/util/FlatMap.java  |  34 ++
@@ -84,8 +84,8 @@ Subject: [PATCH] Spigot
  .../java/org/spigotmc/netty/PacketEncoder.java     |  43 ++
  .../java/org/spigotmc/netty/PacketListener.java    | 100 ++++
  src/main/java/org/spigotmc/netty/ReadState.java    |  16 +
- src/main/resources/configurations/bukkit.yml       |  50 ++
- 81 files changed, 3973 insertions(+), 257 deletions(-)
+ src/main/resources/configurations/bukkit.yml       |  51 ++
+ 81 files changed, 3980 insertions(+), 248 deletions(-)
  create mode 100644 src/main/java/net/minecraft/server/DataWatcher.java
  create mode 100644 src/main/java/net/minecraft/server/INetworkManager.java
  create mode 100644 src/main/java/net/minecraft/server/NibbleArray.java
@@ -591,19 +591,6 @@ index 90e0636..42e669c 100644
      }
 +    // Spigot end
  }
-diff --git a/src/main/java/net/minecraft/server/ConsoleLogFormatter.java b/src/main/java/net/minecraft/server/ConsoleLogFormatter.java
-index 60d26d5..86bb210 100644
---- a/src/main/java/net/minecraft/server/ConsoleLogFormatter.java
-+++ b/src/main/java/net/minecraft/server/ConsoleLogFormatter.java
-@@ -15,7 +15,7 @@ class ConsoleLogFormatter extends Formatter {
- 
-     final ConsoleLogManager a;
-     // CraftBukkit start - add color stripping
--    private Pattern pattern = Pattern.compile("\\x1B\\[([0-9]{1,2}(;[0-9]{1,2})?)?[m|K]");
-+    private Pattern pattern = Pattern.compile("\\x1B\\[([0-9]{1,2}(;[0-9]{1,2})*)?[m|K]");
-     private boolean strip = false;
-     // CraftBukkit end
- 
 diff --git a/src/main/java/net/minecraft/server/DataWatcher.java b/src/main/java/net/minecraft/server/DataWatcher.java
 new file mode 100644
 index 0000000..f0fa9ca
@@ -937,7 +924,7 @@ index 8f7e09b..ae65526 100644
  
          BlockDispenseEvent event = new BlockDispenseEvent(block, craftItem.clone(), new org.bukkit.util.Vector(0, 0, 0));
 diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
-index 2e7cb43..35fd279 100644
+index 6c00b9c..150f5f8 100644
 --- a/src/main/java/net/minecraft/server/Entity.java
 +++ b/src/main/java/net/minecraft/server/Entity.java
 @@ -14,6 +14,7 @@ import org.bukkit.block.BlockFace;
@@ -1009,15 +996,6 @@ index 2e7cb43..35fd279 100644
      }
  
      protected void C() {
-@@ -1432,7 +1449,7 @@ public abstract class Entity {
-             this.vehicle = null;
-         } else {
-             // CraftBukkit start
--            if ((this.bukkitEntity instanceof LivingEntity) && (entity.getBukkitEntity() instanceof Vehicle)) {
-+            if ((this.bukkitEntity instanceof LivingEntity) && (entity.getBukkitEntity() instanceof Vehicle) && entity.world.isChunkLoaded((int)entity.locX >> 4, (int)entity.locZ >> 4)) {
-                 VehicleEnterEvent event = new VehicleEnterEvent((Vehicle) entity.getBukkitEntity(), this.bukkitEntity);
-                 pluginManager.callEvent(event);
- 
 diff --git a/src/main/java/net/minecraft/server/EntityArrow.java b/src/main/java/net/minecraft/server/EntityArrow.java
 index 4b47364..647b91f 100644
 --- a/src/main/java/net/minecraft/server/EntityArrow.java
@@ -1292,7 +1270,7 @@ index 58a8110..c000125 100644
          super.c();
          this.e = this.d;
 diff --git a/src/main/java/net/minecraft/server/EntityTracker.java b/src/main/java/net/minecraft/server/EntityTracker.java
-index 4de1273..a940b25 100644
+index 4de1273..7cd2c26 100644
 --- a/src/main/java/net/minecraft/server/EntityTracker.java
 +++ b/src/main/java/net/minecraft/server/EntityTracker.java
 @@ -58,7 +58,7 @@ public class EntityTracker {
@@ -1300,20 +1278,29 @@ index 4de1273..a940b25 100644
              this.addEntity(entity, 80, 3, true);
          } else if (entity instanceof EntityBoat) {
 -            this.addEntity(entity, 80, 3, true);
-+            this.addEntity(entity, 80, 2); // Spigot - send same as player
++            this.addEntity(entity, 80, 2, true); // Spigot - send at same speed as player
          } else if (entity instanceof EntitySquid) {
              this.addEntity(entity, 64, 3, true);
          } else if (entity instanceof EntityWither) {
-@@ -89,6 +89,7 @@ public class EntityTracker {
+@@ -89,6 +89,8 @@ public class EntityTracker {
      }
  
      public void addEntity(Entity entity, int i, int j, boolean flag) {
++        if (Thread.currentThread() != MinecraftServer.getServer().primaryThread) throw new IllegalStateException("Asynchronous entity track!"); // Spigot
 +        i = org.bukkit.craftbukkit.Spigot.getEntityTrackingRange(entity, i); // Spigot
          if (i > this.d) {
              i = this.d;
          }
+@@ -124,6 +126,7 @@ public class EntityTracker {
+     }
+ 
+     public void untrackEntity(Entity entity) {
++        if (Thread.currentThread() != MinecraftServer.getServer().primaryThread) throw new IllegalStateException("Asynchronous entity untrack!"); // Spigot
+         if (entity instanceof EntityPlayer) {
+             EntityPlayer entityplayer = (EntityPlayer) entity;
+             Iterator iterator = this.b.iterator();
 diff --git a/src/main/java/net/minecraft/server/EntityTrackerEntry.java b/src/main/java/net/minecraft/server/EntityTrackerEntry.java
-index ae9ed52..6fa425c 100644
+index ae9ed52..dd569f4 100644
 --- a/src/main/java/net/minecraft/server/EntityTrackerEntry.java
 +++ b/src/main/java/net/minecraft/server/EntityTrackerEntry.java
 @@ -36,6 +36,7 @@ public class EntityTrackerEntry {
@@ -1356,7 +1343,15 @@ index ae9ed52..6fa425c 100644
                      }
                  }
              }
-@@ -332,6 +333,17 @@ public class EntityTrackerEntry {
+@@ -286,6 +287,7 @@ public class EntityTrackerEntry {
+     }
+ 
+     public void updatePlayer(EntityPlayer entityplayer) {
++        if (Thread.currentThread() != MinecraftServer.getServer().primaryThread) throw new IllegalStateException("Asynchronous player tracker update!"); // Spigot
+         if (entityplayer != this.tracker) {
+             double d0 = entityplayer.locX - (double) (this.xLoc / 32);
+             double d1 = entityplayer.locZ - (double) (this.zLoc / 32);
+@@ -332,6 +334,17 @@ public class EntityTrackerEntry {
                          }
                      }
  
@@ -1374,7 +1369,7 @@ index ae9ed52..6fa425c 100644
                      if (this.tracker instanceof EntityHuman) {
                          EntityHuman entityhuman = (EntityHuman) this.tracker;
  
-@@ -358,6 +370,7 @@ public class EntityTrackerEntry {
+@@ -358,6 +371,7 @@ public class EntityTrackerEntry {
                  }
              } else if (this.trackedPlayers.contains(entityplayer)) {
                  this.trackedPlayers.remove(entityplayer);
@@ -1382,6 +1377,14 @@ index ae9ed52..6fa425c 100644
                  entityplayer.removeQueue.add(Integer.valueOf(this.tracker.id));
              }
          }
+@@ -470,6 +484,7 @@ public class EntityTrackerEntry {
+     }
+ 
+     public void clear(EntityPlayer entityplayer) {
++        if (Thread.currentThread() != MinecraftServer.getServer().primaryThread) throw new IllegalStateException("Asynchronous player tracker clear!"); // Spigot
+         if (this.trackedPlayers.contains(entityplayer)) {
+             this.trackedPlayers.remove(entityplayer);
+             entityplayer.removeQueue.add(Integer.valueOf(this.tracker.id));
 diff --git a/src/main/java/net/minecraft/server/Explosion.java b/src/main/java/net/minecraft/server/Explosion.java
 index 50646ce..c7405a7 100644
 --- a/src/main/java/net/minecraft/server/Explosion.java
@@ -2550,7 +2553,7 @@ index 0000000..678aa91
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index b694789..ca6d3f0 100644
+index b694789..de0b6c6 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
 @@ -13,6 +13,8 @@ import java.util.concurrent.Callable;
@@ -2659,7 +2662,15 @@ index b694789..ca6d3f0 100644
          return result;
      }
      // CraftBukkit end
-@@ -929,6 +953,23 @@ public abstract class World implements IBlockAccess {
+@@ -898,6 +922,7 @@ public abstract class World implements IBlockAccess {
+     }
+ 
+     public boolean addEntity(Entity entity, SpawnReason spawnReason) { // Changed signature, added SpawnReason
++        if (Thread.currentThread() != MinecraftServer.getServer().primaryThread) throw new IllegalStateException("Asynchronous entity add!"); // Spigot
+         if (entity == null) return false;
+         // CraftBukkit end
+ 
+@@ -929,6 +954,23 @@ public abstract class World implements IBlockAccess {
              // Not all projectiles extend EntityProjectile, so check for Bukkit interface instead
              event = CraftEventFactory.callProjectileLaunchEvent(entity);
          }
@@ -2683,7 +2694,15 @@ index b694789..ca6d3f0 100644
  
          if (event != null && (event.isCancelled() || entity.dead)) {
              entity.dead = true;
-@@ -1017,6 +1058,39 @@ public abstract class World implements IBlockAccess {
+@@ -987,6 +1029,7 @@ public abstract class World implements IBlockAccess {
+     }
+ 
+     public void removeEntity(Entity entity) {
++        if (Thread.currentThread() != MinecraftServer.getServer().primaryThread) throw new IllegalStateException("Asynchronous entity remove!"); // Spigot
+         entity.die();
+         if (entity instanceof EntityHuman) {
+             this.players.remove(entity);
+@@ -1017,6 +1060,39 @@ public abstract class World implements IBlockAccess {
          int i1 = MathHelper.floor(axisalignedbb.c);
          int j1 = MathHelper.floor(axisalignedbb.f + 1.0D);
  
@@ -2723,7 +2742,7 @@ index b694789..ca6d3f0 100644
          for (int k1 = i; k1 < j; ++k1) {
              for (int l1 = i1; l1 < j1; ++l1) {
                  if (this.isLoaded(k1, 64, l1)) {
-@@ -1030,6 +1104,7 @@ public abstract class World implements IBlockAccess {
+@@ -1030,6 +1106,7 @@ public abstract class World implements IBlockAccess {
                  }
              }
          }
@@ -2731,7 +2750,7 @@ index b694789..ca6d3f0 100644
  
          double d0 = 0.25D;
          List list = this.getEntities(entity, axisalignedbb.grow(d0, d0, d0));
-@@ -1200,6 +1275,8 @@ public abstract class World implements IBlockAccess {
+@@ -1200,6 +1277,8 @@ public abstract class World implements IBlockAccess {
          this.f.clear();
          this.methodProfiler.c("regular");
  
@@ -2740,7 +2759,7 @@ index b694789..ca6d3f0 100644
          for (i = 0; i < this.entityList.size(); ++i) {
              entity = (Entity) this.entityList.get(i);
  
-@@ -1222,7 +1299,9 @@ public abstract class World implements IBlockAccess {
+@@ -1222,7 +1301,9 @@ public abstract class World implements IBlockAccess {
              this.methodProfiler.a("tick");
              if (!entity.dead) {
                  try {
@@ -2750,7 +2769,7 @@ index b694789..ca6d3f0 100644
                  } catch (Throwable throwable1) {
                      crashreport = CrashReport.a(throwable1, "Ticking entity");
                      crashreportsystemdetails = crashreport.a("Entity being ticked");
-@@ -1247,12 +1326,21 @@ public abstract class World implements IBlockAccess {
+@@ -1247,12 +1328,21 @@ public abstract class World implements IBlockAccess {
              this.methodProfiler.b();
          }
  
@@ -2772,7 +2791,7 @@ index b694789..ca6d3f0 100644
              // CraftBukkit start - don't tick entities in chunks queued for unload
              ChunkProviderServer chunkProviderServer = ((WorldServer) this).chunkProviderServer;
              if (chunkProviderServer.unloadQueue.contains(tileentity.x >> 4, tileentity.z >> 4)) {
-@@ -1262,8 +1350,11 @@ public abstract class World implements IBlockAccess {
+@@ -1262,8 +1352,11 @@ public abstract class World implements IBlockAccess {
  
              if (!tileentity.r() && tileentity.o() && this.isLoaded(tileentity.x, tileentity.y, tileentity.z)) {
                  try {
@@ -2784,7 +2803,7 @@ index b694789..ca6d3f0 100644
                      crashreport = CrashReport.a(throwable2, "Ticking tile entity");
                      crashreportsystemdetails = crashreport.a("Tile entity being ticked");
                      tileentity.a(crashreportsystemdetails);
-@@ -1283,6 +1374,8 @@ public abstract class World implements IBlockAccess {
+@@ -1283,6 +1376,8 @@ public abstract class World implements IBlockAccess {
              }
          }
  
@@ -2793,7 +2812,7 @@ index b694789..ca6d3f0 100644
          this.N = false;
          if (!this.b.isEmpty()) {
              this.tileEntityList.removeAll(this.b);
-@@ -1321,6 +1414,7 @@ public abstract class World implements IBlockAccess {
+@@ -1321,6 +1416,7 @@ public abstract class World implements IBlockAccess {
              this.a.clear();
          }
  
@@ -2801,7 +2820,7 @@ index b694789..ca6d3f0 100644
          this.methodProfiler.b();
          this.methodProfiler.b();
      }
-@@ -1342,7 +1436,12 @@ public abstract class World implements IBlockAccess {
+@@ -1342,7 +1438,12 @@ public abstract class World implements IBlockAccess {
          int j = MathHelper.floor(entity.locZ);
          byte b0 = 32;
  
@@ -2815,7 +2834,7 @@ index b694789..ca6d3f0 100644
              entity.U = entity.locX;
              entity.V = entity.locY;
              entity.W = entity.locZ;
-@@ -1404,6 +1503,7 @@ public abstract class World implements IBlockAccess {
+@@ -1404,6 +1505,7 @@ public abstract class World implements IBlockAccess {
                      entity.passenger = null;
                  }
              }
@@ -2823,7 +2842,7 @@ index b694789..ca6d3f0 100644
          }
      }
  
-@@ -1946,6 +2046,11 @@ public abstract class World implements IBlockAccess {
+@@ -1946,6 +2048,11 @@ public abstract class World implements IBlockAccess {
          this.worldData.setWeatherDuration(1);
      }
  
@@ -2835,7 +2854,7 @@ index b694789..ca6d3f0 100644
      protected void A() {
          // this.chunkTickList.clear(); // CraftBukkit - removed
          this.methodProfiler.a("buildList");
-@@ -1955,25 +2060,42 @@ public abstract class World implements IBlockAccess {
+@@ -1955,25 +2062,42 @@ public abstract class World implements IBlockAccess {
          int j;
          int k;
  
@@ -2892,7 +2911,7 @@ index b694789..ca6d3f0 100644
  
          this.methodProfiler.b();
          if (this.O > 0) {
-@@ -1981,7 +2103,7 @@ public abstract class World implements IBlockAccess {
+@@ -1981,7 +2105,7 @@ public abstract class World implements IBlockAccess {
          }
  
          this.methodProfiler.a("playerCheckLight");
@@ -2901,6 +2920,57 @@ index b694789..ca6d3f0 100644
              i = this.random.nextInt(this.players.size());
              entityhuman = (EntityHuman) this.players.get(i);
              j = MathHelper.floor(entityhuman.locX) + this.random.nextInt(11) - 5;
+diff --git a/src/main/java/net/minecraft/server/WorldMapHumanTracker.java b/src/main/java/net/minecraft/server/WorldMapHumanTracker.java
+index bf3e6fe..305dceb 100644
+--- a/src/main/java/net/minecraft/server/WorldMapHumanTracker.java
++++ b/src/main/java/net/minecraft/server/WorldMapHumanTracker.java
+@@ -41,23 +41,29 @@ public class WorldMapHumanTracker {
+             int i;
+             int j;
+ 
+-            org.bukkit.craftbukkit.map.RenderData render = this.worldMap.mapView.render((org.bukkit.craftbukkit.entity.CraftPlayer) trackee.getBukkitEntity()); // CraftBukkit
++            // Spigot start
++            boolean custom = this.worldMap.mapView.renderers.size() > 1 || !(this.worldMap.mapView.renderers.get(0) instanceof org.bukkit.craftbukkit.map.CraftMapRenderer);
++            org.bukkit.craftbukkit.map.RenderData render = (custom) ? this.worldMap.mapView.render((org.bukkit.craftbukkit.entity.CraftPlayer) trackee.getBukkitEntity()) : null; // CraftBukkit
+ 
+             if (--this.g < 0) {
+                 this.g = 4;
+-                abyte = new byte[render.cursors.size() * 3 + 1]; // CraftBukkit
++                abyte = new byte[((custom) ? render.cursors.size() : this.worldMap.g.size()) * 3 + 1]; // CraftBukkit
+                 abyte[0] = 1;
+                 i = 0;
+ 
+                 // CraftBukkit start
+-                for (i = 0; i < render.cursors.size(); ++i) {
+-                    org.bukkit.map.MapCursor cursor = render.cursors.get(i);
+-                    if (!cursor.isVisible()) continue;
+ 
+-                    abyte[i * 3 + 1] = (byte) (cursor.getRawType() << 4 | cursor.getDirection() & 15);
+-                    abyte[i * 3 + 2] = (byte) cursor.getX();
+-                    abyte[i * 3 + 3] = (byte) cursor.getY();
++                // Spigot start
++                for (Iterator iterator = ((custom) ? render.cursors.iterator() : this.worldMap.g.values().iterator()); iterator.hasNext(); ++i) {
++                    org.bukkit.map.MapCursor cursor = (custom) ? (org.bukkit.map.MapCursor) iterator.next() : null;
++                    if (cursor != null && !cursor.isVisible()) continue;
++                    WorldMapDecoration deco = (custom) ? null : (WorldMapDecoration) iterator.next();
++
++                    abyte[i * 3 + 1] = (byte) (((custom) ? cursor.getRawType() : deco.type) << 4 | ((custom) ? cursor.getDirection() : deco.rotation) & 15);
++                    abyte[i * 3 + 2] = (byte) ((custom) ? cursor.getX() : deco.locX);
++                    abyte[i * 3 + 3] = (byte) ((custom) ? cursor.getY() : deco.locY);
+                 }
++                // Spigot end
+                 // CraftBukkit end
+ 
+                 boolean flag = !itemstack.z();
+@@ -92,7 +98,7 @@ public class WorldMapHumanTracker {
+                     abyte1[2] = (byte) j;
+ 
+                     for (int i1 = 0; i1 < abyte1.length - 3; ++i1) {
+-                        abyte1[i1 + 3] = render.buffer[(i1 + j) * 128 + i]; // CraftBukkit
++                        abyte1[i1 + 3] = ((custom) ? render.buffer : this.worldMap.colors)[(i1 + j) * 128 + i];
+                     }
+ 
+                     this.c[i] = -1;
 diff --git a/src/main/java/net/minecraft/server/WorldServer.java b/src/main/java/net/minecraft/server/WorldServer.java
 index ce54462..b7ff543 100644
 --- a/src/main/java/net/minecraft/server/WorldServer.java
@@ -3244,10 +3314,10 @@ index 6b3b9fe..255de03 100644
              player.sendMessage(ChatColor.RED + "An internal error occurred while attempting to tab-complete this command");
              getLogger().log(Level.SEVERE, "Exception when " + player.getName() + " attempted to tab complete " + message, ex);
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
-index adb2bba..804da57 100644
+index adb2bba..1b24d07 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
-@@ -77,7 +77,124 @@ public class CraftWorld implements World {
+@@ -77,7 +77,128 @@ public class CraftWorld implements World {
          if (server.chunkGCPeriod > 0) {
              chunkGCTickCount = rand.nextInt(server.chunkGCPeriod);
          }
@@ -3262,6 +3332,7 @@ index adb2bba..804da57 100644
 +        }
 +
 +        // load defaults first
++        boolean info = configuration.getBoolean("world-settings.default.info", true); 
 +        growthPerTick = configuration.getInt("world-settings.default.growth-chunks-per-tick", growthPerTick);
 +        randomLightingUpdates = configuration.getBoolean("world-settings.default.random-light-updates", randomLightingUpdates);
 +        mobSpawnRange = configuration.getInt("world-settings.default.mob-spawn-range", mobSpawnRange);
@@ -3288,6 +3359,7 @@ index adb2bba..804da57 100644
 +        maxTrackingRange = configuration.getInt("world-settings.default.entity-tracking-range-max");
 +        
 +        //override defaults with world specific, if they exist
++        info = configuration.getBoolean("world-settings." + name + ".info", info);
 +        growthPerTick = configuration.getInt("world-settings." + name + ".growth-chunks-per-tick", growthPerTick);
 +        itemMergeRadius = configuration.getDouble("world-settings." + name + ".item-merge-radius", itemMergeRadius);
 +        expMergeRadius = configuration.getDouble("world-settings." + name + ".exp-merge-radius", expMergeRadius);
@@ -3322,6 +3394,8 @@ index adb2bba..804da57 100644
 +        if (maxTrackingRange == 0) {
 +            System.err.println("Error! Should not have 0 maxRange");
 +        }
++
++        if (!info) return;
 +        server.getLogger().info("-------------- Spigot ----------------");
 +        server.getLogger().info("-------- World Settings For [" + name + "] --------");
 +        server.getLogger().info("Growth Per Chunk: " + growthPerTick);
@@ -3373,36 +3447,36 @@ index adb2bba..804da57 100644
  
      public Block getBlockAt(int x, int y, int z) {
          return getChunkAt(x >> 4, z >> 4).getBlock(x & 0xF, y & 0xFF, z & 0xF);
-@@ -160,6 +277,7 @@ public class CraftWorld implements World {
+@@ -160,6 +281,7 @@ public class CraftWorld implements World {
      }
  
      public boolean unloadChunkRequest(int x, int z, boolean safe) {
-+        if (Thread.currentThread() != MinecraftServer.getServer().primaryThread) throw new IllegalStateException("Asynchronous chunk unload!");
++        if (Thread.currentThread() != MinecraftServer.getServer().primaryThread) throw new IllegalStateException("Asynchronous chunk unload!"); // Spigot
          if (safe && isChunkInUse(x, z)) {
              return false;
          }
-@@ -170,6 +288,7 @@ public class CraftWorld implements World {
+@@ -170,6 +292,7 @@ public class CraftWorld implements World {
      }
  
      public boolean unloadChunk(int x, int z, boolean save, boolean safe) {
-+        if (Thread.currentThread() != MinecraftServer.getServer().primaryThread) throw new IllegalStateException("Asynchronous chunk unload!");
++        if (Thread.currentThread() != MinecraftServer.getServer().primaryThread) throw new IllegalStateException("Asynchronous chunk unload!"); // Spigot
          if (safe && isChunkInUse(x, z)) {
              return false;
          }
-@@ -237,6 +356,7 @@ public class CraftWorld implements World {
+@@ -237,6 +360,7 @@ public class CraftWorld implements World {
      }
  
      public boolean loadChunk(int x, int z, boolean generate) {
-+        if (Thread.currentThread() != MinecraftServer.getServer().primaryThread) throw new IllegalStateException("Asynchronous chunk load!");
++        if (Thread.currentThread() != MinecraftServer.getServer().primaryThread) throw new IllegalStateException("Asynchronous chunk load!"); // Spigot
          chunkLoadCount++;
          if (generate) {
              // Use the default variant of loadChunk when generate == true.
 diff --git a/src/main/java/org/bukkit/craftbukkit/Spigot.java b/src/main/java/org/bukkit/craftbukkit/Spigot.java
 new file mode 100644
-index 0000000..cf17b5a
+index 0000000..8fd635f
 --- /dev/null
 +++ b/src/main/java/org/bukkit/craftbukkit/Spigot.java
-@@ -0,0 +1,372 @@
+@@ -0,0 +1,377 @@
 +package org.bukkit.craftbukkit;
 +
 +import java.io.File;
@@ -3414,18 +3488,18 @@ index 0000000..cf17b5a
 +
 +import java.util.List;
 +import java.util.logging.Level;
++import net.minecraft.server.EntityPlayer;
 +import org.bukkit.Bukkit;
-+import org.bukkit.entity.Player;
 +import org.spigotmc.Metrics;
 +import org.spigotmc.RestartCommand;
 +import org.spigotmc.WatchdogThread;
 +
 +public class Spigot {
-+    static AxisAlignedBB maxBB = AxisAlignedBB.a(0,0,0,0,0,0);
-+    static AxisAlignedBB miscBB = AxisAlignedBB.a(0,0,0,0,0,0);
-+    static AxisAlignedBB animalBB = AxisAlignedBB.a(0,0,0,0,0,0);
-+    static AxisAlignedBB monsterBB = AxisAlignedBB.a(0,0,0,0,0,0);
 +
++    static AxisAlignedBB maxBB = AxisAlignedBB.a(0, 0, 0, 0, 0, 0);
++    static AxisAlignedBB miscBB = AxisAlignedBB.a(0, 0, 0, 0, 0, 0);
++    static AxisAlignedBB animalBB = AxisAlignedBB.a(0, 0, 0, 0, 0, 0);
++    static AxisAlignedBB monsterBB = AxisAlignedBB.a(0, 0, 0, 0, 0, 0);
 +    public static boolean tabPing = false;
 +    private static Metrics metrics;
 +    public static List<String> bungeeIPs;
@@ -3483,6 +3557,7 @@ index 0000000..cf17b5a
 +    /**
 +     * Initializes an entities type on construction to specify what group this
 +     * entity is in for activation ranges.
++     *
 +     * @param entity
 +     * @return group id
 +     */
@@ -3504,21 +3579,20 @@ index 0000000..cf17b5a
 +     * @return boolean If it should always tick.
 +     */
 +    public static boolean initializeEntityActivationState(Entity entity, CraftWorld world) {
-+        if (   (entity.activationType == 3 && world.miscEntityActivationRange == 0)
-+            || (entity.activationType == 2 && world.animalEntityActivationRange == 0)
-+            || (entity.activationType == 1 && world.monsterEntityActivationRange == 0)
-+            || entity instanceof EntityHuman
-+            || entity instanceof EntityItemFrame
-+            || entity instanceof EntityProjectile
-+            || entity instanceof EntityEnderDragon
-+            || entity instanceof EntityComplexPart
-+            || entity instanceof EntityWither
-+            || entity instanceof EntityFireball
-+            || entity instanceof EntityWeather
-+            || entity instanceof EntityTNTPrimed
-+            || entity instanceof EntityEnderCrystal
-+            || entity instanceof EntityFireworks
-+            ) {
++        if ((entity.activationType == 3 && world.miscEntityActivationRange == 0)
++                || (entity.activationType == 2 && world.animalEntityActivationRange == 0)
++                || (entity.activationType == 1 && world.monsterEntityActivationRange == 0)
++                || entity instanceof EntityHuman
++                || entity instanceof EntityItemFrame
++                || entity instanceof EntityProjectile
++                || entity instanceof EntityEnderDragon
++                || entity instanceof EntityComplexPart
++                || entity instanceof EntityWither
++                || entity instanceof EntityFireball
++                || entity instanceof EntityWeather
++                || entity instanceof EntityTNTPrimed
++                || entity instanceof EntityEnderCrystal
++                || entity instanceof EntityFireworks) {
 +            return true;
 +        }
 +
@@ -3528,6 +3602,7 @@ index 0000000..cf17b5a
 +    /**
 +     * Utility method to grow an AABB without creating a new AABB or touching
 +     * the pool, so we can re-use ones we have.
++     *
 +     * @param target
 +     * @param source
 +     * @param x
@@ -3546,6 +3621,7 @@ index 0000000..cf17b5a
 +    /**
 +     * Find what entities are in range of the players in the world and set
 +     * active if in range.
++     *
 +     * @param world
 +     */
 +    public static void activateEntities(World world) {
@@ -3584,6 +3660,7 @@ index 0000000..cf17b5a
 +
 +    /**
 +     * Checks for the activation state of all entities in this chunk.
++     *
 +     * @param chunk
 +     */
 +    private static void activateChunkEntities(Chunk chunk) {
@@ -3619,6 +3696,7 @@ index 0000000..cf17b5a
 +    /**
 +     * If an entity is not in range, do some more checks to see if we should
 +     * give it a shot.
++     *
 +     * @param entity
 +     * @return
 +     */
@@ -3629,7 +3707,7 @@ index 0000000..cf17b5a
 +        }
 +        if (!(entity instanceof EntityArrow)) {
 +            if (!entity.onGround || entity.passenger != null
-+                || entity.vehicle != null) {
++                    || entity.vehicle != null) {
 +                return true;
 +            }
 +        } else if (!((EntityArrow) entity).inGround) {
@@ -3659,6 +3737,7 @@ index 0000000..cf17b5a
 +
 +    /**
 +     * Checks if the entity is active for this tick.
++     *
 +     * @param entity
 +     * @return
 +     */
@@ -3698,8 +3777,8 @@ index 0000000..cf17b5a
 +                System.out.println("Attempting to restart with " + startupScript);
 +
 +                // Kick all players
-+                for (Player p : Bukkit.getServer().getOnlinePlayers()) {
-+                   ((org.bukkit.craftbukkit.entity.CraftPlayer) p).kickPlayer("Server is restarting", true);
++                for (EntityPlayer p : (List< EntityPlayer>) MinecraftServer.getServer().getPlayerList().players) {
++                    p.playerConnection.disconnect("Server is restarting");
 +                }
 +                // Give the socket a chance to send the packets
 +                try {
@@ -3724,15 +3803,15 @@ index 0000000..cf17b5a
 +                // This will be done AFTER the server has completely halted
 +                Thread shutdownHook = new Thread() {
 +                    @Override
-+                    public void run(){
++                    public void run() {
 +                        try {
 +                            String os = System.getProperty("os.name").toLowerCase();
 +                            if (os.contains("win")) {
 +                                Runtime.getRuntime().exec("cmd /c start " + file.getPath());
 +                            } else {
-+                                Runtime.getRuntime().exec(new String[] { "sh", file.getPath()});
++                                Runtime.getRuntime().exec(new String[]{"sh", file.getPath()});
 +                            }
-+                        } catch (Exception e){
++                        } catch (Exception e) {
 +                            e.printStackTrace();
 +                        }
 +                    }
@@ -3933,56 +4012,6 @@ index 48cf5ba..1d4764c 100644
              return;
          }
  
-diff --git a/src/main/java/org/bukkit/craftbukkit/command/ColouredConsoleSender.java b/src/main/java/org/bukkit/craftbukkit/command/ColouredConsoleSender.java
-index c86253c..3ab8f3b 100644
---- a/src/main/java/org/bukkit/craftbukkit/command/ColouredConsoleSender.java
-+++ b/src/main/java/org/bukkit/craftbukkit/command/ColouredConsoleSender.java
-@@ -22,28 +22,28 @@ public class ColouredConsoleSender extends CraftConsoleCommandSender {
-         this.reader = ((CraftServer) getServer()).getReader();
-         this.terminal = reader.getTerminal();
- 
--        replacements.put(ChatColor.BLACK, Ansi.ansi().fg(Ansi.Color.BLACK).boldOff().toString());
--        replacements.put(ChatColor.DARK_BLUE, Ansi.ansi().fg(Ansi.Color.BLUE).boldOff().toString());
--        replacements.put(ChatColor.DARK_GREEN, Ansi.ansi().fg(Ansi.Color.GREEN).boldOff().toString());
--        replacements.put(ChatColor.DARK_AQUA, Ansi.ansi().fg(Ansi.Color.CYAN).boldOff().toString());
--        replacements.put(ChatColor.DARK_RED, Ansi.ansi().fg(Ansi.Color.RED).boldOff().toString());
--        replacements.put(ChatColor.DARK_PURPLE, Ansi.ansi().fg(Ansi.Color.MAGENTA).boldOff().toString());
--        replacements.put(ChatColor.GOLD, Ansi.ansi().fg(Ansi.Color.YELLOW).boldOff().toString());
--        replacements.put(ChatColor.GRAY, Ansi.ansi().fg(Ansi.Color.WHITE).boldOff().toString());
--        replacements.put(ChatColor.DARK_GRAY, Ansi.ansi().fg(Ansi.Color.BLACK).bold().toString());
--        replacements.put(ChatColor.BLUE, Ansi.ansi().fg(Ansi.Color.BLUE).bold().toString());
--        replacements.put(ChatColor.GREEN, Ansi.ansi().fg(Ansi.Color.GREEN).bold().toString());
--        replacements.put(ChatColor.AQUA, Ansi.ansi().fg(Ansi.Color.CYAN).bold().toString());
--        replacements.put(ChatColor.RED, Ansi.ansi().fg(Ansi.Color.RED).bold().toString());
--        replacements.put(ChatColor.LIGHT_PURPLE, Ansi.ansi().fg(Ansi.Color.MAGENTA).bold().toString());
--        replacements.put(ChatColor.YELLOW, Ansi.ansi().fg(Ansi.Color.YELLOW).bold().toString());
--        replacements.put(ChatColor.WHITE, Ansi.ansi().fg(Ansi.Color.WHITE).bold().toString());
-+        replacements.put(ChatColor.BLACK, Ansi.ansi().a(Attribute.RESET).fg(Ansi.Color.BLACK).boldOff().toString());
-+        replacements.put(ChatColor.DARK_BLUE, Ansi.ansi().a(Attribute.RESET).fg(Ansi.Color.BLUE).boldOff().toString());
-+        replacements.put(ChatColor.DARK_GREEN, Ansi.ansi().a(Attribute.RESET).fg(Ansi.Color.GREEN).boldOff().toString());
-+        replacements.put(ChatColor.DARK_AQUA, Ansi.ansi().a(Attribute.RESET).fg(Ansi.Color.CYAN).boldOff().toString());
-+        replacements.put(ChatColor.DARK_RED, Ansi.ansi().a(Attribute.RESET).fg(Ansi.Color.RED).boldOff().toString());
-+        replacements.put(ChatColor.DARK_PURPLE, Ansi.ansi().a(Attribute.RESET).fg(Ansi.Color.MAGENTA).boldOff().toString());
-+        replacements.put(ChatColor.GOLD, Ansi.ansi().a(Attribute.RESET).fg(Ansi.Color.YELLOW).boldOff().toString());
-+        replacements.put(ChatColor.GRAY, Ansi.ansi().a(Attribute.RESET).fg(Ansi.Color.WHITE).boldOff().toString());
-+        replacements.put(ChatColor.DARK_GRAY, Ansi.ansi().a(Attribute.RESET).fg(Ansi.Color.BLACK).bold().toString());
-+        replacements.put(ChatColor.BLUE, Ansi.ansi().a(Attribute.RESET).fg(Ansi.Color.BLUE).bold().toString());
-+        replacements.put(ChatColor.GREEN, Ansi.ansi().a(Attribute.RESET).fg(Ansi.Color.GREEN).bold().toString());
-+        replacements.put(ChatColor.AQUA, Ansi.ansi().a(Attribute.RESET).fg(Ansi.Color.CYAN).bold().toString());
-+        replacements.put(ChatColor.RED, Ansi.ansi().a(Attribute.RESET).fg(Ansi.Color.RED).bold().toString());
-+        replacements.put(ChatColor.LIGHT_PURPLE, Ansi.ansi().a(Attribute.RESET).fg(Ansi.Color.MAGENTA).bold().toString());
-+        replacements.put(ChatColor.YELLOW, Ansi.ansi().a(Attribute.RESET).fg(Ansi.Color.YELLOW).bold().toString());
-+        replacements.put(ChatColor.WHITE, Ansi.ansi().a(Attribute.RESET).fg(Ansi.Color.WHITE).bold().toString());
-         replacements.put(ChatColor.MAGIC, Ansi.ansi().a(Attribute.BLINK_SLOW).toString());
-         replacements.put(ChatColor.BOLD, Ansi.ansi().a(Attribute.UNDERLINE_DOUBLE).toString());
-         replacements.put(ChatColor.STRIKETHROUGH, Ansi.ansi().a(Attribute.STRIKETHROUGH_ON).toString());
-         replacements.put(ChatColor.UNDERLINE, Ansi.ansi().a(Attribute.UNDERLINE).toString());
-         replacements.put(ChatColor.ITALIC, Ansi.ansi().a(Attribute.ITALIC).toString());
--        replacements.put(ChatColor.RESET, Ansi.ansi().a(Attribute.RESET).fg(Ansi.Color.DEFAULT).toString());
-+        replacements.put(ChatColor.RESET, Ansi.ansi().a(Attribute.RESET).toString());
-     }
- 
-     @Override
 diff --git a/src/main/java/org/bukkit/craftbukkit/command/TicksPerSecondCommand.java b/src/main/java/org/bukkit/craftbukkit/command/TicksPerSecondCommand.java
 new file mode 100644
 index 0000000..f114a31
@@ -4025,28 +4054,18 @@ index 0000000..f114a31
 +    }
 +}
 diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
-index 70111e7..d7a3bc7 100644
+index 70111e7..56cdfb7 100644
 --- a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
-@@ -213,10 +213,17 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+@@ -213,6 +213,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
      }
  
      public void kickPlayer(String message) {
-+        // Spigot start
-+        kickPlayer(message, false);
-+    }
-+
-+    public void kickPlayer(String message, boolean async){
++        if (Thread.currentThread() != MinecraftServer.getServer().primaryThread) throw new IllegalStateException("Asynchronous player kick!"); // Spigot
          if (getHandle().playerConnection == null) return;
-+        if (!async && !Bukkit.isPrimaryThread()) throw new IllegalStateException("Cannot kick player from asynchronous thread!"); // Spigot
  
          getHandle().playerConnection.disconnect(message == null ? "" : message);
-     }
-+    // Spigot end
- 
-     public void setCompassTarget(Location loc) {
-         if (getHandle().playerConnection == null) return;
-@@ -625,10 +632,28 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+@@ -625,10 +626,28 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
          ChunkCoordinates bed = getHandle().getBed();
  
          if (world != null && bed != null) {
@@ -4077,7 +4096,7 @@ index 70111e7..d7a3bc7 100644
          }
          return null;
      }
-@@ -809,7 +834,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+@@ -809,7 +828,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
      public void setTexturePack(String url) {
          Validate.notNull(url, "Texture pack URL cannot be null");
  
@@ -4087,18 +4106,31 @@ index 70111e7..d7a3bc7 100644
  
          getHandle().playerConnection.sendPacket(new Packet250CustomPayload("MC|TPack", message));
 diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftInventoryView.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftInventoryView.java
-index 6ffc73d..1c7934d 100644
+index 1c7934d..6ffc73d 100644
 --- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftInventoryView.java
 +++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftInventoryView.java
 @@ -75,7 +75,7 @@ public class CraftInventoryView extends InventoryView {
  
      public static SlotType getSlotType(InventoryView inventory, int slot) {
          SlotType type = SlotType.CONTAINER;
--        if (slot < inventory.getTopInventory().getSize()) {
-+        if (slot >= 0 && slot < inventory.getTopInventory().getSize()) {
+-        if (slot >= 0 && slot < inventory.getTopInventory().getSize()) {
++        if (slot < inventory.getTopInventory().getSize()) {
              switch(inventory.getType()) {
              case FURNACE:
                  if (slot == 2) {
+diff --git a/src/main/java/org/bukkit/craftbukkit/map/CraftMapView.java b/src/main/java/org/bukkit/craftbukkit/map/CraftMapView.java
+index b28d6a3..e70e4e4 100644
+--- a/src/main/java/org/bukkit/craftbukkit/map/CraftMapView.java
++++ b/src/main/java/org/bukkit/craftbukkit/map/CraftMapView.java
+@@ -18,7 +18,7 @@ import org.bukkit.map.MapView;
+ public final class CraftMapView implements MapView {
+ 
+     private final Map<CraftPlayer, RenderData> renderCache = new HashMap<CraftPlayer, RenderData>();
+-    private final List<MapRenderer> renderers = new ArrayList<MapRenderer>();
++    public final List<MapRenderer> renderers = new ArrayList<MapRenderer>(); // Spigot
+     private final Map<MapRenderer, Map<CraftPlayer, CraftMapCanvas>> canvases = new HashMap<MapRenderer, Map<CraftPlayer, CraftMapCanvas>>();
+     protected final WorldMap worldMap;
+ 
 diff --git a/src/main/java/org/bukkit/craftbukkit/scheduler/CraftScheduler.java b/src/main/java/org/bukkit/craftbukkit/scheduler/CraftScheduler.java
 index 0a5c61a..35badf3 100644
 --- a/src/main/java/org/bukkit/craftbukkit/scheduler/CraftScheduler.java
@@ -6129,10 +6161,10 @@ index 0000000..5dc3754
 +    DATA;
 +}
 diff --git a/src/main/resources/configurations/bukkit.yml b/src/main/resources/configurations/bukkit.yml
-index 61a95e3..4034c6f 100644
+index 61a95e3..bc0b044 100644
 --- a/src/main/resources/configurations/bukkit.yml
 +++ b/src/main/resources/configurations/bukkit.yml
-@@ -25,6 +25,49 @@ settings:
+@@ -25,6 +25,50 @@ settings:
      query-plugins: true
      deprecated-verbose: default
      shutdown-message: Server closed
@@ -6172,6 +6204,7 @@ index 61a95e3..4034c6f 100644
 +        entity-tracking-range-monsters: 48
 +        entity-tracking-range-misc: 32
 +        entity-tracking-range-max: 64
++        info: true
 +    world:
 +        growth-chunks-per-tick: 1000
 +    world_nether:
@@ -6182,7 +6215,7 @@ index 61a95e3..4034c6f 100644
  spawn-limits:
      monsters: 70
      animals: 15
-@@ -53,3 +96,10 @@ database:
+@@ -53,3 +97,10 @@ database:
      driver: org.sqlite.JDBC
      password: walrus
      url: jdbc:sqlite:{DIR}{NAME}.db
