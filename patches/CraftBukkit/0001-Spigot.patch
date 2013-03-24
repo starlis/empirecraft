@@ -1,6 +1,6 @@
-From dbada64429516f7ac0b787070532553c9f160bd6 Mon Sep 17 00:00:00 2001
+From 16e21e1723b92be0cee73d78797343331123facb Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Sat, 23 Mar 2013 21:20:25 -0400
+Date: Sun, 24 Mar 2013 00:58:18 -0400
 Subject: [PATCH] Spigot
 
 ---
@@ -57,13 +57,15 @@ Subject: [PATCH] Spigot
  .../java/net/minecraft/server/WorldServer.java     |  63 +-
  .../java/org/bukkit/craftbukkit/CraftChunk.java    |  44 +-
  .../java/org/bukkit/craftbukkit/CraftServer.java   |  54 +-
- .../java/org/bukkit/craftbukkit/CraftWorld.java    | 126 +++-
+ .../java/org/bukkit/craftbukkit/CraftWorld.java    | 128 +++-
  src/main/java/org/bukkit/craftbukkit/Spigot.java   | 377 ++++++++++++
  .../java/org/bukkit/craftbukkit/SpigotTimings.java | 113 ++++
  .../org/bukkit/craftbukkit/block/CraftSign.java    |   8 +-
  .../craftbukkit/chunkio/ChunkIOProvider.java       |   2 +-
  .../craftbukkit/command/TicksPerSecondCommand.java |  35 ++
+ .../craftbukkit/entity/CraftLivingEntity.java      |   7 -
  .../org/bukkit/craftbukkit/entity/CraftPlayer.java |  25 +-
+ .../craftbukkit/event/CraftEventFactory.java       |   2 -
  .../craftbukkit/inventory/CraftInventoryView.java  |   2 +-
  .../org/bukkit/craftbukkit/map/CraftMapView.java   |   2 +-
  .../craftbukkit/scheduler/CraftScheduler.java      |   2 +-
@@ -85,7 +87,7 @@ Subject: [PATCH] Spigot
  .../java/org/spigotmc/netty/PacketListener.java    | 100 ++++
  src/main/java/org/spigotmc/netty/ReadState.java    |  16 +
  src/main/resources/configurations/bukkit.yml       |  51 ++
- 81 files changed, 3980 insertions(+), 248 deletions(-)
+ 83 files changed, 3980 insertions(+), 259 deletions(-)
  create mode 100644 src/main/java/net/minecraft/server/DataWatcher.java
  create mode 100644 src/main/java/net/minecraft/server/INetworkManager.java
  create mode 100644 src/main/java/net/minecraft/server/NibbleArray.java
@@ -3314,7 +3316,7 @@ index 6b3b9fe..255de03 100644
              player.sendMessage(ChatColor.RED + "An internal error occurred while attempting to tab-complete this command");
              getLogger().log(Level.SEVERE, "Exception when " + player.getName() + " attempted to tab complete " + message, ex);
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
-index adb2bba..1b24d07 100644
+index 41cb825..1b24d07 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
 @@ -77,7 +77,128 @@ public class CraftWorld implements World {
@@ -3471,6 +3473,15 @@ index adb2bba..1b24d07 100644
          chunkLoadCount++;
          if (generate) {
              // Use the default variant of loadChunk when generate == true.
+@@ -848,8 +972,6 @@ public class CraftWorld implements World {
+             } else if (ThrownExpBottle.class.isAssignableFrom(clazz)) {
+                 entity = new EntityThrownExpBottle(world);
+                 entity.setPositionRotation(x, y, z, 0, 0);
+-            } else if (ThrownPotion.class.isAssignableFrom(clazz)) {
+-                entity = new EntityPotion(world, x, y, z, CraftItemStack.asNMSCopy(new ItemStack(org.bukkit.Material.POTION, 1)));
+             } else if (Fireball.class.isAssignableFrom(clazz)) {
+                 if (SmallFireball.class.isAssignableFrom(clazz)) {
+                     entity = new EntitySmallFireball(world);
 diff --git a/src/main/java/org/bukkit/craftbukkit/Spigot.java b/src/main/java/org/bukkit/craftbukkit/Spigot.java
 new file mode 100644
 index 0000000..8fd635f
@@ -4053,6 +4064,52 @@ index 0000000..f114a31
 +        return true;
 +    }
 +}
+diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftLivingEntity.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftLivingEntity.java
+index 58c7db0..7a7fd39 100644
+--- a/src/main/java/org/bukkit/craftbukkit/entity/CraftLivingEntity.java
++++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftLivingEntity.java
+@@ -16,7 +16,6 @@ import net.minecraft.server.EntityLiving;
+ import net.minecraft.server.EntitySmallFireball;
+ import net.minecraft.server.EntitySnowball;
+ import net.minecraft.server.EntityPlayer;
+-import net.minecraft.server.EntityPotion;
+ import net.minecraft.server.EntityWitherSkull;
+ import net.minecraft.server.MobEffect;
+ import net.minecraft.server.MobEffectList;
+@@ -25,12 +24,10 @@ import net.minecraft.server.Packet42RemoveMobEffect;
+ import org.apache.commons.lang.Validate;
+ 
+ import org.bukkit.Location;
+-import org.bukkit.Material;
+ import org.bukkit.block.Block;
+ import org.bukkit.craftbukkit.CraftServer;
+ import org.bukkit.craftbukkit.CraftWorld;
+ import org.bukkit.craftbukkit.inventory.CraftEntityEquipment;
+-import org.bukkit.craftbukkit.inventory.CraftItemStack;
+ import org.bukkit.entity.Arrow;
+ import org.bukkit.entity.Egg;
+ import org.bukkit.entity.Entity;
+@@ -43,11 +40,9 @@ import org.bukkit.entity.Player;
+ import org.bukkit.entity.Projectile;
+ import org.bukkit.entity.SmallFireball;
+ import org.bukkit.entity.Snowball;
+-import org.bukkit.entity.ThrownPotion;
+ import org.bukkit.entity.WitherSkull;
+ import org.bukkit.event.player.PlayerTeleportEvent;
+ import org.bukkit.inventory.EntityEquipment;
+-import org.bukkit.inventory.ItemStack;
+ import org.bukkit.potion.PotionEffect;
+ import org.bukkit.potion.PotionEffectType;
+ import org.bukkit.util.BlockIterator;
+@@ -304,8 +299,6 @@ public class CraftLivingEntity extends CraftEntity implements LivingEntity {
+             launch = new EntityEnderPearl(world, getHandle());
+         } else if (Arrow.class.isAssignableFrom(projectile)) {
+             launch = new EntityArrow(world, getHandle(), 1);
+-        } else if (ThrownPotion.class.isAssignableFrom(projectile)) {
+-            launch = new EntityPotion(world, getHandle(), CraftItemStack.asNMSCopy(new ItemStack(Material.POTION, 1)));
+         } else if (Fireball.class.isAssignableFrom(projectile)) {
+             Location location = getEyeLocation();
+             Vector direction = location.getDirection().multiply(10);
 diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
 index 70111e7..56cdfb7 100644
 --- a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
@@ -4105,6 +4162,19 @@ index 70111e7..56cdfb7 100644
          Validate.isTrue(message.length <= Messenger.MAX_MESSAGE_SIZE, "Texture pack URL is too long");
  
          getHandle().playerConnection.sendPacket(new Packet250CustomPayload("MC|TPack", message));
+diff --git a/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java b/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
+index 4ea9c0c..df4e2c3 100644
+--- a/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
++++ b/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
+@@ -389,8 +389,6 @@ public class CraftEventFactory {
+             } else if (damager.getBukkitEntity() instanceof Projectile) {
+                 cause = DamageCause.PROJECTILE;
+             }
+-        } else if ("thorns".equals(source.translationIndex)) {
+-            cause = DamageCause.THORNS;
+         }
+ 
+         return callEntityDamageEvent(damager, entity, cause, damage);
 diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftInventoryView.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftInventoryView.java
 index 1c7934d..6ffc73d 100644
 --- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftInventoryView.java
