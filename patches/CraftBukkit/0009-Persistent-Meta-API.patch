@@ -1,4 +1,4 @@
-From 5687de715288651dd28cf734ca12bb59431c2a0e Mon Sep 17 00:00:00 2001
+From a82757fac3317bb7f111c119864095d19e1e51ec Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Mon, 4 Mar 2013 23:35:02 -0500
 Subject: [PATCH] Persistent Meta API
@@ -197,7 +197,7 @@ index 7f1c155..be9162a 100644
  
      public Chunk(World world, byte[] abyte, int i, int j) {
 diff --git a/src/main/java/net/minecraft/server/ChunkRegionLoader.java b/src/main/java/net/minecraft/server/ChunkRegionLoader.java
-index 7a98822..3f4dab2 100644
+index 7a98822..42b4597 100644
 --- a/src/main/java/net/minecraft/server/ChunkRegionLoader.java
 +++ b/src/main/java/net/minecraft/server/ChunkRegionLoader.java
 @@ -104,6 +104,7 @@ public class ChunkRegionLoader implements IAsyncChunkSaver, IChunkLoader {
@@ -245,7 +245,7 @@ index 7a98822..3f4dab2 100644
              }
 -            pendingchunktosave = this.pendingSaves.values().iterator().next();
 +            pendingchunktosave = (MetaApiAccessor.PendingChunkToSaveWithMeta) this.pendingSaves.values().iterator().next(); // EMC
-+            MetaApiAccessor.saveChunkMetaNbt(pendingchunktosave.b, pendingchunktosave.meta); // EMC
++            MetaApiAccessor.saveChunkMetaNbt(pendingchunktosave.b, pendingchunktosave); // EMC
              this.pendingSaves.remove(pendingchunktosave.a);
              /*
              if (this.a.isEmpty()) {
@@ -279,7 +279,7 @@ index 52ecc09..48c54a6 100644
                  this.motX = 0.0D;
 diff --git a/src/main/java/net/minecraft/server/MetaApiAccessor.java b/src/main/java/net/minecraft/server/MetaApiAccessor.java
 new file mode 100644
-index 0000000..38c3328
+index 0000000..f6fa9fb
 --- /dev/null
 +++ b/src/main/java/net/minecraft/server/MetaApiAccessor.java
 @@ -0,0 +1,269 @@
@@ -302,7 +302,7 @@ index 0000000..38c3328
 +     */
 +    public static MetaMap getBlockMetaMap(org.bukkit.Location loc) {
 +        ChunkMeta meta = ((CraftChunk)loc.getChunk()).getHandle().chunkMeta;
-+        return getChunkMetaMap(meta, loc.getBlockX(), loc.getBlockY(), loc.getBlockZ());
++        return getBlockMetaMap(meta, loc.getBlockX(), loc.getBlockY(), loc.getBlockZ());
 +    }
 +
 +    /**
@@ -312,7 +312,7 @@ index 0000000..38c3328
 +     */
 +    public static MetaMap getChunkMetaMap(org.bukkit.Chunk chunk) {
 +        ChunkMeta meta = ((CraftChunk) chunk).getHandle().chunkMeta;
-+        return getChunkMetaMap(meta, 0, -1, 0);
++        return getBlockMetaMap(meta, 0, -1, 0);
 +    }
 +
 +    /**
@@ -323,7 +323,7 @@ index 0000000..38c3328
 +     * @param z
 +     * @return
 +     */
-+    public static MetaMap getChunkMetaMap(ChunkMeta meta, int x, int y, int z) {
++    public static MetaMap getBlockMetaMap(ChunkMeta meta, int x, int y, int z) {
 +        ChunkCoordinates coords = new ChunkCoordinates(x, y,  z);
 +        MetaMap ret = meta.get(coords);
 +        if (ret == null) {
@@ -357,7 +357,7 @@ index 0000000..38c3328
 +    }
 +    public static void saveEntityMeta(Entity entity, NBTTagCompound nbt) {
 +        if (entity.metaMap != null && entity.metaMap.size() > 0) {
-+            NBTBase nbtmeta = getNbtFromObject(entity.metaMap);
++            NBTBase nbtmeta = getNbtFromObject(entity.metaMap.clone());
 +            nbt.set("_EntityMeta", nbtmeta);
 +        }
 +    }
@@ -367,9 +367,9 @@ index 0000000..38c3328
 +     * @param cmp
 +     * @param chunkMeta
 +     */
-+    static void saveChunkMetaNbt(NBTTagCompound cmp, ChunkMeta chunkMeta) {
++    static void saveChunkMetaNbt(NBTTagCompound cmp, PendingChunkToSaveWithMeta chunkMeta) {
 +        NBTTagCompound meta = new NBTTagCompound();
-+        for (Map.Entry<ChunkCoordinates, MetaMap> entry : chunkMeta.entrySet()) {
++        for (Map.Entry<ChunkCoordinates, MetaMap> entry : ((ChunkMeta)chunkMeta.meta.clone()).entrySet()) {
 +            ChunkCoordinates coords = entry.getKey();
 +            MetaMap list = entry.getValue();
 +            NBTTagCompound metalist = getCompoundFromMetaList(list);
