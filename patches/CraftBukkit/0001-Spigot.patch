@@ -1,6 +1,6 @@
-From 5fd60cf861f0b69915ab74e48b8a70d7da379a66 Mon Sep 17 00:00:00 2001
+From 85d9b89acca0ad5ba835e0a605016a64cb64ae6e Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Mon, 25 Mar 2013 23:53:02 -0400
+Date: Thu, 28 Mar 2013 09:15:00 -0400
 Subject: [PATCH] Spigot
 
 ---
@@ -18,15 +18,12 @@ Subject: [PATCH] Spigot
  .../net/minecraft/server/ChunkProviderServer.java  |   2 +
  .../net/minecraft/server/ChunkRegionLoader.java    |  45 +-
  .../java/net/minecraft/server/ChunkSection.java    |  47 +-
- .../minecraft/server/ContainerEnchantTable.java    |   3 +-
  .../java/net/minecraft/server/DataWatcher.java     | 287 +++++++++
  .../java/net/minecraft/server/DedicatedServer.java |   8 +-
  .../server/DispenseBehaviorEmptyBucket.java        |   2 +-
  src/main/java/net/minecraft/server/Entity.java     |  21 +-
  .../java/net/minecraft/server/EntityArrow.java     |   2 +-
- src/main/java/net/minecraft/server/EntityBoat.java |  13 -
  .../net/minecraft/server/EntityFallingBlock.java   |   1 +
- .../net/minecraft/server/EntityFishingHook.java    |   8 +-
  .../java/net/minecraft/server/EntityHanging.java   |  15 +
  .../java/net/minecraft/server/EntityHuman.java     |   6 +
  src/main/java/net/minecraft/server/EntityItem.java |  23 +-
@@ -61,15 +58,12 @@ Subject: [PATCH] Spigot
  .../java/org/bukkit/craftbukkit/CraftChunk.java    |  44 +-
  .../java/org/bukkit/craftbukkit/CraftServer.java   |  54 +-
  .../java/org/bukkit/craftbukkit/CraftWorld.java    | 126 +++-
- src/main/java/org/bukkit/craftbukkit/Spigot.java   | 377 ++++++++++++
+ src/main/java/org/bukkit/craftbukkit/Spigot.java   | 378 ++++++++++++
  .../java/org/bukkit/craftbukkit/SpigotTimings.java | 113 ++++
  .../org/bukkit/craftbukkit/block/CraftSign.java    |   8 +-
  .../craftbukkit/chunkio/ChunkIOProvider.java       |   2 +-
  .../craftbukkit/command/TicksPerSecondCommand.java |  35 ++
- .../org/bukkit/craftbukkit/entity/CraftFish.java   |  21 -
  .../org/bukkit/craftbukkit/entity/CraftPlayer.java |  25 +-
- .../inventory/CraftMetaEnchantedBook.java          |   4 -
- .../craftbukkit/inventory/CraftMetaItem.java       |  18 -
  .../org/bukkit/craftbukkit/map/CraftMapView.java   |   2 +-
  .../craftbukkit/scheduler/CraftScheduler.java      |   2 +-
  .../bukkit/craftbukkit/scheduler/CraftTask.java    |  18 +
@@ -82,16 +76,15 @@ Subject: [PATCH] Spigot
  src/main/java/org/spigotmc/RestartCommand.java     |  23 +
  src/main/java/org/spigotmc/WatchdogThread.java     |  93 +++
  src/main/java/org/spigotmc/netty/CipherCodec.java  |  49 ++
- .../org/spigotmc/netty/NettyNetworkManager.java    | 235 ++++++++
- .../org/spigotmc/netty/NettyServerConnection.java  | 109 ++++
+ .../org/spigotmc/netty/NettyNetworkManager.java    | 251 ++++++++
+ .../org/spigotmc/netty/NettyServerConnection.java  | 112 ++++
  .../org/spigotmc/netty/NettySocketAdaptor.java     | 248 ++++++++
  .../java/org/spigotmc/netty/PacketDecoder.java     |  64 ++
  .../java/org/spigotmc/netty/PacketEncoder.java     |  43 ++
  .../java/org/spigotmc/netty/PacketListener.java    | 100 ++++
  src/main/java/org/spigotmc/netty/ReadState.java    |  16 +
  src/main/resources/configurations/bukkit.yml       |  51 ++
- .../bukkit/craftbukkit/inventory/ItemMetaTest.java |  47 --
- 87 files changed, 3970 insertions(+), 346 deletions(-)
+ 80 files changed, 3982 insertions(+), 240 deletions(-)
  create mode 100644 src/main/java/net/minecraft/server/DataWatcher.java
  create mode 100644 src/main/java/net/minecraft/server/INetworkManager.java
  create mode 100644 src/main/java/net/minecraft/server/NibbleArray.java
@@ -597,27 +590,6 @@ index 38f3038..623399f 100644
      }
 +    // Spigot end
  }
-diff --git a/src/main/java/net/minecraft/server/ContainerEnchantTable.java b/src/main/java/net/minecraft/server/ContainerEnchantTable.java
-index 92b654a..02d861e 100644
---- a/src/main/java/net/minecraft/server/ContainerEnchantTable.java
-+++ b/src/main/java/net/minecraft/server/ContainerEnchantTable.java
-@@ -79,7 +79,7 @@ public class ContainerEnchantTable extends Container {
-             ItemStack itemstack = iinventory.getItem(0);
-             int i;
- 
--            if (itemstack != null) { // CraftBukkit - relax condition
-+            if (itemstack != null && itemstack.w()) {
-                 this.f = this.l.nextLong();
-                 if (!this.world.isStatic) {
-                     i = 0;
-@@ -125,7 +125,6 @@ public class ContainerEnchantTable extends Container {
-                     // CraftBukkit start
-                     CraftItemStack item = CraftItemStack.asCraftMirror(itemstack);
-                     PrepareItemEnchantEvent event = new PrepareItemEnchantEvent(player, this.getBukkitView(), this.world.getWorld().getBlockAt(this.x, this.y, this.z), item, this.costs, i);
--                    event.setCancelled(!itemstack.w());
-                     this.world.getServer().getPluginManager().callEvent(event);
- 
-                     if (event.isCancelled()) {
 diff --git a/src/main/java/net/minecraft/server/DataWatcher.java b/src/main/java/net/minecraft/server/DataWatcher.java
 new file mode 100644
 index 0000000..f0fa9ca
@@ -1024,10 +996,10 @@ index 7890d6f..52ecc09 100644
  
      protected void C() {
 diff --git a/src/main/java/net/minecraft/server/EntityArrow.java b/src/main/java/net/minecraft/server/EntityArrow.java
-index 2c0f689..efda9a9 100644
+index f46c920..1699059 100644
 --- a/src/main/java/net/minecraft/server/EntityArrow.java
 +++ b/src/main/java/net/minecraft/server/EntityArrow.java
-@@ -16,7 +16,7 @@ public class EntityArrow extends Entity implements IProjectile {
+@@ -14,7 +14,7 @@ public class EntityArrow extends Entity implements IProjectile {
      private int f = -1;
      private int g = 0;
      private int h = 0;
@@ -1036,39 +1008,6 @@ index 2c0f689..efda9a9 100644
      public int fromPlayer = 0;
      public int shake = 0;
      public Entity shooter;
-diff --git a/src/main/java/net/minecraft/server/EntityBoat.java b/src/main/java/net/minecraft/server/EntityBoat.java
-index 8839a45..4aa3d59 100644
---- a/src/main/java/net/minecraft/server/EntityBoat.java
-+++ b/src/main/java/net/minecraft/server/EntityBoat.java
-@@ -4,7 +4,6 @@ import java.util.List;
- 
- // CraftBukkit start
- import org.bukkit.Location;
--import org.bukkit.craftbukkit.event.CraftEventFactory;
- import org.bukkit.entity.Vehicle;
- import org.bukkit.event.vehicle.VehicleDamageEvent;
- import org.bukkit.event.vehicle.VehicleDestroyEvent;
-@@ -380,20 +379,8 @@ public class EntityBoat extends Entity {
-                         int i2 = this.world.getTypeId(i1, l1, j1);
- 
-                         if (i2 == Block.SNOW.id) {
--                            // CraftBukkit start
--                            if (CraftEventFactory.callEntityChangeBlockEvent(this, i1, l1, j1, 0, 0).isCancelled()) {
--                                continue;
--                            }
--                            // CraftBukkit end
--
-                             this.world.setAir(i1, l1, j1);
-                         } else if (i2 == Block.WATER_LILY.id) {
--                            // CraftBukkit start
--                            if (CraftEventFactory.callEntityChangeBlockEvent(this, i1, l1, j1, 0, 0).isCancelled()) {
--                                continue;
--                            }
--                            // CraftBukkit end
--
-                             this.world.setAir(i1, l1, j1, true);
-                         }
-                     }
 diff --git a/src/main/java/net/minecraft/server/EntityFallingBlock.java b/src/main/java/net/minecraft/server/EntityFallingBlock.java
 index 17d837d..ecc52b9 100644
 --- a/src/main/java/net/minecraft/server/EntityFallingBlock.java
@@ -1081,25 +1020,6 @@ index 17d837d..ecc52b9 100644
                  }
  
                  if (this.onGround) {
-diff --git a/src/main/java/net/minecraft/server/EntityFishingHook.java b/src/main/java/net/minecraft/server/EntityFishingHook.java
-index b35a5d6..7a63011 100644
---- a/src/main/java/net/minecraft/server/EntityFishingHook.java
-+++ b/src/main/java/net/minecraft/server/EntityFishingHook.java
-@@ -234,7 +234,13 @@ public class EntityFishingHook extends Entity {
-                     if (this.au > 0) {
-                         --this.au;
-                     } else {
--                        if (random.nextDouble() < ((org.bukkit.entity.Fish) this.getBukkitEntity()).getBiteChance()) { // CraftBukkit - moved logic to CraftFish
-+                        short short1 = 500;
-+
-+                        if (this.world.F(MathHelper.floor(this.locX), MathHelper.floor(this.locY) + 1, MathHelper.floor(this.locZ))) {
-+                            short1 = 300;
-+                        }
-+
-+                        if (this.random.nextInt(short1) == 0) {
-                             this.au = this.random.nextInt(30) + 10;
-                             this.motY -= 0.20000000298023224D;
-                             this.makeSound("random.splash", 0.25F, 1.0F + (this.random.nextFloat() - this.random.nextFloat()) * 0.4F);
 diff --git a/src/main/java/net/minecraft/server/EntityHanging.java b/src/main/java/net/minecraft/server/EntityHanging.java
 index f697d85..1dfb02f 100644
 --- a/src/main/java/net/minecraft/server/EntityHanging.java
@@ -3485,10 +3405,10 @@ index b5a68af..13dc9fa 100644
              // Use the default variant of loadChunk when generate == true.
 diff --git a/src/main/java/org/bukkit/craftbukkit/Spigot.java b/src/main/java/org/bukkit/craftbukkit/Spigot.java
 new file mode 100644
-index 0000000..8fd635f
+index 0000000..121b5ba
 --- /dev/null
 +++ b/src/main/java/org/bukkit/craftbukkit/Spigot.java
-@@ -0,0 +1,377 @@
+@@ -0,0 +1,378 @@
 +package org.bukkit.craftbukkit;
 +
 +import java.io.File;
@@ -3790,7 +3710,8 @@ index 0000000..8fd635f
 +
 +                // Kick all players
 +                for (EntityPlayer p : (List< EntityPlayer>) MinecraftServer.getServer().getPlayerList().players) {
-+                    p.playerConnection.disconnect("Server is restarting");
++                    p.playerConnection.networkManager.queue(new Packet255KickDisconnect("Server is restarting"));
++                    p.playerConnection.networkManager.d();
 +                }
 +                // Give the socket a chance to send the packets
 +                try {
@@ -4065,50 +3986,6 @@ index 0000000..f114a31
 +        return true;
 +    }
 +}
-diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftFish.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftFish.java
-index 7504bd5..1e432ca 100644
---- a/src/main/java/org/bukkit/craftbukkit/entity/CraftFish.java
-+++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftFish.java
-@@ -2,17 +2,13 @@ package org.bukkit.craftbukkit.entity;
- 
- import net.minecraft.server.EntityFishingHook;
- import net.minecraft.server.EntityHuman;
--import net.minecraft.server.MathHelper;
- 
--import org.apache.commons.lang.Validate;
- import org.bukkit.craftbukkit.CraftServer;
- import org.bukkit.entity.EntityType;
- import org.bukkit.entity.Fish;
- import org.bukkit.entity.LivingEntity;
- 
- public class CraftFish extends AbstractProjectile implements Fish {
--    private double biteChance = -1;
--
-     public CraftFish(CraftServer server, EntityFishingHook entity) {
-         super(server, entity);
-     }
-@@ -44,21 +40,4 @@ public class CraftFish extends AbstractProjectile implements Fish {
-     public EntityType getType() {
-         return EntityType.FISHING_HOOK;
-     }
--
--    public double getBiteChance() {
--        EntityFishingHook hook = getHandle();
--
--        if (this.biteChance == -1) {
--            if (hook.world.F(MathHelper.floor(hook.locX), MathHelper.floor(hook.locY) + 1, MathHelper.floor(hook.locZ))) {
--                return 1/300.0;
--            }
--            return 1/500.0;
--        }
--        return this.biteChance;
--    }
--
--    public void setBiteChance(double chance) {
--        Validate.isTrue(chance >= 0 && chance <= 1, "The bite chance must be between 0 and 1.");
--        this.biteChance = chance;
--    }
- }
 diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
 index d37d719..f9a7645 100644
 --- a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
@@ -4161,55 +4038,6 @@ index d37d719..f9a7645 100644
          Validate.isTrue(message.length <= Messenger.MAX_MESSAGE_SIZE, "Texture pack URL is too long");
  
          getHandle().playerConnection.sendPacket(new Packet250CustomPayload("MC|TPack", message));
-diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaEnchantedBook.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaEnchantedBook.java
-index f975e86..612a630 100644
---- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaEnchantedBook.java
-+++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaEnchantedBook.java
-@@ -161,8 +161,4 @@ class CraftMetaEnchantedBook extends CraftMetaItem implements EnchantmentStorage
-     public boolean hasStoredEnchants() {
-         return !(enchantments == null || enchantments.isEmpty());
-     }
--
--    public boolean hasConflictingStoredEnchant(Enchantment ench) {
--        return checkConflictingEnchants(enchantments, ench);
--    }
- }
-diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java
-index 90e7ffc..30916f9 100644
---- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java
-+++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java
-@@ -405,10 +405,6 @@ class CraftMetaItem implements ItemMeta, Repairable {
-         return !(enchantments == null || enchantments.isEmpty());
-     }
- 
--    public boolean hasConflictingEnchant(Enchantment ench) {
--        return checkConflictingEnchants(enchantments, ench);
--    }
--
-     public List<String> getLore() {
-         return this.lore == null ? null : new ArrayList<String>(this.lore);
-     }
-@@ -559,20 +555,6 @@ class CraftMetaItem implements ItemMeta, Repairable {
-         }
-     }
- 
--    static boolean checkConflictingEnchants(Map<Enchantment, Integer> enchantments, Enchantment ench) {
--        if (enchantments == null || enchantments.isEmpty()) {
--            return false;
--        }
--
--        for (Enchantment enchant : enchantments.keySet()) {
--            if (enchant.conflictsWith(ench)) {
--                return true;
--            }
--        }
--
--        return false;
--    }
--
-     @Override
-     public final String toString() {
-         return SerializableMeta.classMap.get(getClass()) + "_META:" + serialize(); // TODO: cry
 diff --git a/src/main/java/org/bukkit/craftbukkit/map/CraftMapView.java b/src/main/java/org/bukkit/craftbukkit/map/CraftMapView.java
 index b28d6a3..e70e4e4 100644
 --- a/src/main/java/org/bukkit/craftbukkit/map/CraftMapView.java
@@ -5399,10 +5227,10 @@ index 0000000..54928b4
 +}
 diff --git a/src/main/java/org/spigotmc/netty/NettyNetworkManager.java b/src/main/java/org/spigotmc/netty/NettyNetworkManager.java
 new file mode 100644
-index 0000000..f551bbe
+index 0000000..ee2e478
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/netty/NettyNetworkManager.java
-@@ -0,0 +1,235 @@
+@@ -0,0 +1,251 @@
 +package org.spigotmc.netty;
 +
 +import com.google.common.util.concurrent.ThreadFactoryBuilder;
@@ -5474,6 +5302,22 @@ index 0000000..f551bbe
 +        address = channel.remoteAddress();
 +        // Then the socket adaptor
 +        socketAdaptor = NettySocketAdaptor.adapt((SocketChannel) channel);
++        if (serverConnection.throttle == null) {
++            serverConnection.throttle = MinecraftServer.getServer().server.getConnectionThrottle();
++        }
++        if (serverConnection.throttle > 0) {
++            long time = System.currentTimeMillis();
++            String inetAddress = socketAdaptor.getInetAddress().getHostAddress();
++            if (serverConnection.throttleMap.containsKey(inetAddress) && !"127.0.0.1".equals(inetAddress)) {
++                if (time - serverConnection.throttleMap.get(inetAddress) < serverConnection.throttle) {
++                    connected = false;
++                    dcReason = "Too many connections.";
++                    channel.close();
++                    return;
++                }
++            }
++            serverConnection.throttleMap.put(inetAddress, time);
++        }
 +        // Followed by their first handler
 +        connection = new PendingConnection(server, this);
 +        // Finally register the connection
@@ -5640,10 +5484,10 @@ index 0000000..f551bbe
 +}
 diff --git a/src/main/java/org/spigotmc/netty/NettyServerConnection.java b/src/main/java/org/spigotmc/netty/NettyServerConnection.java
 new file mode 100644
-index 0000000..9803105
+index 0000000..b4cebac
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/netty/NettyServerConnection.java
-@@ -0,0 +1,109 @@
+@@ -0,0 +1,112 @@
 +package org.spigotmc.netty;
 +
 +import com.google.common.util.concurrent.ThreadFactoryBuilder;
@@ -5662,6 +5506,7 @@ index 0000000..9803105
 +import java.util.ArrayList;
 +import java.util.Collections;
 +import java.util.List;
++import java.util.concurrent.ConcurrentHashMap;
 +import java.util.logging.Level;
 +import javax.crypto.Cipher;
 +import javax.crypto.spec.IvParameterSpec;
@@ -5680,6 +5525,8 @@ index 0000000..9803105
 +
 +    private final ChannelFuture socket;
 +    final List<PendingConnection> pendingConnections = Collections.synchronizedList(new ArrayList<PendingConnection>());
++    Long throttle;
++    final ConcurrentHashMap<String, Long> throttleMap = new ConcurrentHashMap<String, Long>();
 +
 +    public NettyServerConnection(MinecraftServer ms, InetAddress host, int port) {
 +        super(ms);
@@ -6320,71 +6167,6 @@ index 61a95e3..bc0b044 100644
 +    disabled-worlds:
 +       - world_the_end
 +    blocks: [1, 5, 14, 15, 16, 21, 48, 49, 54, 56, 73, 74, 82, 129, 130]
-diff --git a/src/test/java/org/bukkit/craftbukkit/inventory/ItemMetaTest.java b/src/test/java/org/bukkit/craftbukkit/inventory/ItemMetaTest.java
-index abf84ed..b59b36a 100644
---- a/src/test/java/org/bukkit/craftbukkit/inventory/ItemMetaTest.java
-+++ b/src/test/java/org/bukkit/craftbukkit/inventory/ItemMetaTest.java
-@@ -21,7 +21,6 @@ import org.bukkit.inventory.meta.BookMeta;
- import org.bukkit.inventory.meta.EnchantmentStorageMeta;
- import org.bukkit.inventory.meta.FireworkEffectMeta;
- import org.bukkit.inventory.meta.FireworkMeta;
--import org.bukkit.inventory.meta.ItemMeta;
- import org.bukkit.inventory.meta.LeatherArmorMeta;
- import org.bukkit.inventory.meta.MapMeta;
- import org.bukkit.inventory.meta.PotionMeta;
-@@ -63,52 +62,6 @@ public class ItemMetaTest extends AbstractTestingBase {
-         }
-     }
- 
--    @Test
--    public void testConflictingEnchantment() {
--        ItemMeta itemMeta = Bukkit.getItemFactory().getItemMeta(Material.DIAMOND_PICKAXE);
--        assertThat(itemMeta.hasConflictingEnchant(Enchantment.DURABILITY), is(false));
--
--        itemMeta.addEnchant(Enchantment.SILK_TOUCH, 1, false);
--        assertThat(itemMeta.hasConflictingEnchant(Enchantment.DURABILITY), is(false));
--        assertThat(itemMeta.hasConflictingEnchant(Enchantment.LOOT_BONUS_BLOCKS), is(true));
--        assertThat(itemMeta.hasConflictingEnchant(null), is(false));
--    }
--
--    @Test
--    public void testConflictingStoredEnchantment() {
--        EnchantmentStorageMeta itemMeta = (EnchantmentStorageMeta) Bukkit.getItemFactory().getItemMeta(Material.ENCHANTED_BOOK);
--        assertThat(itemMeta.hasConflictingStoredEnchant(Enchantment.DURABILITY), is(false));
--
--        itemMeta.addStoredEnchant(Enchantment.SILK_TOUCH, 1, false);
--        assertThat(itemMeta.hasConflictingStoredEnchant(Enchantment.DURABILITY), is(false));
--        assertThat(itemMeta.hasConflictingStoredEnchant(Enchantment.LOOT_BONUS_BLOCKS), is(true));
--        assertThat(itemMeta.hasConflictingStoredEnchant(null), is(false));
--    }
--
--    @Test
--    public void testConflictingEnchantments() {
--        ItemMeta itemMeta = Bukkit.getItemFactory().getItemMeta(Material.DIAMOND_PICKAXE);
--        itemMeta.addEnchant(Enchantment.DURABILITY, 6, true);
--        itemMeta.addEnchant(Enchantment.DIG_SPEED, 6, true);
--        assertThat(itemMeta.hasConflictingEnchant(Enchantment.LOOT_BONUS_BLOCKS), is(false));
--
--        itemMeta.addEnchant(Enchantment.SILK_TOUCH, 1, false);
--        assertThat(itemMeta.hasConflictingEnchant(Enchantment.LOOT_BONUS_BLOCKS), is(true));
--        assertThat(itemMeta.hasConflictingEnchant(null), is(false));
--    }
--
--    @Test
--    public void testConflictingStoredEnchantments() {
--        EnchantmentStorageMeta itemMeta = (EnchantmentStorageMeta) Bukkit.getItemFactory().getItemMeta(Material.ENCHANTED_BOOK);
--        itemMeta.addStoredEnchant(Enchantment.DURABILITY, 6, true);
--        itemMeta.addStoredEnchant(Enchantment.DIG_SPEED, 6, true);
--        assertThat(itemMeta.hasConflictingStoredEnchant(Enchantment.LOOT_BONUS_BLOCKS), is(false));
--
--        itemMeta.addStoredEnchant(Enchantment.SILK_TOUCH, 1, false);
--        assertThat(itemMeta.hasConflictingStoredEnchant(Enchantment.LOOT_BONUS_BLOCKS), is(true));
--        assertThat(itemMeta.hasConflictingStoredEnchant(null), is(false));
--    }
--
-     private static FireworkMeta newFireworkMeta() {
-         return ((FireworkMeta) Bukkit.getItemFactory().getItemMeta(Material.FIREWORK));
-     }
 -- 
 1.8.2
 

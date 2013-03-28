@@ -1,6 +1,6 @@
-From f6c320989c0dc5ee0b5d2ccf300827953a736b7b Mon Sep 17 00:00:00 2001
+From 7e6ce49228f1599dab12edb81eee45c6cb286d0e Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Mon, 25 Mar 2013 23:53:00 -0400
+Date: Thu, 28 Mar 2013 09:14:57 -0400
 Subject: [PATCH] Spigot
 
 ---
@@ -8,10 +8,7 @@ Subject: [PATCH] Spigot
  src/main/java/org/bukkit/CustomTimingsHandler.java | 134 +++++++++++++++++++++
  .../org/bukkit/command/defaults/ReloadCommand.java |   2 +
  .../bukkit/command/defaults/TimingsCommand.java    |  92 ++++++++++++--
- src/main/java/org/bukkit/entity/Fish.java          |  24 +---
  .../bukkit/event/player/PlayerItemDamageEvent.java |  54 +++++++++
- .../inventory/meta/EnchantmentStorageMeta.java     |   8 --
- .../java/org/bukkit/inventory/meta/ItemMeta.java   |   8 --
  .../org/bukkit/metadata/LazyMetadataValue.java     |  61 +---------
  .../org/bukkit/metadata/MetadataStoreBase.java     |  48 +++-----
  .../org/bukkit/metadata/MetadataValueAdapter.java  |  79 ++++++++++++
@@ -20,7 +17,7 @@ Subject: [PATCH] Spigot
  .../org/bukkit/plugin/java/JavaPluginLoader.java   |   2 +-
  .../org/bukkit/plugin/java/PluginClassLoader.java  |   7 ++
  .../bukkit/metadata/MetadataValueAdapterTest.java  |  97 +++++++++++++++
- 16 files changed, 502 insertions(+), 172 deletions(-)
+ 13 files changed, 501 insertions(+), 133 deletions(-)
  create mode 100644 src/main/java/org/bukkit/CustomTimingsHandler.java
  create mode 100644 src/main/java/org/bukkit/event/player/PlayerItemDamageEvent.java
  create mode 100644 src/main/java/org/bukkit/metadata/MetadataValueAdapter.java
@@ -412,38 +409,6 @@ index 29ebbe0..426f9b4 100644
 +    }
 +    // Spigot end
  }
-diff --git a/src/main/java/org/bukkit/entity/Fish.java b/src/main/java/org/bukkit/entity/Fish.java
-index 25e58b0..dca77fc 100644
---- a/src/main/java/org/bukkit/entity/Fish.java
-+++ b/src/main/java/org/bukkit/entity/Fish.java
-@@ -3,26 +3,4 @@ package org.bukkit.entity;
- /**
-  * Represents a fishing hook.
-  */
--public interface Fish extends Projectile {
--
--    /**
--     * Gets the chance of a fish biting.
--     * <p>
--     * 0.0 = No Chance.<br>
--     * 1.0 = Instant catch.
--     *
--     * @return chance the bite chance
--     */
--    public double getBiteChance();
--
--    /**
--     * Sets the chance of a fish biting.
--     * <p>
--     * 0.0 = No Chance.<br>
--     * 1.0 = Instant catch.
--     *
--     * @param chance the bite chance
--     * @throws IllegalArgumentException if the bite chance is not between 0 and 1
--     */
--    public void setBiteChance(double chance) throws IllegalArgumentException;
--}
-+public interface Fish extends Projectile {}
 diff --git a/src/main/java/org/bukkit/event/player/PlayerItemDamageEvent.java b/src/main/java/org/bukkit/event/player/PlayerItemDamageEvent.java
 new file mode 100644
 index 0000000..38a72ab
@@ -504,43 +469,6 @@ index 0000000..38a72ab
 +        return handlers;
 +    }
 +}
-diff --git a/src/main/java/org/bukkit/inventory/meta/EnchantmentStorageMeta.java b/src/main/java/org/bukkit/inventory/meta/EnchantmentStorageMeta.java
-index 340087f..8822d69 100644
---- a/src/main/java/org/bukkit/inventory/meta/EnchantmentStorageMeta.java
-+++ b/src/main/java/org/bukkit/inventory/meta/EnchantmentStorageMeta.java
-@@ -61,13 +61,5 @@ public interface EnchantmentStorageMeta extends ItemMeta {
-      */
-     boolean removeStoredEnchant(Enchantment ench) throws IllegalArgumentException;
- 
--    /**
--     * Checks if the specified enchantment conflicts with any enchantments in this ItemMeta.
--     *
--     * @param ench enchantment to test
--     * @return true if the enchantment conflicts, false otherwise
--     */
--    boolean hasConflictingStoredEnchant(Enchantment ench);
--
-     EnchantmentStorageMeta clone();
- }
-diff --git a/src/main/java/org/bukkit/inventory/meta/ItemMeta.java b/src/main/java/org/bukkit/inventory/meta/ItemMeta.java
-index 3dafdc0..3b0c155 100644
---- a/src/main/java/org/bukkit/inventory/meta/ItemMeta.java
-+++ b/src/main/java/org/bukkit/inventory/meta/ItemMeta.java
-@@ -107,14 +107,6 @@ public interface ItemMeta extends Cloneable, ConfigurationSerializable {
-      */
-     boolean removeEnchant(Enchantment ench);
- 
--   /**
--    * Checks if the specified enchantment conflicts with any enchantments in this ItemMeta.
--    *
--    * @param ench enchantment to test
--    * @return true if the enchantment conflicts, false otherwise
--    */
--    boolean hasConflictingEnchant(Enchantment ench);
--
-     @SuppressWarnings("javadoc")
-     ItemMeta clone();
- }
 diff --git a/src/main/java/org/bukkit/metadata/LazyMetadataValue.java b/src/main/java/org/bukkit/metadata/LazyMetadataValue.java
 index cc0ba50..57fdc50 100644
 --- a/src/main/java/org/bukkit/metadata/LazyMetadataValue.java
