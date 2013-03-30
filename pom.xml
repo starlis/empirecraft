@@ -7,7 +7,7 @@
     <packaging>pom</packaging>
 
     <properties>
-        <isPlugin>false</isPlugin>
+        <repo>http://ci.empire.us/nexus/content/repositories/empireminecraft</repo>
         <skipTests>true</skipTests>
     </properties>
 
@@ -33,16 +33,58 @@
         <finalName>${project.artifactId}</finalName>
         <plugins>
             <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-deploy-plugin</artifactId>
+                <version>2.7</version>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
+            </plugin>
+            <plugin>
                 <artifactId>maven-antrun-plugin</artifactId>
                 <version>1.3</version>
                 <executions>
                     <execution>
+                        <id>deploy</id>
+                        <phase>deploy</phase>
+                        <configuration>
+                            <tasks>
+                                <taskdef resource="net/sf/antcontrib/antlib.xml" classpathref="maven.plugin.classpath" />
+                                <if>
+                                    <and>
+                                    <not><isset property="isBuildServer"/></not>
+                                    <not><equals arg1="${project.artifactId}" arg2="spigot-parent" /></not>
+                                    </and>
+                                    <then>
+                                        <exec executable="mvn">
+                                            <arg value="deploy:deploy-file"/>
+                                            <arg value="-DgroupId=org.spigotmc" />
+                                            <arg value="-DartifactId=${project.artifactId}" />
+                                            <arg value="-Dversion=dev-SNAPSHOT" />
+                                            <arg value="-Dpackaging=jar" />
+                                            <arg value="-DrepositoryId=empireminecraft" />
+                                            <arg value="-Durl=${repo}" />
+                                            <arg value="-Dfile=${project.build.directory}/${project.artifactId}.jar" />
+                                        </exec>
+                                    </then>
+                                </if>
+                            </tasks>
+                        </configuration>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>install</id>
                         <phase>install</phase>
                         <configuration>
                             <tasks>
                                 <taskdef resource="net/sf/antcontrib/antlib.xml" classpathref="maven.plugin.classpath" />
                                 <if>
+                                    <and>
+                                    <not><isset property="isBuildServer"/></not>
                                     <equals arg1="${project.artifactId}" arg2="spigot" />
+                                    </and>
                                     <then>
                                         <copy tofile="${project.build.directory}/../../../../EMC-Test-Server/minecraft_server.jar">
                                             <fileset dir="${project.build.directory}" includes="${project.artifactId}.jar" />
