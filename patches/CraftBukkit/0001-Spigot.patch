@@ -1,6 +1,6 @@
-From 85d9b89acca0ad5ba835e0a605016a64cb64ae6e Mon Sep 17 00:00:00 2001
+From a90f27e19ad91afba46e58f601079b4c5d721e65 Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Thu, 28 Mar 2013 09:15:00 -0400
+Date: Sat, 30 Mar 2013 15:28:13 -0400
 Subject: [PATCH] Spigot
 
 ---
@@ -76,15 +76,15 @@ Subject: [PATCH] Spigot
  src/main/java/org/spigotmc/RestartCommand.java     |  23 +
  src/main/java/org/spigotmc/WatchdogThread.java     |  93 +++
  src/main/java/org/spigotmc/netty/CipherCodec.java  |  49 ++
- .../org/spigotmc/netty/NettyNetworkManager.java    | 251 ++++++++
- .../org/spigotmc/netty/NettyServerConnection.java  | 112 ++++
+ .../org/spigotmc/netty/NettyNetworkManager.java    | 235 ++++++++
+ .../org/spigotmc/netty/NettyServerConnection.java  | 109 ++++
  .../org/spigotmc/netty/NettySocketAdaptor.java     | 248 ++++++++
  .../java/org/spigotmc/netty/PacketDecoder.java     |  64 ++
  .../java/org/spigotmc/netty/PacketEncoder.java     |  43 ++
  .../java/org/spigotmc/netty/PacketListener.java    | 100 ++++
  src/main/java/org/spigotmc/netty/ReadState.java    |  16 +
  src/main/resources/configurations/bukkit.yml       |  51 ++
- 80 files changed, 3982 insertions(+), 240 deletions(-)
+ 80 files changed, 3963 insertions(+), 240 deletions(-)
  create mode 100644 src/main/java/net/minecraft/server/DataWatcher.java
  create mode 100644 src/main/java/net/minecraft/server/INetworkManager.java
  create mode 100644 src/main/java/net/minecraft/server/NibbleArray.java
@@ -3037,7 +3037,7 @@ index a49419e..fd86899 100644
          return arraylist;
      }
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftChunk.java b/src/main/java/org/bukkit/craftbukkit/CraftChunk.java
-index 79c3893..97b7b5b 100644
+index 79c3893..ad58bef 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftChunk.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftChunk.java
 @@ -174,7 +174,18 @@ public class CraftChunk implements Chunk {
@@ -3051,7 +3051,7 @@ index 79c3893..97b7b5b 100644
 +                        if (tval != 0) {
 +                            tval = tval << 8;
 +                            for (int j = 0; j < 4096; j++) {
-+                                blockids[j << 1] |= tval;
++                                blockids[j] |= tval;
 +                            }
 +                        }
 +                  } else {
@@ -5227,10 +5227,10 @@ index 0000000..54928b4
 +}
 diff --git a/src/main/java/org/spigotmc/netty/NettyNetworkManager.java b/src/main/java/org/spigotmc/netty/NettyNetworkManager.java
 new file mode 100644
-index 0000000..ee2e478
+index 0000000..f551bbe
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/netty/NettyNetworkManager.java
-@@ -0,0 +1,251 @@
+@@ -0,0 +1,235 @@
 +package org.spigotmc.netty;
 +
 +import com.google.common.util.concurrent.ThreadFactoryBuilder;
@@ -5302,22 +5302,6 @@ index 0000000..ee2e478
 +        address = channel.remoteAddress();
 +        // Then the socket adaptor
 +        socketAdaptor = NettySocketAdaptor.adapt((SocketChannel) channel);
-+        if (serverConnection.throttle == null) {
-+            serverConnection.throttle = MinecraftServer.getServer().server.getConnectionThrottle();
-+        }
-+        if (serverConnection.throttle > 0) {
-+            long time = System.currentTimeMillis();
-+            String inetAddress = socketAdaptor.getInetAddress().getHostAddress();
-+            if (serverConnection.throttleMap.containsKey(inetAddress) && !"127.0.0.1".equals(inetAddress)) {
-+                if (time - serverConnection.throttleMap.get(inetAddress) < serverConnection.throttle) {
-+                    connected = false;
-+                    dcReason = "Too many connections.";
-+                    channel.close();
-+                    return;
-+                }
-+            }
-+            serverConnection.throttleMap.put(inetAddress, time);
-+        }
 +        // Followed by their first handler
 +        connection = new PendingConnection(server, this);
 +        // Finally register the connection
@@ -5484,10 +5468,10 @@ index 0000000..ee2e478
 +}
 diff --git a/src/main/java/org/spigotmc/netty/NettyServerConnection.java b/src/main/java/org/spigotmc/netty/NettyServerConnection.java
 new file mode 100644
-index 0000000..b4cebac
+index 0000000..9803105
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/netty/NettyServerConnection.java
-@@ -0,0 +1,112 @@
+@@ -0,0 +1,109 @@
 +package org.spigotmc.netty;
 +
 +import com.google.common.util.concurrent.ThreadFactoryBuilder;
@@ -5506,7 +5490,6 @@ index 0000000..b4cebac
 +import java.util.ArrayList;
 +import java.util.Collections;
 +import java.util.List;
-+import java.util.concurrent.ConcurrentHashMap;
 +import java.util.logging.Level;
 +import javax.crypto.Cipher;
 +import javax.crypto.spec.IvParameterSpec;
@@ -5525,8 +5508,6 @@ index 0000000..b4cebac
 +
 +    private final ChannelFuture socket;
 +    final List<PendingConnection> pendingConnections = Collections.synchronizedList(new ArrayList<PendingConnection>());
-+    Long throttle;
-+    final ConcurrentHashMap<String, Long> throttleMap = new ConcurrentHashMap<String, Long>();
 +
 +    public NettyServerConnection(MinecraftServer ms, InetAddress host, int port) {
 +        super(ms);
