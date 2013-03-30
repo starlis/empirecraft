@@ -1,4 +1,4 @@
-From 8d8567c3a9861a49212d4c806d8be73eda1e20de Mon Sep 17 00:00:00 2001
+From b54b438eb126a41ac1d3102ec7ddfdebb460734a Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Mon, 4 Mar 2013 23:35:02 -0500
 Subject: [PATCH] Persistent Meta API
@@ -11,8 +11,8 @@ Meta is is provided in a simple Map/List setup and does not expose raw NBT acces
  src/main/java/net/minecraft/server/Chunk.java      |   1 +
  .../net/minecraft/server/ChunkRegionLoader.java    |   2 +
  src/main/java/net/minecraft/server/Entity.java     |   3 +
- .../java/net/minecraft/server/MetaApiAccessor.java | 261 +++++++++++++++++++++
- 5 files changed, 429 insertions(+)
+ .../java/net/minecraft/server/MetaApiAccessor.java | 266 +++++++++++++++++++++
+ 5 files changed, 434 insertions(+)
  create mode 100644 src/main/java/com/empireminecraft/metaapi/MetaApi.java
  create mode 100644 src/main/java/net/minecraft/server/MetaApiAccessor.java
 
@@ -197,18 +197,10 @@ index 7f1c155..be9162a 100644
  
      public Chunk(World world, byte[] abyte, int i, int j) {
 diff --git a/src/main/java/net/minecraft/server/ChunkRegionLoader.java b/src/main/java/net/minecraft/server/ChunkRegionLoader.java
-index 7a98822..ae5b5a0 100644
+index 7a98822..274844b 100644
 --- a/src/main/java/net/minecraft/server/ChunkRegionLoader.java
 +++ b/src/main/java/net/minecraft/server/ChunkRegionLoader.java
-@@ -104,6 +104,7 @@ public class ChunkRegionLoader implements IAsyncChunkSaver, IChunkLoader {
-             }
- 
-             // CraftBukkit start
-+            MetaApiAccessor.loadChunkMetaNbt(nbttagcompound, chunk); // EMC
-             Object[] data = new Object[2];
-             data[0] = chunk;
-             data[1] = nbttagcompound;
-@@ -206,6 +207,7 @@ public class ChunkRegionLoader implements IAsyncChunkSaver, IChunkLoader {
+@@ -206,6 +206,7 @@ public class ChunkRegionLoader implements IAsyncChunkSaver, IChunkLoader {
      private void a(Chunk chunk, World world, NBTTagCompound nbttagcompound) {
          nbttagcompound.setInt("xPos", chunk.x);
          nbttagcompound.setInt("zPos", chunk.z);
@@ -216,6 +208,14 @@ index 7a98822..ae5b5a0 100644
          nbttagcompound.setLong("LastUpdate", world.getTime());
          nbttagcompound.setIntArray("HeightMap", chunk.heightMap);
          nbttagcompound.setBoolean("TerrainPopulated", chunk.done);
+@@ -305,6 +306,7 @@ public class ChunkRegionLoader implements IAsyncChunkSaver, IChunkLoader {
+         Chunk chunk = new Chunk(world, i, j);
+ 
+         chunk.heightMap = nbttagcompound.getIntArray("HeightMap");
++        MetaApiAccessor.loadChunkMetaNbt(nbttagcompound, chunk); // EMC
+         chunk.done = nbttagcompound.getBoolean("TerrainPopulated");
+         NBTTagList nbttaglist = nbttagcompound.getList("Sections");
+         byte b0 = 16;
 diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
 index 52ecc09..48c54a6 100644
 --- a/src/main/java/net/minecraft/server/Entity.java
@@ -246,10 +246,10 @@ index 52ecc09..48c54a6 100644
                  this.motX = 0.0D;
 diff --git a/src/main/java/net/minecraft/server/MetaApiAccessor.java b/src/main/java/net/minecraft/server/MetaApiAccessor.java
 new file mode 100644
-index 0000000..48eddba
+index 0000000..71b8e97
 --- /dev/null
 +++ b/src/main/java/net/minecraft/server/MetaApiAccessor.java
-@@ -0,0 +1,261 @@
+@@ -0,0 +1,266 @@
 +package net.minecraft.server;
 +
 +import org.bukkit.craftbukkit.CraftChunk;
@@ -339,11 +339,12 @@ index 0000000..48eddba
 +        for (Map.Entry<ChunkCoordinates, MetaMap> entry : chunk.chunkMeta.entrySet()) {
 +            ChunkCoordinates coords = entry.getKey();
 +            MetaMap list = entry.getValue();
-+            NBTTagCompound metalist = getCompoundFromMetaList(list);
++            NBTTagCompound metalist = getCompoundFromMetaMap(list);
 +            if (!metalist.isEmpty()) {
 +                meta.set(getCoordAsStr(coords), metalist);
 +            }
 +        }
++
 +        if (!meta.isEmpty()) {
 +            cmp.set("_ChunkMeta", meta);
 +        }
@@ -394,7 +395,7 @@ index 0000000..48eddba
 +        } else if (value instanceof Float) {
 +            return new NBTTagFloat("float", (Float) value);
 +        } else if (value instanceof MetaMap) {
-+            return getCompoundFromMetaList((MetaMap) value);
++            return getCompoundFromMetaMap((MetaMap) value);
 +        } else if (value instanceof MetaList) {
 +            NBTTagList list = new NBTTagList();
 +            for (Object obj : (List) value) {
@@ -464,13 +465,13 @@ index 0000000..48eddba
 +
 +    /**
 +     * Converts a MetaMap into an NBTTagCompount
-+     * @param list
++     * @param map
 +     * @return
 +     */
-+    private static NBTTagCompound getCompoundFromMetaList(MetaMap list) {
++    private static NBTTagCompound getCompoundFromMetaMap(MetaMap map) {
 +        NBTTagCompound cmp = new NBTTagCompound();
 +        cmp.setString("MetaType", "MetaMap");
-+        for (Map.Entry<String, Object> entry : list.entrySet()) {
++        for (Map.Entry<String, Object> entry : map.entrySet()) {
 +            NBTBase add = getNbtFromObject(entry.getValue());
 +            if (add != null) {
 +                cmp.set(entry.getKey(), add);
@@ -500,10 +501,14 @@ index 0000000..48eddba
 +        if (loc != null)  {
 +            String[] args = loc.split(":", 3);
 +            if (args.length == 3) {
-+                int x = (int) Math.floor(Integer.parseInt(args[0]));
-+                int y = (int) Math.floor(Integer.parseInt(args[1]));
-+                int z = (int) Math.floor(Integer.parseInt(args[2]));
-+                return new ChunkCoordinates(x, y, z);
++                try {
++                    int x = (int) Math.floor(Float.parseFloat(args[0]));
++                    int y = (int) Math.floor(Float.parseFloat(args[1]));
++                    int z = (int) Math.floor(Float.parseFloat(args[2]));
++                    return new ChunkCoordinates(x, y, z);
++                } catch (NumberFormatException e) {
++
++                }
 +            }
 +        }
 +        return null;
