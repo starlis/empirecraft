@@ -1,6 +1,6 @@
-From 0bf26849510315e4ab24d6d79f37f2bb5f61aa28 Mon Sep 17 00:00:00 2001
+From 17bda64dfebd9b2cf66b5e2f01042dcd7a1a5f6c Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Mon, 1 Apr 2013 00:33:44 -0400
+Date: Sun, 7 Apr 2013 11:29:24 -0400
 Subject: [PATCH] Spigot
 
 ---
@@ -23,6 +23,7 @@ Subject: [PATCH] Spigot
  .../server/DispenseBehaviorEmptyBucket.java        |   2 +-
  src/main/java/net/minecraft/server/Entity.java     |  21 +-
  .../java/net/minecraft/server/EntityArrow.java     |   2 +-
+ src/main/java/net/minecraft/server/EntityBoat.java |   2 +-
  .../net/minecraft/server/EntityFallingBlock.java   |   1 +
  .../java/net/minecraft/server/EntityHanging.java   |  15 +
  .../java/net/minecraft/server/EntityHuman.java     |   6 +
@@ -39,10 +40,10 @@ Subject: [PATCH] Spigot
  .../java/net/minecraft/server/NetworkManager.java  |   4 +-
  .../java/net/minecraft/server/NibbleArray.java     | 158 +++++
  .../java/net/minecraft/server/OldChunkLoader.java  | 122 ++++
- .../net/minecraft/server/Packet51MapChunk.java     |  44 +-
+ .../net/minecraft/server/Packet51MapChunk.java     |  57 +-
  .../net/minecraft/server/Packet56MapChunkBulk.java |  23 +-
  .../net/minecraft/server/PendingConnection.java    |  24 +-
- .../java/net/minecraft/server/PlayerChunk.java     |   2 +-
+ .../java/net/minecraft/server/PlayerChunk.java     |   4 +-
  .../java/net/minecraft/server/PlayerChunkMap.java  |   2 +-
  .../net/minecraft/server/PlayerConnection.java     |  24 +-
  .../minecraft/server/PlayerInteractManager.java    |   5 +
@@ -65,14 +66,14 @@ Subject: [PATCH] Spigot
  .../craftbukkit/command/TicksPerSecondCommand.java |  35 ++
  .../org/bukkit/craftbukkit/entity/CraftPlayer.java |  25 +-
  .../org/bukkit/craftbukkit/map/CraftMapView.java   |   2 +-
- .../craftbukkit/scheduler/CraftScheduler.java      |   2 +-
+ .../craftbukkit/scheduler/CraftScheduler.java      |   6 +-
  .../bukkit/craftbukkit/scheduler/CraftTask.java    |  18 +
  .../java/org/bukkit/craftbukkit/util/FlatMap.java  |  34 ++
  .../org/bukkit/craftbukkit/util/LongHashSet.java   |   8 +-
  .../bukkit/craftbukkit/util/LongObjectHashMap.java |   5 +
  .../org/bukkit/craftbukkit/util/Versioning.java    |   2 +-
  src/main/java/org/spigotmc/Metrics.java            | 645 +++++++++++++++++++++
- .../java/org/spigotmc/OrebfuscatorManager.java     | 139 +++++
+ .../java/org/spigotmc/OrebfuscatorManager.java     | 146 +++++
  src/main/java/org/spigotmc/RestartCommand.java     |  23 +
  src/main/java/org/spigotmc/WatchdogThread.java     |  93 +++
  src/main/java/org/spigotmc/netty/CipherCodec.java  |  49 ++
@@ -84,7 +85,7 @@ Subject: [PATCH] Spigot
  .../java/org/spigotmc/netty/PacketListener.java    | 100 ++++
  src/main/java/org/spigotmc/netty/ReadState.java    |  16 +
  src/main/resources/configurations/bukkit.yml       |  51 ++
- 80 files changed, 3963 insertions(+), 240 deletions(-)
+ 81 files changed, 3983 insertions(+), 248 deletions(-)
  create mode 100644 src/main/java/net/minecraft/server/DataWatcher.java
  create mode 100644 src/main/java/net/minecraft/server/INetworkManager.java
  create mode 100644 src/main/java/net/minecraft/server/NibbleArray.java
@@ -119,7 +120,7 @@ index c3faf57..346b232 100644
 +/dependency-reduced-pom.xml
 \ No newline at end of file
 diff --git a/pom.xml b/pom.xml
-index ce239ff..73c676a 100644
+index 6415183..55e6dc0 100644
 --- a/pom.xml
 +++ b/pom.xml
 @@ -1,12 +1,20 @@
@@ -139,7 +140,7 @@ index ce239ff..73c676a 100644
 +  <groupId>org.spigotmc</groupId>
 +  <artifactId>spigot</artifactId>
    <packaging>jar</packaging>
-   <version>1.5.1-R0.1-SNAPSHOT</version>
+   <version>1.5.1-R0.2-SNAPSHOT</version>
 -  <name>CraftBukkit</name>
 -  <url>http://www.bukkit.org</url>
 +  <name>Spigot</name>
@@ -1008,6 +1009,19 @@ index f46c920..1699059 100644
      public int fromPlayer = 0;
      public int shake = 0;
      public Entity shooter;
+diff --git a/src/main/java/net/minecraft/server/EntityBoat.java b/src/main/java/net/minecraft/server/EntityBoat.java
+index 8839a45..953e86c 100644
+--- a/src/main/java/net/minecraft/server/EntityBoat.java
++++ b/src/main/java/net/minecraft/server/EntityBoat.java
+@@ -294,7 +294,7 @@ public class EntityBoat extends Entity {
+ 
+             this.move(this.motX, this.motY, this.motZ);
+             if (this.positionChanged && d3 > 0.2D) {
+-                if (!this.world.isStatic) {
++                if (!this.world.isStatic && !this.dead) { // Spigot - Boat dupe fix
+                     // CraftBukkit start
+                     Vehicle vehicle = (Vehicle) this.getBukkitEntity();
+                     VehicleDestroyEvent destroyEvent = new VehicleDestroyEvent(vehicle, null);
 diff --git a/src/main/java/net/minecraft/server/EntityFallingBlock.java b/src/main/java/net/minecraft/server/EntityFallingBlock.java
 index 17d837d..ecc52b9 100644
 --- a/src/main/java/net/minecraft/server/EntityFallingBlock.java
@@ -1047,7 +1061,7 @@ index f697d85..1dfb02f 100644
              this.h();
          }
 diff --git a/src/main/java/net/minecraft/server/EntityHuman.java b/src/main/java/net/minecraft/server/EntityHuman.java
-index 101c2a0..76cfc2a 100644
+index 91b44a0..df33d80 100644
 --- a/src/main/java/net/minecraft/server/EntityHuman.java
 +++ b/src/main/java/net/minecraft/server/EntityHuman.java
 @@ -5,11 +5,13 @@ import java.util.Iterator;
@@ -1064,7 +1078,7 @@ index 101c2a0..76cfc2a 100644
  import org.bukkit.event.player.PlayerBedEnterEvent;
  import org.bukkit.event.player.PlayerBedLeaveEvent;
  import org.bukkit.event.player.PlayerDropItemEvent;
-@@ -941,6 +943,10 @@ public abstract class EntityHuman extends EntityLiving implements ICommandListen
+@@ -960,6 +962,10 @@ public abstract class EntityHuman extends EntityLiving implements ICommandListen
          super.die();
          this.defaultContainer.b(this);
          if (this.activeContainer != null) {
@@ -1221,7 +1235,7 @@ index 9210d96..322e37f 100644
                      this.o(entity);
                  }
 diff --git a/src/main/java/net/minecraft/server/EntityPlayer.java b/src/main/java/net/minecraft/server/EntityPlayer.java
-index 14f2521..f5910a2 100644
+index eb07d8e..3ce9f8b 100644
 --- a/src/main/java/net/minecraft/server/EntityPlayer.java
 +++ b/src/main/java/net/minecraft/server/EntityPlayer.java
 @@ -51,6 +51,7 @@ public class EntityPlayer extends EntityHuman implements ICrafting {
@@ -1244,7 +1258,7 @@ index 14f2521..f5910a2 100644
                  }
              }
  
-@@ -421,7 +423,7 @@ public class EntityPlayer extends EntityHuman implements ICrafting {
+@@ -415,7 +417,7 @@ public class EntityPlayer extends EntityHuman implements ICrafting {
      }
  
      public void a(boolean flag, boolean flag1, boolean flag2) {
@@ -1408,7 +1422,7 @@ index 7dc36a8..cd032ae 100644
                      if (entityliving instanceof EntityHuman) {
                          ((EntityHuman) entityliving).a(StatisticList.F[this.id], 1);
 diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
-index 5bf5fdc..3b2d9d3 100644
+index 64d5882..8e02ca4 100644
 --- a/src/main/java/net/minecraft/server/MinecraftServer.java
 +++ b/src/main/java/net/minecraft/server/MinecraftServer.java
 @@ -6,7 +6,6 @@ import java.security.KeyPair;
@@ -1440,7 +1454,7 @@ index 5bf5fdc..3b2d9d3 100644
  
      public MinecraftServer(OptionSet options) { // CraftBukkit - signature file -> OptionSet
          k = this;
-@@ -377,39 +383,27 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+@@ -379,39 +385,27 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
      public void run() {
          try {
              if (this.init()) {
@@ -1498,7 +1512,7 @@ index 5bf5fdc..3b2d9d3 100644
              } else {
                  this.a((CrashReport) null);
              }
-@@ -435,6 +429,7 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+@@ -437,6 +431,7 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
              this.a(crashreport);
          } finally {
              try {
@@ -1506,7 +1520,7 @@ index 5bf5fdc..3b2d9d3 100644
                  this.stop();
                  this.isStopped = true;
              } catch (Throwable throwable1) {
-@@ -506,6 +501,7 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+@@ -508,6 +503,7 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
      public void r() {
          this.methodProfiler.a("levels");
  
@@ -1514,7 +1528,7 @@ index 5bf5fdc..3b2d9d3 100644
          // CraftBukkit start
          this.server.getScheduler().mainThreadHeartbeat(this.ticks);
  
-@@ -514,7 +510,10 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+@@ -516,7 +512,10 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
              processQueue.remove().run();
          }
  
@@ -1525,7 +1539,7 @@ index 5bf5fdc..3b2d9d3 100644
  
          // Send time updates to everyone, it will get the right time from the world the player is in.
          if (this.ticks % 20 == 0) {
-@@ -566,7 +565,9 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+@@ -568,7 +567,9 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
  
                  this.methodProfiler.b();
                  this.methodProfiler.a("tracker");
@@ -1535,7 +1549,7 @@ index 5bf5fdc..3b2d9d3 100644
                  this.methodProfiler.b();
                  this.methodProfiler.b();
              // } // CraftBukkit
-@@ -575,14 +576,20 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+@@ -577,14 +578,20 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
          }
  
          this.methodProfiler.c("connection");
@@ -1556,7 +1570,7 @@ index 5bf5fdc..3b2d9d3 100644
  
          this.methodProfiler.b();
      }
-@@ -1066,7 +1073,7 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+@@ -1068,7 +1075,7 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
      }
  
      public int S() {
@@ -1879,10 +1893,10 @@ index 0000000..0b3bd0d
 +}
 \ No newline at end of file
 diff --git a/src/main/java/net/minecraft/server/Packet51MapChunk.java b/src/main/java/net/minecraft/server/Packet51MapChunk.java
-index 14a6245..fd2b9c9 100644
+index 14a6245..617b474 100644
 --- a/src/main/java/net/minecraft/server/Packet51MapChunk.java
 +++ b/src/main/java/net/minecraft/server/Packet51MapChunk.java
-@@ -18,21 +18,35 @@ public class Packet51MapChunk extends Packet {
+@@ -18,22 +18,39 @@ public class Packet51MapChunk extends Packet {
      public boolean e;
      private int size;
      private static byte[] buildBuffer = new byte[196864];
@@ -1892,6 +1906,7 @@ index 14a6245..fd2b9c9 100644
          this.lowPriority = true;
      }
  
+-    public Packet51MapChunk(Chunk chunk, boolean flag, int i) {
 +    // Spigot start - add constructor for chunk removals for the client
 +    public Packet51MapChunk(int x, int z) {
 +        this.a = x;
@@ -1904,7 +1919,7 @@ index 14a6245..fd2b9c9 100644
 +    }
 +    // Spigot end
 +
-     public Packet51MapChunk(Chunk chunk, boolean flag, int i) {
++    public Packet51MapChunk(Chunk chunk, boolean flag, int i, int obfuscate) { // Spigot (Orebfuscator) - added argument
          this.lowPriority = true;
          this.a = chunk.x;
          this.b = chunk.z;
@@ -1915,11 +1930,29 @@ index 14a6245..fd2b9c9 100644
  
          this.d = chunkmap.c;
          this.c = chunkmap.b;
-+        org.spigotmc.OrebfuscatorManager.obfuscateSync(chunk.x, chunk.z, i, chunkmap.a, chunk.world); // Spigot (Orebfuscator)
- 
+-
++        // Spigot start - Orebfuscator
++        if (obfuscate > 0) {
++            org.spigotmc.OrebfuscatorManager.obfuscateSync(chunk.x, chunk.z, i, chunkmap.a, chunk.world, obfuscate);
++        }
++        // Spigot end
          try {
              this.inflatedBuffer = chunkmap.a;
-@@ -139,16 +153,22 @@ public class Packet51MapChunk extends Packet {
+             deflater.setInput(chunkmap.a, 0, chunkmap.a.length);
+@@ -44,6 +61,12 @@ public class Packet51MapChunk extends Packet {
+             deflater.end();
+         }
+     }
++    
++    // Spigot start - add new default constructor to support new orebfuscator arg.
++    public Packet51MapChunk(Chunk chunk, boolean flag, int i) {
++        this(chunk, flag, i, 1);
++    }
++    // Spigot end
+ 
+     public void a(DataInputStream datainputstream) throws IOException { // CraftBukkit - throws IOException
+         this.a = datainputstream.readInt();
+@@ -139,16 +162,22 @@ public class Packet51MapChunk extends Packet {
          for (l = 0; l < achunksection.length; ++l) {
              if (achunksection[l] != null && (!flag || !achunksection[l].a()) && (i & 1 << l) != 0) {
                  nibblearray = achunksection[l].j();
@@ -1946,7 +1979,7 @@ index 14a6245..fd2b9c9 100644
              }
          }
  
-@@ -156,8 +176,11 @@ public class Packet51MapChunk extends Packet {
+@@ -156,8 +185,11 @@ public class Packet51MapChunk extends Packet {
              for (l = 0; l < achunksection.length; ++l) {
                  if (achunksection[l] != null && (!flag || !achunksection[l].a()) && (i & 1 << l) != 0) {
                      nibblearray = achunksection[l].l();
@@ -1960,7 +1993,7 @@ index 14a6245..fd2b9c9 100644
                  }
              }
          }
-@@ -166,8 +189,11 @@ public class Packet51MapChunk extends Packet {
+@@ -166,8 +198,11 @@ public class Packet51MapChunk extends Packet {
              for (l = 0; l < achunksection.length; ++l) {
                  if (achunksection[l] != null && (!flag || !achunksection[l].a()) && achunksection[l].i() != null && (i & 1 << l) != 0) {
                      nibblearray = achunksection[l].i();
@@ -2090,7 +2123,7 @@ index eb474f5..3448fc5 100644
 +    // Spigot end
  }
 diff --git a/src/main/java/net/minecraft/server/PlayerChunk.java b/src/main/java/net/minecraft/server/PlayerChunk.java
-index 10a43b6..20f8e8a 100644
+index 10a43b6..3792638 100644
 --- a/src/main/java/net/minecraft/server/PlayerChunk.java
 +++ b/src/main/java/net/minecraft/server/PlayerChunk.java
 @@ -52,7 +52,7 @@ class PlayerChunk {
@@ -2102,6 +2135,15 @@ index 10a43b6..20f8e8a 100644
              this.b.remove(entityplayer);
              entityplayer.chunkCoordIntPairQueue.remove(this.location);
              if (this.b.isEmpty()) {
+@@ -117,7 +117,7 @@ class PlayerChunk {
+                 if (this.dirtyCount == 64) {
+                     i = this.location.x * 16;
+                     j = this.location.z * 16;
+-                    this.sendAll(new Packet51MapChunk(PlayerChunkMap.a(this.playerChunkMap).getChunkAt(this.location.x, this.location.z), (this.f == 0xFFFF), this.f)); // CraftBukkit - send everything (including biome) if all sections flagged
++                    this.sendAll(new Packet51MapChunk(PlayerChunkMap.a(this.playerChunkMap).getChunkAt(this.location.x, this.location.z), (this.f == 0xFFFF), this.f, PlayerChunkMap.a(this.playerChunkMap).getServer().orebfuscatorUpdateRadius)); // Spigot (Orebfuscator) - CraftBukkit - send everything (including biome) if all sections flagged
+ 
+                     for (k = 0; k < 16; ++k) {
+                         if ((this.f & 1 << k) != 0) {
 diff --git a/src/main/java/net/minecraft/server/PlayerChunkMap.java b/src/main/java/net/minecraft/server/PlayerChunkMap.java
 index 0dfd190..c543bed 100644
 --- a/src/main/java/net/minecraft/server/PlayerChunkMap.java
@@ -2202,10 +2244,10 @@ index 91bed16..8af36ca 100644
  
          if (false) { // Never trigger
 diff --git a/src/main/java/net/minecraft/server/PlayerList.java b/src/main/java/net/minecraft/server/PlayerList.java
-index 464b250..126b177 100644
+index ed670d9..f94cc54 100644
 --- a/src/main/java/net/minecraft/server/PlayerList.java
 +++ b/src/main/java/net/minecraft/server/PlayerList.java
-@@ -303,7 +303,7 @@ public abstract class PlayerList {
+@@ -305,7 +305,7 @@ public abstract class PlayerList {
  
              event.disallow(PlayerLoginEvent.Result.KICK_BANNED, s1);
          } else if (!this.isWhitelisted(s)) {
@@ -2214,7 +2256,7 @@ index 464b250..126b177 100644
          } else {
              String s2 = socketaddress.toString();
  
-@@ -491,7 +491,14 @@ public abstract class PlayerList {
+@@ -493,7 +493,14 @@ public abstract class PlayerList {
          if (exitWorld != null) {
              if ((cause == TeleportCause.END_PORTAL) && (i == 0)) {
                  // THE_END -> NORMAL; use bed if available, otherwise default spawn
@@ -2230,7 +2272,7 @@ index 464b250..126b177 100644
                  if (exit == null || ((CraftWorld) exit.getWorld()).getHandle().dimension != 0) {
                      exit = exitWorld.getWorld().getSpawnLocation();
                  }
-@@ -713,7 +720,23 @@ public abstract class PlayerList {
+@@ -715,7 +722,23 @@ public abstract class PlayerList {
              this.sendAll(new Packet201PlayerInfo(entityplayer.name, true, entityplayer.ping));
          }
          // CraftBukkit end */
@@ -2254,7 +2296,7 @@ index 464b250..126b177 100644
  
      public void sendAll(Packet packet) {
          for (int i = 0; i < this.players.size(); ++i) {
-@@ -1044,7 +1067,13 @@ public abstract class PlayerList {
+@@ -1046,7 +1069,13 @@ public abstract class PlayerList {
  
      public void r() {
          while (!this.players.isEmpty()) {
@@ -2485,7 +2527,7 @@ index 0000000..678aa91
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index 9698185..ccc49a5 100644
+index 03b7167..a50bcb1 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
 @@ -13,6 +13,8 @@ import java.util.concurrent.Callable;
@@ -2904,7 +2946,7 @@ index bf3e6fe..305dceb 100644
  
                      this.c[i] = -1;
 diff --git a/src/main/java/net/minecraft/server/WorldServer.java b/src/main/java/net/minecraft/server/WorldServer.java
-index 7489763..2fb1102 100644
+index 13f67da..615968f 100644
 --- a/src/main/java/net/minecraft/server/WorldServer.java
 +++ b/src/main/java/net/minecraft/server/WorldServer.java
 @@ -1,5 +1,7 @@
@@ -2932,7 +2974,7 @@ index 7489763..2fb1102 100644
          if (this.entitiesById == null) {
              this.entitiesById = new IntHashMap();
          }
-@@ -182,9 +185,12 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
+@@ -183,9 +186,12 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
          // CraftBukkit start - Only call spawner if we have players online and the world allows for mobs or animals
          long time = this.worldData.getTime();
          if (this.getGameRules().getBoolean("doMobSpawning") && (this.allowMonsters || this.allowAnimals) && (this instanceof WorldServer && this.players.size() > 0)) {
@@ -2945,7 +2987,7 @@ index 7489763..2fb1102 100644
          this.methodProfiler.c("chunkSource");
          this.chunkProvider.unloadChunks();
          int j = this.a(1.0F);
-@@ -210,6 +216,7 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
+@@ -211,6 +217,7 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
          this.Y();
  
          this.getWorld().processChunkGC(); // CraftBukkit
@@ -2953,7 +2995,7 @@ index 7489763..2fb1102 100644
      }
  
      public BiomeMeta a(EnumCreatureType enumcreaturetype, int i, int j, int k) {
-@@ -294,15 +301,30 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
+@@ -295,15 +302,30 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
      }
  
      protected void g() {
@@ -2987,7 +3029,7 @@ index 7489763..2fb1102 100644
              // ChunkCoordIntPair chunkcoordintpair = (ChunkCoordIntPair) iterator.next();
              int k = chunkX * 16;
              int l = chunkZ * 16;
-@@ -400,7 +422,17 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
+@@ -401,7 +423,17 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
  
                          if (block != null && block.isTicking()) {
                              ++i;
@@ -3006,7 +3048,7 @@ index 7489763..2fb1102 100644
                          }
                      }
                  }
-@@ -642,17 +674,20 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
+@@ -643,17 +675,20 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
  
      public List getTileEntities(int i, int j, int k, int l, int i1, int j1) {
          ArrayList arraylist = new ArrayList();
@@ -3109,10 +3151,10 @@ index 79c3893..ad58bef 100644
          }
  
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-index 7b9c787..6e69856 100644
+index 8a079d3..9f2be37 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-@@ -146,7 +146,7 @@ public final class CraftServer implements Server {
+@@ -145,7 +145,7 @@ public final class CraftServer implements Server {
      protected final MinecraftServer console;
      protected final DedicatedPlayerList playerList;
      private final Map<String, World> worlds = new LinkedHashMap<String, World>();
@@ -3122,8 +3164,8 @@ index 7b9c787..6e69856 100644
      private final Map<String, OfflinePlayer> offlinePlayers = new MapMaker().softValues().makeMap();
      private final AutoUpdater updater;
 @@ -163,9 +163,24 @@ public final class CraftServer implements Server {
-     private WarningState warningState = WarningState.DEFAULT;
      private final BooleanWrapper online = new BooleanWrapper();
+     public CraftScoreboardManager scoreboardManager;
  
 +    // Orebfuscator use
 +    public boolean orebfuscatorEnabled = false;
@@ -3193,7 +3235,7 @@ index 7b9c787..6e69856 100644
          loadPlugins();
          enablePlugins(PluginLoadOrder.STARTUP);
          enablePlugins(PluginLoadOrder.POSTWORLD);
-@@ -1054,13 +1079,8 @@ public final class CraftServer implements Server {
+@@ -1055,13 +1080,8 @@ public final class CraftServer implements Server {
          return count;
      }
  
@@ -3208,7 +3250,7 @@ index 7b9c787..6e69856 100644
          OfflinePlayer result = getPlayerExact(name);
          String lname = name.toLowerCase();
  
-@@ -1068,17 +1088,7 @@ public final class CraftServer implements Server {
+@@ -1069,17 +1089,7 @@ public final class CraftServer implements Server {
              result = offlinePlayers.get(lname);
  
              if (result == null) {
@@ -3227,7 +3269,7 @@ index 7b9c787..6e69856 100644
                  result = new CraftOfflinePlayer(this, name);
                  offlinePlayers.put(lname, result);
              }
-@@ -1216,7 +1226,7 @@ public final class CraftServer implements Server {
+@@ -1217,7 +1227,7 @@ public final class CraftServer implements Server {
          Set<OfflinePlayer> players = new HashSet<OfflinePlayer>();
  
          for (String file : files) {
@@ -3236,7 +3278,7 @@ index 7b9c787..6e69856 100644
          }
          players.addAll(Arrays.asList(getOnlinePlayers()));
  
-@@ -1322,7 +1332,7 @@ public final class CraftServer implements Server {
+@@ -1323,7 +1333,7 @@ public final class CraftServer implements Server {
      public List<String> tabCompleteCommand(Player player, String message) {
          List<String> completions = null;
          try {
@@ -3987,10 +4029,10 @@ index 0000000..f114a31
 +    }
 +}
 diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
-index d37d719..f9a7645 100644
+index a93625c..10bfb8b 100644
 --- a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
-@@ -213,6 +213,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+@@ -214,6 +214,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
      }
  
      public void kickPlayer(String message) {
@@ -3998,7 +4040,7 @@ index d37d719..f9a7645 100644
          if (getHandle().playerConnection == null) return;
  
          getHandle().playerConnection.disconnect(message == null ? "" : message);
-@@ -625,10 +626,28 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+@@ -627,10 +628,28 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
          ChunkCoordinates bed = getHandle().getBed();
  
          if (world != null && bed != null) {
@@ -4029,7 +4071,7 @@ index d37d719..f9a7645 100644
          }
          return null;
      }
-@@ -809,7 +828,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+@@ -811,7 +830,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
      public void setTexturePack(String url) {
          Validate.notNull(url, "Texture pack URL cannot be null");
  
@@ -4052,10 +4094,18 @@ index b28d6a3..e70e4e4 100644
      protected final WorldMap worldMap;
  
 diff --git a/src/main/java/org/bukkit/craftbukkit/scheduler/CraftScheduler.java b/src/main/java/org/bukkit/craftbukkit/scheduler/CraftScheduler.java
-index 84dcfcc..a30f217 100644
+index 84dcfcc..35badf3 100644
 --- a/src/main/java/org/bukkit/craftbukkit/scheduler/CraftScheduler.java
 +++ b/src/main/java/org/bukkit/craftbukkit/scheduler/CraftScheduler.java
-@@ -71,7 +71,7 @@ public class CraftScheduler implements BukkitScheduler {
+@@ -15,7 +15,6 @@ import java.util.concurrent.atomic.AtomicReference;
+ import java.util.logging.Level;
+ 
+ import org.apache.commons.lang.Validate;
+-import org.bukkit.plugin.IllegalPluginAccessException;
+ import org.bukkit.plugin.Plugin;
+ import org.bukkit.scheduler.BukkitScheduler;
+ import org.bukkit.scheduler.BukkitTask;
+@@ -71,7 +70,7 @@ public class CraftScheduler implements BukkitScheduler {
       */
      private final ConcurrentHashMap<Integer, CraftTask> runners = new ConcurrentHashMap<Integer, CraftTask>();
      private volatile int currentTick = -1;
@@ -4064,6 +4114,16 @@ index 84dcfcc..a30f217 100644
      private CraftAsyncDebugger debugHead = new CraftAsyncDebugger(-1, null, null) {@Override StringBuilder debugTo(StringBuilder string) {return string;}};
      private CraftAsyncDebugger debugTail = debugHead;
      private static final int RECENT_TICKS;
+@@ -390,9 +389,6 @@ public class CraftScheduler implements BukkitScheduler {
+     private static void validate(final Plugin plugin, final Object task) {
+         Validate.notNull(plugin, "Plugin cannot be null");
+         Validate.notNull(task, "Task cannot be null");
+-        if (!plugin.isEnabled()) {
+-            throw new IllegalPluginAccessException("Plugin attempted to register task while disabled");
+-        }
+     }
+ 
+     private int nextId() {
 diff --git a/src/main/java/org/bukkit/craftbukkit/scheduler/CraftTask.java b/src/main/java/org/bukkit/craftbukkit/scheduler/CraftTask.java
 index 55db3ff..df134e3 100644
 --- a/src/main/java/org/bukkit/craftbukkit/scheduler/CraftTask.java
@@ -4899,10 +4959,10 @@ index 0000000..f1690a2
 \ No newline at end of file
 diff --git a/src/main/java/org/spigotmc/OrebfuscatorManager.java b/src/main/java/org/spigotmc/OrebfuscatorManager.java
 new file mode 100644
-index 0000000..768b74c
+index 0000000..d168c55
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/OrebfuscatorManager.java
-@@ -0,0 +1,139 @@
+@@ -0,0 +1,146 @@
 +package org.spigotmc;
 +
 +import java.util.ArrayList;
@@ -4944,15 +5004,22 @@ index 0000000..768b74c
 +        update.stopTiming();
 +    }
 +
-+    public static void obfuscateSync(int chunkX, int chunkY, int bitmask, byte[] buffer, World world) {
++    public static void obfuscateSync(int chunkX, int chunkY, int bitmask, byte[] buffer, World world, int initRadius) {
 +        obfuscate.startTiming();
-+        obfuscate(chunkX, chunkY, bitmask, buffer, world);
++        obfuscate(chunkX, chunkY, bitmask, buffer, world, initRadius);
 +        obfuscate.stopTiming();
 +    }
-+
++    
++    public static void obfuscateSync(int chunkX, int chunkY, int bitmask, byte[] buffer, World world) {
++        obfuscateSync(chunkX, chunkY, bitmask, buffer, world, 1);
++    }
++    
 +    public static void obfuscate(int chunkX, int chunkY, int bitmask, byte[] buffer, World world) {
++        obfuscate(chunkX, chunkY, bitmask, buffer, world, 1);
++    }
++
++    public static void obfuscate(int chunkX, int chunkY, int bitmask, byte[] buffer, World world, int initialRadius) {
 +        if (world.getServer().orebfuscatorEnabled && world.getWorld().obfuscated) {
-+            int initialRadius = 1;
 +            int index = 0;
 +            int startX = chunkX << 4;
 +            int startZ = chunkY << 4;
