@@ -1,6 +1,6 @@
-From 7441d40de67b74199dec930f87bd8eae6a46ff84 Mon Sep 17 00:00:00 2001
+From 373ea7c7c633ae8005f056955949df042a3628da Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Fri, 12 Apr 2013 22:48:16 -0400
+Date: Sat, 13 Apr 2013 11:13:35 -0400
 Subject: [PATCH] Spigot
 
 ---
@@ -18,21 +18,18 @@ Subject: [PATCH] Spigot
  .../net/minecraft/server/ChunkProviderServer.java  |   2 +
  .../net/minecraft/server/ChunkRegionLoader.java    |  45 +-
  .../java/net/minecraft/server/ChunkSection.java    |  47 +-
- src/main/java/net/minecraft/server/Container.java  |   2 +-
  .../java/net/minecraft/server/DataWatcher.java     | 287 +++++++++
  .../java/net/minecraft/server/DedicatedServer.java |   8 +-
  .../server/DispenseBehaviorEmptyBucket.java        |   2 +-
- src/main/java/net/minecraft/server/Entity.java     |  21 +-
+ src/main/java/net/minecraft/server/Entity.java     |  20 +-
  .../java/net/minecraft/server/EntityArrow.java     |   2 +-
- src/main/java/net/minecraft/server/EntityBoat.java |   2 +-
  .../net/minecraft/server/EntityFallingBlock.java   |   1 +
  .../java/net/minecraft/server/EntityHanging.java   |  15 +
  .../java/net/minecraft/server/EntityHuman.java     |   6 +
- src/main/java/net/minecraft/server/EntityItem.java |  23 +-
- .../java/net/minecraft/server/EntityLiving.java    |  18 +
- .../java/net/minecraft/server/EntityPlayer.java    |   8 +-
- .../java/net/minecraft/server/EntitySquid.java     |   4 -
- .../java/net/minecraft/server/EntityTracker.java   |   5 +-
+ src/main/java/net/minecraft/server/EntityItem.java |  19 +-
+ .../java/net/minecraft/server/EntityLiving.java    |  10 +
+ .../java/net/minecraft/server/EntityPlayer.java    |   3 +-
+ .../java/net/minecraft/server/EntityTracker.java   |   3 +
  .../net/minecraft/server/EntityTrackerEntry.java   |   2 +
  src/main/java/net/minecraft/server/Explosion.java  |   1 +
  .../java/net/minecraft/server/INetworkManager.java |  26 +
@@ -56,7 +53,7 @@ Subject: [PATCH] Spigot
  .../java/net/minecraft/server/WatchableObject.java |  44 ++
  src/main/java/net/minecraft/server/World.java      | 176 +++++-
  .../net/minecraft/server/WorldMapHumanTracker.java |  24 +-
- .../java/net/minecraft/server/WorldServer.java     |  63 +-
+ .../java/net/minecraft/server/WorldServer.java     |  42 +-
  .../java/org/bukkit/craftbukkit/CraftChunk.java    |  44 +-
  .../java/org/bukkit/craftbukkit/CraftServer.java   |  54 +-
  .../java/org/bukkit/craftbukkit/CraftWorld.java    | 126 +++-
@@ -86,7 +83,7 @@ Subject: [PATCH] Spigot
  .../java/org/spigotmc/netty/PacketListener.java    | 100 ++++
  src/main/java/org/spigotmc/netty/ReadState.java    |  16 +
  src/main/resources/configurations/bukkit.yml       |  51 ++
- 82 files changed, 4014 insertions(+), 252 deletions(-)
+ 79 files changed, 3985 insertions(+), 232 deletions(-)
  create mode 100644 src/main/java/net/minecraft/server/DataWatcher.java
  create mode 100644 src/main/java/net/minecraft/server/INetworkManager.java
  create mode 100644 src/main/java/net/minecraft/server/NibbleArray.java
@@ -121,7 +118,7 @@ index c3faf57..346b232 100644
 +/dependency-reduced-pom.xml
 \ No newline at end of file
 diff --git a/pom.xml b/pom.xml
-index 6415183..95514d8 100644
+index 9ff95c6..b8c24af 100644
 --- a/pom.xml
 +++ b/pom.xml
 @@ -1,12 +1,20 @@
@@ -141,7 +138,7 @@ index 6415183..95514d8 100644
 +  <groupId>org.spigotmc</groupId>
 +  <artifactId>spigot</artifactId>
    <packaging>jar</packaging>
-   <version>1.5.1-R0.2-SNAPSHOT</version>
+   <version>1.5.1-R0.3-SNAPSHOT</version>
 -  <name>CraftBukkit</name>
 -  <url>http://www.bukkit.org</url>
 +  <name>Spigot</name>
@@ -592,19 +589,6 @@ index 38f3038..623399f 100644
      }
 +    // Spigot end
  }
-diff --git a/src/main/java/net/minecraft/server/Container.java b/src/main/java/net/minecraft/server/Container.java
-index a1d930c..540b2dc 100644
---- a/src/main/java/net/minecraft/server/Container.java
-+++ b/src/main/java/net/minecraft/server/Container.java
-@@ -337,7 +337,7 @@ public abstract class Container {
-                 }
-             } else if (k == 4 && playerinventory.getCarried() == null && i >= 0) {
-                 slot2 = (Slot) this.c.get(i);
--                if (slot2 != null && slot2.d()) {
-+                if (slot2 != null && slot2.d() && slot2.a(entityhuman)) { // Spigot
-                     itemstack1 = slot2.a(j == 0 ? 1 : slot2.getItem().count);
-                     slot2.a(entityhuman, itemstack1);
-                     entityhuman.drop(itemstack1);
 diff --git a/src/main/java/net/minecraft/server/DataWatcher.java b/src/main/java/net/minecraft/server/DataWatcher.java
 new file mode 100644
 index 0000000..f0fa9ca
@@ -938,7 +922,7 @@ index 8f7e09b..ae65526 100644
  
          BlockDispenseEvent event = new BlockDispenseEvent(block, craftItem.clone(), new org.bukkit.util.Vector(0, 0, 0));
 diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
-index 51a5b38..aafaf17 100644
+index d510392..c40cf71 100644
 --- a/src/main/java/net/minecraft/server/Entity.java
 +++ b/src/main/java/net/minecraft/server/Entity.java
 @@ -14,6 +14,7 @@ import org.bukkit.block.BlockFace;
@@ -993,16 +977,15 @@ index 51a5b38..aafaf17 100644
  
          this.datawatcher.a(0, Byte.valueOf((byte) 0));
          this.datawatcher.a(1, Short.valueOf((short) 300));
-@@ -417,6 +431,8 @@ public abstract class Entity {
-     }
+@@ -423,6 +437,7 @@ public abstract class Entity {
+         }
+         // CraftBukkit end
  
-     public void move(double d0, double d1, double d2) {
-+        if (d0 == 0 && d1 == 0 && d2 == 0) { return; } // Spigot
 +        org.bukkit.craftbukkit.SpigotTimings.entityMoveTimer.startTiming(); // Spigot
          if (this.Z) {
              this.boundingBox.d(d0, d1, d2);
              this.locX = (this.boundingBox.a + this.boundingBox.d) / 2.0D;
-@@ -716,6 +732,7 @@ public abstract class Entity {
+@@ -722,6 +737,7 @@ public abstract class Entity {
  
              this.world.methodProfiler.b();
          }
@@ -1023,19 +1006,6 @@ index f46c920..1699059 100644
      public int fromPlayer = 0;
      public int shake = 0;
      public Entity shooter;
-diff --git a/src/main/java/net/minecraft/server/EntityBoat.java b/src/main/java/net/minecraft/server/EntityBoat.java
-index 8839a45..953e86c 100644
---- a/src/main/java/net/minecraft/server/EntityBoat.java
-+++ b/src/main/java/net/minecraft/server/EntityBoat.java
-@@ -294,7 +294,7 @@ public class EntityBoat extends Entity {
- 
-             this.move(this.motX, this.motY, this.motZ);
-             if (this.positionChanged && d3 > 0.2D) {
--                if (!this.world.isStatic) {
-+                if (!this.world.isStatic && !this.dead) { // Spigot - Boat dupe fix
-                     // CraftBukkit start
-                     Vehicle vehicle = (Vehicle) this.getBukkitEntity();
-                     VehicleDestroyEvent destroyEvent = new VehicleDestroyEvent(vehicle, null);
 diff --git a/src/main/java/net/minecraft/server/EntityFallingBlock.java b/src/main/java/net/minecraft/server/EntityFallingBlock.java
 index 17d837d..ecc52b9 100644
 --- a/src/main/java/net/minecraft/server/EntityFallingBlock.java
@@ -1104,30 +1074,26 @@ index d647d2e..f948497 100644
          }
      }
 diff --git a/src/main/java/net/minecraft/server/EntityItem.java b/src/main/java/net/minecraft/server/EntityItem.java
-index ee775bf..924b6ed 100644
+index a28d233..9f1a7b7 100644
 --- a/src/main/java/net/minecraft/server/EntityItem.java
 +++ b/src/main/java/net/minecraft/server/EntityItem.java
-@@ -61,6 +61,7 @@ public class EntityItem extends Entity {
-         this.lastTick = currentTick;
+@@ -62,6 +62,7 @@ public class EntityItem extends Entity {
+         this.lastTick = MinecraftServer.currentTick;
          // CraftBukkit end
  
 +        if (lastTick % 2 == 0) { // Spigot
          this.lastX = this.locX;
          this.lastY = this.locY;
          this.lastZ = this.locZ;
-@@ -99,8 +100,9 @@ public class EntityItem extends Entity {
+@@ -100,6 +101,7 @@ public class EntityItem extends Entity {
          if (this.onGround) {
              this.motY *= -0.5D;
          }
--
--        ++this.age;
 +        }
-+        this.age = ticksLived;
-+        // Spigot
+ 
+         // ++this.age; // CraftBukkit - Moved up
          if (!this.world.isStatic && this.age >= 6000) {
-             // CraftBukkit start
-             if (org.bukkit.craftbukkit.event.CraftEventFactory.callItemDespawnEvent(this).isCancelled()) {
-@@ -113,7 +115,10 @@ public class EntityItem extends Entity {
+@@ -114,7 +116,10 @@ public class EntityItem extends Entity {
      }
  
      private void g() {
@@ -1139,7 +1105,7 @@ index ee775bf..924b6ed 100644
  
          while (iterator.hasNext()) {
              EntityItem entityitem = (EntityItem) iterator.next();
-@@ -142,11 +147,13 @@ public class EntityItem extends Entity {
+@@ -143,11 +148,13 @@ public class EntityItem extends Entity {
              } else if (itemstack1.count + itemstack.count > itemstack1.getMaxStackSize()) {
                  return false;
              } else {
@@ -1159,7 +1125,7 @@ index ee775bf..924b6ed 100644
              }
          } else {
 diff --git a/src/main/java/net/minecraft/server/EntityLiving.java b/src/main/java/net/minecraft/server/EntityLiving.java
-index 21819ee..bdbd72a 100644
+index f8dd417..8fe9a54 100644
 --- a/src/main/java/net/minecraft/server/EntityLiving.java
 +++ b/src/main/java/net/minecraft/server/EntityLiving.java
 @@ -497,6 +497,7 @@ public abstract class EntityLiving extends Entity {
@@ -1188,7 +1154,7 @@ index 21819ee..bdbd72a 100644
      }
  
      // CraftBukkit start - Delegate so we can handle providing a reason for health being regained
-@@ -1252,6 +1256,7 @@ public abstract class EntityLiving extends Entity {
+@@ -1254,6 +1258,7 @@ public abstract class EntityLiving extends Entity {
      }
  
      public void c() {
@@ -1196,7 +1162,7 @@ index 21819ee..bdbd72a 100644
          if (this.bX > 0) {
              --this.bX;
          }
-@@ -1303,6 +1308,7 @@ public abstract class EntityLiving extends Entity {
+@@ -1305,6 +1310,7 @@ public abstract class EntityLiving extends Entity {
                  this.aA = this.yaw;
              }
          }
@@ -1204,7 +1170,7 @@ index 21819ee..bdbd72a 100644
  
          this.world.methodProfiler.b();
          this.world.methodProfiler.a("jump");
-@@ -1321,6 +1327,7 @@ public abstract class EntityLiving extends Entity {
+@@ -1323,6 +1329,7 @@ public abstract class EntityLiving extends Entity {
  
          this.world.methodProfiler.b();
          this.world.methodProfiler.a("travel");
@@ -1212,7 +1178,7 @@ index 21819ee..bdbd72a 100644
          this.bD *= 0.98F;
          this.bE *= 0.98F;
          this.bF *= 0.9F;
-@@ -1329,11 +1336,14 @@ public abstract class EntityLiving extends Entity {
+@@ -1331,11 +1338,14 @@ public abstract class EntityLiving extends Entity {
          this.aO *= this.bE();
          this.e(this.bD, this.bE);
          this.aO = f;
@@ -1227,29 +1193,8 @@ index 21819ee..bdbd72a 100644
  
          this.world.methodProfiler.b();
          this.world.methodProfiler.a("looting");
-@@ -1405,12 +1415,20 @@ public abstract class EntityLiving extends Entity {
-     }
- 
-     protected void bg() {
-+        // Spigot start
-+        boolean skip = false;
-+        if (!(this instanceof EntityPlayer) && this.ticksLived % 2 != 0) {
-+            skip = true;
-+        }
-+        // Spigot end
-+
-         List list = this.world.getEntities(this, this.boundingBox.grow(0.20000000298023224D, 0.0D, 0.20000000298023224D));
- 
-         if (list != null && !list.isEmpty()) {
-             for (int i = 0; i < list.size(); ++i) {
-                 Entity entity = (Entity) list.get(i);
- 
-+                if (entity instanceof EntityLiving && skip) { continue; } // Spigot
-                 if (entity.L()) {
-                     this.o(entity);
-                 }
 diff --git a/src/main/java/net/minecraft/server/EntityPlayer.java b/src/main/java/net/minecraft/server/EntityPlayer.java
-index eb07d8e..3ce9f8b 100644
+index e158935..b23b9ce 100644
 --- a/src/main/java/net/minecraft/server/EntityPlayer.java
 +++ b/src/main/java/net/minecraft/server/EntityPlayer.java
 @@ -51,6 +51,7 @@ public class EntityPlayer extends EntityHuman implements ICrafting {
@@ -1260,19 +1205,7 @@ index eb07d8e..3ce9f8b 100644
      // CraftBukkit end
  
      public EntityPlayer(MinecraftServer minecraftserver, World world, String s, PlayerInteractManager playerinteractmanager) {
-@@ -173,8 +174,9 @@ public class EntityPlayer extends EntityHuman implements ICrafting {
- 
-                 iterator1.remove();
-                 if (chunkcoordintpair != null && this.world.isLoaded(chunkcoordintpair.x << 4, 0, chunkcoordintpair.z << 4)) {
--                    arraylist.add(this.world.getChunkAt(chunkcoordintpair.x, chunkcoordintpair.z));
--                    arraylist1.addAll(((WorldServer) this.world).getTileEntities(chunkcoordintpair.x * 16, 0, chunkcoordintpair.z * 16, chunkcoordintpair.x * 16 + 16, 256, chunkcoordintpair.z * 16 + 16));
-+                    Chunk chunk = this.world.getChunkAt(chunkcoordintpair.x, chunkcoordintpair.z); // Spigot
-+                    arraylist.add(chunk); // Spigot
-+                    arraylist1.addAll(chunk.tileEntities.values()); // Spigot
-                 }
-             }
- 
-@@ -415,7 +417,7 @@ public class EntityPlayer extends EntityHuman implements ICrafting {
+@@ -418,7 +419,7 @@ public class EntityPlayer extends EntityHuman implements ICrafting {
      }
  
      public void a(boolean flag, boolean flag1, boolean flag2) {
@@ -1281,34 +1214,10 @@ index eb07d8e..3ce9f8b 100644
  
          if (this.isSleeping()) {
              this.o().getTracker().sendPacketToEntity(this, new Packet18ArmAnimation(this, 3));
-diff --git a/src/main/java/net/minecraft/server/EntitySquid.java b/src/main/java/net/minecraft/server/EntitySquid.java
-index be8a5ed..0c0157f 100644
---- a/src/main/java/net/minecraft/server/EntitySquid.java
-+++ b/src/main/java/net/minecraft/server/EntitySquid.java
-@@ -63,10 +63,6 @@ public class EntitySquid extends EntityWaterAnimal {
-         // CraftBukkit end
-     }
- 
--    public boolean G() {
--        return this.world.a(this.boundingBox.grow(0.0D, -0.6000000238418579D, 0.0D), Material.WATER, (Entity) this);
--    }
--
-     public void c() {
-         super.c();
-         this.e = this.d;
 diff --git a/src/main/java/net/minecraft/server/EntityTracker.java b/src/main/java/net/minecraft/server/EntityTracker.java
-index 4de1273..7cd2c26 100644
+index 9e2b76f..f6f1ab0 100644
 --- a/src/main/java/net/minecraft/server/EntityTracker.java
 +++ b/src/main/java/net/minecraft/server/EntityTracker.java
-@@ -58,7 +58,7 @@ public class EntityTracker {
-         } else if (entity instanceof EntityMinecartAbstract) {
-             this.addEntity(entity, 80, 3, true);
-         } else if (entity instanceof EntityBoat) {
--            this.addEntity(entity, 80, 3, true);
-+            this.addEntity(entity, 80, 2, true); // Spigot - send at same speed as player
-         } else if (entity instanceof EntitySquid) {
-             this.addEntity(entity, 64, 3, true);
-         } else if (entity instanceof EntityWither) {
 @@ -89,6 +89,8 @@ public class EntityTracker {
      }
  
@@ -1327,7 +1236,7 @@ index 4de1273..7cd2c26 100644
              EntityPlayer entityplayer = (EntityPlayer) entity;
              Iterator iterator = this.b.iterator();
 diff --git a/src/main/java/net/minecraft/server/EntityTrackerEntry.java b/src/main/java/net/minecraft/server/EntityTrackerEntry.java
-index 4871bd7..8aa2e88 100644
+index 65cc4e8..970a834 100644
 --- a/src/main/java/net/minecraft/server/EntityTrackerEntry.java
 +++ b/src/main/java/net/minecraft/server/EntityTrackerEntry.java
 @@ -286,6 +286,7 @@ public class EntityTrackerEntry {
@@ -1338,7 +1247,7 @@ index 4871bd7..8aa2e88 100644
          if (entityplayer != this.tracker) {
              double d0 = entityplayer.locX - (double) (this.xLoc / 32);
              double d1 = entityplayer.locZ - (double) (this.zLoc / 32);
-@@ -470,6 +471,7 @@ public class EntityTrackerEntry {
+@@ -474,6 +475,7 @@ public class EntityTrackerEntry {
      }
  
      public void clear(EntityPlayer entityplayer) {
@@ -1436,7 +1345,7 @@ index 7dc36a8..cd032ae 100644
                      if (entityliving instanceof EntityHuman) {
                          ((EntityHuman) entityliving).a(StatisticList.F[this.id], 1);
 diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
-index 64d5882..8e02ca4 100644
+index 3ee8ddc..a1d77ad 100644
 --- a/src/main/java/net/minecraft/server/MinecraftServer.java
 +++ b/src/main/java/net/minecraft/server/MinecraftServer.java
 @@ -6,7 +6,6 @@ import java.security.KeyPair;
@@ -2265,7 +2174,7 @@ index c81793a..a1c2442 100644
                      }
                  }
 diff --git a/src/main/java/net/minecraft/server/PlayerInteractManager.java b/src/main/java/net/minecraft/server/PlayerInteractManager.java
-index 91bed16..8af36ca 100644
+index d03174b..354d4f6 100644
 --- a/src/main/java/net/minecraft/server/PlayerInteractManager.java
 +++ b/src/main/java/net/minecraft/server/PlayerInteractManager.java
 @@ -285,6 +285,11 @@ public class PlayerInteractManager {
@@ -2564,7 +2473,7 @@ index 0000000..678aa91
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index 03b7167..a50bcb1 100644
+index d896f69..7e10318 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
 @@ -13,6 +13,8 @@ import java.util.concurrent.Callable;
@@ -2576,7 +2485,7 @@ index 03b7167..a50bcb1 100644
  import org.bukkit.craftbukkit.util.UnsafeList;
  import org.bukkit.generator.ChunkGenerator;
  import org.bukkit.craftbukkit.CraftServer;
-@@ -67,14 +69,27 @@ public abstract class World implements IBlockAccess {
+@@ -66,14 +68,27 @@ public abstract class World implements IBlockAccess {
      // CraftBukkit start - public, longhashset
      public boolean allowMonsters = true;
      public boolean allowAnimals = true;
@@ -2605,7 +2514,7 @@ index 03b7167..a50bcb1 100644
      public BiomeBase getBiome(int i, int j) {
          if (this.isLoaded(i, 0, j)) {
              Chunk chunk = this.getChunkAtWorldCoords(i, j);
-@@ -100,6 +115,9 @@ public abstract class World implements IBlockAccess {
+@@ -99,6 +114,9 @@ public abstract class World implements IBlockAccess {
      int lastXAccessed = Integer.MIN_VALUE;
      int lastZAccessed = Integer.MIN_VALUE;
      final Object chunkLock = new Object();
@@ -2615,7 +2524,7 @@ index 03b7167..a50bcb1 100644
  
      public CraftWorld getWorld() {
          return this.world;
-@@ -112,11 +130,18 @@ public abstract class World implements IBlockAccess {
+@@ -111,11 +129,18 @@ public abstract class World implements IBlockAccess {
      // Changed signature
      public World(IDataManager idatamanager, String s, WorldSettings worldsettings, WorldProvider worldprovider, MethodProfiler methodprofiler, IConsoleLogManager iconsolelogmanager, ChunkGenerator gen, org.bukkit.World.Environment env) {
          this.generator = gen;
@@ -2634,7 +2543,7 @@ index 03b7167..a50bcb1 100644
          this.O = this.random.nextInt(12000);
          this.H = new int['\u8000'];
          this.isStatic = false;
-@@ -124,7 +149,7 @@ public abstract class World implements IBlockAccess {
+@@ -123,7 +148,7 @@ public abstract class World implements IBlockAccess {
          this.methodProfiler = methodprofiler;
          this.worldMaps = new WorldMapCollection(idatamanager);
          this.logAgent = iconsolelogmanager;
@@ -2643,7 +2552,7 @@ index 03b7167..a50bcb1 100644
          if (worldprovider != null) {
              this.worldProvider = worldprovider;
          } else if (this.worldData != null && this.worldData.j() != 0) {
-@@ -173,6 +198,7 @@ public abstract class World implements IBlockAccess {
+@@ -172,6 +197,7 @@ public abstract class World implements IBlockAccess {
          this.a();
  
          this.getServer().addWorld(this.world); // CraftBukkit
@@ -2651,7 +2560,7 @@ index 03b7167..a50bcb1 100644
      }
  
      protected abstract IChunkProvider j();
-@@ -273,15 +299,13 @@ public abstract class World implements IBlockAccess {
+@@ -272,15 +298,13 @@ public abstract class World implements IBlockAccess {
  
      // CraftBukkit start
      public Chunk getChunkAt(int i, int j) {
@@ -2673,7 +2582,7 @@ index 03b7167..a50bcb1 100644
          return result;
      }
      // CraftBukkit end
-@@ -898,6 +922,7 @@ public abstract class World implements IBlockAccess {
+@@ -897,6 +921,7 @@ public abstract class World implements IBlockAccess {
      }
  
      public boolean addEntity(Entity entity, SpawnReason spawnReason) { // Changed signature, added SpawnReason
@@ -2681,7 +2590,7 @@ index 03b7167..a50bcb1 100644
          if (entity == null) return false;
          // CraftBukkit end
  
-@@ -929,6 +954,23 @@ public abstract class World implements IBlockAccess {
+@@ -928,6 +953,23 @@ public abstract class World implements IBlockAccess {
              // Not all projectiles extend EntityProjectile, so check for Bukkit interface instead
              event = CraftEventFactory.callProjectileLaunchEvent(entity);
          }
@@ -2705,7 +2614,7 @@ index 03b7167..a50bcb1 100644
  
          if (event != null && (event.isCancelled() || entity.dead)) {
              entity.dead = true;
-@@ -987,6 +1029,7 @@ public abstract class World implements IBlockAccess {
+@@ -986,6 +1028,7 @@ public abstract class World implements IBlockAccess {
      }
  
      public void removeEntity(Entity entity) {
@@ -2713,7 +2622,7 @@ index 03b7167..a50bcb1 100644
          entity.die();
          if (entity instanceof EntityHuman) {
              this.players.remove(entity);
-@@ -1017,6 +1060,39 @@ public abstract class World implements IBlockAccess {
+@@ -1016,6 +1059,39 @@ public abstract class World implements IBlockAccess {
          int i1 = MathHelper.floor(axisalignedbb.c);
          int j1 = MathHelper.floor(axisalignedbb.f + 1.0D);
  
@@ -2753,7 +2662,7 @@ index 03b7167..a50bcb1 100644
          for (int k1 = i; k1 < j; ++k1) {
              for (int l1 = i1; l1 < j1; ++l1) {
                  if (this.isLoaded(k1, 64, l1)) {
-@@ -1030,6 +1106,7 @@ public abstract class World implements IBlockAccess {
+@@ -1029,6 +1105,7 @@ public abstract class World implements IBlockAccess {
                  }
              }
          }
@@ -2761,7 +2670,7 @@ index 03b7167..a50bcb1 100644
  
          double d0 = 0.25D;
          List list = this.getEntities(entity, axisalignedbb.grow(d0, d0, d0));
-@@ -1200,6 +1277,8 @@ public abstract class World implements IBlockAccess {
+@@ -1199,6 +1276,8 @@ public abstract class World implements IBlockAccess {
          this.f.clear();
          this.methodProfiler.c("regular");
  
@@ -2770,7 +2679,7 @@ index 03b7167..a50bcb1 100644
          for (i = 0; i < this.entityList.size(); ++i) {
              entity = (Entity) this.entityList.get(i);
  
-@@ -1222,7 +1301,9 @@ public abstract class World implements IBlockAccess {
+@@ -1221,7 +1300,9 @@ public abstract class World implements IBlockAccess {
              this.methodProfiler.a("tick");
              if (!entity.dead) {
                  try {
@@ -2780,7 +2689,7 @@ index 03b7167..a50bcb1 100644
                  } catch (Throwable throwable1) {
                      crashreport = CrashReport.a(throwable1, "Ticking entity");
                      crashreportsystemdetails = crashreport.a("Entity being ticked");
-@@ -1247,12 +1328,21 @@ public abstract class World implements IBlockAccess {
+@@ -1246,12 +1327,21 @@ public abstract class World implements IBlockAccess {
              this.methodProfiler.b();
          }
  
@@ -2802,7 +2711,7 @@ index 03b7167..a50bcb1 100644
              // CraftBukkit start - Don't tick entities in chunks queued for unload
              ChunkProviderServer chunkProviderServer = ((WorldServer) this).chunkProviderServer;
              if (chunkProviderServer.unloadQueue.contains(tileentity.x >> 4, tileentity.z >> 4)) {
-@@ -1262,8 +1352,11 @@ public abstract class World implements IBlockAccess {
+@@ -1261,8 +1351,11 @@ public abstract class World implements IBlockAccess {
  
              if (!tileentity.r() && tileentity.o() && this.isLoaded(tileentity.x, tileentity.y, tileentity.z)) {
                  try {
@@ -2814,7 +2723,7 @@ index 03b7167..a50bcb1 100644
                      crashreport = CrashReport.a(throwable2, "Ticking tile entity");
                      crashreportsystemdetails = crashreport.a("Tile entity being ticked");
                      tileentity.a(crashreportsystemdetails);
-@@ -1283,6 +1376,8 @@ public abstract class World implements IBlockAccess {
+@@ -1282,6 +1375,8 @@ public abstract class World implements IBlockAccess {
              }
          }
  
@@ -2823,7 +2732,7 @@ index 03b7167..a50bcb1 100644
          this.N = false;
          if (!this.b.isEmpty()) {
              this.tileEntityList.removeAll(this.b);
-@@ -1321,6 +1416,7 @@ public abstract class World implements IBlockAccess {
+@@ -1320,6 +1415,7 @@ public abstract class World implements IBlockAccess {
              this.a.clear();
          }
  
@@ -2831,7 +2740,7 @@ index 03b7167..a50bcb1 100644
          this.methodProfiler.b();
          this.methodProfiler.b();
      }
-@@ -1342,7 +1438,12 @@ public abstract class World implements IBlockAccess {
+@@ -1341,7 +1437,12 @@ public abstract class World implements IBlockAccess {
          int j = MathHelper.floor(entity.locZ);
          byte b0 = 32;
  
@@ -2845,7 +2754,7 @@ index 03b7167..a50bcb1 100644
              entity.U = entity.locX;
              entity.V = entity.locY;
              entity.W = entity.locZ;
-@@ -1404,6 +1505,7 @@ public abstract class World implements IBlockAccess {
+@@ -1403,6 +1504,7 @@ public abstract class World implements IBlockAccess {
                      entity.passenger = null;
                  }
              }
@@ -2853,7 +2762,7 @@ index 03b7167..a50bcb1 100644
          }
      }
  
-@@ -1946,6 +2048,11 @@ public abstract class World implements IBlockAccess {
+@@ -1945,6 +2047,11 @@ public abstract class World implements IBlockAccess {
          this.worldData.setWeatherDuration(1);
      }
  
@@ -2865,7 +2774,7 @@ index 03b7167..a50bcb1 100644
      protected void A() {
          // this.chunkTickList.clear(); // CraftBukkit - removed
          this.methodProfiler.a("buildList");
-@@ -1955,25 +2062,42 @@ public abstract class World implements IBlockAccess {
+@@ -1954,25 +2061,42 @@ public abstract class World implements IBlockAccess {
          int j;
          int k;
  
@@ -2922,7 +2831,7 @@ index 03b7167..a50bcb1 100644
  
          this.methodProfiler.b();
          if (this.O > 0) {
-@@ -1981,7 +2105,7 @@ public abstract class World implements IBlockAccess {
+@@ -1980,7 +2104,7 @@ public abstract class World implements IBlockAccess {
          }
  
          this.methodProfiler.a("playerCheckLight");
@@ -2983,7 +2892,7 @@ index bf3e6fe..305dceb 100644
  
                      this.c[i] = -1;
 diff --git a/src/main/java/net/minecraft/server/WorldServer.java b/src/main/java/net/minecraft/server/WorldServer.java
-index 13f67da..615968f 100644
+index 6d8495f..24379e6 100644
 --- a/src/main/java/net/minecraft/server/WorldServer.java
 +++ b/src/main/java/net/minecraft/server/WorldServer.java
 @@ -1,5 +1,7 @@
@@ -3085,36 +2994,6 @@ index 13f67da..615968f 100644
                          }
                      }
                  }
-@@ -643,17 +675,20 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
- 
-     public List getTileEntities(int i, int j, int k, int l, int i1, int j1) {
-         ArrayList arraylist = new ArrayList();
--        // CraftBukkit start - Use iterator
--        Iterator iterator = this.tileEntityList.iterator();
--
--        while (iterator.hasNext()) {
--            TileEntity tileentity = (TileEntity) iterator.next();
--            // CraftBukkit end
--
--            if (tileentity.x >= i && tileentity.y >= j && tileentity.z >= k && tileentity.x < l && tileentity.y < i1 && tileentity.z < j1) {
--                arraylist.add(tileentity);
-+        // Spigot start - check in chunks: usually just from one
-+        for (int cx = (i >> 4); cx <= ((l - 1) >> 4); cx++) {
-+            for (int cz = (k >> 4); cz <= ((j1 - 1) >> 4); cz++) {
-+                Chunk c = getChunkAt(cx, cz);
-+                if (c == null) continue;
-+                for (Object te : c.tileEntities.values()) {
-+                    TileEntity tileentity = (TileEntity) te;
-+                    if ((tileentity.x >= i) && (tileentity.y >= j) && (tileentity.z >= k) && (tileentity.x < l) && (tileentity.y < i1) && (tileentity.z < j1)) {
-+                        arraylist.add(tileentity);
-+                    }
-+                }
-             }
-         }
-+        // Spigot end
- 
-         return arraylist;
-     }
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftChunk.java b/src/main/java/org/bukkit/craftbukkit/CraftChunk.java
 index 79c3893..ad58bef 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftChunk.java
