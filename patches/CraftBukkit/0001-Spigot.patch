@@ -1,6 +1,6 @@
-From 17bda64dfebd9b2cf66b5e2f01042dcd7a1a5f6c Mon Sep 17 00:00:00 2001
+From 7441d40de67b74199dec930f87bd8eae6a46ff84 Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Sun, 7 Apr 2013 11:29:24 -0400
+Date: Fri, 12 Apr 2013 22:48:16 -0400
 Subject: [PATCH] Spigot
 
 ---
@@ -18,6 +18,7 @@ Subject: [PATCH] Spigot
  .../net/minecraft/server/ChunkProviderServer.java  |   2 +
  .../net/minecraft/server/ChunkRegionLoader.java    |  45 +-
  .../java/net/minecraft/server/ChunkSection.java    |  47 +-
+ src/main/java/net/minecraft/server/Container.java  |   2 +-
  .../java/net/minecraft/server/DataWatcher.java     | 287 +++++++++
  .../java/net/minecraft/server/DedicatedServer.java |   8 +-
  .../server/DispenseBehaviorEmptyBucket.java        |   2 +-
@@ -45,7 +46,7 @@ Subject: [PATCH] Spigot
  .../net/minecraft/server/PendingConnection.java    |  24 +-
  .../java/net/minecraft/server/PlayerChunk.java     |   4 +-
  .../java/net/minecraft/server/PlayerChunkMap.java  |   2 +-
- .../net/minecraft/server/PlayerConnection.java     |  24 +-
+ .../net/minecraft/server/PlayerConnection.java     |  30 +-
  .../minecraft/server/PlayerInteractManager.java    |   5 +
  src/main/java/net/minecraft/server/PlayerList.java |  35 +-
  .../java/net/minecraft/server/SpawnerCreature.java |  46 +-
@@ -76,16 +77,16 @@ Subject: [PATCH] Spigot
  .../java/org/spigotmc/OrebfuscatorManager.java     | 146 +++++
  src/main/java/org/spigotmc/RestartCommand.java     |  23 +
  src/main/java/org/spigotmc/WatchdogThread.java     |  93 +++
- src/main/java/org/spigotmc/netty/CipherCodec.java  |  49 ++
- .../org/spigotmc/netty/NettyNetworkManager.java    | 235 ++++++++
- .../org/spigotmc/netty/NettyServerConnection.java  | 109 ++++
+ src/main/java/org/spigotmc/netty/CipherCodec.java  |  59 ++
+ .../org/spigotmc/netty/NettyNetworkManager.java    | 244 ++++++++
+ .../org/spigotmc/netty/NettyServerConnection.java  | 110 ++++
  .../org/spigotmc/netty/NettySocketAdaptor.java     | 248 ++++++++
  .../java/org/spigotmc/netty/PacketDecoder.java     |  64 ++
- .../java/org/spigotmc/netty/PacketEncoder.java     |  43 ++
+ .../java/org/spigotmc/netty/PacketEncoder.java     |  50 ++
  .../java/org/spigotmc/netty/PacketListener.java    | 100 ++++
  src/main/java/org/spigotmc/netty/ReadState.java    |  16 +
  src/main/resources/configurations/bukkit.yml       |  51 ++
- 81 files changed, 3983 insertions(+), 248 deletions(-)
+ 82 files changed, 4014 insertions(+), 252 deletions(-)
  create mode 100644 src/main/java/net/minecraft/server/DataWatcher.java
  create mode 100644 src/main/java/net/minecraft/server/INetworkManager.java
  create mode 100644 src/main/java/net/minecraft/server/NibbleArray.java
@@ -120,7 +121,7 @@ index c3faf57..346b232 100644
 +/dependency-reduced-pom.xml
 \ No newline at end of file
 diff --git a/pom.xml b/pom.xml
-index 6415183..55e6dc0 100644
+index 6415183..95514d8 100644
 --- a/pom.xml
 +++ b/pom.xml
 @@ -1,12 +1,20 @@
@@ -206,7 +207,7 @@ index 6415183..55e6dc0 100644
 +    <dependency>
 +      <groupId>io.netty</groupId>
 +      <artifactId>netty-all</artifactId>
-+      <version>4.0.0.Beta3</version>
++      <version>4.0.0.CR1</version>
 +    </dependency>
    </dependencies>
  
@@ -591,6 +592,19 @@ index 38f3038..623399f 100644
      }
 +    // Spigot end
  }
+diff --git a/src/main/java/net/minecraft/server/Container.java b/src/main/java/net/minecraft/server/Container.java
+index a1d930c..540b2dc 100644
+--- a/src/main/java/net/minecraft/server/Container.java
++++ b/src/main/java/net/minecraft/server/Container.java
+@@ -337,7 +337,7 @@ public abstract class Container {
+                 }
+             } else if (k == 4 && playerinventory.getCarried() == null && i >= 0) {
+                 slot2 = (Slot) this.c.get(i);
+-                if (slot2 != null && slot2.d()) {
++                if (slot2 != null && slot2.d() && slot2.a(entityhuman)) { // Spigot
+                     itemstack1 = slot2.a(j == 0 ? 1 : slot2.getItem().count);
+                     slot2.a(entityhuman, itemstack1);
+                     entityhuman.drop(itemstack1);
 diff --git a/src/main/java/net/minecraft/server/DataWatcher.java b/src/main/java/net/minecraft/server/DataWatcher.java
 new file mode 100644
 index 0000000..f0fa9ca
@@ -924,7 +938,7 @@ index 8f7e09b..ae65526 100644
  
          BlockDispenseEvent event = new BlockDispenseEvent(block, craftItem.clone(), new org.bukkit.util.Vector(0, 0, 0));
 diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
-index 7890d6f..52ecc09 100644
+index 51a5b38..aafaf17 100644
 --- a/src/main/java/net/minecraft/server/Entity.java
 +++ b/src/main/java/net/minecraft/server/Entity.java
 @@ -14,6 +14,7 @@ import org.bukkit.block.BlockFace;
@@ -935,7 +949,7 @@ index 7890d6f..52ecc09 100644
  import org.bukkit.event.entity.EntityCombustByEntityEvent;
  import org.bukkit.event.painting.PaintingBreakByEntityEvent;
  import org.bukkit.event.vehicle.VehicleBlockCollisionEvent;
-@@ -88,7 +89,7 @@ public abstract class Entity {
+@@ -87,7 +88,7 @@ public abstract class Entity {
      public int ticksLived;
      public int maxFireTicks;
      public int fireTicks; // CraftBukkit - private -> public
@@ -944,7 +958,7 @@ index 7890d6f..52ecc09 100644
      public int noDamageTicks;
      private boolean justCreated;
      protected boolean fireProof;
-@@ -111,6 +112,14 @@ public abstract class Entity {
+@@ -110,6 +111,14 @@ public abstract class Entity {
      public EnumEntitySize at;
      public boolean valid = false; // CraftBukkit
  
@@ -959,7 +973,7 @@ index 7890d6f..52ecc09 100644
      public Entity(World world) {
          this.id = entityCount++;
          this.l = 1.0D;
-@@ -145,13 +154,18 @@ public abstract class Entity {
+@@ -144,13 +153,18 @@ public abstract class Entity {
          this.ai = false;
          this.as = 0;
          this.invulnerable = false;
@@ -979,7 +993,7 @@ index 7890d6f..52ecc09 100644
  
          this.datawatcher.a(0, Byte.valueOf((byte) 0));
          this.datawatcher.a(1, Short.valueOf((short) 300));
-@@ -430,6 +444,8 @@ public abstract class Entity {
+@@ -417,6 +431,8 @@ public abstract class Entity {
      }
  
      public void move(double d0, double d1, double d2) {
@@ -988,7 +1002,7 @@ index 7890d6f..52ecc09 100644
          if (this.Z) {
              this.boundingBox.d(d0, d1, d2);
              this.locX = (this.boundingBox.a + this.boundingBox.d) / 2.0D;
-@@ -729,6 +745,7 @@ public abstract class Entity {
+@@ -716,6 +732,7 @@ public abstract class Entity {
  
              this.world.methodProfiler.b();
          }
@@ -1061,7 +1075,7 @@ index f697d85..1dfb02f 100644
              this.h();
          }
 diff --git a/src/main/java/net/minecraft/server/EntityHuman.java b/src/main/java/net/minecraft/server/EntityHuman.java
-index 91b44a0..df33d80 100644
+index d647d2e..f948497 100644
 --- a/src/main/java/net/minecraft/server/EntityHuman.java
 +++ b/src/main/java/net/minecraft/server/EntityHuman.java
 @@ -5,11 +5,13 @@ import java.util.Iterator;
@@ -1078,7 +1092,7 @@ index 91b44a0..df33d80 100644
  import org.bukkit.event.player.PlayerBedEnterEvent;
  import org.bukkit.event.player.PlayerBedLeaveEvent;
  import org.bukkit.event.player.PlayerDropItemEvent;
-@@ -960,6 +962,10 @@ public abstract class EntityHuman extends EntityLiving implements ICommandListen
+@@ -961,6 +963,10 @@ public abstract class EntityHuman extends EntityLiving implements ICommandListen
          super.die();
          this.defaultContainer.b(this);
          if (this.activeContainer != null) {
@@ -1145,10 +1159,10 @@ index ee775bf..924b6ed 100644
              }
          } else {
 diff --git a/src/main/java/net/minecraft/server/EntityLiving.java b/src/main/java/net/minecraft/server/EntityLiving.java
-index 9210d96..322e37f 100644
+index 21819ee..bdbd72a 100644
 --- a/src/main/java/net/minecraft/server/EntityLiving.java
 +++ b/src/main/java/net/minecraft/server/EntityLiving.java
-@@ -513,6 +513,7 @@ public abstract class EntityLiving extends Entity {
+@@ -497,6 +497,7 @@ public abstract class EntityLiving extends Entity {
      }
  
      public void l_() {
@@ -1156,7 +1170,7 @@ index 9210d96..322e37f 100644
          super.l_();
          if (!this.world.isStatic) {
              int i;
-@@ -539,7 +540,9 @@ public abstract class EntityLiving extends Entity {
+@@ -523,7 +524,9 @@ public abstract class EntityLiving extends Entity {
              }
          }
  
@@ -1166,7 +1180,7 @@ index 9210d96..322e37f 100644
          double d0 = this.locX - this.lastX;
          double d1 = this.locZ - this.lastZ;
          float f = (float) (d0 * d0 + d1 * d1);
-@@ -630,6 +633,7 @@ public abstract class EntityLiving extends Entity {
+@@ -614,6 +617,7 @@ public abstract class EntityLiving extends Entity {
  
          this.world.methodProfiler.b();
          this.aE += f2;
@@ -1174,7 +1188,7 @@ index 9210d96..322e37f 100644
      }
  
      // CraftBukkit start - Delegate so we can handle providing a reason for health being regained
-@@ -1267,6 +1271,7 @@ public abstract class EntityLiving extends Entity {
+@@ -1252,6 +1256,7 @@ public abstract class EntityLiving extends Entity {
      }
  
      public void c() {
@@ -1182,7 +1196,7 @@ index 9210d96..322e37f 100644
          if (this.bX > 0) {
              --this.bX;
          }
-@@ -1318,6 +1323,7 @@ public abstract class EntityLiving extends Entity {
+@@ -1303,6 +1308,7 @@ public abstract class EntityLiving extends Entity {
                  this.aA = this.yaw;
              }
          }
@@ -1190,7 +1204,7 @@ index 9210d96..322e37f 100644
  
          this.world.methodProfiler.b();
          this.world.methodProfiler.a("jump");
-@@ -1336,6 +1342,7 @@ public abstract class EntityLiving extends Entity {
+@@ -1321,6 +1327,7 @@ public abstract class EntityLiving extends Entity {
  
          this.world.methodProfiler.b();
          this.world.methodProfiler.a("travel");
@@ -1198,7 +1212,7 @@ index 9210d96..322e37f 100644
          this.bD *= 0.98F;
          this.bE *= 0.98F;
          this.bF *= 0.9F;
-@@ -1344,11 +1351,14 @@ public abstract class EntityLiving extends Entity {
+@@ -1329,11 +1336,14 @@ public abstract class EntityLiving extends Entity {
          this.aO *= this.bE();
          this.e(this.bD, this.bE);
          this.aO = f;
@@ -1213,7 +1227,7 @@ index 9210d96..322e37f 100644
  
          this.world.methodProfiler.b();
          this.world.methodProfiler.a("looting");
-@@ -1420,12 +1430,20 @@ public abstract class EntityLiving extends Entity {
+@@ -1405,12 +1415,20 @@ public abstract class EntityLiving extends Entity {
      }
  
      protected void bg() {
@@ -1765,7 +1779,7 @@ index 0000000..c9bc20c
 +}
 diff --git a/src/main/java/net/minecraft/server/OldChunkLoader.java b/src/main/java/net/minecraft/server/OldChunkLoader.java
 new file mode 100644
-index 0000000..0b3bd0d
+index 0000000..9a9e20f
 --- /dev/null
 +++ b/src/main/java/net/minecraft/server/OldChunkLoader.java
 @@ -0,0 +1,122 @@
@@ -1891,7 +1905,6 @@ index 0000000..0b3bd0d
 +        }
 +    }
 +}
-\ No newline at end of file
 diff --git a/src/main/java/net/minecraft/server/Packet51MapChunk.java b/src/main/java/net/minecraft/server/Packet51MapChunk.java
 index 14a6245..617b474 100644
 --- a/src/main/java/net/minecraft/server/Packet51MapChunk.java
@@ -2158,7 +2171,7 @@ index 0dfd190..c543bed 100644
          } else {
              this.e = i;
 diff --git a/src/main/java/net/minecraft/server/PlayerConnection.java b/src/main/java/net/minecraft/server/PlayerConnection.java
-index c81793a..a2d95e3 100644
+index c81793a..a1c2442 100644
 --- a/src/main/java/net/minecraft/server/PlayerConnection.java
 +++ b/src/main/java/net/minecraft/server/PlayerConnection.java
 @@ -840,8 +840,20 @@ public class PlayerConnection extends Connection {
@@ -2216,6 +2229,30 @@ index c81793a..a2d95e3 100644
          // CraftBukkit end
  
          /* CraftBukkit start - No longer needed as we have already handled it in server.dispatchServerCommand above.
+@@ -1166,12 +1183,12 @@ public class PlayerConnection extends Connection {
+             InventoryView inventory = this.player.activeContainer.getBukkitView();
+             SlotType type = CraftInventoryView.getSlotType(inventory, packet102windowclick.slot);
+ 
+-            InventoryClickEvent event = new InventoryClickEvent(inventory, type, packet102windowclick.slot, packet102windowclick.button != 0, packet102windowclick.shift == 1);
++            InventoryClickEvent event = new InventoryClickEvent(inventory, type, packet102windowclick.slot, packet102windowclick.button != 0, packet102windowclick.shift == 1, packet102windowclick.shift == 6);
+             org.bukkit.inventory.Inventory top = inventory.getTopInventory();
+             if (packet102windowclick.slot == 0 && top instanceof CraftingInventory) {
+                 org.bukkit.inventory.Recipe recipe = ((CraftingInventory) top).getRecipe();
+                 if (recipe != null) {
+-                    event = new org.bukkit.event.inventory.CraftItemEvent(recipe, inventory, type, packet102windowclick.slot, packet102windowclick.button != 0, packet102windowclick.shift == 1);
++                    event = new org.bukkit.event.inventory.CraftItemEvent(recipe, inventory, type, packet102windowclick.slot, packet102windowclick.button != 0, packet102windowclick.shift == 1, packet102windowclick.shift == 6);
+                 }
+             }
+             server.getPluginManager().callEvent(event);
+@@ -1259,7 +1276,7 @@ public class PlayerConnection extends Connection {
+                 slot = SlotType.OUTSIDE;
+             }
+ 
+-            InventoryClickEvent event = new InventoryClickEvent(inventory, slot, slot == SlotType.OUTSIDE ? -999 : packet107setcreativeslot.slot, false, false);
++            InventoryClickEvent event = new InventoryClickEvent(inventory, slot, slot == SlotType.OUTSIDE ? -999 : packet107setcreativeslot.slot, false, false, false);
+             server.getPluginManager().callEvent(event);
+             org.bukkit.inventory.ItemStack item = event.getCurrentItem();
+ 
 @@ -1345,8 +1362,9 @@ public class PlayerConnection extends Connection {
                      flag = false;
                  } else {
@@ -3447,7 +3484,7 @@ index b5a68af..13dc9fa 100644
              // Use the default variant of loadChunk when generate == true.
 diff --git a/src/main/java/org/bukkit/craftbukkit/Spigot.java b/src/main/java/org/bukkit/craftbukkit/Spigot.java
 new file mode 100644
-index 0000000..121b5ba
+index 0000000..504bd8b
 --- /dev/null
 +++ b/src/main/java/org/bukkit/craftbukkit/Spigot.java
 @@ -0,0 +1,378 @@
@@ -3817,7 +3854,7 @@ index 0000000..121b5ba
 +        } else if (entity.defaultActivationState || entity instanceof EntityGhast) {
 +            range = defaultRange;
 +        } else if (entity.activationType == 1) {
-+            range = world.monsterEntityActivationRange;
++            range = world.monsterTrackingRange;
 +        } else if (entity.activationType == 2) {
 +            range = world.animalTrackingRange;
 +        } else if (entity instanceof EntityItemFrame || entity instanceof EntityPainting || entity instanceof EntityItem || entity instanceof EntityExperienceOrb) {
@@ -4029,7 +4066,7 @@ index 0000000..f114a31
 +    }
 +}
 diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
-index a93625c..10bfb8b 100644
+index 8c30bf5..f959fdf 100644
 --- a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
 @@ -214,6 +214,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
@@ -5239,10 +5276,10 @@ index 0000000..10390b8
 +}
 diff --git a/src/main/java/org/spigotmc/netty/CipherCodec.java b/src/main/java/org/spigotmc/netty/CipherCodec.java
 new file mode 100644
-index 0000000..54928b4
+index 0000000..5e3a5f9
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/netty/CipherCodec.java
-@@ -0,0 +1,49 @@
+@@ -0,0 +1,59 @@
 +package org.spigotmc.netty;
 +
 +import io.netty.buffer.ByteBuf;
@@ -5260,8 +5297,16 @@ index 0000000..54928b4
 +
 +    private Cipher encrypt;
 +    private Cipher decrypt;
-+    private byte[] heapIn = new byte[0];
-+    private byte[] heapOut = new byte[0];
++    private ThreadLocal<byte[]> heapInLocal = new EmptyByteThreadLocal();
++    private ThreadLocal<byte[]> heapOutLocal = new EmptyByteThreadLocal();
++
++    private static class EmptyByteThreadLocal extends ThreadLocal<byte[]> {
++
++        @Override
++        protected byte[] initialValue() {
++            return new byte[0];
++        }
++    }
 +
 +    public CipherCodec(Cipher encrypt, Cipher decrypt) {
 +        this.encrypt = encrypt;
@@ -5279,12 +5324,14 @@ index 0000000..54928b4
 +    }
 +
 +    private void cipher(ByteBuf in, ByteBuf out, Cipher cipher) throws ShortBufferException {
++        byte[] heapIn = heapInLocal.get();
 +        int readableBytes = in.readableBytes();
 +        if (heapIn.length < readableBytes) {
 +            heapIn = new byte[readableBytes];
 +        }
 +        in.readBytes(heapIn, 0, readableBytes);
 +
++        byte[] heapOut = heapOutLocal.get();
 +        int outputSize = cipher.getOutputSize(readableBytes);
 +        if (heapOut.length < outputSize) {
 +            heapOut = new byte[outputSize];
@@ -5294,10 +5341,10 @@ index 0000000..54928b4
 +}
 diff --git a/src/main/java/org/spigotmc/netty/NettyNetworkManager.java b/src/main/java/org/spigotmc/netty/NettyNetworkManager.java
 new file mode 100644
-index 0000000..f551bbe
+index 0000000..340d65a
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/netty/NettyNetworkManager.java
-@@ -0,0 +1,235 @@
+@@ -0,0 +1,244 @@
 +package org.spigotmc.netty;
 +
 +import com.google.common.util.concurrent.ThreadFactoryBuilder;
@@ -5361,6 +5408,7 @@ index 0000000..f551bbe
 +    private String dcReason;
 +    private Object[] dcArgs;
 +    private Socket socketAdaptor;
++    private long writtenBytes;
 +
 +    @Override
 +    public void channelActive(ChannelHandlerContext ctx) throws Exception {
@@ -5532,13 +5580,21 @@ index 0000000..f551bbe
 +            d();
 +        }
 +    }
++
++    public long getWrittenBytes() {
++        return writtenBytes;
++    }
++
++    public void addWrittenBytes(int written) {
++        writtenBytes += written;
++    }
 +}
 diff --git a/src/main/java/org/spigotmc/netty/NettyServerConnection.java b/src/main/java/org/spigotmc/netty/NettyServerConnection.java
 new file mode 100644
-index 0000000..9803105
+index 0000000..790f325
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/netty/NettyServerConnection.java
-@@ -0,0 +1,109 @@
+@@ -0,0 +1,110 @@
 +package org.spigotmc.netty;
 +
 +import com.google.common.util.concurrent.ThreadFactoryBuilder;
@@ -5588,11 +5644,12 @@ index 0000000..9803105
 +                    // IP_TOS is not supported (Windows XP / Windows Server 2003)
 +                }
 +
++                NettyNetworkManager networkManager = new NettyNetworkManager();
 +                ch.pipeline()
 +                        .addLast("timer", new ReadTimeoutHandler(30))
 +                        .addLast("decoder", new PacketDecoder())
-+                        .addLast("encoder", new PacketEncoder())
-+                        .addLast("manager", new NettyNetworkManager());
++                        .addLast("encoder", new PacketEncoder(networkManager))
++                        .addLast("manager", networkManager);
 +            }
 +        }).group(new NioEventLoopGroup(threads, new ThreadFactoryBuilder().setNameFormat("Netty IO Thread - %1$d").build())).localAddress(host, port).bind();
 +        MinecraftServer.getServer().getLogger().info("Using Netty NIO with " + threads + " threads for network connections.");
@@ -5974,10 +6031,10 @@ index 0000000..65074d2
 +}
 diff --git a/src/main/java/org/spigotmc/netty/PacketEncoder.java b/src/main/java/org/spigotmc/netty/PacketEncoder.java
 new file mode 100644
-index 0000000..e671a0d
+index 0000000..c8832d6
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/netty/PacketEncoder.java
-@@ -0,0 +1,43 @@
+@@ -0,0 +1,50 @@
 +package org.spigotmc.netty;
 +
 +import io.netty.buffer.ByteBuf;
@@ -5995,6 +6052,11 @@ index 0000000..e671a0d
 +
 +    private ByteBuf outBuf;
 +    private DataOutputStream dataOut;
++    private final NettyNetworkManager networkManager;
++
++    public PacketEncoder(NettyNetworkManager networkManager) {
++        this.networkManager = networkManager;
++    }
 +
 +    @Override
 +    public void encode(ChannelHandlerContext ctx, Packet msg, ByteBuf out) throws Exception {
@@ -6007,6 +6069,8 @@ index 0000000..e671a0d
 +
 +        out.writeByte(msg.n());
 +        msg.a(dataOut);
++
++        networkManager.addWrittenBytes(outBuf.readableBytes());
 +        out.writeBytes(outBuf);
 +        out.discardSomeReadBytes();
 +    }
@@ -6216,5 +6280,5 @@ index 61a95e3..bc0b044 100644
 +       - world_the_end
 +    blocks: [1, 5, 14, 15, 16, 21, 48, 49, 54, 56, 73, 74, 82, 129, 130]
 -- 
-1.8.2
+1.8.2.1
 

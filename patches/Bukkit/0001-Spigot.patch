@@ -1,6 +1,6 @@
-From 319bd31434bdda6dec3bb9fd6e2a966159f2825c Mon Sep 17 00:00:00 2001
+From 10b8b3c72480712bdc692fc543a65a3b4b9bcc2f Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Sun, 7 Apr 2013 11:29:22 -0400
+Date: Fri, 12 Apr 2013 22:48:14 -0400
 Subject: [PATCH] Spigot
 
 ---
@@ -8,13 +8,17 @@ Subject: [PATCH] Spigot
  src/main/java/org/bukkit/CustomTimingsHandler.java | 134 +++++++++++++++++++++
  .../org/bukkit/command/defaults/ReloadCommand.java |   2 +
  .../bukkit/command/defaults/TimingsCommand.java    |  92 ++++++++++++--
+ .../org/bukkit/event/inventory/CraftItemEvent.java |   4 +-
+ .../event/inventory/InventoryClickEvent.java       |  12 +-
  .../bukkit/event/player/PlayerItemDamageEvent.java |  54 +++++++++
  .../org/bukkit/plugin/SimplePluginManager.java     |   2 +
  .../org/bukkit/plugin/TimedRegisteredListener.java |  12 +-
  .../org/bukkit/plugin/java/JavaPluginLoader.java   |   2 +-
  .../org/bukkit/plugin/java/PluginClassLoader.java  |   7 ++
- 9 files changed, 305 insertions(+), 44 deletions(-)
+ 11 files changed, 317 insertions(+), 48 deletions(-)
  create mode 100644 src/main/java/org/bukkit/CustomTimingsHandler.java
+ mode change 100644 => 100755 src/main/java/org/bukkit/event/inventory/CraftItemEvent.java
+ mode change 100644 => 100755 src/main/java/org/bukkit/event/inventory/InventoryClickEvent.java
  create mode 100644 src/main/java/org/bukkit/event/player/PlayerItemDamageEvent.java
 
 diff --git a/pom.xml b/pom.xml
@@ -403,6 +407,64 @@ index 29ebbe0..426f9b4 100644
 +    }
 +    // Spigot end
  }
+diff --git a/src/main/java/org/bukkit/event/inventory/CraftItemEvent.java b/src/main/java/org/bukkit/event/inventory/CraftItemEvent.java
+old mode 100644
+new mode 100755
+index 264ab0a..4ad1d5a
+--- a/src/main/java/org/bukkit/event/inventory/CraftItemEvent.java
++++ b/src/main/java/org/bukkit/event/inventory/CraftItemEvent.java
+@@ -8,8 +8,8 @@ import org.bukkit.inventory.Recipe;
+ public class CraftItemEvent extends InventoryClickEvent {
+     private Recipe recipe;
+ 
+-    public CraftItemEvent(Recipe recipe, InventoryView what, SlotType type, int slot, boolean right, boolean shift) {
+-        super(what, type, slot, right, shift);
++    public CraftItemEvent(Recipe recipe, InventoryView what, SlotType type, int slot, boolean right, boolean shift, boolean doubleClick) {
++        super(what, type, slot, right, shift, doubleClick);
+         this.recipe = recipe;
+     }
+ 
+diff --git a/src/main/java/org/bukkit/event/inventory/InventoryClickEvent.java b/src/main/java/org/bukkit/event/inventory/InventoryClickEvent.java
+old mode 100644
+new mode 100755
+index 26e1d38..7662b5c
+--- a/src/main/java/org/bukkit/event/inventory/InventoryClickEvent.java
++++ b/src/main/java/org/bukkit/event/inventory/InventoryClickEvent.java
+@@ -11,17 +11,18 @@ import org.bukkit.inventory.ItemStack;
+ public class InventoryClickEvent extends InventoryEvent implements Cancellable {
+     private static final HandlerList handlers = new HandlerList();
+     private SlotType slot_type;
+-    private boolean rightClick, shiftClick;
++    private boolean rightClick, shiftClick, doubleClick;
+     private Result result;
+     private int whichSlot;
+     private int rawSlot;
+     private ItemStack current = null;
+ 
+-    public InventoryClickEvent(InventoryView what, SlotType type, int slot, boolean right, boolean shift) {
++    public InventoryClickEvent(InventoryView what, SlotType type, int slot, boolean right, boolean shift, boolean doubleClick) {
+         super(what);
+         this.slot_type = type;
+         this.rightClick = right;
+         this.shiftClick = shift;
++        this.doubleClick = doubleClick;
+         this.result = Result.DEFAULT;
+         this.rawSlot = slot;
+         this.whichSlot = what.convertSlot(slot);
+@@ -67,6 +68,13 @@ public class InventoryClickEvent extends InventoryEvent implements Cancellable {
+     }
+ 
+     /**
++     * @return True if the click is a double click. If it is a double click it will group up all items from the container of the same type onto the cursor.
++     */
++    public boolean isDoubleClick() {
++        return doubleClick;
++    }
++
++    /**
+      * Shift can be combined with right-click or left-click as a modifier.
+      * @return True if the click is a shift-click.
+      */
 diff --git a/src/main/java/org/bukkit/event/player/PlayerItemDamageEvent.java b/src/main/java/org/bukkit/event/player/PlayerItemDamageEvent.java
 new file mode 100644
 index 0000000..38a72ab
@@ -565,5 +627,5 @@ index 29ec3fc..a31500c 100644
  
          if (result == null) {
 -- 
-1.8.2
+1.8.2.1
 
