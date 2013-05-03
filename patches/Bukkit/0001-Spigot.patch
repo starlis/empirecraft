@@ -1,6 +1,6 @@
-From 73598c1c7da3f6bdcc17c258cb52dbbe5a587bce Mon Sep 17 00:00:00 2001
+From 931fd233e950b6d59f17ca2405da3177f2d85fbc Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Wed, 17 Apr 2013 10:54:53 -0400
+Date: Thu, 2 May 2013 21:07:38 -0400
 Subject: [PATCH] Spigot
 
 ---
@@ -8,21 +8,21 @@ Subject: [PATCH] Spigot
  src/main/java/org/bukkit/CustomTimingsHandler.java | 134 +++++++++++++++++++++
  .../org/bukkit/command/defaults/ReloadCommand.java |   2 +
  .../bukkit/command/defaults/TimingsCommand.java    |  92 ++++++++++++--
- .../org/bukkit/event/inventory/CraftItemEvent.java |   4 +-
- .../event/inventory/InventoryClickEvent.java       |  12 +-
+ .../org/bukkit/event/inventory/CraftItemEvent.java |   6 +-
+ .../event/inventory/InventoryClickEvent.java       |  14 ++-
  .../bukkit/event/player/PlayerItemDamageEvent.java |  54 +++++++++
  .../org/bukkit/plugin/SimplePluginManager.java     |   2 +
  .../org/bukkit/plugin/TimedRegisteredListener.java |  12 +-
  .../org/bukkit/plugin/java/JavaPluginLoader.java   |   2 +-
  .../org/bukkit/plugin/java/PluginClassLoader.java  |   7 ++
- 11 files changed, 317 insertions(+), 48 deletions(-)
+ 11 files changed, 323 insertions(+), 46 deletions(-)
  create mode 100644 src/main/java/org/bukkit/CustomTimingsHandler.java
  mode change 100644 => 100755 src/main/java/org/bukkit/event/inventory/CraftItemEvent.java
  mode change 100644 => 100755 src/main/java/org/bukkit/event/inventory/InventoryClickEvent.java
  create mode 100644 src/main/java/org/bukkit/event/player/PlayerItemDamageEvent.java
 
 diff --git a/pom.xml b/pom.xml
-index 9fb5ef7..66b7b98 100644
+index d73d4bf..4985143 100644
 --- a/pom.xml
 +++ b/pom.xml
 @@ -1,43 +1,23 @@
@@ -40,7 +40,7 @@ index 9fb5ef7..66b7b98 100644
 +
 +    <groupId>org.spigotmc</groupId>
 +    <artifactId>spigot-api</artifactId>
-     <version>1.5.1-R0.3-SNAPSHOT</version>
+     <version>1.5.2-R0.1-SNAPSHOT</version>
 -    <name>Bukkit</name>
 -    <url>http://www.bukkit.org</url>
 +    <name>Spigot-API</name>
@@ -410,15 +410,17 @@ index 29ebbe0..426f9b4 100644
 diff --git a/src/main/java/org/bukkit/event/inventory/CraftItemEvent.java b/src/main/java/org/bukkit/event/inventory/CraftItemEvent.java
 old mode 100644
 new mode 100755
-index 264ab0a..4ad1d5a
+index 264ab0a..6ed1a89
 --- a/src/main/java/org/bukkit/event/inventory/CraftItemEvent.java
 +++ b/src/main/java/org/bukkit/event/inventory/CraftItemEvent.java
-@@ -8,8 +8,8 @@ import org.bukkit.inventory.Recipe;
- public class CraftItemEvent extends InventoryClickEvent {
+@@ -9,7 +9,11 @@ public class CraftItemEvent extends InventoryClickEvent {
      private Recipe recipe;
  
--    public CraftItemEvent(Recipe recipe, InventoryView what, SlotType type, int slot, boolean right, boolean shift) {
+     public CraftItemEvent(Recipe recipe, InventoryView what, SlotType type, int slot, boolean right, boolean shift) {
 -        super(what, type, slot, right, shift);
++        this(recipe, what, type, slot, right, shift, false);
++    }
++
 +    public CraftItemEvent(Recipe recipe, InventoryView what, SlotType type, int slot, boolean right, boolean shift, boolean doubleClick) {
 +        super(what, type, slot, right, shift, doubleClick);
          this.recipe = recipe;
@@ -427,10 +429,10 @@ index 264ab0a..4ad1d5a
 diff --git a/src/main/java/org/bukkit/event/inventory/InventoryClickEvent.java b/src/main/java/org/bukkit/event/inventory/InventoryClickEvent.java
 old mode 100644
 new mode 100755
-index 26e1d38..7662b5c
+index 26e1d38..1c07a13
 --- a/src/main/java/org/bukkit/event/inventory/InventoryClickEvent.java
 +++ b/src/main/java/org/bukkit/event/inventory/InventoryClickEvent.java
-@@ -11,17 +11,18 @@ import org.bukkit.inventory.ItemStack;
+@@ -11,17 +11,22 @@ import org.bukkit.inventory.ItemStack;
  public class InventoryClickEvent extends InventoryEvent implements Cancellable {
      private static final HandlerList handlers = new HandlerList();
      private SlotType slot_type;
@@ -441,7 +443,10 @@ index 26e1d38..7662b5c
      private int rawSlot;
      private ItemStack current = null;
  
--    public InventoryClickEvent(InventoryView what, SlotType type, int slot, boolean right, boolean shift) {
+     public InventoryClickEvent(InventoryView what, SlotType type, int slot, boolean right, boolean shift) {
++        this(what, type, slot, right, shift, false);
++    }
++
 +    public InventoryClickEvent(InventoryView what, SlotType type, int slot, boolean right, boolean shift, boolean doubleClick) {
          super(what);
          this.slot_type = type;
@@ -451,7 +456,7 @@ index 26e1d38..7662b5c
          this.result = Result.DEFAULT;
          this.rawSlot = slot;
          this.whichSlot = what.convertSlot(slot);
-@@ -67,6 +68,13 @@ public class InventoryClickEvent extends InventoryEvent implements Cancellable {
+@@ -67,6 +72,13 @@ public class InventoryClickEvent extends InventoryEvent implements Cancellable {
      }
  
      /**
@@ -627,5 +632,5 @@ index 29ec3fc..a31500c 100644
  
          if (result == null) {
 -- 
-1.8.2.1
+1.8.2.2
 
