@@ -1,4 +1,4 @@
-From ff911d71043acd985ecaecade0c94f8444935804 Mon Sep 17 00:00:00 2001
+From 5816046061184ec655a325f3b498f3dcb929d880 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Mon, 4 Mar 2013 23:35:02 -0500
 Subject: [PATCH] Persistent Meta API
@@ -7,21 +7,21 @@ This adds an API for getting and setting PERSISTENT Metadata
 Meta data can be stored on Entities, Chunks and at a Block level.
 Meta is is provided in a simple Map/List setup and does not expose raw NBT access.
 ---
- .../java/com/empireminecraft/metaapi/MetaApi.java  | 162 +++++++++++++
+ .../java/com/empireminecraft/metaapi/MetaApi.java  | 168 +++++++++++++
  src/main/java/net/minecraft/server/Chunk.java      |   1 +
  .../net/minecraft/server/ChunkRegionLoader.java    |   2 +
  src/main/java/net/minecraft/server/Entity.java     |   3 +
- .../java/net/minecraft/server/MetaApiAccessor.java | 266 +++++++++++++++++++++
- 5 files changed, 434 insertions(+)
+ .../java/net/minecraft/server/MetaApiAccessor.java | 270 +++++++++++++++++++++
+ 5 files changed, 444 insertions(+)
  create mode 100644 src/main/java/com/empireminecraft/metaapi/MetaApi.java
  create mode 100644 src/main/java/net/minecraft/server/MetaApiAccessor.java
 
 diff --git a/src/main/java/com/empireminecraft/metaapi/MetaApi.java b/src/main/java/com/empireminecraft/metaapi/MetaApi.java
 new file mode 100644
-index 0000000..ae03ba0
+index 0000000..6c0451d
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/metaapi/MetaApi.java
-@@ -0,0 +1,162 @@
+@@ -0,0 +1,168 @@
 +package com.empireminecraft.metaapi;
 +
 +import net.minecraft.server.MetaApiAccessor;
@@ -40,20 +40,22 @@ index 0000000..ae03ba0
 +    //// ENTITY META
 +    //////////////////////////////////////////////////
 +
-+    public static MetaMap getEntityMetaMap(Entity entity) {
-+        return MetaApiAccessor.getEntityMetaMap(entity);
++    private static MetaMap getEntityMetaMap(Entity entity, boolean isWrite) {
++        return MetaApiAccessor.getEntityMetaMap(entity, isWrite);
 +    }
 +
 +    public static <T> T getEntityMeta(Entity entity, String key) {
-+        return (T) getEntityMetaMap(entity).get(key);
++        final MetaMap entityMetaMap = getEntityMetaMap(entity, false);
++        return entityMetaMap != null && !entityMetaMap.isEmpty() ? (T) entityMetaMap.get(key) : null;
 +    }
 +
 +    public static boolean hasEntityMeta(Entity entity, String key) {
-+        return getEntityMetaMap(entity).containsKey(key);
++        final MetaMap entityMetaMap = getEntityMetaMap(entity, false);
++        return entityMetaMap != null && !entityMetaMap.isEmpty() && entityMetaMap.containsKey(key);
 +    }
 +
 +    public static <T> T setEntityMeta(Entity entity, String key, Object val) {
-+        return setMetaMapValue(getEntityMetaMap(entity), key, val);
++        return setMetaMapValue(getEntityMetaMap(entity, true), key, val);
 +    }
 +
 +    public static <T> T removeEntityMeta(Entity entity, String key) {
@@ -64,20 +66,22 @@ index 0000000..ae03ba0
 +    //// CHUNK META
 +    //////////////////////////////////////////////////
 +
-+    public static MetaMap getChunkMetaMap(Chunk chunk) {
-+        return MetaApiAccessor.getChunkMetaMap(chunk);
++    private static MetaMap getChunkMetaMap(Chunk chunk, boolean isWrite) {
++        return MetaApiAccessor.getChunkMetaMap(chunk, isWrite);
 +    }
 +
 +    public static boolean hasChunkMeta(Chunk chunk, String key) {
-+        return getChunkMetaMap(chunk).containsKey(key);
++        final MetaMap chunkMetaMap = getChunkMetaMap(chunk, false);
++        return chunkMetaMap != null && !chunkMetaMap.isEmpty() && chunkMetaMap.containsKey(key);
 +    }
 +
 +    public static <T> T getChunkMeta(Chunk chunk, String key) {
-+        return (T) getChunkMetaMap(chunk).get(key);
++        final MetaMap chunkMetaMap = getChunkMetaMap(chunk, false);
++        return chunkMetaMap != null && !chunkMetaMap.isEmpty() ? (T) getChunkMetaMap(chunk, false).get(key) : null;
 +    }
 +
 +    public static <T> T setChunkMeta(Chunk chunk, String key, Object val) {
-+        return setMetaMapValue(getChunkMetaMap(chunk), key, val);
++        return setMetaMapValue(getChunkMetaMap(chunk, true), key, val);
 +    }
 +
 +    public static <T> T removeChunkMeta(Chunk chunk, String key) {
@@ -88,20 +92,22 @@ index 0000000..ae03ba0
 +    //// BLOCK META
 +    //////////////////////////////////////////////////
 +
-+    public static MetaMap getBlockMetaMap(Location loc) {
-+        return MetaApiAccessor.getBlockMetaMap(loc);
++    private static MetaMap getBlockMetaMap(Location loc, boolean isWrite) {
++        return MetaApiAccessor.getBlockMetaMap(loc, isWrite);
 +    }
 +
 +    public static boolean hasBlockMeta(Location loc, String key) {
-+        return getBlockMetaMap(loc).containsKey(key);
++        final MetaMap blockMetaMap = getBlockMetaMap(loc, false);
++        return blockMetaMap != null && !blockMetaMap.isEmpty() && blockMetaMap.containsKey(key);
 +    }
 +
 +    public static <T> T getBlockMeta(Location loc, String key) {
-+        return (T) getBlockMetaMap(loc).get(key);
++        final MetaMap blockMetaMap = getBlockMetaMap(loc, false);
++        return blockMetaMap != null && !blockMetaMap.isEmpty() ? (T) blockMetaMap.get(key) : null;
 +    }
 +
 +    public static <T> T setBlockMeta(Location loc, String key, Object val) {
-+        return setMetaMapValue(getBlockMetaMap(loc), key, val);
++        return setMetaMapValue(getBlockMetaMap(loc, true), key, val);
 +    }
 +
 +    public static <T> T removeBlockMeta(Location loc, String key) {
@@ -122,7 +128,7 @@ index 0000000..ae03ba0
 +     * @param <T>
 +     * @return
 +     */
-+    public static <T> T setMetaMapValue(MetaMap map, String key, Object val) {
++    private static <T> T setMetaMapValue(MetaMap map, String key, Object val) {
 +        if (val == null) {
 +            return (T) map.remove(key);
 +        } else {
@@ -246,10 +252,10 @@ index 8767950..26aebf5 100644
                  this.motX = 0.0D;
 diff --git a/src/main/java/net/minecraft/server/MetaApiAccessor.java b/src/main/java/net/minecraft/server/MetaApiAccessor.java
 new file mode 100644
-index 0000000..71b8e97
+index 0000000..efea1ad
 --- /dev/null
 +++ b/src/main/java/net/minecraft/server/MetaApiAccessor.java
-@@ -0,0 +1,266 @@
+@@ -0,0 +1,270 @@
 +package net.minecraft.server;
 +
 +import org.bukkit.craftbukkit.CraftChunk;
@@ -267,9 +273,9 @@ index 0000000..71b8e97
 +     * @param loc
 +     * @return
 +     */
-+    public static MetaMap getBlockMetaMap(org.bukkit.Location loc) {
++    public static MetaMap getBlockMetaMap(org.bukkit.Location loc, boolean isWrite) {
 +        ChunkMeta meta = ((CraftChunk)loc.getChunk()).getHandle().chunkMeta;
-+        return getBlockMetaMap(meta, loc.getBlockX(), loc.getBlockY(), loc.getBlockZ());
++        return getBlockMetaMap(meta, loc.getBlockX(), loc.getBlockY(), loc.getBlockZ(), isWrite);
 +    }
 +
 +    /**
@@ -277,9 +283,9 @@ index 0000000..71b8e97
 +     * @param chunk
 +     * @return
 +     */
-+    public static MetaMap getChunkMetaMap(org.bukkit.Chunk chunk) {
++    public static MetaMap getChunkMetaMap(org.bukkit.Chunk chunk, boolean isWrite) {
 +        ChunkMeta meta = ((CraftChunk) chunk).getHandle().chunkMeta;
-+        return getBlockMetaMap(meta, 0, -1, 0);
++        return getBlockMetaMap(meta, 0, -1, 0, isWrite);
 +    }
 +
 +    /**
@@ -290,12 +296,14 @@ index 0000000..71b8e97
 +     * @param z
 +     * @return
 +     */
-+    public static MetaMap getBlockMetaMap(ChunkMeta meta, int x, int y, int z) {
++    public static MetaMap getBlockMetaMap(ChunkMeta meta, int x, int y, int z, boolean isWrite) {
 +        ChunkCoordinates coords = new ChunkCoordinates(x, y,  z);
 +        MetaMap ret = meta.get(coords);
 +        if (ret == null) {
-+            ret = new MetaMap();
-+            meta.put(coords, ret);
++            if (isWrite) {
++                ret = new MetaMap();
++                meta.put(coords, ret);
++            }
 +        }
 +        return ret;
 +    }
@@ -305,10 +313,12 @@ index 0000000..71b8e97
 +     * @param craftentity
 +     * @return
 +     */
-+    public static MetaMap getEntityMetaMap(org.bukkit.entity.Entity craftentity) {
++    public static MetaMap getEntityMetaMap(org.bukkit.entity.Entity craftentity, boolean isWrite) {
 +        Entity entity = ((CraftEntity) craftentity).getHandle();
 +        if (entity.metaMap == null) {
-+            entity.metaMap = new MetaMap();
++            if (isWrite) {
++                entity.metaMap = new MetaMap();
++            }
 +        }
 +        return entity.metaMap;
 +    }
@@ -517,5 +527,5 @@ index 0000000..71b8e97
 +    public static class ChunkMeta extends HashMap<ChunkCoordinates, MetaMap> {}
 +}
 -- 
-1.8.2.2
+1.8.3
 
