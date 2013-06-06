@@ -1,0 +1,205 @@
+From 7dbf3d748c7c99f2336e360e65b21279957cf056 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Fri, 31 May 2013 22:40:25 -0400
+Subject: [PATCH] Entity AI
+
+This gives us control over some Entity AIe
+This will be expanded as future needs.
+---
+ .../com/empireminecraft/entityai/EntityAIApi.java  | 49 ++++++++++++++++++++++
+ .../empireminecraft/entityai/EntityMoveApi.java    | 43 +++++++++++++++++++
+ .../java/net/minecraft/server/EntityLiving.java    |  6 +--
+ .../net/minecraft/server/PathfinderAccessor.java   | 10 +++++
+ .../server/PathfinderGoalArrowAttack.java          |  8 ++--
+ .../minecraft/server/PathfinderGoalSelector.java   |  2 +-
+ .../net/minecraft/server/PathfinderGoalTarget.java |  2 +-
+ 7 files changed, 111 insertions(+), 9 deletions(-)
+ create mode 100644 src/main/java/com/empireminecraft/entityai/EntityAIApi.java
+ create mode 100644 src/main/java/com/empireminecraft/entityai/EntityMoveApi.java
+ create mode 100644 src/main/java/net/minecraft/server/PathfinderAccessor.java
+
+diff --git a/src/main/java/com/empireminecraft/entityai/EntityAIApi.java b/src/main/java/com/empireminecraft/entityai/EntityAIApi.java
+new file mode 100644
+index 0000000..1414733
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/entityai/EntityAIApi.java
+@@ -0,0 +1,49 @@
++package com.empireminecraft.entityai;
++
++import net.minecraft.server.*;
++import org.bukkit.craftbukkit.entity.CraftEntity;
++import org.bukkit.craftbukkit.entity.CraftLivingEntity;
++import org.bukkit.entity.LivingEntity;
++import org.bukkit.entity.Monster;
++
++public class EntityAIApi {
++    public static void setTargetRange(LivingEntity livingEntity, float range) {
++        EntityLiving entity = ((CraftLivingEntity)livingEntity).getHandle();
++        for (Object o : entity.targetSelector.a) {
++            PathfinderGoal goal = PathfinderAccessor.getPathfinderGoal(o);
++            if (goal instanceof PathfinderGoalTarget) {
++                ((PathfinderGoalTarget) goal).e = range;
++            }
++        }
++    }
++
++    public static void setArrowAttackRange(Monster monster, float range) {
++        EntityMonster entity = (EntityMonster) ((CraftEntity)monster).getHandle();
++        for (Object o : entity.goalSelector.a) {
++            PathfinderGoal goal = PathfinderAccessor.getPathfinderGoal(o);
++            if (goal instanceof PathfinderGoalArrowAttack) {
++                ((PathfinderGoalArrowAttack) goal).i = range;
++                ((PathfinderGoalArrowAttack) goal).j = range*range;
++            }
++        }
++    }
++
++    public static void setArrowAttackSpeed(Monster monster, Integer min, Integer max) {
++        EntityMonster entity = (EntityMonster) ((CraftEntity)monster).getHandle();
++        for (Object o : entity.goalSelector.a) {
++            PathfinderGoal goal = PathfinderAccessor.getPathfinderGoal(o);
++            if (goal instanceof PathfinderGoalArrowAttack) {
++                if (min != null) {
++                    ((PathfinderGoalArrowAttack) goal).g = min;
++                }
++                if (max != null) {
++                    ((PathfinderGoalArrowAttack) goal).h = max;
++                }
++            }
++        }
++    }
++    public static void setEntityMaxPathfindingRange(LivingEntity liventity, float range) {
++        EntityLiving entity = ((CraftLivingEntity) liventity).getHandle();
++        entity.navigation = new Navigation(entity, entity.world, range);
++    }
++}
+diff --git a/src/main/java/com/empireminecraft/entityai/EntityMoveApi.java b/src/main/java/com/empireminecraft/entityai/EntityMoveApi.java
+new file mode 100644
+index 0000000..9ecb9fb
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/entityai/EntityMoveApi.java
+@@ -0,0 +1,43 @@
++package com.empireminecraft.entityai;
++
++import net.minecraft.server.EntityCreature;
++import net.minecraft.server.PathEntity;
++import org.bukkit.Location;
++import org.bukkit.craftbukkit.entity.CraftCreature;
++import org.bukkit.craftbukkit.entity.CraftLivingEntity;
++import org.bukkit.entity.Creature;
++import org.bukkit.entity.LivingEntity;
++
++public class EntityMoveApi {
++    public static boolean setEntityDestination(Creature entity, Location loc) {
++        final EntityCreature handle = ((CraftCreature) entity).getHandle();
++
++        final boolean onGround = handle.onGround;
++        handle.onGround = true;
++        PathEntity path = null;
++        if (loc != null) {
++            path = handle.getNavigation().a(loc.getBlockX(),
++                loc.getBlockY(),
++                loc.getBlockZ());
++        }
++
++        handle.setPathEntity(path);
++        handle.onGround = onGround;
++        return path != null;
++    }
++
++    public static boolean setEntityDestination(Creature entity, LivingEntity target) {
++        final EntityCreature handle = ((CraftCreature) entity).getHandle();
++
++        final boolean onGround = handle.onGround;
++        handle.onGround = true;
++        PathEntity path = null;
++        if (target != null) {
++            path = handle.getNavigation().a(((CraftLivingEntity)target).getHandle());
++        }
++
++        handle.setPathEntity(path);
++        handle.onGround = onGround;
++        return path != null;
++    }
++}
+diff --git a/src/main/java/net/minecraft/server/EntityLiving.java b/src/main/java/net/minecraft/server/EntityLiving.java
+index 58a4acb..ba8564e 100644
+--- a/src/main/java/net/minecraft/server/EntityLiving.java
++++ b/src/main/java/net/minecraft/server/EntityLiving.java
+@@ -74,9 +74,9 @@ public abstract class EntityLiving extends Entity {
+     private ControllerMove moveController;
+     private ControllerJump jumpController;
+     private EntityAIBodyControl senses;
+-    private Navigation navigation;
+-    protected final PathfinderGoalSelector goalSelector;
+-    protected final PathfinderGoalSelector targetSelector;
++    public Navigation navigation; // EMC public
++    public final PathfinderGoalSelector goalSelector; // EMC public
++    public final PathfinderGoalSelector targetSelector; // EMC public
+     private EntityLiving goalTarget;
+     private EntitySenses bP;
+     private float bQ;
+diff --git a/src/main/java/net/minecraft/server/PathfinderAccessor.java b/src/main/java/net/minecraft/server/PathfinderAccessor.java
+new file mode 100644
+index 0000000..e550a04
+--- /dev/null
++++ b/src/main/java/net/minecraft/server/PathfinderAccessor.java
+@@ -0,0 +1,10 @@
++package net.minecraft.server;
++
++public class PathfinderAccessor {
++    public static PathfinderGoal getPathfinderGoal(Object object) {
++        if (object instanceof PathfinderGoalSelectorItem) {
++            return ((PathfinderGoalSelectorItem) object).a;
++        }
++        return null;
++    }
++}
+diff --git a/src/main/java/net/minecraft/server/PathfinderGoalArrowAttack.java b/src/main/java/net/minecraft/server/PathfinderGoalArrowAttack.java
+index 5470591..c2bfc22 100644
+--- a/src/main/java/net/minecraft/server/PathfinderGoalArrowAttack.java
++++ b/src/main/java/net/minecraft/server/PathfinderGoalArrowAttack.java
+@@ -10,10 +10,10 @@ public class PathfinderGoalArrowAttack extends PathfinderGoal {
+     private int d;
+     private float e;
+     private int f;
+-    private int g;
+-    private int h;
+-    private float i;
+-    private float j;
++    public int g; // EMC - min ranged time
++    public int h; // EMC - max ranged time
++    public float i; // EMC - max ranged dist
++    public float j; // EMC - max ranged dist squared
+ 
+     public PathfinderGoalArrowAttack(IRangedEntity irangedentity, float f, int i, float f1) {
+         this(irangedentity, f, i, i, f1);
+diff --git a/src/main/java/net/minecraft/server/PathfinderGoalSelector.java b/src/main/java/net/minecraft/server/PathfinderGoalSelector.java
+index 2860878..f127316 100644
+--- a/src/main/java/net/minecraft/server/PathfinderGoalSelector.java
++++ b/src/main/java/net/minecraft/server/PathfinderGoalSelector.java
+@@ -9,7 +9,7 @@ import org.bukkit.craftbukkit.util.UnsafeList; // CraftBukkit
+ public class PathfinderGoalSelector {
+ 
+     // CraftBukkit start - ArrayList -> UnsafeList
+-    private List a = new UnsafeList();
++    public List a = new UnsafeList(); // EMC
+     private List b = new UnsafeList();
+     // CraftBukkit end
+     private final MethodProfiler c;
+diff --git a/src/main/java/net/minecraft/server/PathfinderGoalTarget.java b/src/main/java/net/minecraft/server/PathfinderGoalTarget.java
+index 0dd6015..fda70e2 100644
+--- a/src/main/java/net/minecraft/server/PathfinderGoalTarget.java
++++ b/src/main/java/net/minecraft/server/PathfinderGoalTarget.java
+@@ -8,7 +8,7 @@ import org.bukkit.event.entity.EntityTargetEvent;
+ public abstract class PathfinderGoalTarget extends PathfinderGoal {
+ 
+     protected EntityLiving d;
+-    protected float e;
++    public float e; // EMC
+     protected boolean f;
+     private boolean a;
+     private int b;
+-- 
+1.8.3
+
