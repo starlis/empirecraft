@@ -1,103 +1,109 @@
-From a4f954eda9024e618c0baa3fba673ed508da6466 Mon Sep 17 00:00:00 2001
+From 93d7c9649fb92efbaa0a0506a88c642f9c2c32a4 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Sun, 26 May 2013 19:40:50 -0400
 Subject: [PATCH] Precise timings
 
 ---
- src/main/java/org/bukkit/CustomTimingsHandler.java   | 20 ++++++++++++++++----
- .../org/bukkit/command/defaults/TimingsCommand.java  | 10 ++++++++--
- 2 files changed, 24 insertions(+), 6 deletions(-)
+ .../org/bukkit/command/defaults/TimingsCommand.java   | 11 ++++++++---
+ src/main/java/org/spigotmc/CustomTimingsHandler.java  | 19 +++++++++++++++----
+ 2 files changed, 23 insertions(+), 7 deletions(-)
 
-diff --git a/src/main/java/org/bukkit/CustomTimingsHandler.java b/src/main/java/org/bukkit/CustomTimingsHandler.java
-index 8c00824..f93837d 100644
---- a/src/main/java/org/bukkit/CustomTimingsHandler.java
-+++ b/src/main/java/org/bukkit/CustomTimingsHandler.java
-@@ -1,5 +1,6 @@
- package org.bukkit;
- 
-+import org.bukkit.command.defaults.TimingsCommand;
- import org.bukkit.event.HandlerList;
- import org.bukkit.plugin.Plugin;
- import org.bukkit.plugin.RegisteredListener;
-@@ -21,16 +22,24 @@ public class CustomTimingsHandler {
-     public long curTickTotal = 0;
-     public long violations = 0;
-     CustomTimingsHandler parent = null;
--
-+    final boolean precise;
-     final public static ConcurrentLinkedQueue<CustomTimingsHandler> allList = new ConcurrentLinkedQueue<CustomTimingsHandler>();
- 
-     public CustomTimingsHandler(String name) {
--        this.name = name;
--        allList.add(this);
-+        this(name, null);
-     }
-     public CustomTimingsHandler(String name, CustomTimingsHandler parent) {
--        this(name);
-+        this(name, parent, false);
-+    }
-+
-+    public CustomTimingsHandler(String name, boolean precise) {
-+        this(name, null, precise);
-+    }
-+    public CustomTimingsHandler(String name, CustomTimingsHandler parent, boolean precise) {
-+        this.name = name;
-         this.parent = parent;
-+        this.precise = precise;
-+        allList.add(this);
-     }
- 
-     /**
-@@ -98,6 +107,7 @@ public class CustomTimingsHandler {
-      */
-     public void startTiming() {
-         if (!Bukkit.getServer().getPluginManager().useTimings()) return;
-+        if (precise && !TimingsCommand.precise) return;
- 
-         if (++timingDepth != 1) {
-             return; // Already timing.
-@@ -111,6 +121,8 @@ public class CustomTimingsHandler {
- 
-     public void stopTiming() {
-         if (!Bukkit.getServer().getPluginManager().useTimings()) return;
-+        if (precise && !TimingsCommand.precise) return;
-+
-         if (--timingDepth != 0 || start == 0) {
-             return;
-         }
 diff --git a/src/main/java/org/bukkit/command/defaults/TimingsCommand.java b/src/main/java/org/bukkit/command/defaults/TimingsCommand.java
-index 426f9b4..2359bba 100644
+index d2f5d29..2aa5bc8 100644
 --- a/src/main/java/org/bukkit/command/defaults/TimingsCommand.java
 +++ b/src/main/java/org/bukkit/command/defaults/TimingsCommand.java
-@@ -28,13 +28,14 @@ import java.net.URLEncoder;
- import java.util.logging.Level;
+@@ -29,13 +29,14 @@ import java.util.logging.Level;
+ // Spigot end
  
  public class TimingsCommand extends BukkitCommand {
--    private static final List<String> TIMINGS_SUBCOMMANDS = ImmutableList.of("merged", "reset", "separate", "paste", "on", "off"); // Spigot
+-    private static final List<String> TIMINGS_SUBCOMMANDS = ImmutableList.of("merged", "reset", "separate");
 +    private static final List<String> TIMINGS_SUBCOMMANDS = ImmutableList.of("merged", "reset", "separate", "paste", "on", "off", "precise"); // Spigot
- 
-     public static long timingStart =  0; // Spigot
+     public static long timingStart = 0; // Spigot
 +    public static boolean precise = false;
+ 
      public TimingsCommand(String name) {
          super(name);
          this.description = "Records timings for all plugin events";
--        this.usageMessage = "/timings <reset|merged|separate|paste|on|off>"; // Spigot
-+        this.usageMessage = "/timings <reset|merged|separate|paste|on|off|precise>"; // Spigot
+-        this.usageMessage = "/timings <reset|merged|separate|on|off> [paste]"; // Spigot
++        this.usageMessage = "/timings <reset|merged|separate|on|off|precise> [paste]"; // Spigot
          this.setPermission("bukkit.command.timings");
      }
  
-@@ -50,6 +51,11 @@ public class TimingsCommand extends BukkitCommand {
+@@ -50,7 +51,11 @@ public class TimingsCommand extends BukkitCommand {
              sender.sendMessage("Please enable timings by setting \"settings.plugin-profiling\" to true in bukkit.yml");
              return true;
          }*/
+-
 +        if ("precise".equals(args[0])) {
 +            precise = !precise;
 +            sender.sendMessage("Timings Precise: " + precise);
 +            return true;
 +        }
-         if ("on".equals(args[0])) {
-             ((SimplePluginManager)Bukkit.getServer().getPluginManager()).useTimings(true);
-             sender.sendMessage("Enabled Timings");
+         // Spigot start - dynamic enable
+         if ( "on".equals( args[0] ) )
+         {
+diff --git a/src/main/java/org/spigotmc/CustomTimingsHandler.java b/src/main/java/org/spigotmc/CustomTimingsHandler.java
+index b2e94b6..9dac967 100644
+--- a/src/main/java/org/spigotmc/CustomTimingsHandler.java
++++ b/src/main/java/org/spigotmc/CustomTimingsHandler.java
+@@ -1,5 +1,6 @@
+ package org.spigotmc;
+ 
++import org.bukkit.command.defaults.TimingsCommand;
+ import org.bukkit.event.HandlerList;
+ import org.bukkit.plugin.Plugin;
+ import org.bukkit.plugin.RegisteredListener;
+@@ -21,6 +22,7 @@ public class CustomTimingsHandler
+     /*========================================================================*/
+     private final String name;
+     private final CustomTimingsHandler parent;
++    private final boolean precise;
+     private long count = 0;
+     private long start = 0;
+     private long timingDepth = 0;
+@@ -28,15 +30,20 @@ public class CustomTimingsHandler
+     private long curTickTotal = 0;
+     private long violations = 0;
+ 
+-    public CustomTimingsHandler(String name)
+-    {
++    public CustomTimingsHandler(String name) {
+         this( name, null );
+     }
+ 
+-    public CustomTimingsHandler(String name, CustomTimingsHandler parent)
+-    {
++    public CustomTimingsHandler(String name, CustomTimingsHandler parent) {
++        this(name, parent, false);
++    }
++    public CustomTimingsHandler(String name, boolean precise) {
++        this(name, null, precise);
++    }
++    public CustomTimingsHandler(String name, CustomTimingsHandler parent, boolean precise) {
+         this.name = name;
+         this.parent = parent;
++        this.precise = precise;
+         ALL_HANDLERS.add( this );
+         BAKED_HANDLERS = ALL_HANDLERS.toArray( new CustomTimingsHandler[ ALL_HANDLERS.size() ] );
+     }
+@@ -130,6 +137,8 @@ public class CustomTimingsHandler
+         // If second condtion fails we are already timing
+         if ( Bukkit.getPluginManager().useTimings() && ++timingDepth == 1 )
+         {
++            if (precise && !TimingsCommand.precise) return;
++
+             start = System.nanoTime();
+             if ( parent != null && ++parent.timingDepth == 1 )
+             {
+@@ -145,6 +154,8 @@ public class CustomTimingsHandler
+     {
+         if ( Bukkit.getPluginManager().useTimings() )
+         {
++            if (precise && !TimingsCommand.precise) return;
++
+             if ( --timingDepth != 0 || start == 0 )
+             {
+                 return;
 -- 
 1.8.3
 
