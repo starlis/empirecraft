@@ -1,6 +1,6 @@
-From b7f6a2c17886337db4fae7006d8c45ce9abc5695 Mon Sep 17 00:00:00 2001
+From 2db0a85dbcba5c521a22ad47e7225f55f47afe22 Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Sat, 18 May 2013 22:25:29 -0400
+Date: Sat, 8 Jun 2013 12:17:27 -0400
 Subject: [PATCH] Spigot
 
 ---
@@ -22,17 +22,22 @@ Subject: [PATCH] Spigot
  .../java/net/minecraft/server/DataWatcher.java     | 287 +++++++++
  .../java/net/minecraft/server/DedicatedServer.java |   7 +-
  .../server/DedicatedServerConnectionThread.java    |   2 +-
- src/main/java/net/minecraft/server/Entity.java     |  20 +-
+ src/main/java/net/minecraft/server/Entity.java     |  21 +-
+ .../java/net/minecraft/server/EntityAgeable.java   |  25 +
  .../java/net/minecraft/server/EntityArrow.java     |   2 +-
  .../net/minecraft/server/EntityFallingBlock.java   |   1 +
  .../java/net/minecraft/server/EntityHanging.java   |  15 +
  src/main/java/net/minecraft/server/EntityItem.java |  17 +-
- .../java/net/minecraft/server/EntityLiving.java    |  10 +
+ .../java/net/minecraft/server/EntityLiving.java    |  22 +-
  .../java/net/minecraft/server/EntityPlayer.java    |   3 +-
+ .../java/net/minecraft/server/EntitySkeleton.java  |  14 +-
  .../java/net/minecraft/server/EntityTracker.java   |   3 +
  .../net/minecraft/server/EntityTrackerEntry.java   |   2 +
  src/main/java/net/minecraft/server/Explosion.java  |   1 +
+ .../java/net/minecraft/server/FoodMetaData.java    |   3 +-
  .../java/net/minecraft/server/INetworkManager.java |  26 +
+ src/main/java/net/minecraft/server/IRecipe.java    |   2 +
+ src/main/java/net/minecraft/server/ItemFood.java   |   3 +-
  src/main/java/net/minecraft/server/ItemStack.java  |  19 +-
  .../java/net/minecraft/server/LocaleLanguage.java  | 169 ++++++
  .../java/net/minecraft/server/MinecraftServer.java |  71 ++-
@@ -43,30 +48,37 @@ Subject: [PATCH] Spigot
  .../net/minecraft/server/Packet2Handshake.java     |   3 +
  .../net/minecraft/server/Packet51MapChunk.java     |  44 +-
  .../net/minecraft/server/Packet56MapChunkBulk.java |  24 +-
+ .../minecraft/server/Packet63WorldParticles.java   |  65 +++
  .../net/minecraft/server/PendingConnection.java    |  30 +-
  .../java/net/minecraft/server/PlayerChunk.java     |   2 +-
  .../java/net/minecraft/server/PlayerChunkMap.java  |   2 +-
- .../net/minecraft/server/PlayerConnection.java     |  30 +-
+ .../net/minecraft/server/PlayerConnection.java     |  24 +-
  .../minecraft/server/PlayerInteractManager.java    |   1 +
  src/main/java/net/minecraft/server/PlayerList.java |  37 +-
+ .../java/net/minecraft/server/PropertyManager.java |   2 +-
  .../java/net/minecraft/server/RegionFileCache.java |  67 +++
+ .../java/net/minecraft/server/ShapedRecipes.java   |   9 +-
+ .../net/minecraft/server/ShapelessRecipes.java     |   9 +-
  .../java/net/minecraft/server/SpawnerCreature.java |  40 +-
  .../net/minecraft/server/ThreadCommandReader.java  |   1 +
  .../net/minecraft/server/ThreadLoginVerifier.java  |   6 +-
  src/main/java/net/minecraft/server/TileEntity.java |   2 +
+ .../net/minecraft/server/TileEntityHopper.java     |  21 +-
  .../java/net/minecraft/server/WatchableObject.java |  44 ++
- src/main/java/net/minecraft/server/World.java      | 177 +++++-
+ src/main/java/net/minecraft/server/World.java      | 178 +++++-
  .../net/minecraft/server/WorldMapHumanTracker.java |  24 +-
- .../java/net/minecraft/server/WorldServer.java     | 234 +++++---
+ .../java/net/minecraft/server/WorldServer.java     | 250 +++++---
  .../java/org/bukkit/craftbukkit/CraftChunk.java    |  44 +-
+ .../java/org/bukkit/craftbukkit/CraftEffect.java   |   2 +
  .../java/org/bukkit/craftbukkit/CraftServer.java   |  94 ++-
- .../java/org/bukkit/craftbukkit/CraftWorld.java    | 126 +++-
- src/main/java/org/bukkit/craftbukkit/Spigot.java   | 436 ++++++++++++++
- .../java/org/bukkit/craftbukkit/SpigotTimings.java | 113 ++++
+ .../java/org/bukkit/craftbukkit/CraftWorld.java    | 222 ++++++-
+ src/main/java/org/bukkit/craftbukkit/Spigot.java   | 442 ++++++++++++++
+ .../java/org/bukkit/craftbukkit/SpigotTimings.java | 127 ++++
  .../org/bukkit/craftbukkit/block/CraftSign.java    |   8 +-
  .../craftbukkit/chunkio/ChunkIOProvider.java       |   2 +-
  .../craftbukkit/command/TicksPerSecondCommand.java |  35 ++
- .../org/bukkit/craftbukkit/entity/CraftPlayer.java |  31 +-
+ .../org/bukkit/craftbukkit/entity/CraftArrow.java  |  22 +
+ .../org/bukkit/craftbukkit/entity/CraftPlayer.java |  99 +++-
  .../org/bukkit/craftbukkit/map/CraftMapView.java   |   2 +-
  .../craftbukkit/scheduler/CraftScheduler.java      |   6 +-
  .../bukkit/craftbukkit/scheduler/CraftTask.java    |  18 +
@@ -76,28 +88,29 @@ Subject: [PATCH] Spigot
  .../org/bukkit/craftbukkit/util/Versioning.java    |   2 +-
  src/main/java/org/spigotmc/Metrics.java            | 645 +++++++++++++++++++++
  .../org/spigotmc/MultiplexingServerConnection.java | 126 ++++
- .../java/org/spigotmc/OrebfuscatorManager.java     | 205 +++++++
+ .../java/org/spigotmc/OrebfuscatorManager.java     | 204 +++++++
  src/main/java/org/spigotmc/RestartCommand.java     |  23 +
  src/main/java/org/spigotmc/WatchdogThread.java     |  93 +++
- src/main/java/org/spigotmc/netty/CipherBase.java   |  45 ++
- .../java/org/spigotmc/netty/CipherDecoder.java     |  20 +
- .../java/org/spigotmc/netty/CipherEncoder.java     |  20 +
- .../org/spigotmc/netty/NettyNetworkManager.java    | 259 +++++++++
- .../org/spigotmc/netty/NettyServerConnection.java  |  81 +++
- .../org/spigotmc/netty/NettySocketAdaptor.java     | 248 ++++++++
- .../java/org/spigotmc/netty/OutboundManager.java   |  19 +
- .../java/org/spigotmc/netty/PacketDecoder.java     |  61 ++
- .../java/org/spigotmc/netty/PacketEncoder.java     |  52 ++
- .../java/org/spigotmc/netty/PacketListener.java    | 100 ++++
- src/main/java/org/spigotmc/netty/ReadState.java    |  16 +
- src/main/resources/configurations/bukkit.yml       |  53 ++
- 87 files changed, 4673 insertions(+), 308 deletions(-)
+ src/main/java/org/spigotmc/netty/CipherBase.java   |  54 ++
+ .../java/org/spigotmc/netty/CipherDecoder.java     |  23 +
+ .../java/org/spigotmc/netty/CipherEncoder.java     |  23 +
+ .../org/spigotmc/netty/NettyNetworkManager.java    | 295 ++++++++++
+ .../org/spigotmc/netty/NettyServerConnection.java  | 100 ++++
+ .../org/spigotmc/netty/NettySocketAdaptor.java     | 294 ++++++++++
+ .../java/org/spigotmc/netty/OutboundManager.java   |  29 +
+ .../java/org/spigotmc/netty/PacketDecoder.java     |  68 +++
+ .../java/org/spigotmc/netty/PacketEncoder.java     |  55 ++
+ .../java/org/spigotmc/netty/PacketListener.java    | 112 ++++
+ src/main/java/org/spigotmc/netty/ReadState.java    |  17 +
+ src/main/resources/configurations/bukkit.yml       |  55 ++
+ 99 files changed, 5165 insertions(+), 351 deletions(-)
  create mode 100644 src/main/java/net/minecraft/server/DataWatcher.java
  create mode 100644 src/main/java/net/minecraft/server/INetworkManager.java
  create mode 100644 src/main/java/net/minecraft/server/LocaleLanguage.java
  create mode 100644 src/main/java/net/minecraft/server/NextTickListEntry.java
  create mode 100644 src/main/java/net/minecraft/server/NibbleArray.java
  create mode 100644 src/main/java/net/minecraft/server/OldChunkLoader.java
+ create mode 100644 src/main/java/net/minecraft/server/Packet63WorldParticles.java
  create mode 100644 src/main/java/net/minecraft/server/RegionFileCache.java
  create mode 100644 src/main/java/net/minecraft/server/WatchableObject.java
  create mode 100644 src/main/java/org/bukkit/craftbukkit/Spigot.java
@@ -133,7 +146,7 @@ index c3faf57..346b232 100644
 +/dependency-reduced-pom.xml
 \ No newline at end of file
 diff --git a/pom.xml b/pom.xml
-index e946de6..54a8b59 100644
+index e946de6..4022004 100644
 --- a/pom.xml
 +++ b/pom.xml
 @@ -1,12 +1,20 @@
@@ -219,7 +232,7 @@ index e946de6..54a8b59 100644
 +    <dependency>
 +      <groupId>io.netty</groupId>
 +      <artifactId>netty-all</artifactId>
-+      <version>4.0.0.CR2</version>
++      <version>4.0.0.CR3</version>
 +    </dependency>
 +    <dependency>
 +        <groupId>org.javassist</groupId>
@@ -970,14 +983,14 @@ index ef7e10d..5f2e42e 100644
                  this.e.d().getLogger().warning("DSCT: " + ioexception.getMessage()); // CraftBukkit
              }
 diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
-index 0f7be97..8767950 100644
+index 0f7be97..a2a4f5a 100644
 --- a/src/main/java/net/minecraft/server/Entity.java
 +++ b/src/main/java/net/minecraft/server/Entity.java
 @@ -14,6 +14,7 @@ import org.bukkit.block.BlockFace;
  import org.bukkit.entity.LivingEntity;
  import org.bukkit.entity.Painting;
  import org.bukkit.entity.Vehicle;
-+import org.bukkit.CustomTimingsHandler; // Spigot
++import org.spigotmc.CustomTimingsHandler; // Spigot
  import org.bukkit.event.entity.EntityCombustByEntityEvent;
  import org.bukkit.event.painting.PaintingBreakByEntityEvent;
  import org.bukkit.event.vehicle.VehicleBlockCollisionEvent;
@@ -990,7 +1003,7 @@ index 0f7be97..8767950 100644
      public int noDamageTicks;
      private boolean justCreated;
      protected boolean fireProof;
-@@ -110,6 +111,14 @@ public abstract class Entity {
+@@ -110,6 +111,15 @@ public abstract class Entity {
      public EnumEntitySize at;
      public boolean valid = false; // CraftBukkit
  
@@ -1000,12 +1013,13 @@ index 0f7be97..8767950 100644
 +    public final byte activationType = org.bukkit.craftbukkit.Spigot.initializeEntityActivationType(this);
 +    public final boolean defaultActivationState;
 +    public long activatedTick = 0;
++    public void inactiveTick() { }
 +    // Spigot end
 +
      public Entity(World world) {
          this.id = entityCount++;
          this.l = 1.0D;
-@@ -144,13 +153,18 @@ public abstract class Entity {
+@@ -144,13 +154,18 @@ public abstract class Entity {
          this.ai = false;
          this.as = 0;
          this.invulnerable = false;
@@ -1025,7 +1039,7 @@ index 0f7be97..8767950 100644
  
          this.datawatcher.a(0, Byte.valueOf((byte) 0));
          this.datawatcher.a(1, Short.valueOf((short) 300));
-@@ -423,6 +437,7 @@ public abstract class Entity {
+@@ -423,6 +438,7 @@ public abstract class Entity {
          }
          // CraftBukkit end
  
@@ -1033,7 +1047,7 @@ index 0f7be97..8767950 100644
          if (this.Z) {
              this.boundingBox.d(d0, d1, d2);
              this.locX = (this.boundingBox.a + this.boundingBox.d) / 2.0D;
-@@ -722,6 +737,7 @@ public abstract class Entity {
+@@ -722,6 +738,7 @@ public abstract class Entity {
  
              this.world.methodProfiler.b();
          }
@@ -1041,6 +1055,42 @@ index 0f7be97..8767950 100644
      }
  
      protected void C() {
+diff --git a/src/main/java/net/minecraft/server/EntityAgeable.java b/src/main/java/net/minecraft/server/EntityAgeable.java
+index fdc9167..16b7261 100644
+--- a/src/main/java/net/minecraft/server/EntityAgeable.java
++++ b/src/main/java/net/minecraft/server/EntityAgeable.java
+@@ -6,6 +6,31 @@ public abstract class EntityAgeable extends EntityCreature {
+     private float e;
+     public boolean ageLocked = false; // CraftBukkit
+ 
++    // Spigot start
++    @Override
++    public void inactiveTick()
++    {
++        super.inactiveTick();
++        if ( this.world.isStatic || this.ageLocked )
++        { // CraftBukkit
++            this.a( this.isBaby() );
++        } else
++        {
++            int i = this.getAge();
++
++            if ( i < 0 )
++            {
++                ++i;
++                this.setAge( i );
++            } else if ( i > 0 )
++            {
++                --i;
++                this.setAge( i );
++            }
++        }
++    }
++    // Spigot end
++
+     public EntityAgeable(World world) {
+         super(world);
+     }
 diff --git a/src/main/java/net/minecraft/server/EntityArrow.java b/src/main/java/net/minecraft/server/EntityArrow.java
 index f46c920..1699059 100644
 --- a/src/main/java/net/minecraft/server/EntityArrow.java
@@ -1128,10 +1178,36 @@ index 0225f53..294ab8f 100644
              }
          } else {
 diff --git a/src/main/java/net/minecraft/server/EntityLiving.java b/src/main/java/net/minecraft/server/EntityLiving.java
-index 965e6ce..58a4acb 100644
+index 965e6ce..ae9415c 100644
 --- a/src/main/java/net/minecraft/server/EntityLiving.java
 +++ b/src/main/java/net/minecraft/server/EntityLiving.java
-@@ -497,6 +497,7 @@ public abstract class EntityLiving extends Entity {
+@@ -113,6 +113,13 @@ public abstract class EntityLiving extends Entity {
+     public int maxAirTicks = 300;
+     public int maxHealth = this.getMaxHealth();
+     // CraftBukkit end
++    // Spigot start
++    public void inactiveTick()
++    {
++        super.inactiveTick();
++        ++this.bC;
++    }
++    // Spigot end
+ 
+     public EntityLiving(World world) {
+         super(world);
+@@ -416,7 +423,10 @@ public abstract class EntityLiving extends Entity {
+ 
+     public int getScaledHealth() {
+         if (this.maxHealth != this.getMaxHealth() && this.getHealth() > 0) {
+-            return this.getHealth() * this.getMaxHealth() / this.maxHealth + 1;
++            // Spigot start
++            int health = (int) ((((double) this.getHealth()) / this.maxHealth) * this.getMaxHealth());
++            return health > 0 ? health : 1;
++            // Spigot end
+         } else {
+             return this.getHealth();
+         }
+@@ -497,6 +507,7 @@ public abstract class EntityLiving extends Entity {
      }
  
      public void l_() {
@@ -1139,7 +1215,7 @@ index 965e6ce..58a4acb 100644
          super.l_();
          if (!this.world.isStatic) {
              int i;
-@@ -523,7 +524,9 @@ public abstract class EntityLiving extends Entity {
+@@ -523,7 +534,9 @@ public abstract class EntityLiving extends Entity {
              }
          }
  
@@ -1149,7 +1225,7 @@ index 965e6ce..58a4acb 100644
          double d0 = this.locX - this.lastX;
          double d1 = this.locZ - this.lastZ;
          float f = (float) (d0 * d0 + d1 * d1);
-@@ -614,6 +617,7 @@ public abstract class EntityLiving extends Entity {
+@@ -614,6 +627,7 @@ public abstract class EntityLiving extends Entity {
  
          this.world.methodProfiler.b();
          this.aE += f2;
@@ -1157,7 +1233,7 @@ index 965e6ce..58a4acb 100644
      }
  
      // CraftBukkit start - Delegate so we can handle providing a reason for health being regained
-@@ -1254,6 +1258,7 @@ public abstract class EntityLiving extends Entity {
+@@ -1254,6 +1268,7 @@ public abstract class EntityLiving extends Entity {
      }
  
      public void c() {
@@ -1165,7 +1241,7 @@ index 965e6ce..58a4acb 100644
          if (this.bX > 0) {
              --this.bX;
          }
-@@ -1305,6 +1310,7 @@ public abstract class EntityLiving extends Entity {
+@@ -1305,6 +1320,7 @@ public abstract class EntityLiving extends Entity {
                  this.aA = this.yaw;
              }
          }
@@ -1173,7 +1249,7 @@ index 965e6ce..58a4acb 100644
  
          this.world.methodProfiler.b();
          this.world.methodProfiler.a("jump");
-@@ -1323,6 +1329,7 @@ public abstract class EntityLiving extends Entity {
+@@ -1323,6 +1339,7 @@ public abstract class EntityLiving extends Entity {
  
          this.world.methodProfiler.b();
          this.world.methodProfiler.a("travel");
@@ -1181,7 +1257,7 @@ index 965e6ce..58a4acb 100644
          this.bD *= 0.98F;
          this.bE *= 0.98F;
          this.bF *= 0.9F;
-@@ -1331,11 +1338,14 @@ public abstract class EntityLiving extends Entity {
+@@ -1331,11 +1348,14 @@ public abstract class EntityLiving extends Entity {
          this.aO *= this.bE();
          this.e(this.bD, this.bE);
          this.aO = f;
@@ -1217,6 +1293,33 @@ index 7de5b48..5fa0b05 100644
  
          if (this.isSleeping()) {
              this.o().getTracker().sendPacketToEntity(this, new Packet18ArmAnimation(this, 3));
+diff --git a/src/main/java/net/minecraft/server/EntitySkeleton.java b/src/main/java/net/minecraft/server/EntitySkeleton.java
+index 9494627..dba2257 100644
+--- a/src/main/java/net/minecraft/server/EntitySkeleton.java
++++ b/src/main/java/net/minecraft/server/EntitySkeleton.java
+@@ -245,9 +245,21 @@ public class EntitySkeleton extends EntityMonster implements IRangedEntity {
+         if (EnchantmentManager.getEnchantmentLevel(Enchantment.ARROW_FIRE.id, this.bG()) > 0 || this.getSkeletonType() == 1) {
+             entityarrow.setOnFire(100);
+         }
++        // Spigot -  Skeletons should throw EntityShootBowEvents
++        org.bukkit.event.entity.EntityShootBowEvent event = org.bukkit.craftbukkit.event.CraftEventFactory.callEntityShootBowEvent( this, this.bG(), entityarrow, 1.6F );
++        if ( event.isCancelled() )
++        {
++            event.getProjectile().remove();
++            return;
++        }
++        if ( event.getProjectile() == entityarrow.getBukkitEntity() )
++        {
++            this.world.addEntity( entityarrow );
++        }
++        // Spigot end
+ 
+         this.makeSound("random.bow", 1.0F, 1.0F / (this.aE().nextFloat() * 0.4F + 0.8F));
+-        this.world.addEntity(entityarrow);
++        // this.world.addEntity(entityarrow); // Spigot - moved up
+     }
+ 
+     public int getSkeletonType() {
 diff --git a/src/main/java/net/minecraft/server/EntityTracker.java b/src/main/java/net/minecraft/server/EntityTracker.java
 index 9e2b76f..f6f1ab0 100644
 --- a/src/main/java/net/minecraft/server/EntityTracker.java
@@ -1270,6 +1373,20 @@ index ef220c1..ae1cee9 100644
                  if (flag) {
                      double d0 = (double) ((float) i + this.world.random.nextFloat());
                      double d1 = (double) ((float) j + this.world.random.nextFloat());
+diff --git a/src/main/java/net/minecraft/server/FoodMetaData.java b/src/main/java/net/minecraft/server/FoodMetaData.java
+index f26d552..8fcdbae 100644
+--- a/src/main/java/net/minecraft/server/FoodMetaData.java
++++ b/src/main/java/net/minecraft/server/FoodMetaData.java
+@@ -39,7 +39,8 @@ public class FoodMetaData {
+                     this.foodLevel = event.getFoodLevel();
+                 }
+ 
+-                ((EntityPlayer) entityhuman).playerConnection.sendPacket(new Packet8UpdateHealth(entityhuman.getHealth(), this.foodLevel, this.saturationLevel));
++                // Spigot - This next line fixes health scaling
++                ((EntityPlayer) entityhuman).playerConnection.sendPacket(new Packet8UpdateHealth(((EntityPlayer) entityhuman).getScaledHealth(), this.foodLevel, this.saturationLevel));
+                 // CraftBukkit end
+             }
+         }
 diff --git a/src/main/java/net/minecraft/server/INetworkManager.java b/src/main/java/net/minecraft/server/INetworkManager.java
 new file mode 100644
 index 0000000..6fcc5d7
@@ -1302,6 +1419,31 @@ index 0000000..6fcc5d7
 +    
 +    void setSocketAddress(java.net.SocketAddress address); // Spigot
 +}
+diff --git a/src/main/java/net/minecraft/server/IRecipe.java b/src/main/java/net/minecraft/server/IRecipe.java
+index bb28c12..c0836e4 100644
+--- a/src/main/java/net/minecraft/server/IRecipe.java
++++ b/src/main/java/net/minecraft/server/IRecipe.java
+@@ -11,4 +11,6 @@ public interface IRecipe {
+     ItemStack b();
+ 
+     org.bukkit.inventory.Recipe toBukkitRecipe(); // CraftBukkit
++
++    java.util.List<ItemStack> getIngredients(); // Spigot
+ }
+diff --git a/src/main/java/net/minecraft/server/ItemFood.java b/src/main/java/net/minecraft/server/ItemFood.java
+index 409addf..c8a7f41 100644
+--- a/src/main/java/net/minecraft/server/ItemFood.java
++++ b/src/main/java/net/minecraft/server/ItemFood.java
+@@ -36,7 +36,8 @@ public class ItemFood extends Item {
+             entityhuman.getFoodData().eat(event.getFoodLevel() - oldFoodLevel, this.getSaturationModifier());
+         }
+ 
+-        ((EntityPlayer) entityhuman).playerConnection.sendPacket(new Packet8UpdateHealth(entityhuman.getHealth(), entityhuman.getFoodData().foodLevel, entityhuman.getFoodData().saturationLevel));
++        // Spigot - this next line fixes health scaling
++        ((EntityPlayer) entityhuman).playerConnection.sendPacket(new Packet8UpdateHealth(((EntityPlayer) entityhuman).getScaledHealth(), entityhuman.getFoodData().foodLevel, entityhuman.getFoodData().saturationLevel));
+         // CraftBukkit end
+ 
+         world.makeSound(entityhuman, "random.burp", 0.5F, world.random.nextFloat() * 0.1F + 0.9F);
 diff --git a/src/main/java/net/minecraft/server/ItemStack.java b/src/main/java/net/minecraft/server/ItemStack.java
 index 343b8cb..9c2fce6 100644
 --- a/src/main/java/net/minecraft/server/ItemStack.java
@@ -1523,7 +1665,7 @@ index 0000000..2a52fe3
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
-index 3e134fb..6a6181c 100644
+index 3e134fb..e348ac5 100644
 --- a/src/main/java/net/minecraft/server/MinecraftServer.java
 +++ b/src/main/java/net/minecraft/server/MinecraftServer.java
 @@ -6,7 +6,6 @@ import java.security.KeyPair;
@@ -1606,7 +1748,7 @@ index 3e134fb..6a6181c 100644
 +                    SpigotTimings.serverTickTimer.startTiming();
 +                    this.q();
 +                    SpigotTimings.serverTickTimer.stopTiming();
-+                    org.bukkit.CustomTimingsHandler.tick();
++                    org.spigotmc.CustomTimingsHandler.tick();
 +                    org.spigotmc.WatchdogThread.tick();
                  }
 +                // Spigot end
@@ -2229,6 +2371,77 @@ index 129dc4f..fb34d4a 100644
  
          Deflater deflater = localDeflater.get();
          deflater.reset();
+diff --git a/src/main/java/net/minecraft/server/Packet63WorldParticles.java b/src/main/java/net/minecraft/server/Packet63WorldParticles.java
+new file mode 100644
+index 0000000..f593279
+--- /dev/null
++++ b/src/main/java/net/minecraft/server/Packet63WorldParticles.java
+@@ -0,0 +1,65 @@
++package net.minecraft.server;
++
++import java.io.DataInputStream;
++import java.io.DataOutputStream;
++
++public class Packet63WorldParticles extends Packet {
++
++    private String a;
++    private float b;
++    private float c;
++    private float d;
++    private float e;
++    private float f;
++    private float g;
++    private float h;
++    private int i;
++
++    public Packet63WorldParticles() {}
++
++    // Spigot start - Added constructor
++    public Packet63WorldParticles(String particleName, float x, float y, float z, float offsetX, float offsetY, float offsetZ, float speed, int count) {
++        a = particleName;
++        b = x;
++        c = y;
++        d = z;
++        e = offsetX;
++        f = offsetY;
++        g = offsetZ;
++        h = speed;
++        i = count;
++    }
++    // Spigot end
++
++    public void a(DataInputStream datainputstream) throws java.io.IOException {
++        this.a = a(datainputstream, 64);
++        this.b = datainputstream.readFloat();
++        this.c = datainputstream.readFloat();
++        this.d = datainputstream.readFloat();
++        this.e = datainputstream.readFloat();
++        this.f = datainputstream.readFloat();
++        this.g = datainputstream.readFloat();
++        this.h = datainputstream.readFloat();
++        this.i = datainputstream.readInt();
++    }
++
++    public void a(DataOutputStream dataoutputstream) throws java.io.IOException {
++        a(this.a, dataoutputstream);
++        dataoutputstream.writeFloat(this.b);
++        dataoutputstream.writeFloat(this.c);
++        dataoutputstream.writeFloat(this.d);
++        dataoutputstream.writeFloat(this.e);
++        dataoutputstream.writeFloat(this.f);
++        dataoutputstream.writeFloat(this.g);
++        dataoutputstream.writeFloat(this.h);
++        dataoutputstream.writeInt(this.i);
++    }
++
++    public void handle(Connection connection) {
++        connection.a(this);
++    }
++
++    public int a() {
++        return 64;
++    }
++}
 diff --git a/src/main/java/net/minecraft/server/PendingConnection.java b/src/main/java/net/minecraft/server/PendingConnection.java
 index 17cfacc..7ef9a6f 100644
 --- a/src/main/java/net/minecraft/server/PendingConnection.java
@@ -2327,10 +2540,10 @@ index 0dfd190..c543bed 100644
          } else {
              this.e = i;
 diff --git a/src/main/java/net/minecraft/server/PlayerConnection.java b/src/main/java/net/minecraft/server/PlayerConnection.java
-index 5d10382..0621625 100644
+index cc99ff5..a2b63c1 100644
 --- a/src/main/java/net/minecraft/server/PlayerConnection.java
 +++ b/src/main/java/net/minecraft/server/PlayerConnection.java
-@@ -839,8 +839,20 @@ public class PlayerConnection extends Connection {
+@@ -845,8 +845,20 @@ public class PlayerConnection extends Connection {
  
                  this.chat(s, packet3chat.a_());
  
@@ -2352,7 +2565,7 @@ index 5d10382..0621625 100644
                      if (packet3chat.a_()) {
                          Waitable waitable = new Waitable() {
                              @Override
-@@ -950,6 +962,7 @@ public class PlayerConnection extends Connection {
+@@ -956,6 +968,7 @@ public class PlayerConnection extends Connection {
      // CraftBukkit end
  
      private void handleCommand(String s) {
@@ -2360,7 +2573,7 @@ index 5d10382..0621625 100644
          // CraftBukkit start
          CraftPlayer player = this.getPlayer();
  
-@@ -957,19 +970,23 @@ public class PlayerConnection extends Connection {
+@@ -963,19 +976,23 @@ public class PlayerConnection extends Connection {
          this.server.getPluginManager().callEvent(event);
  
          if (event.isCancelled()) {
@@ -2385,31 +2598,7 @@ index 5d10382..0621625 100644
          // CraftBukkit end
  
          /* CraftBukkit start - No longer needed as we have already handled it in server.dispatchServerCommand above.
-@@ -1161,12 +1178,12 @@ public class PlayerConnection extends Connection {
-             InventoryView inventory = this.player.activeContainer.getBukkitView();
-             SlotType type = CraftInventoryView.getSlotType(inventory, packet102windowclick.slot);
- 
--            InventoryClickEvent event = new InventoryClickEvent(inventory, type, packet102windowclick.slot, packet102windowclick.button != 0, packet102windowclick.shift == 1);
-+            InventoryClickEvent event = new InventoryClickEvent(inventory, type, packet102windowclick.slot, packet102windowclick.button != 0, packet102windowclick.shift == 1, packet102windowclick.shift == 6);
-             org.bukkit.inventory.Inventory top = inventory.getTopInventory();
-             if (packet102windowclick.slot == 0 && top instanceof CraftingInventory) {
-                 org.bukkit.inventory.Recipe recipe = ((CraftingInventory) top).getRecipe();
-                 if (recipe != null) {
--                    event = new org.bukkit.event.inventory.CraftItemEvent(recipe, inventory, type, packet102windowclick.slot, packet102windowclick.button != 0, packet102windowclick.shift == 1);
-+                    event = new org.bukkit.event.inventory.CraftItemEvent(recipe, inventory, type, packet102windowclick.slot, packet102windowclick.button != 0, packet102windowclick.shift == 1, packet102windowclick.shift == 6);
-                 }
-             }
-             server.getPluginManager().callEvent(event);
-@@ -1254,7 +1271,7 @@ public class PlayerConnection extends Connection {
-                 slot = SlotType.OUTSIDE;
-             }
- 
--            InventoryClickEvent event = new InventoryClickEvent(inventory, slot, slot == SlotType.OUTSIDE ? -999 : packet107setcreativeslot.slot, false, false);
-+            InventoryClickEvent event = new InventoryClickEvent(inventory, slot, slot == SlotType.OUTSIDE ? -999 : packet107setcreativeslot.slot, false, false, false);
-             server.getPluginManager().callEvent(event);
-             org.bukkit.inventory.ItemStack item = event.getCurrentItem();
- 
-@@ -1340,8 +1357,9 @@ public class PlayerConnection extends Connection {
+@@ -1554,8 +1571,9 @@ public class PlayerConnection extends Connection {
                      flag = false;
                  } else {
                      for (i = 0; i < packet130updatesign.lines[j].length(); ++i) {
@@ -2433,7 +2622,7 @@ index 1243d1d..e45bcd2 100644
      }
  
 diff --git a/src/main/java/net/minecraft/server/PlayerList.java b/src/main/java/net/minecraft/server/PlayerList.java
-index b7e327b..319974b 100644
+index b7e327b..0a48245 100644
 --- a/src/main/java/net/minecraft/server/PlayerList.java
 +++ b/src/main/java/net/minecraft/server/PlayerList.java
 @@ -293,7 +293,7 @@ public abstract class PlayerList {
@@ -2441,7 +2630,7 @@ index b7e327b..319974b 100644
          EntityPlayer entity = new EntityPlayer(this.server, this.server.getWorldServer(0), s, this.server.M() ? new DemoPlayerInteractManager(this.server.getWorldServer(0)) : new PlayerInteractManager(this.server.getWorldServer(0)));
          Player player = entity.getBukkitEntity();
 -        PlayerLoginEvent event = new PlayerLoginEvent(player, hostname, pendingconnection.getSocket().getInetAddress());
-+        PlayerLoginEvent event = new PlayerLoginEvent(player, hostname, ((java.net.InetSocketAddress) pendingconnection.networkManager.getSocketAddress()).getAddress()); // Spigot
++        PlayerLoginEvent event = new PlayerLoginEvent(player, hostname, ((java.net.InetSocketAddress) pendingconnection.networkManager.getSocketAddress()).getAddress(), pendingconnection.getSocket().getInetAddress()); // Spigot
  
          SocketAddress socketaddress = pendingconnection.networkManager.getSocketAddress();
  
@@ -2508,6 +2697,19 @@ index b7e327b..319974b 100644
 +            // Spigot end
          }
      }
+ 
+diff --git a/src/main/java/net/minecraft/server/PropertyManager.java b/src/main/java/net/minecraft/server/PropertyManager.java
+index 03aa219..a45c4ea 100644
+--- a/src/main/java/net/minecraft/server/PropertyManager.java
++++ b/src/main/java/net/minecraft/server/PropertyManager.java
+@@ -53,7 +53,7 @@ public class PropertyManager {
+     }
+ 
+     private <T> T getOverride(String name, T value) {
+-        if ((this.options != null) && (this.options.has(name))) {
++        if ((this.options != null) && (this.options.has(name)) && !name.equals( "online-mode")) { // Spigot
+             return (T) this.options.valueOf(name);
+         }
  
 diff --git a/src/main/java/net/minecraft/server/RegionFileCache.java b/src/main/java/net/minecraft/server/RegionFileCache.java
 new file mode 100644
@@ -2582,6 +2784,56 @@ index 0000000..829f4a3
 +        return regionfile.b(i & 31, j & 31);
 +    }
 +}
+diff --git a/src/main/java/net/minecraft/server/ShapedRecipes.java b/src/main/java/net/minecraft/server/ShapedRecipes.java
+index a70b828..6d0c8ca 100644
+--- a/src/main/java/net/minecraft/server/ShapedRecipes.java
++++ b/src/main/java/net/minecraft/server/ShapedRecipes.java
+@@ -10,7 +10,7 @@ public class ShapedRecipes implements IRecipe {
+     private int width;
+     private int height;
+     private ItemStack[] items;
+-    private ItemStack result;
++    public ItemStack result; // Spigot
+     public final int a;
+     private boolean f = false;
+ 
+@@ -158,4 +158,11 @@ public class ShapedRecipes implements IRecipe {
+         this.f = true;
+         return this;
+     }
++
++    // Spigot start
++    public java.util.List<ItemStack> getIngredients()
++    {
++        return java.util.Arrays.asList( items );
++    }
++    // Spigot end
+ }
+diff --git a/src/main/java/net/minecraft/server/ShapelessRecipes.java b/src/main/java/net/minecraft/server/ShapelessRecipes.java
+index fbdad80..dc0ce9e 100644
+--- a/src/main/java/net/minecraft/server/ShapelessRecipes.java
++++ b/src/main/java/net/minecraft/server/ShapelessRecipes.java
+@@ -11,7 +11,7 @@ import org.bukkit.craftbukkit.inventory.CraftShapelessRecipe;
+ 
+ public class ShapelessRecipes implements IRecipe {
+ 
+-    private final ItemStack result;
++    public final ItemStack result; // Spigot
+     private final List ingredients;
+ 
+     public ShapelessRecipes(ItemStack itemstack, List list) {
+@@ -75,4 +75,11 @@ public class ShapelessRecipes implements IRecipe {
+     public int a() {
+         return this.ingredients.size();
+     }
++
++    // Spigot start
++    public java.util.List<ItemStack> getIngredients()
++    {
++        return java.util.Collections.unmodifiableList( ingredients );
++    }
++    // Spigot end
+ }
 diff --git a/src/main/java/net/minecraft/server/SpawnerCreature.java b/src/main/java/net/minecraft/server/SpawnerCreature.java
 index 056100f..25b83f7 100644
 --- a/src/main/java/net/minecraft/server/SpawnerCreature.java
@@ -2719,14 +2971,14 @@ index 0686ba0..c15efc5 100644
                      event.disallow(asyncEvent.getResult(), asyncEvent.getKickMessage());
                  }
 diff --git a/src/main/java/net/minecraft/server/TileEntity.java b/src/main/java/net/minecraft/server/TileEntity.java
-index db3fc42..174546d 100644
+index db3fc42..ffa9bb6 100644
 --- a/src/main/java/net/minecraft/server/TileEntity.java
 +++ b/src/main/java/net/minecraft/server/TileEntity.java
 @@ -4,10 +4,12 @@ import java.util.HashMap;
  import java.util.Map;
  import java.util.concurrent.Callable;
  
-+import org.bukkit.CustomTimingsHandler; // Spigot
++import org.spigotmc.CustomTimingsHandler; // Spigot
  import org.bukkit.inventory.InventoryHolder; // CraftBukkit
  
  public class TileEntity {
@@ -2735,6 +2987,65 @@ index db3fc42..174546d 100644
      private static Map a = new HashMap();
      private static Map b = new HashMap();
      protected World world;
+diff --git a/src/main/java/net/minecraft/server/TileEntityHopper.java b/src/main/java/net/minecraft/server/TileEntityHopper.java
+index f6d269d..88b2cb0 100644
+--- a/src/main/java/net/minecraft/server/TileEntityHopper.java
++++ b/src/main/java/net/minecraft/server/TileEntityHopper.java
+@@ -181,16 +181,19 @@ public class TileEntityHopper extends TileEntity implements IHopper {
+                 boolean flag = this.u() | suckInItems(this);
+ 
+                 if (flag) {
+-                    this.c(8);
++                    this.c(org.bukkit.craftbukkit.Spigot.hopperTransferCooldown); // Spigot
+                     this.update();
+                     return true;
+                 }
+             }
+-
+-            return false;
+-        } else {
+-            return false;
+         }
++        // Spigot start
++        if ( this.c == 0 )
++        {
++            this.c( org.bukkit.craftbukkit.Spigot.hopperCheckCooldown );
++        }
++        // Spigot end
++        return false;
+     }
+ 
+     private boolean u() {
+@@ -217,7 +220,7 @@ public class TileEntityHopper extends TileEntity implements IHopper {
+                     this.getWorld().getServer().getPluginManager().callEvent(event);
+                     if (event.isCancelled()) {
+                         this.setItem(i, itemstack);
+-                        this.c(8); // Delay hopper checks
++                        this.c(org.bukkit.craftbukkit.Spigot.hopperTransferCooldown); // Spigot
+                         return false;
+                     }
+                     ItemStack itemstack1 = addItem(iinventory, CraftItemStack.asNMSCopy(event.getItem()), Facing.OPPOSITE_FACING[BlockHopper.c(this.p())]);
+@@ -298,9 +301,9 @@ public class TileEntityHopper extends TileEntity implements IHopper {
+                 iinventory.setItem(i, itemstack1);
+ 
+                 if (ihopper instanceof TileEntityHopper) {
+-                    ((TileEntityHopper) ihopper).c(8); // Delay hopper checks
++                    ((TileEntityHopper) ihopper).c(org.bukkit.craftbukkit.Spigot.hopperTransferCooldown); // Spigot
+                 } else if (ihopper instanceof EntityMinecartHopper) {
+-                    ((EntityMinecartHopper) ihopper).n(4); // Delay hopper minecart checks
++                    ((EntityMinecartHopper) ihopper).n(org.bukkit.craftbukkit.Spigot.hopperTransferCooldown / 2); // Spigot
+                 }
+ 
+                 return false;
+@@ -404,7 +407,7 @@ public class TileEntityHopper extends TileEntity implements IHopper {
+ 
+             if (flag) {
+                 if (iinventory instanceof TileEntityHopper) {
+-                    ((TileEntityHopper) iinventory).c(8);
++                    ((TileEntityHopper) iinventory).c(org.bukkit.craftbukkit.Spigot.hopperTransferCooldown); // Spigot
+                 }
+ 
+                 iinventory.update();
 diff --git a/src/main/java/net/minecraft/server/WatchableObject.java b/src/main/java/net/minecraft/server/WatchableObject.java
 new file mode 100644
 index 0000000..678aa91
@@ -2786,7 +3097,7 @@ index 0000000..678aa91
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index 3a4ddea..3fa7e40 100644
+index 3a4ddea..64c7c85 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
 @@ -13,6 +13,8 @@ import java.util.concurrent.Callable;
@@ -3053,7 +3364,7 @@ index 3a4ddea..3fa7e40 100644
          this.methodProfiler.b();
          this.methodProfiler.b();
      }
-@@ -1341,7 +1437,12 @@ public abstract class World implements IBlockAccess {
+@@ -1341,7 +1437,13 @@ public abstract class World implements IBlockAccess {
          int j = MathHelper.floor(entity.locZ);
          byte b0 = 32;
  
@@ -3061,13 +3372,14 @@ index 3a4ddea..3fa7e40 100644
 +        // Spigot start
 +        if (!Spigot.checkIfActive(entity)) {
 +            entity.ticksLived++;
++            entity.inactiveTick();
 +        } else {
 +            entity.tickTimer.startTiming();
 +            // Spigot end
              entity.U = entity.locX;
              entity.V = entity.locY;
              entity.W = entity.locZ;
-@@ -1403,6 +1504,7 @@ public abstract class World implements IBlockAccess {
+@@ -1403,6 +1505,7 @@ public abstract class World implements IBlockAccess {
                      entity.passenger = null;
                  }
              }
@@ -3075,7 +3387,7 @@ index 3a4ddea..3fa7e40 100644
          }
      }
  
-@@ -1945,6 +2047,11 @@ public abstract class World implements IBlockAccess {
+@@ -1945,6 +2048,11 @@ public abstract class World implements IBlockAccess {
          this.worldData.setWeatherDuration(1);
      }
  
@@ -3087,7 +3399,7 @@ index 3a4ddea..3fa7e40 100644
      protected void B() {
          // this.chunkTickList.clear(); // CraftBukkit - removed
          this.methodProfiler.a("buildList");
-@@ -1954,25 +2061,42 @@ public abstract class World implements IBlockAccess {
+@@ -1954,25 +2062,42 @@ public abstract class World implements IBlockAccess {
          int j;
          int k;
  
@@ -3144,7 +3456,7 @@ index 3a4ddea..3fa7e40 100644
  
          this.methodProfiler.b();
          if (this.O > 0) {
-@@ -1980,7 +2104,7 @@ public abstract class World implements IBlockAccess {
+@@ -1980,7 +2105,7 @@ public abstract class World implements IBlockAccess {
          }
  
          this.methodProfiler.a("playerCheckLight");
@@ -3153,7 +3465,7 @@ index 3a4ddea..3fa7e40 100644
              i = this.random.nextInt(this.players.size());
              entityhuman = (EntityHuman) this.players.get(i);
              j = MathHelper.floor(entityhuman.locX) + this.random.nextInt(11) - 5;
-@@ -2355,6 +2479,7 @@ public abstract class World implements IBlockAccess {
+@@ -2355,6 +2480,7 @@ public abstract class World implements IBlockAccess {
      }
  
      public void a(List list) {
@@ -3213,7 +3525,7 @@ index bf3e6fe..305dceb 100644
  
                      this.c[i] = -1;
 diff --git a/src/main/java/net/minecraft/server/WorldServer.java b/src/main/java/net/minecraft/server/WorldServer.java
-index 49360c1..b0c2c96 100644
+index 49360c1..1b2526b 100644
 --- a/src/main/java/net/minecraft/server/WorldServer.java
 +++ b/src/main/java/net/minecraft/server/WorldServer.java
 @@ -1,5 +1,7 @@
@@ -3288,19 +3600,49 @@ index 49360c1..b0c2c96 100644
 +            timings.mobSpawn.stopTiming(); // Spigot
          }
          // CraftBukkit end
-+        timings.doTickRest.startTiming(); // Spigot
++        timings.doChunkUnload.startTiming(); // Spigot
          this.methodProfiler.c("chunkSource");
          this.chunkProvider.unloadChunks();
          int j = this.a(1.0F);
-@@ -211,6 +220,7 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
-         this.Z();
+@@ -196,21 +205,36 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
  
+         this.worldData.setTime(this.worldData.getTime() + 1L);
+         this.worldData.setDayTime(this.worldData.getDayTime() + 1L);
++        timings.doChunkUnload.stopTiming(); // Spigot
+         this.methodProfiler.c("tickPending");
++        timings.doTickPending.startTiming(); // Spigot
+         this.a(false);
++        timings.doTickPending.stopTiming(); // Spigot
+         this.methodProfiler.c("tickTiles");
++        timings.doTickTiles.startTiming(); // Spigot
+         this.g();
++        timings.doTickTiles.stopTiming(); // Spigot
+         this.methodProfiler.c("chunkMap");
++        timings.doChunkMap.startTiming(); // Spigot
+         this.manager.flush();
++        timings.doChunkMap.stopTiming(); // Spigot
+         this.methodProfiler.c("village");
++        timings.doVillages.startTiming(); // Spigot
+         this.villages.tick();
+         this.siegeManager.a();
++        timings.doVillages.stopTiming(); // Spigot
+         this.methodProfiler.c("portalForcer");
++        timings.doPortalForcer.startTiming(); // Spigot
+         this.P.a(this.getTime());
++        timings.doPortalForcer.stopTiming(); // Spigot
+         this.methodProfiler.b();
++        timings.doSounds.startTiming(); // Spigot
+         this.Z();
+-
++        timings.doSounds.stopTiming(); // Spigot
++        timings.doChunkGC.startTiming(); // Spigot
          this.getWorld().processChunkGC(); // CraftBukkit
-+        timings.doTickRest.stopTiming(); // Spigot
++        timings.doChunkGC.stopTiming(); // Spigot
++
      }
  
      public BiomeMeta a(EnumCreatureType enumcreaturetype, int i, int j, int k) {
-@@ -295,15 +305,30 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
+@@ -295,15 +319,30 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
      }
  
      protected void g() {
@@ -3334,7 +3676,7 @@ index 49360c1..b0c2c96 100644
              // ChunkCoordIntPair chunkcoordintpair = (ChunkCoordIntPair) iterator.next();
              int k = chunkX * 16;
              int l = chunkZ * 16;
-@@ -401,7 +426,17 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
+@@ -401,7 +440,17 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
  
                          if (block != null && block.isTicking()) {
                              ++i;
@@ -3353,7 +3695,7 @@ index 49360c1..b0c2c96 100644
                          }
                      }
                  }
-@@ -412,9 +447,16 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
+@@ -412,9 +461,16 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
      }
  
      public boolean a(int i, int j, int k, int l) {
@@ -3373,7 +3715,7 @@ index 49360c1..b0c2c96 100644
      }
  
      public void a(int i, int j, int k, int l, int i1) {
-@@ -447,10 +489,9 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
+@@ -447,10 +503,9 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
                  nextticklistentry.a(j1);
              }
  
@@ -3387,7 +3729,7 @@ index 49360c1..b0c2c96 100644
          }
      }
  
-@@ -462,10 +503,9 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
+@@ -462,10 +517,9 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
              nextticklistentry.a((long) i1 + this.worldData.getTime());
          }
  
@@ -3401,7 +3743,7 @@ index 49360c1..b0c2c96 100644
      }
  
      public void tickEntities() {
-@@ -485,11 +525,12 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
+@@ -485,11 +539,12 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
      }
  
      public boolean a(boolean flag) {
@@ -3418,7 +3760,7 @@ index 49360c1..b0c2c96 100644
              if (i > 1000) {
                  // CraftBukkit start - If the server has too much to process over time, try to alleviate that
                  if (i > 20 * 1000) {
-@@ -505,23 +546,24 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
+@@ -505,23 +560,24 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
              NextTickListEntry nextticklistentry;
  
              for (int j = 0; j < i; ++j) {
@@ -3452,7 +3794,7 @@ index 49360c1..b0c2c96 100644
                  byte b0 = 0;
  
                  if (this.e(nextticklistentry.a - b0, nextticklistentry.b - b0, nextticklistentry.c - b0, nextticklistentry.a + b0, nextticklistentry.b + b0, nextticklistentry.c + b0)) {
-@@ -552,52 +594,18 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
+@@ -552,52 +608,18 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
              }
  
              this.methodProfiler.b();
@@ -3514,7 +3856,7 @@ index 49360c1..b0c2c96 100644
      }
  
      public void entityJoinedWorld(Entity entity, boolean flag) {
-@@ -674,13 +682,15 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
+@@ -674,13 +696,15 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
              this.entitiesById = new IntHashMap();
          }
  
@@ -3534,7 +3876,7 @@ index 49360c1..b0c2c96 100644
  
          this.b(worldsettings);
          super.a(worldsettings);
-@@ -967,4 +977,62 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
+@@ -967,4 +991,62 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
          return this.setTypeIdAndData(x, y, z, typeId, data, 3);
      }
      // CraftBukkit end
@@ -3669,6 +4011,19 @@ index 1a21516..6921206 100644
              }
          }
  
+diff --git a/src/main/java/org/bukkit/craftbukkit/CraftEffect.java b/src/main/java/org/bukkit/craftbukkit/CraftEffect.java
+index 7de0de5..7eca388 100644
+--- a/src/main/java/org/bukkit/craftbukkit/CraftEffect.java
++++ b/src/main/java/org/bukkit/craftbukkit/CraftEffect.java
+@@ -55,6 +55,8 @@ public class CraftEffect {
+             Validate.isTrue(((Material) data).isBlock(), "Material is not a block!");
+             datavalue = ((Material) data).getId();
+             break;
++        case ITEM_BREAK:
++            datavalue = ((Material) data).getId();
+         default:
+             datavalue = 0;
+         }
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 index 6cb50b7..bfa19e6 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
@@ -3866,7 +4221,7 @@ index 6cb50b7..bfa19e6 100644
 +    // Spigot end
  }
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
-index 6c7f570..fe7b8b0 100644
+index 6c7f570..f6646da 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
 @@ -77,7 +77,128 @@ public class CraftWorld implements World {
@@ -4023,12 +4378,125 @@ index 6c7f570..fe7b8b0 100644
          chunkLoadCount++;
          if (generate) {
              // Use the default variant of loadChunk when generate == true.
+@@ -763,31 +887,21 @@ public class CraftWorld implements World {
+         } else {
+             Validate.isTrue(effect.getData() == null, "Wrong kind of data for this effect!");
+         }
+-
+-        int datavalue = data == null ? 0 : CraftEffect.getDataValue(effect, data);
+-        playEffect(loc, effect, datavalue, radius);
++        if (data.getClass().equals(org.bukkit.material.MaterialData.class)) {
++            org.bukkit.material.MaterialData materialData = (org.bukkit.material.MaterialData) data;
++            Validate.isTrue(!materialData.getItemType().isBlock(), "Material must be block");
++            spigot().playEffect(loc, effect, materialData.getItemType().getId(), materialData.getData(), 0, 0, 0, 1, 1, radius);
++        } else {
++            int datavalue = data == null ? 0 : CraftEffect.getDataValue(effect, data);
++            playEffect(loc, effect, datavalue, radius);
++        }
+     }
+ 
+     public void playEffect(Location location, Effect effect, int data, int radius) {
+-        Validate.notNull(location, "Location cannot be null");
+-        Validate.notNull(effect, "Effect cannot be null");
+-        Validate.notNull(location.getWorld(), "World cannot be null");
+-        int packetData = effect.getId();
+-        Packet61WorldEvent packet = new Packet61WorldEvent(packetData, location.getBlockX(), location.getBlockY(), location.getBlockZ(), data, false);
+-        int distance;
+-        radius *= radius;
+-
+-        for (Player player : getPlayers()) {
+-            if (((CraftPlayer) player).getHandle().playerConnection == null) continue;
+-            if (!location.getWorld().equals(player.getWorld())) continue;
+-
+-            distance = (int) player.getLocation().distanceSquared(location);
+-            if (distance <= radius) {
+-                ((CraftPlayer) player).getHandle().playerConnection.sendPacket(packet);
+-            }
+-        }
++        spigot().playEffect(location,effect, data, 0, 0f, 0f, 0f, 1f, 1, radius);
+     }
+ 
++
+     public <T extends Entity> T spawn(Location location, Class<T> clazz) throws IllegalArgumentException {
+         return spawn(location, clazz, SpawnReason.CUSTOM);
+     }
+@@ -1263,4 +1377,70 @@ public class CraftWorld implements World {
+             cps.queueUnload(chunk.x, chunk.z);
+         }
+     }
++    // Spigot start
++    private final Spigot spigot = new Spigot()
++    {
++        @Override
++        public void playEffect(Location location, Effect effect, int id, int data, float offsetX, float offsetY, float offsetZ, float speed, int particleCount, int radius)
++        {
++            Validate.notNull( location, "Location cannot be null" );
++            Validate.notNull( effect, "Effect cannot be null" );
++            Validate.notNull( location.getWorld(), "World cannot be null" );
++
++            Packet packet;
++            if ( effect.getType() != Effect.Type.PARTICLE )
++            {
++                int packetData = effect.getId();
++                packet = new Packet61WorldEvent( packetData, location.getBlockX(), location.getBlockY(), location.getBlockZ(), id, false );
++            } else
++            {
++                StringBuilder particleFullName = new StringBuilder();
++                particleFullName.append( effect.getName() );
++
++                if ( effect.getData().equals( Material.class ) || effect.getData().equals( org.bukkit.material.MaterialData.class ) )
++                {
++                    particleFullName.append( '_' ).append( id );
++                }
++
++                if ( effect.getData().equals( org.bukkit.material.MaterialData.class ) )
++                {
++                    particleFullName.append( '_' ).append( data );
++                }
++                packet = new Packet63WorldParticles( effect.getName(), (float) location.getX(), (float) location.getY(), (float) location.getZ(), offsetX, offsetY, offsetZ, particleCount, radius );
++            }
++
++            int distance;
++            radius *= radius;
++
++            for ( Player player : getPlayers() )
++            {
++                if ( ( (CraftPlayer) player ).getHandle().playerConnection == null )
++                {
++                    continue;
++                }
++                if ( !location.getWorld().equals( player.getWorld() ) )
++                {
++                    continue;
++                }
++
++                distance = (int) player.getLocation().distanceSquared( location );
++                if ( distance <= radius )
++                {
++                    ( (CraftPlayer) player ).getHandle().playerConnection.sendPacket( packet );
++                }
++            }
++        }
++
++        @Override
++        public void playEffect(Location location, Effect effect)
++        {
++            playEffect( location, effect, 0 );
++        }
++    };
++
++    public Spigot spigot()
++    {
++        return spigot;
++    }
++    // Spigot end
+ }
 diff --git a/src/main/java/org/bukkit/craftbukkit/Spigot.java b/src/main/java/org/bukkit/craftbukkit/Spigot.java
 new file mode 100644
-index 0000000..2f4dcd9
+index 0000000..bbfcd97
 --- /dev/null
 +++ b/src/main/java/org/bukkit/craftbukkit/Spigot.java
-@@ -0,0 +1,436 @@
+@@ -0,0 +1,442 @@
 +package org.bukkit.craftbukkit;
 +
 +import java.io.File;
@@ -4063,6 +4531,7 @@ index 0000000..2f4dcd9
 +import net.minecraft.server.EntitySheep;
 +import net.minecraft.server.EntitySlime;
 +import net.minecraft.server.EntityTNTPrimed;
++import net.minecraft.server.EntityVillager;
 +import net.minecraft.server.EntityWeather;
 +import net.minecraft.server.EntityWither;
 +import net.minecraft.server.MathHelper;
@@ -4089,6 +4558,8 @@ index 0000000..2f4dcd9
 +    public static List<String> bungeeIPs;
 +    public static int textureResolution = 16;
 +    public static final Pattern validName = Pattern.compile("^[a-zA-Z0-9_-]{2,16}$");
++    public static int hopperTransferCooldown = 8;
++    public static int hopperCheckCooldown = 8;
 +
 +    public static void initialize(CraftServer server, SimpleCommandMap commandMap, YamlConfiguration configuration) {
 +        commandMap.register("bukkit", new org.bukkit.craftbukkit.command.TicksPerSecondCommand("tps"));
@@ -4127,6 +4598,8 @@ index 0000000..2f4dcd9
 +        tabPing = configuration.getBoolean("settings.tab-ping", tabPing);
 +        bungeeIPs = configuration.getStringList("settings.bungee-proxies");
 +        textureResolution = configuration.getInt("settings.texture-resolution", textureResolution);
++        hopperTransferCooldown = configuration.getInt("ticks-per.hopper-transfer", hopperTransferCooldown);
++        hopperCheckCooldown = configuration.getInt("ticks-per.hopper-check", hopperCheckCooldown);
 +
 +        if (metrics == null) {
 +            try {
@@ -4305,6 +4778,9 @@ index 0000000..2f4dcd9
 +            if (entity instanceof EntityCreature && ((EntityCreature) entity).target != null) {
 +                return true;
 +            }
++            if (entity instanceof EntityVillager && ((EntityVillager) entity).n()) { 
++                return true;
++            }
 +            if (entity instanceof EntityAnimal) {
 +                EntityAnimal animal = (EntityAnimal) entity;
 +                if (animal.isBaby() || animal.r() /*love*/) {
@@ -4434,9 +4910,7 @@ index 0000000..2f4dcd9
 +        } else if (entity instanceof EntityItemFrame || entity instanceof EntityPainting || entity instanceof EntityItem || entity instanceof EntityExperienceOrb) {
 +            range = world.miscTrackingRange;
 +        }
-+        if (range == 0) {
-+            return defaultRange;
-+        }
++
 +        return Math.min(world.maxTrackingRange, range);
 +    }
 +
@@ -4467,14 +4941,14 @@ index 0000000..2f4dcd9
 +}
 diff --git a/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java b/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java
 new file mode 100644
-index 0000000..d8f73ad
+index 0000000..4328ecf
 --- /dev/null
 +++ b/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java
-@@ -0,0 +1,113 @@
+@@ -0,0 +1,127 @@
 +package org.bukkit.craftbukkit;
 +
 +import net.minecraft.server.*;
-+import org.bukkit.CustomTimingsHandler;
++import org.spigotmc.CustomTimingsHandler;
 +import org.bukkit.scheduler.BukkitTask;
 +
 +import java.util.HashMap;
@@ -4566,7 +5040,14 @@ index 0000000..d8f73ad
 +     */
 +    public static class WorldTimingsHandler {
 +        public final CustomTimingsHandler mobSpawn;
-+        public final CustomTimingsHandler doTickRest;
++        public final CustomTimingsHandler doChunkUnload;
++        public final CustomTimingsHandler doPortalForcer;
++        public final CustomTimingsHandler doTickPending;
++        public final CustomTimingsHandler doTickTiles;
++        public final CustomTimingsHandler doVillages;
++        public final CustomTimingsHandler doChunkMap;
++        public final CustomTimingsHandler doChunkGC;
++        public final CustomTimingsHandler doSounds;
 +        public final CustomTimingsHandler entityTick;
 +        public final CustomTimingsHandler tileEntityTick;
 +        public final CustomTimingsHandler tileEntityPending;
@@ -4576,7 +5057,14 @@ index 0000000..d8f73ad
 +            String name = server.worldData.getName() +" - ";
 +
 +            mobSpawn = new CustomTimingsHandler(name + "mobSpawn");
-+            doTickRest = new CustomTimingsHandler(name + "doTickRest");
++            doChunkUnload = new CustomTimingsHandler(name + "doChunkUnload");
++            doTickPending = new CustomTimingsHandler(name + "doTickPending");
++            doTickTiles = new CustomTimingsHandler(name + "doTickTiles");
++            doVillages = new CustomTimingsHandler(name + "doVillages");
++            doChunkMap = new CustomTimingsHandler(name + "doChunkMap");
++            doSounds = new CustomTimingsHandler(name + "doSounds");
++            doChunkGC = new CustomTimingsHandler(name + "doChunkGC");
++            doPortalForcer = new CustomTimingsHandler(name + "doPortalForcer");
 +            entityTick = new CustomTimingsHandler(name + "entityTick");
 +            tileEntityTick = new CustomTimingsHandler(name + "tileEntityTick");
 +            tileEntityPending = new CustomTimingsHandler(name + "tileEntityPending");
@@ -4664,8 +5152,39 @@ index 0000000..f114a31
 +        return true;
 +    }
 +}
+diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftArrow.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftArrow.java
+index b46b9c4..d197c5a 100644
+--- a/src/main/java/org/bukkit/craftbukkit/entity/CraftArrow.java
++++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftArrow.java
+@@ -40,4 +40,26 @@ public class CraftArrow extends AbstractProjectile implements Arrow {
+     public EntityType getType() {
+         return EntityType.ARROW;
+     }
++
++    // Spigot start
++    private final Spigot spigot = new Spigot()
++    {
++        @Override
++        public double getDamage()
++        {
++            return getHandle().c();
++        }
++
++        @Override
++        public void setDamage(double damage)
++        {
++            getHandle().b( damage );
++        }
++    };
++
++    public Spigot spigot()
++    {
++        return spigot;
++    }
++    // Spigot end
+ }
 diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
-index 8c30bf5..786b78d 100644
+index 8c30bf5..140b06f 100644
 --- a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
 @@ -214,6 +214,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
@@ -4676,7 +5195,43 @@ index 8c30bf5..786b78d 100644
          if (getHandle().playerConnection == null) return;
  
          getHandle().playerConnection.disconnect(message == null ? "" : message);
-@@ -627,10 +628,28 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+@@ -265,13 +266,11 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+         getHandle().playerConnection.sendPacket(packet);
+     }
+ 
+-    public void playEffect(Location loc, Effect effect, int data) {
+-        if (getHandle().playerConnection == null) return;
+-
+-        int packetData = effect.getId();
+-        Packet61WorldEvent packet = new Packet61WorldEvent(packetData, loc.getBlockX(), loc.getBlockY(), loc.getBlockZ(), data, false);
+-        getHandle().playerConnection.sendPacket(packet);
++    // Spigot start
++    public void playEffect(Location location, Effect effect, int data) {
++        spigot().playEffect(location, effect, data, 0, 0f, 0f, 0f, 1f, 1, 64);
+     }
++    // Spigot end
+ 
+     public <T> void playEffect(Location loc, Effect effect, T data) {
+         if (data != null) {
+@@ -279,9 +278,14 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+         } else {
+             Validate.isTrue(effect.getData() == null, "Wrong kind of data for this effect!");
+         }
+-
+-        int datavalue = data == null ? 0 : CraftEffect.getDataValue(effect, data);
+-        playEffect(loc, effect, datavalue);
++        if (data.getClass().equals(org.bukkit.material.MaterialData.class)) {
++            org.bukkit.material.MaterialData materialData = (org.bukkit.material.MaterialData) data;
++            Validate.isTrue(!materialData.getItemType().isBlock(), "Material must be block");
++            spigot().playEffect(loc, effect, materialData.getItemType().getId(), materialData.getData(), 0, 0, 0, 1, 1, 64);
++        } else {
++            int datavalue = data == null ? 0 : CraftEffect.getDataValue(effect, data);
++            playEffect(loc, effect, datavalue);
++        }
+     }
+ 
+     public void sendBlockChange(Location loc, Material material, byte data) {
+@@ -627,10 +631,28 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
          ChunkCoordinates bed = getHandle().getBed();
  
          if (world != null && bed != null) {
@@ -4707,7 +5262,7 @@ index 8c30bf5..786b78d 100644
          }
          return null;
      }
-@@ -811,7 +830,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+@@ -811,7 +833,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
      public void setTexturePack(String url) {
          Validate.notNull(url, "Texture pack URL cannot be null");
  
@@ -4716,14 +5271,61 @@ index 8c30bf5..786b78d 100644
          Validate.isTrue(message.length <= Messenger.MAX_MESSAGE_SIZE, "Texture pack URL is too long");
  
          getHandle().playerConnection.sendPacket(new Packet250CustomPayload("MC|TPack", message));
-@@ -993,4 +1012,10 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+@@ -993,4 +1015,57 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
  
          this.server.getScoreboardManager().setPlayerBoard(this, scoreboard);
      }
 +
 +    // Spigot start
-+    public InetSocketAddress getRawAddress() {
-+        return (InetSocketAddress) this.getHandle().playerConnection.networkManager.getSocket().getRemoteSocketAddress();
++    private final Spigot spigot = new Spigot()
++    {
++        @Override
++        public InetSocketAddress getRawAddress()
++        {
++            return ( getHandle().playerConnection == null ) ? null : (InetSocketAddress) getHandle().playerConnection.networkManager.getSocket().getRemoteSocketAddress();
++        }
++
++        @Override
++        public void playEffect(Location location, Effect effect, int id, int data, float offsetX, float offsetY, float offsetZ, float speed, int particleCount, int radius)
++        {
++            Validate.notNull( location, "Location cannot be null" );
++            Validate.notNull( effect, "Effect cannot be null" );
++            Validate.notNull( location.getWorld(), "World cannot be null" );
++
++            Packet packet;
++            if ( effect.getType() != Effect.Type.PARTICLE )
++            {
++                int packetData = effect.getId();
++                packet = new Packet61WorldEvent( packetData, location.getBlockX(), location.getBlockY(), location.getBlockZ(), id, false );
++            } else
++            {
++                StringBuilder particleFullName = new StringBuilder();
++                particleFullName.append( effect.getName() );
++
++                if ( effect.getData() != null && ( effect.getData().equals( Material.class ) || effect.getData().equals( org.bukkit.material.MaterialData.class ) ) )
++                {
++                    particleFullName.append( '_' ).append( id );
++                }
++
++                if ( effect.getData() != null && effect.getData().equals( org.bukkit.material.MaterialData.class ) )
++                {
++                    particleFullName.append( '_' ).append( data );
++                }
++                packet = new Packet63WorldParticles( effect.getName(), (float) location.getX(), (float) location.getY(), (float) location.getZ(), offsetX, offsetY, offsetZ, particleCount, radius );
++            }
++
++            if ( !location.getWorld().equals( getWorld() ) )
++            {
++                return;
++            }
++
++            getHandle().playerConnection.sendPacket( packet );
++        }
++    };
++
++    public Spigot spigot()
++    {
++        return spigot;
 +    }
 +    // Spigot end
  }
@@ -4772,7 +5374,7 @@ index 84dcfcc..35badf3 100644
  
      private int nextId() {
 diff --git a/src/main/java/org/bukkit/craftbukkit/scheduler/CraftTask.java b/src/main/java/org/bukkit/craftbukkit/scheduler/CraftTask.java
-index 55db3ff..df134e3 100644
+index 55db3ff..d644d08 100644
 --- a/src/main/java/org/bukkit/craftbukkit/scheduler/CraftTask.java
 +++ b/src/main/java/org/bukkit/craftbukkit/scheduler/CraftTask.java
 @@ -1,6 +1,8 @@
@@ -4780,7 +5382,7 @@ index 55db3ff..df134e3 100644
  
  import org.bukkit.Bukkit;
 +import org.bukkit.craftbukkit.SpigotTimings; // Spigot
-+import org.bukkit.CustomTimingsHandler; // Spigot
++import org.spigotmc.CustomTimingsHandler; // Spigot
  import org.bukkit.plugin.Plugin;
  import org.bukkit.scheduler.BukkitTask;
  
@@ -5738,10 +6340,10 @@ index 0000000..c8ea80a
 +}
 diff --git a/src/main/java/org/spigotmc/OrebfuscatorManager.java b/src/main/java/org/spigotmc/OrebfuscatorManager.java
 new file mode 100644
-index 0000000..2adfb86
+index 0000000..aa1ddfc
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/OrebfuscatorManager.java
-@@ -0,0 +1,205 @@
+@@ -0,0 +1,204 @@
 +package org.spigotmc;
 +
 +import gnu.trove.set.TByteSet;
@@ -5749,7 +6351,6 @@ index 0000000..2adfb86
 +import net.minecraft.server.Block;
 +import net.minecraft.server.MinecraftServer;
 +import net.minecraft.server.World;
-+import org.bukkit.CustomTimingsHandler;
 +
 +public class OrebfuscatorManager
 +{
@@ -6077,10 +6678,10 @@ index 0000000..10390b8
 +}
 diff --git a/src/main/java/org/spigotmc/netty/CipherBase.java b/src/main/java/org/spigotmc/netty/CipherBase.java
 new file mode 100644
-index 0000000..1f915df
+index 0000000..c75a60f
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/netty/CipherBase.java
-@@ -0,0 +1,45 @@
+@@ -0,0 +1,54 @@
 +package org.spigotmc.netty;
 +
 +import io.netty.buffer.ByteBuf;
@@ -6092,46 +6693,55 @@ index 0000000..1f915df
 + * {@link #cipher(io.netty.buffer.ByteBuf, io.netty.buffer.ByteBuf)} method to
 + * aid in the efficient passing of ByteBuffers through a cipher.
 + */
-+class CipherBase {
++class CipherBase
++{
 +
 +    private final Cipher cipher;
 +    private ThreadLocal<byte[]> heapInLocal = new EmptyByteThreadLocal();
 +    private ThreadLocal<byte[]> heapOutLocal = new EmptyByteThreadLocal();
 +
-+    private static class EmptyByteThreadLocal extends ThreadLocal<byte[]> {
++    private static class EmptyByteThreadLocal extends ThreadLocal<byte[]>
++    {
 +
 +        @Override
-+        protected byte[] initialValue() {
-+            return new byte[0];
++        protected byte[] initialValue()
++        {
++            return new byte[ 0 ];
 +        }
 +    }
 +
-+    protected CipherBase(Cipher cipher) {
++    protected CipherBase(Cipher cipher)
++    {
 +        this.cipher = cipher;
 +    }
 +
-+    protected void cipher(ByteBuf in, ByteBuf out) throws ShortBufferException {
++    protected void cipher(ByteBuf in, ByteBuf out) throws ShortBufferException
++    {
 +        byte[] heapIn = heapInLocal.get();
 +        int readableBytes = in.readableBytes();
-+        if (heapIn.length < readableBytes) {
-+            heapIn = new byte[readableBytes];
++        if ( heapIn.length < readableBytes )
++        {
++            heapIn = new byte[ readableBytes ];
++            heapInLocal.set( heapIn );
 +        }
-+        in.readBytes(heapIn, 0, readableBytes);
++        in.readBytes( heapIn, 0, readableBytes );
 +
 +        byte[] heapOut = heapOutLocal.get();
-+        int outputSize = cipher.getOutputSize(readableBytes);
-+        if (heapOut.length < outputSize) {
-+            heapOut = new byte[outputSize];
++        int outputSize = cipher.getOutputSize( readableBytes );
++        if ( heapOut.length < outputSize )
++        {
++            heapOut = new byte[ outputSize ];
++            heapOutLocal.set( heapOut );
 +        }
-+        out.writeBytes(heapOut, 0, cipher.update(heapIn, 0, readableBytes, heapOut));
++        out.writeBytes( heapOut, 0, cipher.update( heapIn, 0, readableBytes, heapOut ) );
 +    }
 +}
 diff --git a/src/main/java/org/spigotmc/netty/CipherDecoder.java b/src/main/java/org/spigotmc/netty/CipherDecoder.java
 new file mode 100644
-index 0000000..30b1d5f
+index 0000000..98dc3a0
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/netty/CipherDecoder.java
-@@ -0,0 +1,20 @@
+@@ -0,0 +1,23 @@
 +package org.spigotmc.netty;
 +
 +import io.netty.buffer.ByteBuf;
@@ -6139,25 +6749,28 @@ index 0000000..30b1d5f
 +import io.netty.handler.codec.ByteToByteDecoder;
 +import javax.crypto.Cipher;
 +
-+class CipherDecoder extends ByteToByteDecoder {
++class CipherDecoder extends ByteToByteDecoder
++{
 +
 +    private final CipherBase cipher;
 +
-+    public CipherDecoder(Cipher cipher) {
-+        this.cipher = new CipherBase(cipher);
++    public CipherDecoder(Cipher cipher)
++    {
++        this.cipher = new CipherBase( cipher );
 +    }
 +
 +    @Override
-+    protected void decode(ChannelHandlerContext ctx, ByteBuf in, ByteBuf out) throws Exception {
-+        cipher.cipher(in, out);
++    protected void decode(ChannelHandlerContext ctx, ByteBuf in, ByteBuf out) throws Exception
++    {
++        cipher.cipher( in, out );
 +    }
 +}
 diff --git a/src/main/java/org/spigotmc/netty/CipherEncoder.java b/src/main/java/org/spigotmc/netty/CipherEncoder.java
 new file mode 100644
-index 0000000..aa8192e
+index 0000000..4ff943b
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/netty/CipherEncoder.java
-@@ -0,0 +1,20 @@
+@@ -0,0 +1,23 @@
 +package org.spigotmc.netty;
 +
 +import io.netty.buffer.ByteBuf;
@@ -6165,33 +6778,36 @@ index 0000000..aa8192e
 +import io.netty.handler.codec.ByteToByteEncoder;
 +import javax.crypto.Cipher;
 +
-+class CipherEncoder extends ByteToByteEncoder {
++class CipherEncoder extends ByteToByteEncoder
++{
 +
 +    private final CipherBase cipher;
 +
-+    public CipherEncoder(Cipher cipher) {
-+        this.cipher = new CipherBase(cipher);
++    public CipherEncoder(Cipher cipher)
++    {
++        this.cipher = new CipherBase( cipher );
 +    }
 +
 +    @Override
-+    protected void encode(ChannelHandlerContext ctx, ByteBuf in, ByteBuf out) throws Exception {
-+        cipher.cipher(in, out);
++    protected void encode(ChannelHandlerContext ctx, ByteBuf in, ByteBuf out) throws Exception
++    {
++        cipher.cipher( in, out );
 +    }
 +}
 diff --git a/src/main/java/org/spigotmc/netty/NettyNetworkManager.java b/src/main/java/org/spigotmc/netty/NettyNetworkManager.java
 new file mode 100644
-index 0000000..af3ac6d
+index 0000000..9a70a3a
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/netty/NettyNetworkManager.java
-@@ -0,0 +1,259 @@
+@@ -0,0 +1,295 @@
 +package org.spigotmc.netty;
 +
 +import com.google.common.util.concurrent.ThreadFactoryBuilder;
 +import io.netty.channel.Channel;
 +import io.netty.channel.ChannelHandlerContext;
 +import io.netty.channel.ChannelInboundMessageHandlerAdapter;
++import io.netty.channel.ChannelPromise;
 +import io.netty.channel.socket.SocketChannel;
-+import java.net.InetSocketAddress;
 +import java.net.Socket;
 +import java.net.SocketAddress;
 +import java.security.PrivateKey;
@@ -6218,34 +6834,39 @@ index 0000000..af3ac6d
 + * {@link INetworkManager} and handles all events and inbound messages provided
 + * by the upstream Netty process.
 + */
-+public class NettyNetworkManager extends ChannelInboundMessageHandlerAdapter<Packet> implements INetworkManager {
++public class NettyNetworkManager extends ChannelInboundMessageHandlerAdapter<Packet> implements INetworkManager
++{
 +
-+    private static final ExecutorService threadPool = Executors.newCachedThreadPool(new ThreadFactoryBuilder().setNameFormat("Async Packet Handler - %1$d").build());
++    private static final ExecutorService threadPool = Executors.newCachedThreadPool( new ThreadFactoryBuilder().setNameFormat( "Async Packet Handler - %1$d" ).build() );
 +    private static final MinecraftServer server = MinecraftServer.getServer();
 +    private static final PrivateKey key = server.F().getPrivate();
 +    private static final MultiplexingServerConnection serverConnection = (MultiplexingServerConnection) server.ae();
 +    /*========================================================================*/
 +    private final Queue<Packet> syncPackets = new ConcurrentLinkedQueue<Packet>();
-+    private final List<Packet> highPriorityQueue = new AbstractList<Packet>() {
++    private final List<Packet> highPriorityQueue = new AbstractList<Packet>()
++    {
 +        @Override
-+        public void add(int index, Packet element) {
++        public void add(int index, Packet element)
++        {
 +            // NOP
 +        }
 +
 +        @Override
-+        public Packet get(int index) {
++        public Packet get(int index)
++        {
 +            throw new UnsupportedOperationException();
 +        }
 +
 +        @Override
-+        public int size() {
++        public int size()
++        {
 +            return 0;
 +        }
 +    };
 +    private volatile boolean connected;
 +    private Channel channel;
 +    private SocketAddress address;
-+    private Connection connection;
++    Connection connection;
 +    private SecretKey secret;
 +    private String dcReason;
 +    private Object[] dcArgs;
@@ -6253,68 +6874,74 @@ index 0000000..af3ac6d
 +    private long writtenBytes;
 +
 +    @Override
-+    public void channelActive(ChannelHandlerContext ctx) throws Exception {
++    public void channelActive(ChannelHandlerContext ctx) throws Exception
++    {
 +        // Channel and address groundwork first
 +        channel = ctx.channel();
 +        address = channel.remoteAddress();
-+        // Check the throttle
-+        if (serverConnection.throttle(((InetSocketAddress) channel.remoteAddress()).getAddress())) {
-+            channel.close();
-+        }
 +        // Then the socket adaptor
-+        socketAdaptor = NettySocketAdaptor.adapt((SocketChannel) channel);
++        socketAdaptor = NettySocketAdaptor.adapt( (SocketChannel) channel );
 +        // Followed by their first handler
-+        connection = new PendingConnection(server, this);
++        connection = new PendingConnection( server, this );
 +        // Finally register the connection
 +        connected = true;
-+        serverConnection.register((PendingConnection) connection);
++        serverConnection.register( (PendingConnection) connection );
 +    }
 +
 +    @Override
-+    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-+        a("disconnect.endOfStream", new Object[0]);
++    public void channelInactive(ChannelHandlerContext ctx) throws Exception
++    {
++        a( "disconnect.endOfStream", new Object[ 0 ] );
 +    }
 +
 +    @Override
-+    public void channelUnregistered(ChannelHandlerContext ctx) throws Exception {
-+        ctx.pipeline().get(PacketEncoder.class).dealloc();
-+    }
-+
-+    @Override
-+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
++    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception
++    {
 +        // TODO: Remove this once we are more stable
 +        // Bukkit.getServer().getLogger().severe("======================= Start Netty Debug Log =======================");
 +        // Bukkit.getServer().getLogger().log(Level.SEVERE, "Error caught whilst handling " + channel, cause);
 +        // Bukkit.getServer().getLogger().severe("======================= End Netty Debug Log =======================");
 +        // Disconnect with generic reason + exception
-+        a("disconnect.genericReason", new Object[]{"Internal exception: " + cause});
++        a( "disconnect.genericReason", new Object[]
++        {
++            "Internal exception: " + cause
++        } );
 +    }
 +
 +    @Override
-+    public void messageReceived(ChannelHandlerContext ctx, final Packet msg) throws Exception {
-+        if (connected) {
-+            if (msg instanceof Packet252KeyResponse) {
-+                secret = ((Packet252KeyResponse) msg).a(key);
-+                Cipher decrypt = NettyServerConnection.getCipher(Cipher.DECRYPT_MODE, secret);
-+                channel.pipeline().addBefore("decoder", "decrypt", new CipherDecoder(decrypt));
++    public void messageReceived(ChannelHandlerContext ctx, final Packet msg) throws Exception
++    {
++        if ( connected )
++        {
++            if ( msg instanceof Packet252KeyResponse )
++            {
++                secret = ( (Packet252KeyResponse) msg ).a( key );
++                Cipher decrypt = NettyServerConnection.getCipher( Cipher.DECRYPT_MODE, secret );
++                channel.pipeline().addBefore( "decoder", "decrypt", new CipherDecoder( decrypt ) );
 +            }
 +
-+            if (msg.a_()) {
-+                threadPool.submit(new Runnable() {
-+                    public void run() {
-+                        Packet packet = PacketListener.callReceived(NettyNetworkManager.this, connection, msg);
-+                        if (packet != null) {
-+                            packet.handle(connection);
++            if ( msg.a_() )
++            {
++                threadPool.submit( new Runnable()
++                {
++                    public void run()
++                    {
++                        Packet packet = PacketListener.callReceived( NettyNetworkManager.this, connection, msg );
++                        if ( packet != null )
++                        {
++                            packet.handle( connection );
 +                        }
 +                    }
-+                });
-+            } else {
-+                syncPackets.add(msg);
++                } );
++            } else
++            {
++                syncPackets.add( msg );
 +            }
 +        }
 +    }
 +
-+    public Socket getSocket() {
++    public Socket getSocket()
++    {
 +        return socketAdaptor;
 +    }
 +
@@ -6323,7 +6950,8 @@ index 0000000..af3ac6d
 +     *
 +     * @param nh the new {@link NetHandler} instance
 +     */
-+    public void a(Connection nh) {
++    public void a(Connection nh)
++    {
 +        connection = nh;
 +    }
 +
@@ -6333,23 +6961,32 @@ index 0000000..af3ac6d
 +     *
 +     * @param packet the packet to queue
 +     */
-+    public void queue(Packet packet) {
++    public void queue(Packet packet)
++    {
 +        // Only send if channel is still connected
-+        if (connected) {
++        if ( connected )
++        {
 +            // Process packet via handler
-+            packet = PacketListener.callQueued(this, connection, packet);
++            packet = PacketListener.callQueued( this, connection, packet );
 +            // If handler indicates packet send
-+            if (packet != null) {
-+                highPriorityQueue.add(packet);
++            if ( packet != null )
++            {
++                highPriorityQueue.add( packet );
 +
-+                if (packet instanceof Packet255KickDisconnect) {
-+                    channel.pipeline().get(OutboundManager.class).flushNow = true;
++                ChannelPromise promise;
++                if ( packet instanceof Packet255KickDisconnect )
++                {
++                    promise = channel.voidPromise();
++                } else
++                {
++                    promise = channel.newPromise();
 +                }
 +
-+                channel.write(packet);
-+                if (packet instanceof Packet252KeyResponse) {
-+                    Cipher encrypt = NettyServerConnection.getCipher(Cipher.ENCRYPT_MODE, secret);
-+                    channel.pipeline().addBefore("decoder", "encrypt", new CipherEncoder(encrypt));
++                channel.write( packet, promise );
++                if ( packet instanceof Packet252KeyResponse )
++                {
++                    Cipher encrypt = NettyServerConnection.getCipher( Cipher.ENCRYPT_MODE, secret );
++                    channel.pipeline().addBefore( "decoder", "encrypt", new CipherEncoder( encrypt ) );
 +                }
 +            }
 +        }
@@ -6359,29 +6996,35 @@ index 0000000..af3ac6d
 +     * wakeThreads. In Vanilla this method will interrupt the network read and
 +     * write threads, thus waking them.
 +     */
-+    public void a() {
++    public void a()
++    {
 +    }
 +
 +    /**
 +     * processPackets. Remove up to 1000 packets from the queue and process
 +     * them. This method should only be called from the main server thread.
 +     */
-+    public void b() {
-+        for (int i = 1000; !syncPackets.isEmpty() && i >= 0; i--) {
-+            if (connection instanceof PendingConnection ? ((PendingConnection) connection).b : ((PlayerConnection) connection).disconnected) {
++    public void b()
++    {
++        for ( int i = 1000; !syncPackets.isEmpty() && i >= 0; i-- )
++        {
++            if ( connection instanceof PendingConnection ? ( (PendingConnection) connection ).b : ( (PlayerConnection) connection ).disconnected )
++            {
 +                syncPackets.clear();
 +                break;
 +            }
 +
-+            Packet packet = PacketListener.callReceived(this, connection, syncPackets.poll());
-+            if (packet != null) {
-+                packet.handle(connection);
++            Packet packet = PacketListener.callReceived( this, connection, syncPackets.poll() );
++            if ( packet != null )
++            {
++                packet.handle( connection );
 +            }
 +        }
 +
 +        // Disconnect via the handler - this performs all plugin related cleanup + logging
-+        if (!connected && (dcReason != null || dcArgs != null)) {
-+            connection.a(dcReason, dcArgs);
++        if ( !connected && ( dcReason != null || dcArgs != null ) )
++        {
++            connection.a( dcReason, dcArgs );
 +        }
 +    }
 +
@@ -6391,19 +7034,23 @@ index 0000000..af3ac6d
 +     *
 +     * @return the remote address of this connection
 +     */
-+    public SocketAddress getSocketAddress() {
++    public SocketAddress getSocketAddress()
++    {
 +        return address;
 +    }
 +
-+    public void setSocketAddress(SocketAddress address) {
++    public void setSocketAddress(SocketAddress address)
++    {
 +        this.address = address;
 +    }
 +
 +    /**
 +     * close. Close and release all resources associated with this connection.
 +     */
-+    public void d() {
-+        if (connected) {
++    public void d()
++    {
++        if ( connected )
++        {
 +            connected = false;
 +            channel.close();
 +        }
@@ -6415,7 +7062,8 @@ index 0000000..af3ac6d
 +     *
 +     * @return the size of the packet send queue
 +     */
-+    public int e() {
++    public int e()
++    {
 +        return 0;
 +    }
 +
@@ -6427,28 +7075,32 @@ index 0000000..af3ac6d
 +     * @param arguments additional disconnect arguments, for example, the
 +     * exception which triggered the disconnect.
 +     */
-+    public void a(String reason, Object... arguments) {
-+        if (connected) {
++    public void a(String reason, Object... arguments)
++    {
++        if ( connected )
++        {
 +            dcReason = reason;
 +            dcArgs = arguments;
 +            d();
 +        }
 +    }
 +
-+    public long getWrittenBytes() {
++    public long getWrittenBytes()
++    {
 +        return writtenBytes;
 +    }
 +
-+    public void addWrittenBytes(int written) {
++    public void addWrittenBytes(int written)
++    {
 +        writtenBytes += written;
 +    }
 +}
 diff --git a/src/main/java/org/spigotmc/netty/NettyServerConnection.java b/src/main/java/org/spigotmc/netty/NettyServerConnection.java
 new file mode 100644
-index 0000000..cb58bd2
+index 0000000..575db8b
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/netty/NettyServerConnection.java
-@@ -0,0 +1,81 @@
+@@ -0,0 +1,100 @@
 +package org.spigotmc.netty;
 +
 +import com.google.common.util.concurrent.ThreadFactoryBuilder;
@@ -6462,12 +7114,14 @@ index 0000000..cb58bd2
 +import io.netty.channel.socket.nio.NioServerSocketChannel;
 +import io.netty.handler.timeout.ReadTimeoutHandler;
 +import java.net.InetAddress;
++import java.net.InetSocketAddress;
 +import java.security.GeneralSecurityException;
 +import java.security.Key;
 +import javax.crypto.Cipher;
 +import javax.crypto.spec.IvParameterSpec;
 +import net.minecraft.server.MinecraftServer;
 +import net.minecraft.server.ServerConnection;
++import org.spigotmc.MultiplexingServerConnection;
 +
 +/**
 + * This is the NettyServerConnection class. It implements
@@ -6475,32 +7129,45 @@ index 0000000..cb58bd2
 + * server and this NIO implementation. It handles starting, stopping and
 + * processing the Netty backend.
 + */
-+public class NettyServerConnection extends ServerConnection {
++public class NettyServerConnection extends ServerConnection
++{
 +
 +    private final ChannelFuture socket;
 +
-+    public NettyServerConnection(MinecraftServer ms, InetAddress host, int port) {
-+        super(ms);
-+        int threads = Integer.getInteger("org.spigotmc.netty.threads", 3);
-+        socket = new ServerBootstrap().channel(NioServerSocketChannel.class).childHandler(new ChannelInitializer() {
++    public NettyServerConnection(final MinecraftServer ms, InetAddress host, int port)
++    {
++        super( ms );
++        int threads = Integer.getInteger( "org.spigotmc.netty.threads", 3 );
++        socket = new ServerBootstrap().channel( NioServerSocketChannel.class ).childHandler( new ChannelInitializer()
++        {
 +            @Override
-+            public void initChannel(Channel ch) throws Exception {
-+                try {
-+                    ch.config().setOption(ChannelOption.IP_TOS, 0x18);
-+                } catch (ChannelException ex) {
++            public void initChannel(Channel ch) throws Exception
++            {
++                // Check the throttle
++                if ( ( (MultiplexingServerConnection) ms.ae() ).throttle( ( (InetSocketAddress) ch.remoteAddress() ).getAddress() ) )
++                {
++                    ch.close();
++                    return;
++                }
++                // Set IP_TOS
++                try
++                {
++                    ch.config().setOption( ChannelOption.IP_TOS, 0x18 );
++                } catch ( ChannelException ex )
++                {
 +                    // IP_TOS is not supported (Windows XP / Windows Server 2003)
 +                }
 +
 +                NettyNetworkManager networkManager = new NettyNetworkManager();
 +                ch.pipeline()
-+                        .addLast("flusher", new OutboundManager())
-+                        .addLast("timer", new ReadTimeoutHandler(30))
-+                        .addLast("decoder", new PacketDecoder())
-+                        .addLast("encoder", new PacketEncoder(networkManager))
-+                        .addLast("manager", networkManager);
++                        .addLast( "flusher", new OutboundManager( networkManager ) )
++                        .addLast( "timer", new ReadTimeoutHandler( 30 ) )
++                        .addLast( "decoder", new PacketDecoder() )
++                        .addLast( "encoder", new PacketEncoder( networkManager ) )
++                        .addLast( "manager", networkManager );
 +            }
-+        }).childOption(ChannelOption.TCP_NODELAY, false).group(new NioEventLoopGroup(threads, new ThreadFactoryBuilder().setNameFormat("Netty IO Thread - %1$d").build())).localAddress(host, port).bind();
-+        MinecraftServer.getServer().getLogger().info("Using Netty NIO with " + threads + " threads for network connections.");
++        } ).childOption( ChannelOption.TCP_NODELAY, false ).group( new NioEventLoopGroup( threads, new ThreadFactoryBuilder().setNameFormat( "Netty IO Thread - %1$d" ).build() ) ).localAddress( host, port ).bind();
++        MinecraftServer.getServer().getLogger().info( "Using Netty NIO with " + threads + " threads for network connections." );
 +    }
 +
 +    /**
@@ -6509,7 +7176,8 @@ index 0000000..cb58bd2
 +     * action.
 +     */
 +    @Override
-+    public void a() {
++    public void a()
++    {
 +        socket.channel().close().syncUninterruptibly();
 +    }
 +
@@ -6520,22 +7188,25 @@ index 0000000..cb58bd2
 +     * @param key to use as the initial vector
 +     * @return the initialized cipher
 +     */
-+    public static Cipher getCipher(int opMode, Key key) {
-+        try {
-+            Cipher cip = Cipher.getInstance("AES/CFB8/NoPadding");
-+            cip.init(opMode, key, new IvParameterSpec(key.getEncoded()));
++    public static Cipher getCipher(int opMode, Key key)
++    {
++        try
++        {
++            Cipher cip = Cipher.getInstance( "AES/CFB8/NoPadding" );
++            cip.init( opMode, key, new IvParameterSpec( key.getEncoded() ) );
 +            return cip;
-+        } catch (GeneralSecurityException ex) {
-+            throw new RuntimeException(ex);
++        } catch ( GeneralSecurityException ex )
++        {
++            throw new RuntimeException( ex );
 +        }
 +    }
 +}
 diff --git a/src/main/java/org/spigotmc/netty/NettySocketAdaptor.java b/src/main/java/org/spigotmc/netty/NettySocketAdaptor.java
 new file mode 100644
-index 0000000..a3b86b8
+index 0000000..5da8a59
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/netty/NettySocketAdaptor.java
-@@ -0,0 +1,248 @@
+@@ -0,0 +1,294 @@
 +package org.spigotmc.netty;
 +
 +import io.netty.channel.Channel;
@@ -6556,265 +7227,321 @@ index 0000000..a3b86b8
 + * a {@link Channel} are implemented here. Those which cannot will throw an
 + * {@link UnsupportedOperationException}.
 + */
-+public class NettySocketAdaptor extends Socket {
++public class NettySocketAdaptor extends Socket
++{
 +
 +    private final io.netty.channel.socket.SocketChannel ch;
 +
-+    private NettySocketAdaptor(io.netty.channel.socket.SocketChannel ch) {
++    private NettySocketAdaptor(io.netty.channel.socket.SocketChannel ch)
++    {
 +        this.ch = ch;
 +    }
 +
-+    public static NettySocketAdaptor adapt(io.netty.channel.socket.SocketChannel ch) {
-+        return new NettySocketAdaptor(ch);
++    public static NettySocketAdaptor adapt(io.netty.channel.socket.SocketChannel ch)
++    {
++        return new NettySocketAdaptor( ch );
 +    }
 +
 +    @Override
-+    public void bind(SocketAddress bindpoint) throws IOException {
-+        ch.bind(bindpoint).syncUninterruptibly();
++    public void bind(SocketAddress bindpoint) throws IOException
++    {
++        ch.bind( bindpoint ).syncUninterruptibly();
 +    }
 +
 +    @Override
-+    public synchronized void close() throws IOException {
++    public synchronized void close() throws IOException
++    {
 +        ch.close().syncUninterruptibly();
 +    }
 +
 +    @Override
-+    public void connect(SocketAddress endpoint) throws IOException {
-+        ch.connect(endpoint).syncUninterruptibly();
++    public void connect(SocketAddress endpoint) throws IOException
++    {
++        ch.connect( endpoint ).syncUninterruptibly();
 +    }
 +
 +    @Override
-+    public void connect(SocketAddress endpoint, int timeout) throws IOException {
-+        ch.config().setConnectTimeoutMillis(timeout);
-+        ch.connect(endpoint).syncUninterruptibly();
++    public void connect(SocketAddress endpoint, int timeout) throws IOException
++    {
++        ch.config().setConnectTimeoutMillis( timeout );
++        ch.connect( endpoint ).syncUninterruptibly();
 +    }
 +
 +    @Override
-+    public boolean equals(Object obj) {
-+        return obj instanceof NettySocketAdaptor && ch.equals(((NettySocketAdaptor) obj).ch);
++    public boolean equals(Object obj)
++    {
++        return obj instanceof NettySocketAdaptor && ch.equals( ( (NettySocketAdaptor) obj ).ch );
 +    }
 +
 +    @Override
-+    public SocketChannel getChannel() {
-+        throw new UnsupportedOperationException("Operation not supported on Channel wrapper.");
++    public SocketChannel getChannel()
++    {
++        throw new UnsupportedOperationException( "Operation not supported on Channel wrapper." );
 +    }
 +
 +    @Override
-+    public InetAddress getInetAddress() {
++    public InetAddress getInetAddress()
++    {
 +        return ch.remoteAddress().getAddress();
 +    }
 +
 +    @Override
-+    public InputStream getInputStream() throws IOException {
-+        throw new UnsupportedOperationException("Operation not supported on Channel wrapper.");
++    public InputStream getInputStream() throws IOException
++    {
++        throw new UnsupportedOperationException( "Operation not supported on Channel wrapper." );
 +    }
 +
 +    @Override
-+    public boolean getKeepAlive() throws SocketException {
-+        return ch.config().getOption(ChannelOption.SO_KEEPALIVE);
++    public boolean getKeepAlive() throws SocketException
++    {
++        return ch.config().getOption( ChannelOption.SO_KEEPALIVE );
 +    }
 +
 +    @Override
-+    public InetAddress getLocalAddress() {
++    public InetAddress getLocalAddress()
++    {
 +        return ch.localAddress().getAddress();
 +    }
 +
 +    @Override
-+    public int getLocalPort() {
++    public int getLocalPort()
++    {
 +        return ch.localAddress().getPort();
 +    }
 +
 +    @Override
-+    public SocketAddress getLocalSocketAddress() {
++    public SocketAddress getLocalSocketAddress()
++    {
 +        return ch.localAddress();
 +    }
 +
 +    @Override
-+    public boolean getOOBInline() throws SocketException {
-+        throw new UnsupportedOperationException("Operation not supported on Channel wrapper.");
++    public boolean getOOBInline() throws SocketException
++    {
++        throw new UnsupportedOperationException( "Operation not supported on Channel wrapper." );
 +    }
 +
 +    @Override
-+    public OutputStream getOutputStream() throws IOException {
-+        throw new UnsupportedOperationException("Operation not supported on Channel wrapper.");
++    public OutputStream getOutputStream() throws IOException
++    {
++        throw new UnsupportedOperationException( "Operation not supported on Channel wrapper." );
 +    }
 +
 +    @Override
-+    public int getPort() {
++    public int getPort()
++    {
 +        return ch.remoteAddress().getPort();
 +    }
 +
 +    @Override
-+    public synchronized int getReceiveBufferSize() throws SocketException {
-+        return ch.config().getOption(ChannelOption.SO_RCVBUF);
++    public synchronized int getReceiveBufferSize() throws SocketException
++    {
++        return ch.config().getOption( ChannelOption.SO_RCVBUF );
 +    }
 +
 +    @Override
-+    public SocketAddress getRemoteSocketAddress() {
++    public SocketAddress getRemoteSocketAddress()
++    {
 +        return ch.remoteAddress();
 +    }
 +
 +    @Override
-+    public boolean getReuseAddress() throws SocketException {
-+        return ch.config().getOption(ChannelOption.SO_REUSEADDR);
++    public boolean getReuseAddress() throws SocketException
++    {
++        return ch.config().getOption( ChannelOption.SO_REUSEADDR );
 +    }
 +
 +    @Override
-+    public synchronized int getSendBufferSize() throws SocketException {
-+        return ch.config().getOption(ChannelOption.SO_SNDBUF);
++    public synchronized int getSendBufferSize() throws SocketException
++    {
++        return ch.config().getOption( ChannelOption.SO_SNDBUF );
 +    }
 +
 +    @Override
-+    public int getSoLinger() throws SocketException {
-+        return ch.config().getOption(ChannelOption.SO_LINGER);
++    public int getSoLinger() throws SocketException
++    {
++        return ch.config().getOption( ChannelOption.SO_LINGER );
 +    }
 +
 +    @Override
-+    public synchronized int getSoTimeout() throws SocketException {
-+        throw new UnsupportedOperationException("Operation not supported on Channel wrapper.");
++    public synchronized int getSoTimeout() throws SocketException
++    {
++        throw new UnsupportedOperationException( "Operation not supported on Channel wrapper." );
 +    }
 +
 +    @Override
-+    public boolean getTcpNoDelay() throws SocketException {
-+        return ch.config().getOption(ChannelOption.TCP_NODELAY);
++    public boolean getTcpNoDelay() throws SocketException
++    {
++        return ch.config().getOption( ChannelOption.TCP_NODELAY );
 +    }
 +
 +    @Override
-+    public int getTrafficClass() throws SocketException {
-+        return ch.config().getOption(ChannelOption.IP_TOS);
++    public int getTrafficClass() throws SocketException
++    {
++        return ch.config().getOption( ChannelOption.IP_TOS );
 +    }
 +
 +    @Override
-+    public int hashCode() {
++    public int hashCode()
++    {
 +        return ch.hashCode();
 +    }
 +
 +    @Override
-+    public boolean isBound() {
++    public boolean isBound()
++    {
 +        return ch.localAddress() != null;
 +    }
 +
 +    @Override
-+    public boolean isClosed() {
++    public boolean isClosed()
++    {
 +        return !ch.isOpen();
 +    }
 +
 +    @Override
-+    public boolean isConnected() {
++    public boolean isConnected()
++    {
 +        return ch.isActive();
 +    }
 +
 +    @Override
-+    public boolean isInputShutdown() {
++    public boolean isInputShutdown()
++    {
 +        return ch.isInputShutdown();
 +    }
 +
 +    @Override
-+    public boolean isOutputShutdown() {
++    public boolean isOutputShutdown()
++    {
 +        return ch.isOutputShutdown();
 +    }
 +
 +    @Override
-+    public void sendUrgentData(int data) throws IOException {
-+        throw new UnsupportedOperationException("Operation not supported on Channel wrapper.");
++    public void sendUrgentData(int data) throws IOException
++    {
++        throw new UnsupportedOperationException( "Operation not supported on Channel wrapper." );
 +    }
 +
 +    @Override
-+    public void setKeepAlive(boolean on) throws SocketException {
-+        ch.config().setOption(ChannelOption.SO_KEEPALIVE, on);
++    public void setKeepAlive(boolean on) throws SocketException
++    {
++        ch.config().setOption( ChannelOption.SO_KEEPALIVE, on );
 +    }
 +
 +    @Override
-+    public void setOOBInline(boolean on) throws SocketException {
-+        throw new UnsupportedOperationException("Operation not supported on Channel wrapper.");
++    public void setOOBInline(boolean on) throws SocketException
++    {
++        throw new UnsupportedOperationException( "Operation not supported on Channel wrapper." );
 +    }
 +
 +    @Override
-+    public void setPerformancePreferences(int connectionTime, int latency, int bandwidth) {
-+        throw new UnsupportedOperationException("Operation not supported on Channel wrapper.");
++    public void setPerformancePreferences(int connectionTime, int latency, int bandwidth)
++    {
++        throw new UnsupportedOperationException( "Operation not supported on Channel wrapper." );
 +    }
 +
 +    @Override
-+    public synchronized void setReceiveBufferSize(int size) throws SocketException {
-+        ch.config().setOption(ChannelOption.SO_RCVBUF, size);
++    public synchronized void setReceiveBufferSize(int size) throws SocketException
++    {
++        ch.config().setOption( ChannelOption.SO_RCVBUF, size );
 +    }
 +
 +    @Override
-+    public void setReuseAddress(boolean on) throws SocketException {
-+        ch.config().setOption(ChannelOption.SO_REUSEADDR, on);
++    public void setReuseAddress(boolean on) throws SocketException
++    {
++        ch.config().setOption( ChannelOption.SO_REUSEADDR, on );
 +    }
 +
 +    @Override
-+    public synchronized void setSendBufferSize(int size) throws SocketException {
-+        ch.config().setOption(ChannelOption.SO_SNDBUF, size);
++    public synchronized void setSendBufferSize(int size) throws SocketException
++    {
++        ch.config().setOption( ChannelOption.SO_SNDBUF, size );
 +    }
 +
 +    @Override
-+    public void setSoLinger(boolean on, int linger) throws SocketException {
-+        ch.config().setOption(ChannelOption.SO_LINGER, linger);
++    public void setSoLinger(boolean on, int linger) throws SocketException
++    {
++        ch.config().setOption( ChannelOption.SO_LINGER, linger );
 +    }
 +
 +    @Override
-+    public synchronized void setSoTimeout(int timeout) throws SocketException {
-+        throw new UnsupportedOperationException("Operation not supported on Channel wrapper.");
++    public synchronized void setSoTimeout(int timeout) throws SocketException
++    {
++        throw new UnsupportedOperationException( "Operation not supported on Channel wrapper." );
 +    }
 +
 +    @Override
-+    public void setTcpNoDelay(boolean on) throws SocketException {
-+        ch.config().setOption(ChannelOption.TCP_NODELAY, on);
++    public void setTcpNoDelay(boolean on) throws SocketException
++    {
++        ch.config().setOption( ChannelOption.TCP_NODELAY, on );
 +    }
 +
 +    @Override
-+    public void setTrafficClass(int tc) throws SocketException {
-+        ch.config().setOption(ChannelOption.IP_TOS, tc);
++    public void setTrafficClass(int tc) throws SocketException
++    {
++        ch.config().setOption( ChannelOption.IP_TOS, tc );
 +    }
 +
 +    @Override
-+    public void shutdownInput() throws IOException {
-+        throw new UnsupportedOperationException("Operation not supported on Channel wrapper.");
++    public void shutdownInput() throws IOException
++    {
++        throw new UnsupportedOperationException( "Operation not supported on Channel wrapper." );
 +    }
 +
 +    @Override
-+    public void shutdownOutput() throws IOException {
++    public void shutdownOutput() throws IOException
++    {
 +        ch.shutdownOutput().syncUninterruptibly();
 +    }
 +
 +    @Override
-+    public String toString() {
++    public String toString()
++    {
 +        return ch.toString();
 +    }
 +}
 diff --git a/src/main/java/org/spigotmc/netty/OutboundManager.java b/src/main/java/org/spigotmc/netty/OutboundManager.java
 new file mode 100644
-index 0000000..7476074
+index 0000000..3f4c02f
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/netty/OutboundManager.java
-@@ -0,0 +1,19 @@
+@@ -0,0 +1,29 @@
 +package org.spigotmc.netty;
 +
 +import io.netty.channel.ChannelHandlerContext;
 +import io.netty.channel.ChannelOperationHandlerAdapter;
 +import io.netty.channel.ChannelPromise;
++import net.minecraft.server.PendingConnection;
 +
-+public class OutboundManager extends ChannelOperationHandlerAdapter {
++class OutboundManager extends ChannelOperationHandlerAdapter
++{
 +
-+    private static final int FLUSH_TIME = 5;
++    private static final int FLUSH_TIME = 2;
++    /*========================================================================*/
 +    private long lastFlush;
-+    public boolean flushNow = false;
++    private final NettyNetworkManager manager;
 +
-+    public void flush(ChannelHandlerContext ctx, ChannelPromise promise) throws Exception {
-+        if (flushNow || System.currentTimeMillis() - lastFlush > FLUSH_TIME) {
++    OutboundManager(NettyNetworkManager manager)
++    {
++        this.manager = manager;
++    }
++
++    public void flush(ChannelHandlerContext ctx, ChannelPromise promise) throws Exception
++    {
++        if ( promise == ctx.channel().voidPromise() || manager.connection instanceof PendingConnection || System.currentTimeMillis() - lastFlush > FLUSH_TIME )
++        {
 +            lastFlush = System.currentTimeMillis();
-+            ctx.flush(promise);
++            ctx.flush( promise );
 +        }
 +    }
 +}
 diff --git a/src/main/java/org/spigotmc/netty/PacketDecoder.java b/src/main/java/org/spigotmc/netty/PacketDecoder.java
 new file mode 100644
-index 0000000..ba435da
+index 0000000..60b75d0
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/netty/PacketDecoder.java
-@@ -0,0 +1,61 @@
+@@ -0,0 +1,68 @@
 +package org.spigotmc.netty;
 +
 +import io.netty.buffer.ByteBuf;
@@ -6833,42 +7560,49 @@ index 0000000..ba435da
 + * backs the input {@link ByteBuf}. Reads an unsigned byte packet header and
 + * then decodes the packet accordingly.
 + */
-+public class PacketDecoder extends ReplayingDecoder<ReadState> {
++public class PacketDecoder extends ReplayingDecoder<ReadState>
++{
 +
 +    private DataInputStream input;
 +    private Packet packet;
 +
-+    public PacketDecoder() {
-+        super(ReadState.HEADER);
++    public PacketDecoder()
++    {
++        super( ReadState.HEADER );
 +    }
 +
 +    @Override
-+    protected void decode(ChannelHandlerContext ctx, ByteBuf in, MessageBuf<Object> out) throws Exception {
-+        if (input == null) {
-+            input = new DataInputStream(new ByteBufInputStream(in));
++    protected void decode(ChannelHandlerContext ctx, ByteBuf in, MessageBuf<Object> out) throws Exception
++    {
++        if ( input == null )
++        {
++            input = new DataInputStream( new ByteBufInputStream( in ) );
 +        }
 +
-+        while (true) {
-+            switch (state()) {
++        while ( true )
++        {
++            switch ( state() )
++            {
 +                case HEADER:
 +                    short packetId = in.readUnsignedByte();
-+                    packet = Packet.a(MinecraftServer.getServer().getLogger(), packetId);
-+                    if (packet == null) {
-+                        throw new IOException("Bad packet id " + packetId);
++                    packet = Packet.a( MinecraftServer.getServer().getLogger(), packetId );
++                    if ( packet == null )
++                    {
++                        throw new IOException( "Bad packet id " + packetId );
 +                    }
-+                    checkpoint(ReadState.DATA);
++                    checkpoint( ReadState.DATA );
 +                case DATA:
-+                    try {
-+                        packet.a(input);
-+                    } catch (EOFException ex) {
++                    try
++                    {
++                        packet.a( input );
++                    } catch ( EOFException ex )
++                    {
 +                        return;
 +                    }
 +
-+                    checkpoint(ReadState.HEADER);
-+                    Packet ret = packet;
++                    checkpoint( ReadState.HEADER );
++                    out.add( packet );
 +                    packet = null;
-+
-+                    out.add(ret);
 +                    break;
 +                default:
 +                    throw new IllegalStateException();
@@ -6878,10 +7612,10 @@ index 0000000..ba435da
 +}
 diff --git a/src/main/java/org/spigotmc/netty/PacketEncoder.java b/src/main/java/org/spigotmc/netty/PacketEncoder.java
 new file mode 100644
-index 0000000..9798acd
+index 0000000..e6a45d3
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/netty/PacketEncoder.java
-@@ -0,0 +1,52 @@
+@@ -0,0 +1,55 @@
 +package org.spigotmc.netty;
 +
 +import io.netty.buffer.ByteBuf;
@@ -6895,51 +7629,54 @@ index 0000000..9798acd
 + * Netty encoder which takes a packet and encodes it, and adds a byte packet id
 + * header.
 + */
-+public class PacketEncoder extends MessageToByteEncoder<Packet> {
++public class PacketEncoder extends MessageToByteEncoder<Packet>
++{
 +
 +    private ByteBuf outBuf;
 +    private DataOutputStream dataOut;
 +    private final NettyNetworkManager networkManager;
 +
-+    public PacketEncoder(NettyNetworkManager networkManager) {
++    public PacketEncoder(NettyNetworkManager networkManager)
++    {
 +        this.networkManager = networkManager;
 +    }
 +
 +    @Override
-+    public void encode(ChannelHandlerContext ctx, Packet msg, ByteBuf out) throws Exception {
-+        if (outBuf == null) {
-+            outBuf = ctx.alloc().directBuffer();
++    public void encode(ChannelHandlerContext ctx, Packet msg, ByteBuf out) throws Exception
++    {
++        if ( outBuf == null )
++        {
++            outBuf = ctx.alloc().buffer();
 +        }
-+        if (dataOut == null) {
-+            dataOut = new DataOutputStream(new ByteBufOutputStream(outBuf));
++        if ( dataOut == null )
++        {
++            dataOut = new DataOutputStream( new ByteBufOutputStream( outBuf ) );
 +        }
 +
-+        out.writeByte(msg.n());
-+        msg.a(dataOut);
++        out.writeByte( msg.n() );
++        msg.a( dataOut );
 +
-+        networkManager.addWrittenBytes(outBuf.readableBytes());
-+        out.writeBytes(outBuf);
-+        out.discardSomeReadBytes();
++        networkManager.addWrittenBytes( outBuf.readableBytes() );
++        out.writeBytes( outBuf );
++        outBuf.discardSomeReadBytes();
 +    }
 +
-+    public void dealloc() {
-+        if (outBuf != null) {
++    @Override
++    public void handlerRemoved(ChannelHandlerContext ctx) throws Exception
++    {
++        if ( outBuf != null )
++        {
 +            outBuf.release();
 +            outBuf = null;
 +        }
 +    }
-+
-+    @Override
-+    public void handlerRemoved(ChannelHandlerContext ctx) throws Exception {
-+        dealloc();
-+    }
 +}
 diff --git a/src/main/java/org/spigotmc/netty/PacketListener.java b/src/main/java/org/spigotmc/netty/PacketListener.java
 new file mode 100644
-index 0000000..8e3b932
+index 0000000..965ba12
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/netty/PacketListener.java
-@@ -0,0 +1,100 @@
+@@ -0,0 +1,112 @@
 +package org.spigotmc.netty;
 +
 +import com.google.common.base.Preconditions;
@@ -6959,7 +7696,8 @@ index 0000000..8e3b932
 + * override the methods you wish to use, and call
 + * {@link #register(org.spigotmc.netty.PacketListener, org.bukkit.plugin.Plugin)}.
 + */
-+public class PacketListener {
++public class PacketListener
++{
 +
 +    /**
 +     * A mapping of all registered listeners and their owning plugins.
@@ -6968,7 +7706,7 @@ index 0000000..8e3b932
 +    /**
 +     * A baked list of all listeners, for efficiency sake.
 +     */
-+    private static PacketListener[] baked = new PacketListener[0];
++    private static PacketListener[] baked = new PacketListener[ 0 ];
 +
 +    /**
 +     * Used to register a handler for receiving notifications of packet
@@ -6977,35 +7715,44 @@ index 0000000..8e3b932
 +     * @param listener the listener to register
 +     * @param plugin the plugin owning this listener
 +     */
-+    public static synchronized void register(PacketListener listener, Plugin plugin) {
-+        Preconditions.checkNotNull(listener, "listener");
-+        Preconditions.checkNotNull(plugin, "plugin");
-+        Preconditions.checkState(!listeners.containsKey(listener), "listener already registered");
++    public static synchronized void register(PacketListener listener, Plugin plugin)
++    {
++        Preconditions.checkNotNull( listener, "listener" );
++        Preconditions.checkNotNull( plugin, "plugin" );
++        Preconditions.checkState( !listeners.containsKey( listener ), "listener already registered" );
 +
 +        int size = listeners.size();
-+        Preconditions.checkState(baked.length == size);
-+        listeners.put(listener, plugin);
-+        baked = Arrays.copyOf(baked, size + 1);
++        Preconditions.checkState( baked.length == size );
++        listeners.put( listener, plugin );
++        baked = Arrays.copyOf( baked, size + 1 );
 +        baked[size] = listener;
 +    }
 +
-+    static Packet callReceived(INetworkManager networkManager, Connection connection, Packet packet) {
-+        for (PacketListener listener : baked) {
-+            try {
-+                packet = listener.packetReceived(networkManager, connection, packet);
-+            } catch (Throwable t) {
-+                Bukkit.getServer().getLogger().log(Level.SEVERE, "Error whilst firing receive hook for packet", t);
++    static Packet callReceived(INetworkManager networkManager, Connection connection, Packet packet)
++    {
++        for ( PacketListener listener : baked )
++        {
++            try
++            {
++                packet = listener.packetReceived( networkManager, connection, packet );
++            } catch ( Throwable t )
++            {
++                Bukkit.getServer().getLogger().log( Level.SEVERE, "Error whilst firing receive hook for packet", t );
 +            }
 +        }
 +        return packet;
 +    }
 +
-+    static Packet callQueued(INetworkManager networkManager, Connection connection, Packet packet) {
-+        for (PacketListener listener : baked) {
-+            try {
-+                packet = listener.packetQueued(networkManager, connection, packet);
-+            } catch (Throwable t) {
-+                Bukkit.getServer().getLogger().log(Level.SEVERE, "Error whilst firing queued hook for packet", t);
++    static Packet callQueued(INetworkManager networkManager, Connection connection, Packet packet)
++    {
++        for ( PacketListener listener : baked )
++        {
++            try
++            {
++                packet = listener.packetQueued( networkManager, connection, packet );
++            } catch ( Throwable t )
++            {
++                Bukkit.getServer().getLogger().log( Level.SEVERE, "Error whilst firing queued hook for packet", t );
 +            }
 +        }
 +        return packet;
@@ -7022,7 +7769,8 @@ index 0000000..8e3b932
 +     * @param packet the received packet
 +     * @return the packet to be handled, or null to cancel
 +     */
-+    public Packet packetReceived(INetworkManager networkManager, Connection connection, Packet packet) {
++    public Packet packetReceived(INetworkManager networkManager, Connection connection, Packet packet)
++    {
 +        return packet;
 +    }
 +
@@ -7036,22 +7784,24 @@ index 0000000..8e3b932
 +     * @param packet the queue packet
 +     * @return the packet to be sent, or null if the packet will not be sent.
 +     */
-+    public Packet packetQueued(INetworkManager networkManager, Connection connection, Packet packet) {
++    public Packet packetQueued(INetworkManager networkManager, Connection connection, Packet packet)
++    {
 +        return packet;
 +    }
 +}
 diff --git a/src/main/java/org/spigotmc/netty/ReadState.java b/src/main/java/org/spigotmc/netty/ReadState.java
 new file mode 100644
-index 0000000..5dc3754
+index 0000000..d3a9cab
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/netty/ReadState.java
-@@ -0,0 +1,16 @@
+@@ -0,0 +1,17 @@
 +package org.spigotmc.netty;
 +
 +/**
 + * Stores the state of the packet currently being read.
 + */
-+public enum ReadState {
++public enum ReadState
++{
 +
 +    /**
 +     * Indicates the byte representing the ID has been read.
@@ -7063,7 +7813,7 @@ index 0000000..5dc3754
 +    DATA;
 +}
 diff --git a/src/main/resources/configurations/bukkit.yml b/src/main/resources/configurations/bukkit.yml
-index 61a95e3..8f48c0f 100644
+index 61a95e3..830f3e6 100644
 --- a/src/main/resources/configurations/bukkit.yml
 +++ b/src/main/resources/configurations/bukkit.yml
 @@ -13,6 +13,9 @@
@@ -7127,7 +7877,16 @@ index 61a95e3..8f48c0f 100644
  spawn-limits:
      monsters: 70
      animals: 15
-@@ -53,3 +100,9 @@ database:
+@@ -37,6 +84,8 @@ ticks-per:
+     animal-spawns: 400
+     monster-spawns: 1
+     autosave: 0
++    hopper-transfer: 8
++    hopper-check: 8
+ auto-updater:
+     enabled: true
+     on-broken: [warn-console, warn-ops]
+@@ -53,3 +102,9 @@ database:
      driver: org.sqlite.JDBC
      password: walrus
      url: jdbc:sqlite:{DIR}{NAME}.db
@@ -7138,5 +7897,5 @@ index 61a95e3..8f48c0f 100644
 +       - world_the_end
 +    blocks: [1, 5, 14, 15, 16, 21, 48, 49, 54, 56, 73, 74, 82, 129, 130]
 -- 
-1.8.2.3
+1.8.3
 
