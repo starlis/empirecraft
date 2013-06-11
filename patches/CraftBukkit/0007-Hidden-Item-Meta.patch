@@ -1,4 +1,4 @@
-From 44de0f9de96864957a336a29f2c73d6287fadb10 Mon Sep 17 00:00:00 2001
+From 7426518ba03bb372f2d4c9408dc97a690415d667 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Wed, 27 Feb 2013 23:27:45 -0500
 Subject: [PATCH] Hidden Item Meta
@@ -13,11 +13,11 @@ Then you can store Data on 21+
 Also adds a &&::SHINY tag to send a fake enchantment aura if it does not exists.
 Must be set before META
 ---
- src/main/java/net/minecraft/server/Packet.java | 49 ++++++++++++++++++++++++++
- 1 file changed, 49 insertions(+)
+ src/main/java/net/minecraft/server/Packet.java | 56 ++++++++++++++++++++++++++
+ 1 file changed, 56 insertions(+)
 
 diff --git a/src/main/java/net/minecraft/server/Packet.java b/src/main/java/net/minecraft/server/Packet.java
-index 1b367da..4e809f3 100644
+index 1b367da..20268c4 100644
 --- a/src/main/java/net/minecraft/server/Packet.java
 +++ b/src/main/java/net/minecraft/server/Packet.java
 @@ -205,6 +205,23 @@ public abstract class Packet {
@@ -44,7 +44,7 @@ index 1b367da..4e809f3 100644
          }
  
          return itemstack;
-@@ -221,6 +238,38 @@ public abstract class Packet {
+@@ -221,6 +238,45 @@ public abstract class Packet {
  
              if (itemstack.getItem().usesDurability() || itemstack.getItem().r()) {
                  nbttagcompound = itemstack.tag;
@@ -54,28 +54,35 @@ index 1b367da..4e809f3 100644
 +                    if (display.hasKey("Lore")) {
 +                        NBTTagList lore = display.getList("Lore");
 +                        int lastLine = 0;
++                        boolean hasSpecial = false;
 +                        for (int i = 0; i < lore.size(); i++) {
 +                            String line = ((NBTTagString) lore.get(i)).data;
 +
 +                            if (line.equals("&&::META")) {
-+                                NBTTagList newlore = new NBTTagList("Lore");
-+                                for (int x = 0; x < lastLine; x++) {
-+                                    newlore.add(lore.get(x));
-+                                }
-+                                nbttagcompound = (NBTTagCompound) nbttagcompound.clone();
-+                                display = nbttagcompound.getCompound("display");
-+                                display.set("Lore", newlore);
-+                                display.set("OriginalLore", lore);
++                                hasSpecial = true;
 +                                break;
 +                            } else if (!line.isEmpty()) {
 +                                if (line.equals("&&::SHINY")) {
 +                                    if (!nbttagcompound.hasKey("ench")) {
 +                                        nbttagcompound.set("ench" , new NBTTagList());
 +                                    }
++                                    hasSpecial = true;
++                                    break;
 +                                } else {
 +                                    lastLine = i+1;
 +                                }
 +                            }
++                        }
++                        if (hasSpecial) {
++                            NBTTagList newlore = new NBTTagList("Lore");
++                            for (int x = 0; x < lastLine; x++) {
++                                newlore.add(lore.get(x));
++                            }
++
++                            nbttagcompound = (NBTTagCompound) nbttagcompound.clone();
++                            display = nbttagcompound.getCompound("display");
++                            display.set("Lore", newlore);
++                            display.set("OriginalLore", lore);
 +                        }
 +                    }
 +                }
@@ -84,5 +91,5 @@ index 1b367da..4e809f3 100644
  
              a(nbttagcompound, dataoutputstream);
 -- 
-1.8.2.2
+1.8.3
 
