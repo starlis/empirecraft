@@ -1,4 +1,4 @@
-From f39aa53d95f02acbc210d741538ddfe7fc928d09 Mon Sep 17 00:00:00 2001
+From 5727da8462a62dad1ca05acdd3cd9135c3d936eb Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Fri, 31 May 2013 22:40:25 -0400
 Subject: [PATCH] Entity AI
@@ -6,24 +6,25 @@ Subject: [PATCH] Entity AI
 This gives us control over some Entity AIe
 This will be expanded as future needs.
 ---
- .../com/empireminecraft/entityai/EntityAIApi.java  | 49 ++++++++++++++++++++++
- .../empireminecraft/entityai/EntityMoveApi.java    | 43 +++++++++++++++++++
+ .../com/empireminecraft/entityai/EntityAIApi.java  | 58 ++++++++++++++++++++++
+ .../empireminecraft/entityai/EntityMoveApi.java    | 43 ++++++++++++++++
+ src/main/java/net/minecraft/server/Entity.java     |  2 +-
  .../java/net/minecraft/server/EntityLiving.java    |  6 +--
- .../net/minecraft/server/PathfinderAccessor.java   | 10 +++++
- .../server/PathfinderGoalArrowAttack.java          |  8 ++--
+ .../net/minecraft/server/PathfinderAccessor.java   | 10 ++++
+ .../server/PathfinderGoalArrowAttack.java          |  8 +--
  .../minecraft/server/PathfinderGoalSelector.java   |  2 +-
  .../net/minecraft/server/PathfinderGoalTarget.java |  2 +-
- 7 files changed, 111 insertions(+), 9 deletions(-)
+ 8 files changed, 121 insertions(+), 10 deletions(-)
  create mode 100644 src/main/java/com/empireminecraft/entityai/EntityAIApi.java
  create mode 100644 src/main/java/com/empireminecraft/entityai/EntityMoveApi.java
  create mode 100644 src/main/java/net/minecraft/server/PathfinderAccessor.java
 
 diff --git a/src/main/java/com/empireminecraft/entityai/EntityAIApi.java b/src/main/java/com/empireminecraft/entityai/EntityAIApi.java
 new file mode 100644
-index 0000000..1414733
+index 0000000..eda99b9
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/entityai/EntityAIApi.java
-@@ -0,0 +1,49 @@
+@@ -0,0 +1,58 @@
 +package com.empireminecraft.entityai;
 +
 +import net.minecraft.server.*;
@@ -33,6 +34,15 @@ index 0000000..1414733
 +import org.bukkit.entity.Monster;
 +
 +public class EntityAIApi {
++    public static void setFireProof(LivingEntity livingEntity, boolean flag) {
++        EntityLiving entity = ((CraftLivingEntity)livingEntity).getHandle();
++        entity.fireProof = flag;
++    }
++    public static void makeAggressive(LivingEntity livingEntity, float range) {
++        EntityLiving entity = ((CraftLivingEntity)livingEntity).getHandle();
++        entity.targetSelector.a(2, new PathfinderGoalNearestAttackableTarget(entity, EntityHuman.class, range, 0, true));
++    }
++
 +    public static void setTargetRange(LivingEntity livingEntity, float range) {
 +        EntityLiving entity = ((CraftLivingEntity)livingEntity).getHandle();
 +        for (Object o : entity.targetSelector.a) {
@@ -122,6 +132,19 @@ index 0000000..9ecb9fb
 +        return path != null;
 +    }
 +}
+diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
+index 670a513..3088d87 100644
+--- a/src/main/java/net/minecraft/server/Entity.java
++++ b/src/main/java/net/minecraft/server/Entity.java
+@@ -92,7 +92,7 @@ public abstract class Entity {
+     public boolean inWater; // Spigot - protected -> public
+     public int noDamageTicks;
+     private boolean justCreated;
+-    protected boolean fireProof;
++    public boolean fireProof; // EMC
+     protected DataWatcher datawatcher;
+     private double f;
+     private double g;
 diff --git a/src/main/java/net/minecraft/server/EntityLiving.java b/src/main/java/net/minecraft/server/EntityLiving.java
 index ae9415c..7c0a9d1 100644
 --- a/src/main/java/net/minecraft/server/EntityLiving.java
