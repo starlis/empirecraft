@@ -1,4 +1,4 @@
-From a53a92c8a15c7b1000f1e04906a7a4f19a41a923 Mon Sep 17 00:00:00 2001
+From 9dc9536d914847f1b074228e9cbc163363e71d6f Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Tue, 11 Jun 2013 23:15:00 -0400
 Subject: [PATCH] EntityTasks API
@@ -6,20 +6,21 @@ Subject: [PATCH] EntityTasks API
 Allows scheduling repeating task timers on an entity level.
 Avoids Bukkit system so that tasks will simply maintain themselves on entity removal.
 ---
- .../empireminecraft/entityai/EntityTasksApi.java   | 35 ++++++++++++++++++++++
+ .../empireminecraft/entityai/EntityTasksApi.java   | 28 +++++++++++++
  src/main/java/net/minecraft/server/Entity.java     |  1 +
- .../net/minecraft/server/EntityTasksHandler.java   | 33 ++++++++++++++++++++
+ .../net/minecraft/server/EntityTasksHandler.java   | 46 ++++++++++++++++++++++
  src/main/java/net/minecraft/server/World.java      |  1 +
- 4 files changed, 70 insertions(+)
+ .../java/org/bukkit/craftbukkit/CraftServer.java   |  1 +
+ 5 files changed, 77 insertions(+)
  create mode 100644 src/main/java/com/empireminecraft/entityai/EntityTasksApi.java
  create mode 100644 src/main/java/net/minecraft/server/EntityTasksHandler.java
 
 diff --git a/src/main/java/com/empireminecraft/entityai/EntityTasksApi.java b/src/main/java/com/empireminecraft/entityai/EntityTasksApi.java
 new file mode 100644
-index 0000000..2df6d1e
+index 0000000..c9c7950
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/entityai/EntityTasksApi.java
-@@ -0,0 +1,35 @@
+@@ -0,0 +1,28 @@
 +package com.empireminecraft.entityai;
 +
 +import net.minecraft.server.EntityTasksHandler;
@@ -30,7 +31,7 @@ index 0000000..2df6d1e
 +import java.util.List;
 +
 +public class EntityTasksApi {
-+    public void scheduleTask(Entity entity, EntityTask task, int interval) {
++    public static void scheduleTask(Entity entity, int interval, EntityTask task) {
 +        final EntityTasksHandler.TaskList entityTasks = ((CraftEntity) entity).getHandle().entityTasks;
 +        List<EntityTask> entityTasksList = entityTasks.get(interval);
 +        if (entityTasksList == null) {
@@ -40,19 +41,12 @@ index 0000000..2df6d1e
 +
 +        entityTasksList.add(task);
 +    }
++    public static void cancelTasks(Entity entity) {
++        ((CraftEntity) entity).getHandle().entityTasks.clear();
++    }
 +
-+    public abstract static class EntityTask implements Runnable {
-+        private final Entity entity;
-+
-+        protected EntityTask(Entity entity) {
-+            this.entity = entity;
-+        }
-+
++    public abstract static class EntityTask {
 +        public abstract void run(Entity entity);
-+
-+        public void run() {
-+            run(entity);
-+        }
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
@@ -69,12 +63,16 @@ index 3088d87..39e5b6f 100644
          return tag.hasKey("Bukkit.updateLevel") && tag.getInt("Bukkit.updateLevel") >= level;
 diff --git a/src/main/java/net/minecraft/server/EntityTasksHandler.java b/src/main/java/net/minecraft/server/EntityTasksHandler.java
 new file mode 100644
-index 0000000..ab0bfea
+index 0000000..45edb12
 --- /dev/null
 +++ b/src/main/java/net/minecraft/server/EntityTasksHandler.java
-@@ -0,0 +1,33 @@
+@@ -0,0 +1,46 @@
 +package net.minecraft.server;
 +
++import com.empireminecraft.entityai.EntityTasksApi;
++import org.bukkit.*;
++import org.bukkit.World;
++import org.bukkit.craftbukkit.entity.CraftEntity;
 +import org.spigotmc.CustomTimingsHandler;
 +
 +import java.util.HashMap;
@@ -97,11 +95,20 @@ index 0000000..ab0bfea
 +                continue;
 +            }
 +            for (EntityTask runnable : entry.getValue()) {
-+                runnable.run();
++                runnable.run(entity.getBukkitEntity());
 +            }
 +        }
 +        entityTasksTimer.stopTiming();
 +    }
++
++    public static void reload() {
++        for (final World world : Bukkit.getWorlds()) {
++            for (org.bukkit.entity.Entity entity : world.getEntities()) {
++                EntityTasksApi.cancelTasks(entity);
++            }
++        }
++    }
++
 +    public static class TaskList extends HashMap<Integer, List<EntityTask>> {
 +
 +    }
@@ -118,6 +125,18 @@ index 9a75778..518ac7e 100644
          // Spigot start
          if (!Spigot.checkIfActive(entity)) {
              entity.ticksLived++;
+diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
+index 0c47617..1caf363 100644
+--- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
++++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
+@@ -626,6 +626,7 @@ public final class CraftServer implements Server {
+             ));
+         }
+         Spigot.initialize(this, commandMap, configuration); // Spigot
++        net.minecraft.server.EntityTasksHandler.reload(); // EMC
+         loadPlugins();
+         enablePlugins(PluginLoadOrder.STARTUP);
+         enablePlugins(PluginLoadOrder.POSTWORLD);
 -- 
 1.8.3
 
