@@ -1,6 +1,6 @@
-From e156c3dd305ad740c61c40dfafeb468e8ceaf673 Mon Sep 17 00:00:00 2001
+From c4677dcdcb5e87202cf5292ad4a4ef7a19e59436 Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Sat, 15 Jun 2013 20:19:31 -0400
+Date: Tue, 18 Jun 2013 01:59:02 -0400
 Subject: [PATCH] Spigot
 
 ---
@@ -64,7 +64,7 @@ Subject: [PATCH] Spigot
  .../net/minecraft/server/ThreadLoginVerifier.java  |   6 +-
  src/main/java/net/minecraft/server/TileEntity.java |   2 +
  .../net/minecraft/server/TileEntityHopper.java     |  21 +-
- src/main/java/net/minecraft/server/World.java      | 184 +++++-
+ src/main/java/net/minecraft/server/World.java      | 182 +++++-
  .../net/minecraft/server/WorldMapHumanTracker.java |  24 +-
  .../java/net/minecraft/server/WorldServer.java     | 238 +++++---
  .../java/org/bukkit/craftbukkit/CraftChunk.java    |  44 +-
@@ -95,7 +95,7 @@ Subject: [PATCH] Spigot
  src/main/java/org/spigotmc/netty/CipherBase.java   |  54 ++
  .../java/org/spigotmc/netty/CipherDecoder.java     |  23 +
  .../java/org/spigotmc/netty/CipherEncoder.java     |  23 +
- .../org/spigotmc/netty/NettyNetworkManager.java    | 295 ++++++++++
+ .../org/spigotmc/netty/NettyNetworkManager.java    | 292 ++++++++++
  .../org/spigotmc/netty/NettyServerConnection.java  | 100 ++++
  .../org/spigotmc/netty/NettySocketAdaptor.java     | 294 ++++++++++
  .../java/org/spigotmc/netty/OutboundManager.java   |  29 +
@@ -104,7 +104,7 @@ Subject: [PATCH] Spigot
  .../java/org/spigotmc/netty/PacketListener.java    | 112 ++++
  src/main/java/org/spigotmc/netty/ReadState.java    |  17 +
  src/main/resources/configurations/bukkit.yml       |  54 ++
- 100 files changed, 4855 insertions(+), 362 deletions(-)
+ 100 files changed, 4851 insertions(+), 361 deletions(-)
  create mode 100644 src/main/java/net/minecraft/server/INetworkManager.java
  create mode 100644 src/main/java/net/minecraft/server/LocaleLanguage.java
  create mode 100644 src/main/java/net/minecraft/server/NextTickListEntry.java
@@ -145,7 +145,7 @@ index c3faf57..346b232 100644
 +/dependency-reduced-pom.xml
 \ No newline at end of file
 diff --git a/pom.xml b/pom.xml
-index 4ead01e..d73da5f 100644
+index 4ead01e..a33020e 100644
 --- a/pom.xml
 +++ b/pom.xml
 @@ -1,12 +1,20 @@
@@ -231,7 +231,7 @@ index 4ead01e..d73da5f 100644
 +    <dependency>
 +      <groupId>io.netty</groupId>
 +      <artifactId>netty-all</artifactId>
-+      <version>4.0.0.CR3</version>
++      <version>4.0.0.CR1</version>
 +    </dependency>
 +    <dependency>
 +        <groupId>org.javassist</groupId>
@@ -2809,7 +2809,7 @@ index f6d269d..88b2cb0 100644
  
                  iinventory.update();
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index 3a4ddea..6be7e96 100644
+index 3a4ddea..6de55ba 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
 @@ -13,6 +13,8 @@ import java.util.concurrent.Callable;
@@ -2884,15 +2884,6 @@ index 3a4ddea..6be7e96 100644
  
          this.O = this.random.nextInt(12000);
          this.H = new int['\u8000'];
-@@ -123,7 +154,7 @@ public abstract class World implements IBlockAccess {
-         this.methodProfiler = methodprofiler;
-         this.worldMaps = new WorldMapCollection(idatamanager);
-         this.logAgent = iconsolelogmanager;
--        this.worldData = idatamanager.getWorldData();
-+        // this.worldData = idatamanager.getWorldData();
-         if (worldprovider != null) {
-             this.worldProvider = worldprovider;
-         } else if (this.worldData != null && this.worldData.j() != 0) {
 @@ -172,6 +203,7 @@ public abstract class World implements IBlockAccess {
          this.a();
  
@@ -3856,7 +3847,7 @@ index 6cb50b7..76659bc 100644
 +    // Spigot end
  }
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
-index 6c7f570..e762c9b 100644
+index 6c7f570..56d3d32 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
 @@ -67,8 +67,43 @@ public class CraftWorld implements World {
@@ -4085,7 +4076,7 @@ index 6c7f570..e762c9b 100644
 +                StringBuilder particleFullName = new StringBuilder();
 +                particleFullName.append( effect.getName() );
 +
-+                if ( effect.getData() != null && effect.getData().equals( Material.class ) || effect.getData().equals( org.bukkit.material.MaterialData.class ) )
++                if ( effect.getData() != null && ( effect.getData().equals( Material.class ) || effect.getData().equals( org.bukkit.material.MaterialData.class ) ) )
 +                {
 +                    particleFullName.append( '_' ).append( id );
 +                }
@@ -4094,7 +4085,7 @@ index 6c7f570..e762c9b 100644
 +                {
 +                    particleFullName.append( '_' ).append( data );
 +                }
-+                packet = new Packet63WorldParticles( effect.getName(), (float) location.getX(), (float) location.getY(), (float) location.getZ(), offsetX, offsetY, offsetZ, particleCount, radius );
++                packet = new Packet63WorldParticles( particleFullName.toString(), (float) location.getX(), (float) location.getY(), (float) location.getZ(), offsetX, offsetY, offsetZ, speed, particleCount );
 +            }
 +
 +            int distance;
@@ -4122,7 +4113,7 @@ index 6c7f570..e762c9b 100644
 +        @Override
 +        public void playEffect(Location location, Effect effect)
 +        {
-+            playEffect( location, effect, 0 );
++            CraftWorld.this.playEffect( location, effect, 0 );
 +        }
 +    };
 +
@@ -6494,10 +6485,10 @@ index 0000000..4ff943b
 +}
 diff --git a/src/main/java/org/spigotmc/netty/NettyNetworkManager.java b/src/main/java/org/spigotmc/netty/NettyNetworkManager.java
 new file mode 100644
-index 0000000..9a70a3a
+index 0000000..fdef0c8
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/netty/NettyNetworkManager.java
-@@ -0,0 +1,295 @@
+@@ -0,0 +1,292 @@
 +package org.spigotmc.netty;
 +
 +import com.google.common.util.concurrent.ThreadFactoryBuilder;
@@ -6671,13 +6662,10 @@ index 0000000..9a70a3a
 +            {
 +                highPriorityQueue.add( packet );
 +
-+                ChannelPromise promise;
++                ChannelPromise promise = channel.newPromise();
 +                if ( packet instanceof Packet255KickDisconnect )
 +                {
-+                    promise = channel.voidPromise();
-+                } else
-+                {
-+                    promise = channel.newPromise();
++                    channel.pipeline().get( OutboundManager.class ).lastFlush = 0;
 +                }
 +
 +                channel.write( packet, promise );
@@ -7201,7 +7189,7 @@ index 0000000..5da8a59
 +}
 diff --git a/src/main/java/org/spigotmc/netty/OutboundManager.java b/src/main/java/org/spigotmc/netty/OutboundManager.java
 new file mode 100644
-index 0000000..3f4c02f
+index 0000000..99899d2
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/netty/OutboundManager.java
 @@ -0,0 +1,29 @@
@@ -7217,7 +7205,7 @@ index 0000000..3f4c02f
 +
 +    private static final int FLUSH_TIME = 2;
 +    /*========================================================================*/
-+    private long lastFlush;
++    public long lastFlush;
 +    private final NettyNetworkManager manager;
 +
 +    OutboundManager(NettyNetworkManager manager)
@@ -7227,7 +7215,7 @@ index 0000000..3f4c02f
 +
 +    public void flush(ChannelHandlerContext ctx, ChannelPromise promise) throws Exception
 +    {
-+        if ( promise == ctx.channel().voidPromise() || manager.connection instanceof PendingConnection || System.currentTimeMillis() - lastFlush > FLUSH_TIME )
++        if ( manager.connection instanceof PendingConnection || System.currentTimeMillis() - lastFlush > FLUSH_TIME )
 +        {
 +            lastFlush = System.currentTimeMillis();
 +            ctx.flush( promise );
@@ -7236,7 +7224,7 @@ index 0000000..3f4c02f
 +}
 diff --git a/src/main/java/org/spigotmc/netty/PacketDecoder.java b/src/main/java/org/spigotmc/netty/PacketDecoder.java
 new file mode 100644
-index 0000000..60b75d0
+index 0000000..29e344a
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/netty/PacketDecoder.java
 @@ -0,0 +1,68 @@
@@ -7270,7 +7258,7 @@ index 0000000..60b75d0
 +    }
 +
 +    @Override
-+    protected void decode(ChannelHandlerContext ctx, ByteBuf in, MessageBuf<Object> out) throws Exception
++    protected Packet decode(ChannelHandlerContext ctx, ByteBuf in) throws Exception
 +    {
 +        if ( input == null )
 +        {
@@ -7295,13 +7283,13 @@ index 0000000..60b75d0
 +                        packet.a( input );
 +                    } catch ( EOFException ex )
 +                    {
-+                        return;
++                        return null;
 +                    }
 +
 +                    checkpoint( ReadState.HEADER );
-+                    out.add( packet );
++                    Packet readPacket = packet;
 +                    packet = null;
-+                    break;
++                    return readPacket;
 +                default:
 +                    throw new IllegalStateException();
 +            }
@@ -7310,7 +7298,7 @@ index 0000000..60b75d0
 +}
 diff --git a/src/main/java/org/spigotmc/netty/PacketEncoder.java b/src/main/java/org/spigotmc/netty/PacketEncoder.java
 new file mode 100644
-index 0000000..e6a45d3
+index 0000000..f0880c2
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/netty/PacketEncoder.java
 @@ -0,0 +1,55 @@
@@ -7360,7 +7348,7 @@ index 0000000..e6a45d3
 +    }
 +
 +    @Override
-+    public void handlerRemoved(ChannelHandlerContext ctx) throws Exception
++    public void freeOutboundBuffer(ChannelHandlerContext ctx) throws Exception
 +    {
 +        if ( outBuf != null )
 +        {
