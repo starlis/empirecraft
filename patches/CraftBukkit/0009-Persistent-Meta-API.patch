@@ -1,32 +1,35 @@
-From 444507794eb2318c1a66aa475524d550ad7a0843 Mon Sep 17 00:00:00 2001
+From b497faa76e348e105e28cd4be841be0de0eca5f9 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Mon, 4 Mar 2013 23:35:02 -0500
 Subject: [PATCH] Persistent Meta API
 
 This adds an API for getting and setting PERSISTENT Metadata
-Meta data can be stored on Entities, Chunks and at a Block level.
+Meta data can be stored on Worlds, Entities, Chunks and at a Block level.
 Meta is is provided in a simple Map/List setup and does not expose raw NBT access.
 ---
- .../java/com/empireminecraft/metaapi/MetaApi.java  | 168 +++++++++++++
+ .../java/com/empireminecraft/metaapi/MetaApi.java  | 196 ++++++++++++++
  src/main/java/net/minecraft/server/Chunk.java      |   1 +
  .../net/minecraft/server/ChunkRegionLoader.java    |   2 +
  src/main/java/net/minecraft/server/Entity.java     |   3 +
- .../java/net/minecraft/server/MetaApiAccessor.java | 270 +++++++++++++++++++++
- 5 files changed, 444 insertions(+)
+ .../java/net/minecraft/server/MetaApiAccessor.java | 291 +++++++++++++++++++++
+ .../java/net/minecraft/server/WorldNBTStorage.java |   5 +
+ 6 files changed, 498 insertions(+)
  create mode 100644 src/main/java/com/empireminecraft/metaapi/MetaApi.java
  create mode 100644 src/main/java/net/minecraft/server/MetaApiAccessor.java
 
 diff --git a/src/main/java/com/empireminecraft/metaapi/MetaApi.java b/src/main/java/com/empireminecraft/metaapi/MetaApi.java
 new file mode 100644
-index 0000000..6c0451d
+index 0000000..11d47e1
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/metaapi/MetaApi.java
-@@ -0,0 +1,168 @@
+@@ -0,0 +1,196 @@
 +package com.empireminecraft.metaapi;
 +
 +import net.minecraft.server.MetaApiAccessor;
 +import org.bukkit.Chunk;
 +import org.bukkit.Location;
++import org.bukkit.World;
++import org.bukkit.craftbukkit.CraftWorld;
 +import org.bukkit.entity.Entity;
 +import org.bukkit.inventory.ItemStack;
 +
@@ -36,6 +39,32 @@ index 0000000..6c0451d
 +
 +public class MetaApi {
 +
++    //////////////////////////////////////////////////
++    //// WORLD META
++    //////////////////////////////////////////////////
++
++    public static MetaMap getWorldMetaMap(World world) {
++        return MetaApiAccessor.getWorldMetaMap((CraftWorld) world);
++    }
++
++    public static <T> T getWorldMeta(World world, String key) {
++        final MetaMap worldMetaMap = getWorldMetaMap(world);
++        return worldMetaMap != null && !worldMetaMap.isEmpty() ? (T) worldMetaMap.get(key) : null;
++    }
++
++    public static boolean hasWorldMeta(World world, String key) {
++        final MetaMap worldMetaMap = getWorldMetaMap(world);
++        return worldMetaMap != null && !worldMetaMap.isEmpty() && worldMetaMap.containsKey(key);
++    }
++
++    public static <T> T setWorldMeta(World world, String key, Object val) {
++        return setMetaMapValue(getWorldMetaMap(world), key, val);
++    }
++
++    public static <T> T removeWorldMeta(World world, String key) {
++        return setWorldMeta(world, key, null);
++    }
++    
 +    //////////////////////////////////////////////////
 +    //// ENTITY META
 +    //////////////////////////////////////////////////
@@ -252,13 +281,14 @@ index a2a4f5a..670a513 100644
                  this.motX = 0.0D;
 diff --git a/src/main/java/net/minecraft/server/MetaApiAccessor.java b/src/main/java/net/minecraft/server/MetaApiAccessor.java
 new file mode 100644
-index 0000000..efea1ad
+index 0000000..2347127
 --- /dev/null
 +++ b/src/main/java/net/minecraft/server/MetaApiAccessor.java
-@@ -0,0 +1,270 @@
+@@ -0,0 +1,291 @@
 +package net.minecraft.server;
 +
 +import org.bukkit.craftbukkit.CraftChunk;
++import org.bukkit.craftbukkit.CraftWorld;
 +import org.bukkit.craftbukkit.entity.CraftEntity;
 +import org.bukkit.craftbukkit.inventory.CraftItemStack;
 +
@@ -268,6 +298,9 @@ index 0000000..efea1ad
 +
 +public class MetaApiAccessor {
 +
++    public static MetaMap getWorldMetaMap(CraftWorld world) {
++        return ((WorldNBTStorage)world.getHandle().dataManager).metaMap;
++    }
 +    /**
 +     * Util for getting a MetaMap by location
 +     * @param loc
@@ -336,6 +369,23 @@ index 0000000..efea1ad
 +        if (entity.metaMap != null && entity.metaMap.size() > 0) {
 +            NBTBase nbtmeta = getNbtFromObject(entity.metaMap);
 +            nbt.set("_EntityMeta", nbtmeta);
++        }
++    }
++
++    public static void loadWorldMeta(WorldNBTStorage world, NBTTagCompound nbt) {
++        if (nbt.hasKey("_WorldMeta")) {
++            NBTTagCompound nbtmeta = nbt.getCompound("_WorldMeta");
++            world.metaMap = getMetaMapFromCompound(nbtmeta);
++        }
++        if (world.metaMap == null) {
++            world.metaMap = new MetaMap();
++        }
++    }
++
++    public static void saveWorldMeta(WorldNBTStorage world, NBTTagCompound nbt) {
++        if (world.metaMap != null && world.metaMap.size() > 0) {
++            NBTBase nbtmeta = getNbtFromObject(world.metaMap);
++            nbt.set("_WorldMeta", nbtmeta);
 +        }
 +    }
 +
@@ -526,6 +576,50 @@ index 0000000..efea1ad
 +
 +    public static class ChunkMeta extends HashMap<ChunkCoordinates, MetaMap> {}
 +}
+diff --git a/src/main/java/net/minecraft/server/WorldNBTStorage.java b/src/main/java/net/minecraft/server/WorldNBTStorage.java
+index e0ae71a..4f7fd8c 100644
+--- a/src/main/java/net/minecraft/server/WorldNBTStorage.java
++++ b/src/main/java/net/minecraft/server/WorldNBTStorage.java
+@@ -13,6 +13,7 @@ import java.util.logging.Logger;
+ // CraftBukkit start
+ import java.util.UUID;
+ 
++import com.empireminecraft.metaapi.MetaApi; // EMC
+ import org.bukkit.craftbukkit.entity.CraftPlayer;
+ // CraftBukkit end
+ 
+@@ -24,6 +25,7 @@ public class WorldNBTStorage implements IDataManager, IPlayerFileData {
+     private final long sessionId = System.currentTimeMillis();
+     private final String e;
+     private UUID uuid = null; // CraftBukkit
++    public MetaApi.MetaMap metaMap = new MetaApi.MetaMap(); // EMC
+ 
+     public WorldNBTStorage(File file1, String s, boolean flag) {
+         this.baseDir = new File(file1, s);
+@@ -89,6 +91,7 @@ public class WorldNBTStorage implements IDataManager, IPlayerFileData {
+             try {
+                 nbttagcompound = NBTCompressedStreamTools.a((InputStream) (new FileInputStream(file1)));
+                 nbttagcompound1 = nbttagcompound.getCompound("Data");
++                MetaApiAccessor.loadWorldMeta(this, nbttagcompound1); // EMC
+                 return new WorldData(nbttagcompound1);
+             } catch (Exception exception) {
+                 exception.printStackTrace();
+@@ -100,6 +103,7 @@ public class WorldNBTStorage implements IDataManager, IPlayerFileData {
+             try {
+                 nbttagcompound = NBTCompressedStreamTools.a((InputStream) (new FileInputStream(file1)));
+                 nbttagcompound1 = nbttagcompound.getCompound("Data");
++                MetaApiAccessor.loadWorldMeta(this, nbttagcompound1); // EMC
+                 return new WorldData(nbttagcompound1);
+             } catch (Exception exception1) {
+                 exception1.printStackTrace();
+@@ -113,6 +117,7 @@ public class WorldNBTStorage implements IDataManager, IPlayerFileData {
+         NBTTagCompound nbttagcompound1 = worlddata.a(nbttagcompound);
+         NBTTagCompound nbttagcompound2 = new NBTTagCompound();
+ 
++        MetaApiAccessor.saveWorldMeta(this, nbttagcompound1); // EMC
+         nbttagcompound2.set("Data", nbttagcompound1);
+ 
+         try {
 -- 
 1.8.3.1
 
