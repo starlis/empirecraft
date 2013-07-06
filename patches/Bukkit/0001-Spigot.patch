@@ -1,35 +1,42 @@
-From 70cfd5d4c3a0a6b36e1f0fd970a51cfff9662ae9 Mon Sep 17 00:00:00 2001
+From 8e6f1eed9a54b2e2785df83612b9e95f5cfa5089 Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Tue, 18 Jun 2013 01:59:01 -0400
+Date: Wed, 10 Jul 2013 23:32:25 -0400
 Subject: [PATCH] Spigot
 
 ---
- pom.xml                                            |  44 ++---
+ pom.xml                                            |  52 ++----
  src/main/java/org/bukkit/Effect.java               | 195 ++++++++++++++++++++-
  src/main/java/org/bukkit/World.java                |  50 ++++++
+ src/main/java/org/bukkit/command/Command.java      |   9 +-
+ .../java/org/bukkit/command/SimpleCommandMap.java  |   7 +-
  .../org/bukkit/command/defaults/ReloadCommand.java |   1 +
  .../bukkit/command/defaults/TimingsCommand.java    | 111 +++++++++++-
  src/main/java/org/bukkit/entity/Arrow.java         |  20 ++-
- src/main/java/org/bukkit/entity/Player.java        |  24 +++
+ src/main/java/org/bukkit/entity/Player.java        |  25 ++-
  .../bukkit/event/entity/CreatureSpawnEvent.java    |  32 +---
  .../org/bukkit/event/entity/EntitySpawnEvent.java  |  45 +++++
  .../org/bukkit/event/entity/ItemSpawnEvent.java    |  40 +----
  .../org/bukkit/event/entity/SpawnerSpawnEvent.java |  22 +++
+ .../event/inventory/InventoryClickEvent.java       |  16 ++
  .../bukkit/event/player/PlayerItemDamageEvent.java |  54 ++++++
  .../org/bukkit/event/player/PlayerLoginEvent.java  |  27 ++-
  .../org/bukkit/plugin/SimplePluginManager.java     |   1 +
  .../org/bukkit/plugin/TimedRegisteredListener.java |  21 ++-
  .../org/bukkit/plugin/java/JavaPluginLoader.java   |   2 +-
  .../java/org/spigotmc/CustomTimingsHandler.java    | 174 ++++++++++++++++++
+ .../spigotmc/event/entity/EntityDismountEvent.java |  39 +++++
+ .../spigotmc/event/entity/EntityMountEvent.java    |  52 ++++++
  src/test/java/org/bukkit/EffectTest.java           |   6 +-
- 18 files changed, 749 insertions(+), 120 deletions(-)
+ 23 files changed, 867 insertions(+), 134 deletions(-)
  create mode 100644 src/main/java/org/bukkit/event/entity/EntitySpawnEvent.java
  create mode 100644 src/main/java/org/bukkit/event/entity/SpawnerSpawnEvent.java
  create mode 100644 src/main/java/org/bukkit/event/player/PlayerItemDamageEvent.java
  create mode 100644 src/main/java/org/spigotmc/CustomTimingsHandler.java
+ create mode 100644 src/main/java/org/spigotmc/event/entity/EntityDismountEvent.java
+ create mode 100644 src/main/java/org/spigotmc/event/entity/EntityMountEvent.java
 
 diff --git a/pom.xml b/pom.xml
-index 5ee22fa..6aa3541 100644
+index 2401f81..b011de6 100644
 --- a/pom.xml
 +++ b/pom.xml
 @@ -1,43 +1,23 @@
@@ -47,7 +54,7 @@ index 5ee22fa..6aa3541 100644
 +
 +    <groupId>org.spigotmc</groupId>
 +    <artifactId>spigot-api</artifactId>
-     <version>1.5.2-R1.1-SNAPSHOT</version>
+     <version>1.6.2-R0.1-SNAPSHOT</version>
 -    <name>Bukkit</name>
 -    <url>http://www.bukkit.org</url>
 +    <name>Spigot-API</name>
@@ -88,6 +95,40 @@ index 5ee22fa..6aa3541 100644
      <build>
          <plugins>
              <plugin>
+@@ -97,21 +77,21 @@
+         <dependency>
+             <groupId>org.yaml</groupId>
+             <artifactId>snakeyaml</artifactId>
+-            <version>1.9</version>
++            <version>1.12</version>
+             <type>jar</type>
+             <scope>compile</scope>
+         </dependency>
+         <dependency>
+             <groupId>com.googlecode.json-simple</groupId>
+             <artifactId>json-simple</artifactId>
+-            <version>1.1</version>
++            <version>1.1.1</version>
+             <type>jar</type>
+             <scope>compile</scope>
+         </dependency>
+         <dependency>
+             <groupId>org.avaje</groupId>
+             <artifactId>ebean</artifactId>
+-            <version>2.7.3</version>
++            <version>2.8.1</version>
+             <type>jar</type>
+             <scope>compile</scope>
+         </dependency>
+@@ -125,7 +105,7 @@
+         <dependency>
+             <groupId>commons-lang</groupId>
+             <artifactId>commons-lang</artifactId>
+-            <version>2.3</version>
++            <version>2.6</version>
+         </dependency>
+ 
+         <!-- testing -->
 diff --git a/src/main/java/org/bukkit/Effect.java b/src/main/java/org/bukkit/Effect.java
 index 175750f..ae1f4fd 100644
 --- a/src/main/java/org/bukkit/Effect.java
@@ -403,6 +444,70 @@ index e14fe40..9ae9b2d 100644
      /**
       * Represents various map environment types that a world may be
       */
+diff --git a/src/main/java/org/bukkit/command/Command.java b/src/main/java/org/bukkit/command/Command.java
+index 5416c71..2f189ca 100644
+--- a/src/main/java/org/bukkit/command/Command.java
++++ b/src/main/java/org/bukkit/command/Command.java
+@@ -78,18 +78,13 @@ public abstract class Command {
+         Validate.notNull(args, "Arguments cannot be null");
+         Validate.notNull(alias, "Alias cannot be null");
+ 
+-        if (!(sender instanceof Player) || args.length == 0) {
+-            return ImmutableList.of();
+-        }
+-
+         String lastWord = args[args.length - 1];
+ 
+-        Player senderPlayer = (Player) sender;
+-
+         ArrayList<String> matchedPlayers = new ArrayList<String>();
++        final boolean noPlayer = !(sender instanceof Player);
+         for (Player player : sender.getServer().getOnlinePlayers()) {
+             String name = player.getName();
+-            if (senderPlayer.canSee(player) && StringUtil.startsWithIgnoreCase(name, lastWord)) {
++            if (noPlayer || ((Player) sender).canSee(player) && StringUtil.startsWithIgnoreCase(name, lastWord)) {
+                 matchedPlayers.add(name);
+             }
+         }
+diff --git a/src/main/java/org/bukkit/command/SimpleCommandMap.java b/src/main/java/org/bukkit/command/SimpleCommandMap.java
+index df5f6ef..4c3e421 100644
+--- a/src/main/java/org/bukkit/command/SimpleCommandMap.java
++++ b/src/main/java/org/bukkit/command/SimpleCommandMap.java
+@@ -16,6 +16,7 @@ import java.util.regex.Pattern;
+ import org.apache.commons.lang.Validate;
+ import org.bukkit.Server;
+ import org.bukkit.command.defaults.*;
++import org.bukkit.entity.Player;
+ import org.bukkit.util.StringUtil;
+ 
+ public class SimpleCommandMap implements CommandMap {
+@@ -224,6 +225,8 @@ public class SimpleCommandMap implements CommandMap {
+             ArrayList<String> completions = new ArrayList<String>();
+             Map<String, Command> knownCommands = this.knownCommands;
+ 
++            final String prefix = (sender instanceof Player ? "/" : "");
++
+             for (VanillaCommand command : fallbackCommands) {
+                 String name = command.getName();
+ 
+@@ -239,7 +242,7 @@ public class SimpleCommandMap implements CommandMap {
+                     continue;
+                 }
+ 
+-                completions.add('/' + name);
++                completions.add(prefix + name);
+             }
+ 
+             for (Map.Entry<String, Command> commandEntry : knownCommands.entrySet()) {
+@@ -252,7 +255,7 @@ public class SimpleCommandMap implements CommandMap {
+                 String name = commandEntry.getKey(); // Use the alias, not command name
+ 
+                 if (StringUtil.startsWithIgnoreCase(name, cmdLine)) {
+-                    completions.add('/' + name);
++                    completions.add(prefix + name);
+                 }
+             }
+ 
 diff --git a/src/main/java/org/bukkit/command/defaults/ReloadCommand.java b/src/main/java/org/bukkit/command/defaults/ReloadCommand.java
 index fb3c90f..ffbcac1 100644
 --- a/src/main/java/org/bukkit/command/defaults/ReloadCommand.java
@@ -622,13 +727,21 @@ index 26d3473..df177bc 100644
 +    Spigot spigot();
 +}
 diff --git a/src/main/java/org/bukkit/entity/Player.java b/src/main/java/org/bukkit/entity/Player.java
-index de42f2e..5b2d0f9 100644
+index 5c5d526..376ceef 100644
 --- a/src/main/java/org/bukkit/entity/Player.java
 +++ b/src/main/java/org/bukkit/entity/Player.java
-@@ -646,4 +646,28 @@ public interface Player extends HumanEntity, Conversable, CommandSender, Offline
+@@ -647,7 +647,6 @@ public interface Player extends HumanEntity, Conversable, CommandSender, Offline
       *     yet or has logged out
       */
      public void setScoreboard(Scoreboard scoreboard) throws IllegalArgumentException, IllegalStateException;
+-
+     /**
+      * Gets if the client is displayed a 'scaled' health, that is, health on a
+      * scale from 0-20.
+@@ -667,4 +666,28 @@ public interface Player extends HumanEntity, Conversable, CommandSender, Offline
+      * @param scale if the client health display is scaled
+      */
+     public void setScaleHealth(boolean scale);
 +
 +    // Spigot start
 +    public class Spigot
@@ -864,6 +977,47 @@ index 0000000..1acb3c4
 +        return spawner;
 +    }
 +}
+diff --git a/src/main/java/org/bukkit/event/inventory/InventoryClickEvent.java b/src/main/java/org/bukkit/event/inventory/InventoryClickEvent.java
+index 28198b8..3313d91 100644
+--- a/src/main/java/org/bukkit/event/inventory/InventoryClickEvent.java
++++ b/src/main/java/org/bukkit/event/inventory/InventoryClickEvent.java
+@@ -47,6 +47,7 @@ public class InventoryClickEvent extends InventoryInteractEvent {
+     private static final HandlerList handlers = new HandlerList();
+     private final ClickType click;
+     private final InventoryAction action;
++    private final Inventory clickedInventory;
+     private SlotType slot_type;
+     private int whichSlot;
+     private int rawSlot;
+@@ -62,6 +63,13 @@ public class InventoryClickEvent extends InventoryInteractEvent {
+         super(view);
+         this.slot_type = type;
+         this.rawSlot = slot;
++        if (slot < 0) {
++            this.clickedInventory = null;
++        } else if (view.getTopInventory() != null && slot < view.getTopInventory().getSize()) {
++            this.clickedInventory = view.getTopInventory();
++        } else {
++            this.clickedInventory = view.getBottomInventory();
++        }
+         this.whichSlot = view.convertSlot(slot);
+         this.click = click;
+         this.action = action;
+@@ -73,6 +81,14 @@ public class InventoryClickEvent extends InventoryInteractEvent {
+     }
+ 
+     /**
++     * Gets the inventory that was clicked, or null if outside of window
++     * @return The clicked inventory
++     */
++    public Inventory getClickedInventory() {
++        return clickedInventory;
++    }
++
++    /**
+      * Gets the type of slot that was clicked.
+      *
+      * @return the slot type
 diff --git a/src/main/java/org/bukkit/event/player/PlayerItemDamageEvent.java b/src/main/java/org/bukkit/event/player/PlayerItemDamageEvent.java
 new file mode 100644
 index 0000000..38a72ab
@@ -1248,6 +1402,109 @@ index 0000000..b2e94b6
 +        totalTime = 0;
 +    }
 +}
+diff --git a/src/main/java/org/spigotmc/event/entity/EntityDismountEvent.java b/src/main/java/org/spigotmc/event/entity/EntityDismountEvent.java
+new file mode 100644
+index 0000000..24d4942
+--- /dev/null
++++ b/src/main/java/org/spigotmc/event/entity/EntityDismountEvent.java
+@@ -0,0 +1,39 @@
++package org.spigotmc.event.entity;
++
++import org.bukkit.entity.Entity;
++import org.bukkit.event.HandlerList;
++import org.bukkit.event.entity.EntityEvent;
++
++/**
++ * Called when an entity stops riding another entity.
++ *
++ */
++public class EntityDismountEvent extends EntityEvent
++{
++
++    private static final HandlerList handlers = new HandlerList();
++    private boolean cancelled;
++    private final Entity dismounted;
++
++    public EntityDismountEvent(Entity what, Entity dismounted)
++    {
++        super( what );
++        this.dismounted = dismounted;
++    }
++
++    public Entity getDismounted()
++    {
++        return dismounted;
++    }
++
++    @Override
++    public HandlerList getHandlers()
++    {
++        return handlers;
++    }
++
++    public static HandlerList getHandlerList()
++    {
++        return handlers;
++    }
++}
+diff --git a/src/main/java/org/spigotmc/event/entity/EntityMountEvent.java b/src/main/java/org/spigotmc/event/entity/EntityMountEvent.java
+new file mode 100644
+index 0000000..16aa2a7
+--- /dev/null
++++ b/src/main/java/org/spigotmc/event/entity/EntityMountEvent.java
+@@ -0,0 +1,52 @@
++package org.spigotmc.event.entity;
++
++import org.bukkit.entity.Entity;
++import org.bukkit.event.Cancellable;
++import org.bukkit.event.HandlerList;
++import org.bukkit.event.entity.EntityEvent;
++
++/**
++ * Called when an entity attempts to ride another entity.
++ *
++ */
++public class EntityMountEvent extends EntityEvent implements Cancellable
++{
++
++    private static final HandlerList handlers = new HandlerList();
++    private boolean cancelled;
++    private final Entity mount;
++
++    public EntityMountEvent(Entity what, Entity mount)
++    {
++        super( what );
++        this.mount = mount;
++    }
++
++    public Entity getMount()
++    {
++        return mount;
++    }
++
++    @Override
++    public boolean isCancelled()
++    {
++        return cancelled;
++    }
++
++    @Override
++    public void setCancelled(boolean cancel)
++    {
++        this.cancelled = cancel;
++    }
++
++    @Override
++    public HandlerList getHandlers()
++    {
++        return handlers;
++    }
++
++    public static HandlerList getHandlerList()
++    {
++        return handlers;
++    }
++}
 diff --git a/src/test/java/org/bukkit/EffectTest.java b/src/test/java/org/bukkit/EffectTest.java
 index 08aa71d..5217aec 100644
 --- a/src/test/java/org/bukkit/EffectTest.java
@@ -1266,5 +1523,5 @@ index 08aa71d..5217aec 100644
      }
  }
 -- 
-1.8.3.1
+1.8.3.2
 

@@ -1,0 +1,163 @@
+From fd2a7b7a46f5baf3d571afdf6041ae35da752b5c Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Sat, 6 Jul 2013 23:05:19 -0400
+Subject: [PATCH] Anti Dupe
+
+Remove CraftBukkit "Feature" of ItemStack's having infinite use if less than 0 stack size.
+Blocks most cases of < 0 itemstack dupe bugs
+---
+ src/main/java/net/minecraft/server/DispenseBehaviorItem.java  | 1 +
+ src/main/java/net/minecraft/server/Entity.java                | 2 +-
+ src/main/java/net/minecraft/server/EntityAgeable.java         | 2 +-
+ src/main/java/net/minecraft/server/EntityHorse.java           | 2 +-
+ src/main/java/net/minecraft/server/EntityHuman.java           | 2 +-
+ src/main/java/net/minecraft/server/ItemStack.java             | 1 +
+ src/main/java/net/minecraft/server/PlayerConnection.java      | 2 +-
+ src/main/java/net/minecraft/server/PlayerInteractManager.java | 2 +-
+ src/main/java/net/minecraft/server/PlayerInventory.java       | 2 +-
+ src/main/java/net/minecraft/server/Slot.java                  | 1 +
+ src/main/java/net/minecraft/server/TileEntityDispenser.java   | 1 +
+ 11 files changed, 11 insertions(+), 7 deletions(-)
+
+diff --git a/src/main/java/net/minecraft/server/DispenseBehaviorItem.java b/src/main/java/net/minecraft/server/DispenseBehaviorItem.java
+index 290b583..820b63e 100644
+--- a/src/main/java/net/minecraft/server/DispenseBehaviorItem.java
++++ b/src/main/java/net/minecraft/server/DispenseBehaviorItem.java
+@@ -10,6 +10,7 @@ public class DispenseBehaviorItem implements IDispenseBehavior {
+     public DispenseBehaviorItem() {}
+ 
+     public final ItemStack a(ISourceBlock isourceblock, ItemStack itemstack) {
++        if (itemstack != null && itemstack.count < 0) itemstack.count = 0; // EMC
+         ItemStack itemstack1 = this.b(isourceblock, itemstack);
+ 
+         this.a(isourceblock);
+diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
+index 0653ff2..f1720bb 100644
+--- a/src/main/java/net/minecraft/server/Entity.java
++++ b/src/main/java/net/minecraft/server/Entity.java
+@@ -1282,7 +1282,7 @@ public abstract class Entity {
+     }
+ 
+     public EntityItem a(ItemStack itemstack, float f) {
+-        if (itemstack.count == 0) {
++        if (itemstack.count <= 0) { // EMC
+             return null;
+         } else {
+             EntityItem entityitem = new EntityItem(this.world, this.locX, this.locY + (double) f, this.locZ, itemstack);
+diff --git a/src/main/java/net/minecraft/server/EntityAgeable.java b/src/main/java/net/minecraft/server/EntityAgeable.java
+index 4c73a5f..e2d578b 100644
+--- a/src/main/java/net/minecraft/server/EntityAgeable.java
++++ b/src/main/java/net/minecraft/server/EntityAgeable.java
+@@ -57,7 +57,7 @@ public abstract class EntityAgeable extends EntityCreature {
+ 
+                         if (!entityhuman.abilities.canInstantlyBuild) {
+                             --itemstack.count;
+-                            if (itemstack.count == 0) {  // CraftBukkit - allow less than 0 stacks as "infinite"
++                            if (itemstack.count <= 0) { // EMC
+                                 entityhuman.inventory.setItem(entityhuman.inventory.itemInHandIndex, (ItemStack) null);
+                             }
+                         }
+diff --git a/src/main/java/net/minecraft/server/EntityHorse.java b/src/main/java/net/minecraft/server/EntityHorse.java
+index e18738a..9859f73 100644
+--- a/src/main/java/net/minecraft/server/EntityHorse.java
++++ b/src/main/java/net/minecraft/server/EntityHorse.java
+@@ -611,7 +611,7 @@ public class EntityHorse extends EntityAnimal implements IInventoryListener {
+                 }
+ 
+                 if (flag) {
+-                    if (!entityhuman.abilities.canInstantlyBuild && --itemstack.count == 0) {
++                    if (!entityhuman.abilities.canInstantlyBuild && --itemstack.count <= 0) { // EMC
+                         entityhuman.inventory.setItem(entityhuman.inventory.itemInHandIndex, (ItemStack) null);
+                     }
+ 
+diff --git a/src/main/java/net/minecraft/server/EntityHuman.java b/src/main/java/net/minecraft/server/EntityHuman.java
+index 963bc55..7a25a8f 100644
+--- a/src/main/java/net/minecraft/server/EntityHuman.java
++++ b/src/main/java/net/minecraft/server/EntityHuman.java
+@@ -487,7 +487,7 @@ public abstract class EntityHuman extends EntityLiving implements ICommandListen
+     public EntityItem a(ItemStack itemstack, boolean flag) {
+         if (itemstack == null) {
+             return null;
+-        } else if (itemstack.count == 0) {
++        } else if (itemstack.count <= 0) { // EMC
+             return null;
+         } else {
+             EntityItem entityitem = new EntityItem(this.world, this.locX, this.locY - 0.30000001192092896D + (double) this.getHeadHeight(), this.locZ, itemstack);
+diff --git a/src/main/java/net/minecraft/server/ItemStack.java b/src/main/java/net/minecraft/server/ItemStack.java
+index 5431527..34ef374 100644
+--- a/src/main/java/net/minecraft/server/ItemStack.java
++++ b/src/main/java/net/minecraft/server/ItemStack.java
+@@ -55,6 +55,7 @@ public final class ItemStack {
+         ItemStack itemstack = new ItemStack();
+ 
+         itemstack.c(nbttagcompound);
++        if (itemstack.count < 0) itemstack.count = 0; // EMC
+         return itemstack.getItem() != null ? itemstack : null;
+     }
+ 
+diff --git a/src/main/java/net/minecraft/server/PlayerConnection.java b/src/main/java/net/minecraft/server/PlayerConnection.java
+index 98b2622..4be93c2 100644
+--- a/src/main/java/net/minecraft/server/PlayerConnection.java
++++ b/src/main/java/net/minecraft/server/PlayerConnection.java
+@@ -663,7 +663,7 @@ public class PlayerConnection extends Connection {
+         }
+ 
+         itemstack = this.player.inventory.getItemInHand();
+-        if (itemstack != null && itemstack.count == 0) {
++        if (itemstack != null && itemstack.count <= 0) { // EMC
+             this.player.inventory.items[this.player.inventory.itemInHandIndex] = null;
+             itemstack = null;
+         }
+diff --git a/src/main/java/net/minecraft/server/PlayerInteractManager.java b/src/main/java/net/minecraft/server/PlayerInteractManager.java
+index 1a60229..d7229b1 100644
+--- a/src/main/java/net/minecraft/server/PlayerInteractManager.java
++++ b/src/main/java/net/minecraft/server/PlayerInteractManager.java
+@@ -353,7 +353,7 @@ public class PlayerInteractManager {
+                 }
+             }
+ 
+-            if (itemstack1.count == 0) {
++            if (itemstack1.count <= 0) { // EMC
+                 entityhuman.inventory.items[entityhuman.inventory.itemInHandIndex] = null;
+             }
+ 
+diff --git a/src/main/java/net/minecraft/server/PlayerInventory.java b/src/main/java/net/minecraft/server/PlayerInventory.java
+index 7cf491a..baedc2d 100644
+--- a/src/main/java/net/minecraft/server/PlayerInventory.java
++++ b/src/main/java/net/minecraft/server/PlayerInventory.java
+@@ -488,7 +488,7 @@ public class PlayerInventory implements IInventory {
+ 
+     public ItemStack getCarried() {
+         // CraftBukkit start
+-        if (this.g != null && this.g.count == 0) {
++        if (this.g != null && this.g.count <= 0) { // EMC
+             this.setCarried(null);
+         }
+         // CraftBukkit end
+diff --git a/src/main/java/net/minecraft/server/Slot.java b/src/main/java/net/minecraft/server/Slot.java
+index 48d13e4..007e1c4 100644
+--- a/src/main/java/net/minecraft/server/Slot.java
++++ b/src/main/java/net/minecraft/server/Slot.java
+@@ -48,6 +48,7 @@ public class Slot {
+     }
+ 
+     public void set(ItemStack itemstack) {
++        if (itemstack != null && itemstack.count < 0) itemstack.count = 0; // EMC
+         this.inventory.setItem(this.index, itemstack);
+         this.f();
+     }
+diff --git a/src/main/java/net/minecraft/server/TileEntityDispenser.java b/src/main/java/net/minecraft/server/TileEntityDispenser.java
+index 3476720..ddb7225 100644
+--- a/src/main/java/net/minecraft/server/TileEntityDispenser.java
++++ b/src/main/java/net/minecraft/server/TileEntityDispenser.java
+@@ -100,6 +100,7 @@ public class TileEntityDispenser extends TileEntity implements IInventory {
+ 
+     public void setItem(int i, ItemStack itemstack) {
+         this.items[i] = itemstack;
++        if (itemstack != null && itemstack.count < 0) itemstack.count = 0; // EMC
+         if (itemstack != null && itemstack.count > this.getMaxStackSize()) {
+             itemstack.count = this.getMaxStackSize();
+         }
+-- 
+1.8.3.2
+

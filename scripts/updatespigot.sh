@@ -18,9 +18,16 @@ function update {
     git reset --hard spigot/master
     git fetch upstream
     git reset --soft upstream/upstream
-    git commit -a --author="md_5 <md_5@bigpond.com>" -m "Spigot"
+    if [[ $1 == "CraftBukkit" ]]; then
+        $basedir/scripts/importmcdev.sh
+    fi
+    git add .
+    git commit -a --author="md_5 <md_5@bigpond.com>" -m "Spigot" > /dev/null
     git format-patch --stdout HEAD^ > ../patches/$target/0001-Spigot.patch
     git co master
+    cd $basedir/patches/$target
+    git add 0001-Spigot.patch
+    cleanupPatches $basedir/patches/$target
 }
 
 update Bukkit

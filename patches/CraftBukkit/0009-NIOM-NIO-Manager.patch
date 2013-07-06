@@ -1,4 +1,4 @@
-From c8b1957ceb0642023bb09896faca912f4d29e799 Mon Sep 17 00:00:00 2001
+From d9f737a35541ff4e78ed2de3f04c0e05f575be69 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Fri, 15 Feb 2013 20:10:44 -0500
 Subject: [PATCH] NIOM - NIO Manager
@@ -18,11 +18,8 @@ Network threads are no longer interrupted every tick, letting them sleep as much
  .../server/DedicatedServerConnectionThread.java    |  2 +-
  .../java/net/minecraft/server/NetworkManager.java  | 34 +++++++--
  .../net/minecraft/server/NetworkWriterThread.java  |  8 +-
- src/main/java/net/minecraft/server/Packet.java     |  2 +-
- .../net/minecraft/server/Packet51MapChunk.java     |  1 +
  .../net/minecraft/server/Packet56MapChunkBulk.java |  1 +
- .../org/spigotmc/MultiplexingServerConnection.java |  2 +-
- 9 files changed, 184 insertions(+), 12 deletions(-)
+ 6 files changed, 181 insertions(+), 10 deletions(-)
  create mode 100644 src/main/java/com/empireminecraft/niom/NiomOutputStream.java
  create mode 100644 src/main/java/com/empireminecraft/niom/PacketQueue.java
 
@@ -185,7 +182,7 @@ index 0000000..142d98d
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/DedicatedServerConnectionThread.java b/src/main/java/net/minecraft/server/DedicatedServerConnectionThread.java
-index 5f2e42e..a0adf3b 100644
+index e62f738..ec55db7 100644
 --- a/src/main/java/net/minecraft/server/DedicatedServerConnectionThread.java
 +++ b/src/main/java/net/minecraft/server/DedicatedServerConnectionThread.java
 @@ -25,7 +25,7 @@ public class DedicatedServerConnectionThread extends Thread {
@@ -198,7 +195,7 @@ index 5f2e42e..a0adf3b 100644
          this.d.setPerformancePreferences(0, 2, 1);
      }
 diff --git a/src/main/java/net/minecraft/server/NetworkManager.java b/src/main/java/net/minecraft/server/NetworkManager.java
-index 5a24f2a..2492662 100644
+index fd6acab..6083d69 100644
 --- a/src/main/java/net/minecraft/server/NetworkManager.java
 +++ b/src/main/java/net/minecraft/server/NetworkManager.java
 @@ -1,5 +1,11 @@
@@ -212,8 +209,8 @@ index 5a24f2a..2492662 100644
 +
  import java.io.BufferedOutputStream;
  import java.io.DataInputStream;
- import java.io.DataOutputStream;
-@@ -22,6 +28,7 @@ public class NetworkManager implements INetworkManager {
+ import java.io.DataOutput;
+@@ -25,6 +31,7 @@ public class NetworkManager implements INetworkManager {
      public static AtomicInteger a = new AtomicInteger();
      public static AtomicInteger b = new AtomicInteger();
      private final Object h = new Object();
@@ -221,10 +218,10 @@ index 5a24f2a..2492662 100644
      private final IConsoleLogManager i;
      public Socket socket; // CraftBukkit - private -> public
      private SocketAddress k; // Spigot - remove final
-@@ -30,8 +37,12 @@ public class NetworkManager implements INetworkManager {
+@@ -33,8 +40,12 @@ public class NetworkManager implements INetworkManager {
      private volatile boolean n = true;
-     private volatile boolean o = false;
-     private java.util.Queue inboundQueue = new java.util.concurrent.ConcurrentLinkedQueue(); // CraftBukkit - Concurrent linked queue
+     private volatile boolean o;
+     private Queue inboundQueue = new ConcurrentLinkedQueue();
 -    private List highPriorityQueue = Collections.synchronizedList(new ArrayList());
 -    private List lowPriorityQueue = Collections.synchronizedList(new ArrayList());
 +    // EMC start
@@ -234,9 +231,9 @@ index 5a24f2a..2492662 100644
 +    public List<Packet> lowPriorityQueue = new PacketQueue(counter);
 +    // EMC end
      private Connection connection;
-     private boolean t = false;
+     private boolean t;
      private Thread u;
-@@ -64,7 +75,8 @@ public class NetworkManager implements INetworkManager {
+@@ -67,7 +78,8 @@ public class NetworkManager implements INetworkManager {
          }
  
          this.input = new DataInputStream(socket.getInputStream());
@@ -246,7 +243,7 @@ index 5a24f2a..2492662 100644
          this.v = new NetworkReaderThread(this, s + " read thread");
          this.u = new NetworkWriterThread(this, s + " write thread");
          this.v.start();
-@@ -81,7 +93,8 @@ public class NetworkManager implements INetworkManager {
+@@ -84,7 +96,8 @@ public class NetworkManager implements INetworkManager {
  
              synchronized (this.h) {
                  this.z += packet.a() + 1;
@@ -256,16 +253,16 @@ index 5a24f2a..2492662 100644
              }
          }
      }
-@@ -94,7 +107,7 @@ public class NetworkManager implements INetworkManager {
+@@ -97,7 +110,7 @@ public class NetworkManager implements INetworkManager {
              int i;
              int[] aint;
  
--            if (this.e == 0 || !this.highPriorityQueue.isEmpty() && System.currentTimeMillis() - ((Packet) this.highPriorityQueue.get(0)).timestamp >= (long) this.e) {
+-            if (this.e == 0 || !this.highPriorityQueue.isEmpty() && MinecraftServer.aq() - ((Packet) this.highPriorityQueue.get(0)).timestamp >= (long) this.e) {
 +            if (!this.highPriorityQueue.isEmpty()) { // EMC
                  packet = this.a(false);
                  if (packet != null) {
-                     Packet.a(packet, this.output);
-@@ -114,7 +127,9 @@ public class NetworkManager implements INetworkManager {
+                     Packet.a(packet, (DataOutput) this.output);
+@@ -117,7 +130,9 @@ public class NetworkManager implements INetworkManager {
              }
  
              // CraftBukkit - don't allow low priority packet to be sent unless it was placed in the queue before the first packet on the high priority queue TODO: is this still right?
@@ -275,8 +272,8 @@ index 5a24f2a..2492662 100644
 +            if (lowId != Long.MAX_VALUE && (lowId < highId)) { // EMC
                  packet = this.a(true);
                  if (packet != null) {
-                     Packet.a(packet, this.output);
-@@ -145,6 +160,7 @@ public class NetworkManager implements INetworkManager {
+                     Packet.a(packet, (DataOutput) this.output);
+@@ -148,6 +163,7 @@ public class NetworkManager implements INetworkManager {
              while (!list.isEmpty() && packet == null) {
                  packet = (Packet) list.remove(0);
                  this.z -= packet.a() + 1;
@@ -284,7 +281,7 @@ index 5a24f2a..2492662 100644
                  if (this.a(packet, flag)) {
                      packet = null;
                  }
-@@ -176,6 +192,7 @@ public class NetworkManager implements INetworkManager {
+@@ -179,6 +195,7 @@ public class NetworkManager implements INetworkManager {
      }
  
      public void a() {
@@ -292,7 +289,7 @@ index 5a24f2a..2492662 100644
          if (this.v != null) {
              this.v.interrupt();
          }
-@@ -219,6 +236,7 @@ public class NetworkManager implements INetworkManager {
+@@ -222,6 +239,7 @@ public class NetworkManager implements INetworkManager {
              }
  
              return flag;
@@ -300,7 +297,7 @@ index 5a24f2a..2492662 100644
          } catch (Exception exception) {
              if (!this.o) {
                  this.a(exception);
-@@ -321,9 +339,9 @@ public class NetworkManager implements INetworkManager {
+@@ -326,9 +344,9 @@ public class NetworkManager implements INetworkManager {
      private void k() throws IOException { // CraftBukkit - throws IOException
          this.output.flush();
          this.g = true;
@@ -331,33 +328,8 @@ index 68d84de..be24c6e 100644
                  } catch (InterruptedException interruptedexception) {
                      ;
                  }
-diff --git a/src/main/java/net/minecraft/server/Packet.java b/src/main/java/net/minecraft/server/Packet.java
-index 4e809f3..816840b 100644
---- a/src/main/java/net/minecraft/server/Packet.java
-+++ b/src/main/java/net/minecraft/server/Packet.java
-@@ -114,7 +114,7 @@ public abstract class Packet {
-             ++o;
-             p += (long) packet.a();
-         } catch (EOFException eofexception) {
--            iconsolelogmanager.severe("Reached end of stream");
-+            iconsolelogmanager.info("Reached end of stream"); // EMC
-             return null;
-         }
- 
-diff --git a/src/main/java/net/minecraft/server/Packet51MapChunk.java b/src/main/java/net/minecraft/server/Packet51MapChunk.java
-index 9cf625d..9a36237 100644
---- a/src/main/java/net/minecraft/server/Packet51MapChunk.java
-+++ b/src/main/java/net/minecraft/server/Packet51MapChunk.java
-@@ -33,6 +33,7 @@ public class Packet51MapChunk extends Packet {
-         this.d = 0;
-         this.size = unloadSequence.length;
-         this.buffer = unloadSequence;
-+        this.lowPriority = true; // EMC
-     }
-     // Spigot end
- 
 diff --git a/src/main/java/net/minecraft/server/Packet56MapChunkBulk.java b/src/main/java/net/minecraft/server/Packet56MapChunkBulk.java
-index fb34d4a..18a833f 100644
+index 63dd8d3..52cab58 100644
 --- a/src/main/java/net/minecraft/server/Packet56MapChunkBulk.java
 +++ b/src/main/java/net/minecraft/server/Packet56MapChunkBulk.java
 @@ -30,6 +30,7 @@ public class Packet56MapChunkBulk extends Packet {
@@ -368,19 +340,6 @@ index fb34d4a..18a833f 100644
      public Packet56MapChunkBulk() {}
  
      public Packet56MapChunkBulk(List list) {
-diff --git a/src/main/java/org/spigotmc/MultiplexingServerConnection.java b/src/main/java/org/spigotmc/MultiplexingServerConnection.java
-index c8ea80a..4884a32 100644
---- a/src/main/java/org/spigotmc/MultiplexingServerConnection.java
-+++ b/src/main/java/org/spigotmc/MultiplexingServerConnection.java
-@@ -17,7 +17,7 @@ import org.bukkit.Bukkit;
- 
- public class MultiplexingServerConnection extends ServerConnection {
- 
--    private static final boolean NETTY_DISABLED = Boolean.getBoolean("org.spigotmc.netty.disabled");
-+    private static final boolean NETTY_DISABLED = true; // EMC
-     private final Collection<ServerConnection> children = new HashSet<ServerConnection>();
-     private final List<PendingConnection> pending = Collections.synchronizedList(new ArrayList<PendingConnection>());
-     private final HashMap<InetAddress, Long> throttle = new HashMap<InetAddress, Long>();
 -- 
-1.8.2.3
+1.8.3.2
 
