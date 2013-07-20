@@ -1,6 +1,6 @@
-From 53bc00ea19acd59346eddf4458dddeecc3674780 Mon Sep 17 00:00:00 2001
+From 834e08d23a3fc42f24726ebb0c5451ad1d69a32b Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Wed, 10 Jul 2013 23:32:27 -0400
+Date: Sat, 20 Jul 2013 19:36:55 -0400
 Subject: [PATCH] Spigot
 
 ---
@@ -24,6 +24,7 @@ Subject: [PATCH] Spigot
  .../java/net/minecraft/server/EntityAgeable.java   |  25 +
  .../java/net/minecraft/server/EntityArrow.java     |   2 +-
  .../net/minecraft/server/EntityFallingBlock.java   |   1 +
+ .../java/net/minecraft/server/EntityHuman.java     |   1 +
  src/main/java/net/minecraft/server/EntityItem.java |  17 +-
  .../java/net/minecraft/server/EntityLiving.java    |   7 +
  .../minecraft/server/EntityMinecartContainer.java  |   6 +
@@ -62,7 +63,7 @@ Subject: [PATCH] Spigot
  .../net/minecraft/server/ThreadLoginVerifier.java  |  41 +-
  src/main/java/net/minecraft/server/TileEntity.java |   2 +
  .../net/minecraft/server/TileEntityHopper.java     |  21 +-
- src/main/java/net/minecraft/server/World.java      | 183 +++++-
+ src/main/java/net/minecraft/server/World.java      | 203 +++++--
  .../net/minecraft/server/WorldMapHumanTracker.java |  24 +-
  .../java/net/minecraft/server/WorldServer.java     | 229 +++++---
  .../java/org/bukkit/craftbukkit/CraftChunk.java    |  44 +-
@@ -74,7 +75,6 @@ Subject: [PATCH] Spigot
  .../command/ConsoleCommandCompleter.java           |  46 ++
  .../craftbukkit/command/TicksPerSecondCommand.java |  35 ++
  .../org/bukkit/craftbukkit/entity/CraftArrow.java  |  22 +
- .../craftbukkit/entity/CraftLivingEntity.java      |   4 +-
  .../org/bukkit/craftbukkit/entity/CraftPlayer.java |  75 ++-
  .../craftbukkit/event/CraftEventFactory.java       |  17 +
  .../craftbukkit/inventory/CraftInventoryAnvil.java |  22 +
@@ -82,8 +82,9 @@ Subject: [PATCH] Spigot
  .../org/bukkit/craftbukkit/map/CraftMapView.java   |   2 +-
  .../craftbukkit/scheduler/CraftScheduler.java      |   2 +-
  .../bukkit/craftbukkit/scheduler/CraftTask.java    |  18 +
- .../org/bukkit/craftbukkit/util/LongHashSet.java   |  25 +-
- .../bukkit/craftbukkit/util/LongObjectHashMap.java |  11 +
+ .../java/org/bukkit/craftbukkit/util/LongHash.java |   2 +-
+ .../org/bukkit/craftbukkit/util/LongHashSet.java   |  33 +-
+ .../bukkit/craftbukkit/util/LongObjectHashMap.java |  15 +
  .../org/bukkit/craftbukkit/util/Versioning.java    |   2 +-
  src/main/java/org/spigotmc/ActivationRange.java    | 296 ++++++++++
  src/main/java/org/spigotmc/AntiXray.java           | 204 +++++++
@@ -92,21 +93,21 @@ Subject: [PATCH] Spigot
  src/main/java/org/spigotmc/Metrics.java            | 645 +++++++++++++++++++++
  src/main/java/org/spigotmc/RestartCommand.java     | 111 ++++
  src/main/java/org/spigotmc/SpamHaus.java           |  44 ++
- src/main/java/org/spigotmc/SpigotConfig.java       | 283 +++++++++
- src/main/java/org/spigotmc/SpigotWorldConfig.java  | 197 +++++++
+ src/main/java/org/spigotmc/SpigotConfig.java       | 289 +++++++++
+ src/main/java/org/spigotmc/SpigotWorldConfig.java  | 206 +++++++
  src/main/java/org/spigotmc/TrackingRange.java      |  45 ++
  src/main/java/org/spigotmc/WatchdogThread.java     | 110 ++++
  src/main/java/org/spigotmc/netty/CipherBase.java   |  73 +++
  .../java/org/spigotmc/netty/CipherDecoder.java     |  24 +
  .../java/org/spigotmc/netty/CipherEncoder.java     |  23 +
- .../org/spigotmc/netty/NettyNetworkManager.java    | 312 ++++++++++
+ .../org/spigotmc/netty/NettyNetworkManager.java    | 307 ++++++++++
  .../org/spigotmc/netty/NettyServerConnection.java  | 170 ++++++
  .../org/spigotmc/netty/NettySocketAdaptor.java     | 294 ++++++++++
  .../java/org/spigotmc/netty/PacketDecoder.java     |  80 +++
  .../java/org/spigotmc/netty/PacketListener.java    | 112 ++++
  src/main/java/org/spigotmc/netty/PacketWriter.java |  85 +++
  src/main/java/org/spigotmc/netty/ReadState.java    |  17 +
- 102 files changed, 5453 insertions(+), 381 deletions(-)
+ 103 files changed, 5491 insertions(+), 384 deletions(-)
  create mode 100644 src/main/java/net/minecraft/server/INetworkManager.java
  create mode 100644 src/main/java/net/minecraft/server/LocaleLanguage.java
  create mode 100644 src/main/java/net/minecraft/server/NextTickListEntry.java
@@ -142,7 +143,7 @@ Subject: [PATCH] Spigot
  create mode 100644 src/main/java/org/spigotmc/netty/ReadState.java
 
 diff --git a/pom.xml b/pom.xml
-index 8139fbf..4cffec7 100644
+index 8139fbf..a9d2132 100644
 --- a/pom.xml
 +++ b/pom.xml
 @@ -1,12 +1,20 @@
@@ -253,12 +254,12 @@ index 8139fbf..4cffec7 100644
 +    <dependency>
 +      <groupId>io.netty</groupId>
 +      <artifactId>netty-codec</artifactId>
-+      <version>4.0.0.CR9</version>
++      <version>4.0.3.Final</version>
 +    </dependency>
 +    <dependency>
 +      <groupId>io.netty</groupId>
 +      <artifactId>netty-handler</artifactId>
-+      <version>4.0.0.CR9</version>
++      <version>4.0.3.Final</version>
 +    </dependency>
 +    <dependency>
 +      <groupId>org.javassist</groupId>
@@ -776,7 +777,7 @@ index 1a58814..b83a803 100644
                      world.triggerEffect(2005, i, j, k, 0);
                  }
 diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
-index 671384d..0653ff2 100644
+index 50edbdb..ee1ce90 100644
 --- a/src/main/java/net/minecraft/server/Entity.java
 +++ b/src/main/java/net/minecraft/server/Entity.java
 @@ -14,6 +14,7 @@ import org.bukkit.block.BlockFace;
@@ -848,15 +849,15 @@ index 671384d..0653ff2 100644
      }
  
      protected void C() {
-@@ -1404,6 +1421,7 @@ public abstract class Entity {
-                     pluginManager.callEvent(event);
+@@ -1410,6 +1427,7 @@ public abstract class Entity {
+                     }
                  }
                  // CraftBukkit end
 +                pluginManager.callEvent( new org.spigotmc.event.entity.EntityDismountEvent( this.getBukkitEntity(), this.vehicle.getBukkitEntity() ) ); // Spigot
  
                  this.setPositionRotation(this.vehicle.locX, this.vehicle.boundingBox.b + (double) this.vehicle.length, this.vehicle.locZ, this.yaw, this.pitch);
                  this.vehicle.passenger = null;
-@@ -1421,6 +1439,17 @@ public abstract class Entity {
+@@ -1445,6 +1463,17 @@ public abstract class Entity {
                  }
              }
              // CraftBukkit end
@@ -935,6 +936,18 @@ index daa376c..79c94dc 100644
                  }
  
                  if (this.onGround) {
+diff --git a/src/main/java/net/minecraft/server/EntityHuman.java b/src/main/java/net/minecraft/server/EntityHuman.java
+index e1a3ca1..adb27d8 100644
+--- a/src/main/java/net/minecraft/server/EntityHuman.java
++++ b/src/main/java/net/minecraft/server/EntityHuman.java
+@@ -304,6 +304,7 @@ public abstract class EntityHuman extends EntityLiving implements ICommandListen
+     public void setPassengerOf(Entity entity) {
+         // CraftBukkit end
+         if (this.vehicle != null && entity == null) {
++            world.getServer().getPluginManager().callEvent( new org.spigotmc.event.entity.EntityDismountEvent( this.getBukkitEntity(), this.vehicle.getBukkitEntity() ) ); // Spigot
+             // CraftBukkit start - use parent method instead to correctly fire VehicleExitEvent
+             Entity originalVehicle = this.vehicle;
+             // First statement moved down, second statement handled in parent method.
 diff --git a/src/main/java/net/minecraft/server/EntityItem.java b/src/main/java/net/minecraft/server/EntityItem.java
 index 8e1b024..0b8756b 100644
 --- a/src/main/java/net/minecraft/server/EntityItem.java
@@ -1006,7 +1019,7 @@ index e89b106..f58cd7e 100644
          super.b(i);
      }
 diff --git a/src/main/java/net/minecraft/server/EntityPlayer.java b/src/main/java/net/minecraft/server/EntityPlayer.java
-index 2191b07..5c9babf 100644
+index 955b75c..9a986f4 100644
 --- a/src/main/java/net/minecraft/server/EntityPlayer.java
 +++ b/src/main/java/net/minecraft/server/EntityPlayer.java
 @@ -51,6 +51,7 @@ public class EntityPlayer extends EntityHuman implements ICrafting {
@@ -2928,7 +2941,7 @@ index e8cd525..44ddf35 100644
                  }
  
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index 0435ca7..8bd7876 100644
+index 0435ca7..ba1c1ca 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
 @@ -13,6 +13,7 @@ import java.util.concurrent.Callable;
@@ -3130,7 +3143,41 @@ index 0435ca7..8bd7876 100644
  
          double d0 = 0.25D;
          List list = this.getEntities(entity, axisalignedbb.grow(d0, d0, d0));
-@@ -1198,6 +1276,8 @@ public abstract class World implements IBlockAccess {
+@@ -1143,6 +1221,7 @@ public abstract class World implements IBlockAccess {
+         CrashReport crashreport;
+         CrashReportSystemDetails crashreportsystemdetails;
+ 
++        long lastChunk = Long.MIN_VALUE; // Spigot - cache chunk x, z cords for unload queue
+         for (i = 0; i < this.i.size(); ++i) {
+             entity = (Entity) this.i.get(i);
+             // CraftBukkit start - Fixed an NPE, don't process entities in chunks queued for unload
+@@ -1151,10 +1230,15 @@ public abstract class World implements IBlockAccess {
+             }
+ 
+             ChunkProviderServer chunkProviderServer = ((WorldServer) this).chunkProviderServer;
+-            if (chunkProviderServer.unloadQueue.contains(MathHelper.floor(entity.locX) >> 4, MathHelper.floor(entity.locZ) >> 4)) {
+-                continue;
++            // Spigot start - check last chunk to see if this loaded (fast cache)
++            long chunk = org.bukkit.craftbukkit.util.LongHash.toLong(MathHelper.floor(entity.locX) >> 4, MathHelper.floor(entity.locZ) >> 4);
++            if (lastChunk != chunk) {
++                if (chunkProviderServer.unloadQueue.contains(chunk)) { // Spigot end
++                    continue;
++                }
+             }
+             // CraftBukkit end
++            lastChunk = chunk; // Spigot
+ 
+             try {
+                 ++entity.ticksLived;
+@@ -1175,6 +1259,7 @@ public abstract class World implements IBlockAccess {
+                 this.i.remove(i--);
+             }
+         }
++        lastChunk = Long.MIN_VALUE; // Spigot
+ 
+         this.methodProfiler.c("remove");
+         this.entityList.removeAll(this.f);
+@@ -1198,15 +1283,22 @@ public abstract class World implements IBlockAccess {
          this.f.clear();
          this.methodProfiler.c("regular");
  
@@ -3139,7 +3186,23 @@ index 0435ca7..8bd7876 100644
          for (i = 0; i < this.entityList.size(); ++i) {
              entity = (Entity) this.entityList.get(i);
  
-@@ -1220,7 +1300,9 @@ public abstract class World implements IBlockAccess {
+             // CraftBukkit start - Don't tick entities in chunks queued for unload
+             ChunkProviderServer chunkProviderServer = ((WorldServer) this).chunkProviderServer;
+-            if (chunkProviderServer.unloadQueue.contains(MathHelper.floor(entity.locX) >> 4, MathHelper.floor(entity.locZ) >> 4)) {
+-                continue;
++            // Spigot start - check last chunk to see if this loaded (fast cache)
++            long chunk = org.bukkit.craftbukkit.util.LongHash.toLong(MathHelper.floor(entity.locX) >> 4, MathHelper.floor(entity.locZ) >> 4);
++            if (lastChunk != chunk) {
++                if (chunkProviderServer.unloadQueue.contains(chunk)) { // Spigot end
++                    continue;
++                }
+             }
+             // CraftBukkit end
++            lastChunk = Long.MIN_VALUE; // Spigot
+ 
+             if (entity.vehicle != null) {
+                 if (!entity.vehicle.dead && entity.vehicle.passenger == entity) {
+@@ -1220,7 +1312,9 @@ public abstract class World implements IBlockAccess {
              this.methodProfiler.a("tick");
              if (!entity.dead) {
                  try {
@@ -3149,7 +3212,7 @@ index 0435ca7..8bd7876 100644
                  } catch (Throwable throwable1) {
                      crashreport = CrashReport.a(throwable1, "Ticking entity");
                      crashreportsystemdetails = crashreport.a("Entity being ticked");
-@@ -1245,12 +1327,21 @@ public abstract class World implements IBlockAccess {
+@@ -1245,12 +1339,21 @@ public abstract class World implements IBlockAccess {
              this.methodProfiler.b();
          }
  
@@ -3171,7 +3234,7 @@ index 0435ca7..8bd7876 100644
              // CraftBukkit start - Don't tick entities in chunks queued for unload
              ChunkProviderServer chunkProviderServer = ((WorldServer) this).chunkProviderServer;
              if (chunkProviderServer.unloadQueue.contains(tileentity.x >> 4, tileentity.z >> 4)) {
-@@ -1260,8 +1351,11 @@ public abstract class World implements IBlockAccess {
+@@ -1260,8 +1363,11 @@ public abstract class World implements IBlockAccess {
  
              if (!tileentity.r() && tileentity.o() && this.isLoaded(tileentity.x, tileentity.y, tileentity.z)) {
                  try {
@@ -3183,7 +3246,7 @@ index 0435ca7..8bd7876 100644
                      crashreport = CrashReport.a(throwable2, "Ticking tile entity");
                      crashreportsystemdetails = crashreport.a("Tile entity being ticked");
                      tileentity.a(crashreportsystemdetails);
-@@ -1281,6 +1375,8 @@ public abstract class World implements IBlockAccess {
+@@ -1281,6 +1387,8 @@ public abstract class World implements IBlockAccess {
              }
          }
  
@@ -3192,7 +3255,7 @@ index 0435ca7..8bd7876 100644
          this.N = false;
          if (!this.b.isEmpty()) {
              this.tileEntityList.removeAll(this.b);
-@@ -1319,6 +1415,7 @@ public abstract class World implements IBlockAccess {
+@@ -1319,6 +1427,7 @@ public abstract class World implements IBlockAccess {
              this.a.clear();
          }
  
@@ -3200,7 +3263,7 @@ index 0435ca7..8bd7876 100644
          this.methodProfiler.b();
          this.methodProfiler.b();
      }
-@@ -1340,7 +1437,13 @@ public abstract class World implements IBlockAccess {
+@@ -1340,7 +1449,13 @@ public abstract class World implements IBlockAccess {
          int j = MathHelper.floor(entity.locZ);
          byte b0 = 32;
  
@@ -3215,7 +3278,7 @@ index 0435ca7..8bd7876 100644
              entity.U = entity.locX;
              entity.V = entity.locY;
              entity.W = entity.locZ;
-@@ -1402,6 +1505,7 @@ public abstract class World implements IBlockAccess {
+@@ -1402,6 +1517,7 @@ public abstract class World implements IBlockAccess {
                      entity.passenger = null;
                  }
              }
@@ -3223,7 +3286,7 @@ index 0435ca7..8bd7876 100644
          }
      }
  
-@@ -1953,24 +2057,44 @@ public abstract class World implements IBlockAccess {
+@@ -1953,24 +2069,44 @@ public abstract class World implements IBlockAccess {
          int j;
          int k;
  
@@ -3278,7 +3341,7 @@ index 0435ca7..8bd7876 100644
          }
  
          this.methodProfiler.b();
-@@ -1979,7 +2103,7 @@ public abstract class World implements IBlockAccess {
+@@ -1979,7 +2115,7 @@ public abstract class World implements IBlockAccess {
          }
  
          this.methodProfiler.a("playerCheckLight");
@@ -3287,7 +3350,7 @@ index 0435ca7..8bd7876 100644
              i = this.random.nextInt(this.players.size());
              entityhuman = (EntityHuman) this.players.get(i);
              j = MathHelper.floor(entityhuman.locX) + this.random.nextInt(11) - 5;
-@@ -2354,6 +2478,7 @@ public abstract class World implements IBlockAccess {
+@@ -2354,6 +2490,7 @@ public abstract class World implements IBlockAccess {
      }
  
      public void a(List list) {
@@ -4344,28 +4407,6 @@ index b46b9c4..d197c5a 100644
 +    }
 +    // Spigot end
  }
-diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftLivingEntity.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftLivingEntity.java
-index 3db1b22..443dde9 100644
---- a/src/main/java/org/bukkit/craftbukkit/entity/CraftLivingEntity.java
-+++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftLivingEntity.java
-@@ -258,7 +258,7 @@ public class CraftLivingEntity extends CraftEntity implements LivingEntity {
-             }
-             removePotionEffect(effect.getType());
-         }
--        getHandle().addEffect(new MobEffect(effect.getType().getId(), effect.getDuration(), effect.getAmplifier()));
-+        getHandle().addEffect(new MobEffect(effect.getType().getId(), effect.getDuration(), effect.getAmplifier(), effect.isAmbient()));
-         return true;
-     }
- 
-@@ -284,7 +284,7 @@ public class CraftLivingEntity extends CraftEntity implements LivingEntity {
-             if (!(raw instanceof MobEffect))
-                 continue;
-             MobEffect handle = (MobEffect) raw;
--            effects.add(new PotionEffect(PotionEffectType.getById(handle.getEffectId()), handle.getDuration(), handle.getAmplifier()));
-+            effects.add(new PotionEffect(PotionEffectType.getById(handle.getEffectId()), handle.getDuration(), handle.getAmplifier(), handle.isAmbient()));
-         }
-         return effects;
-     }
 diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
 index 977adff..88dcced 100644
 --- a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
@@ -4640,8 +4681,20 @@ index 55db3ff..d644d08 100644
      }
  
      long getPeriod() {
+diff --git a/src/main/java/org/bukkit/craftbukkit/util/LongHash.java b/src/main/java/org/bukkit/craftbukkit/util/LongHash.java
+index 691cafd..9d54472 100644
+--- a/src/main/java/org/bukkit/craftbukkit/util/LongHash.java
++++ b/src/main/java/org/bukkit/craftbukkit/util/LongHash.java
+@@ -10,6 +10,6 @@ public class LongHash {
+     }
+ 
+     public static int lsw(long l) {
+-        return (int) (l & 0xFFFFFFFF) + Integer.MIN_VALUE;
++        return (int) (l) + Integer.MIN_VALUE; // Spigot - remove redundant &
+     }
+ }
 diff --git a/src/main/java/org/bukkit/craftbukkit/util/LongHashSet.java b/src/main/java/org/bukkit/craftbukkit/util/LongHashSet.java
-index 22c96c5..7c3005e 100644
+index 22c96c5..7f659b7 100644
 --- a/src/main/java/org/bukkit/craftbukkit/util/LongHashSet.java
 +++ b/src/main/java/org/bukkit/craftbukkit/util/LongHashSet.java
 @@ -31,6 +31,7 @@ public class LongHashSet {
@@ -4652,11 +4705,15 @@ index 22c96c5..7c3005e 100644
  
      public LongHashSet() {
          this(INITIAL_SIZE);
-@@ -56,10 +57,22 @@ public class LongHashSet {
+@@ -56,10 +57,30 @@ public class LongHashSet {
      }
  
      public boolean contains(int msw, int lsw) {
 +        // Spigot start
++        if ( elements == 0 )
++        {
++            return false;
++        }
 +        if ( flat.contains( msw, lsw ) )
 +        {
 +            return true;
@@ -4667,6 +4724,10 @@ index 22c96c5..7c3005e 100644
  
      public boolean contains(long value) {
 +        // Spigot start
++        if ( elements == 0 )
++        {
++            return false;
++        }
 +        if ( flat.contains( value ) )
 +        {
 +            return true;
@@ -4675,7 +4736,7 @@ index 22c96c5..7c3005e 100644
          int hash = hash(value);
          int index = (hash & 0x7FFFFFFF) % values.length;
          int offset = 1;
-@@ -82,6 +95,7 @@ public class LongHashSet {
+@@ -82,6 +103,7 @@ public class LongHashSet {
      }
  
      public boolean add(long value) {
@@ -4683,7 +4744,7 @@ index 22c96c5..7c3005e 100644
          int hash = hash(value);
          int index = (hash & 0x7FFFFFFF) % values.length;
          int offset = 1;
-@@ -125,10 +139,18 @@ public class LongHashSet {
+@@ -125,10 +147,18 @@ public class LongHashSet {
      }
  
      public void remove(int msw, int lsw) {
@@ -4703,7 +4764,7 @@ index 22c96c5..7c3005e 100644
          int hash = hash(value);
          int index = (hash & 0x7FFFFFFF) % values.length;
          int offset = 1;
-@@ -161,6 +183,7 @@ public class LongHashSet {
+@@ -161,6 +191,7 @@ public class LongHashSet {
  
          freeEntries = values.length;
          modCount++;
@@ -4712,7 +4773,7 @@ index 22c96c5..7c3005e 100644
  
      public long[] toArray() {
 diff --git a/src/main/java/org/bukkit/craftbukkit/util/LongObjectHashMap.java b/src/main/java/org/bukkit/craftbukkit/util/LongObjectHashMap.java
-index 01861cc..08b543b 100644
+index 01861cc..2e5b436 100644
 --- a/src/main/java/org/bukkit/craftbukkit/util/LongObjectHashMap.java
 +++ b/src/main/java/org/bukkit/craftbukkit/util/LongObjectHashMap.java
 @@ -28,6 +28,7 @@ public class LongObjectHashMap<V> implements Cloneable, Serializable {
@@ -4723,11 +4784,15 @@ index 01861cc..08b543b 100644
  
      public LongObjectHashMap() {
          initialize();
-@@ -61,6 +62,13 @@ public class LongObjectHashMap<V> implements Cloneable, Serializable {
+@@ -61,6 +62,17 @@ public class LongObjectHashMap<V> implements Cloneable, Serializable {
      }
  
      public V get(long key) {
 +        // Spigot start
++        if ( size == 0 )
++        {
++            return null;
++        }
 +        V val = flat.get( key );
 +        if ( val != null )
 +        {
@@ -4737,7 +4802,7 @@ index 01861cc..08b543b 100644
          int index = (int) (keyIndex(key) & (BUCKET_SIZE - 1));
          long[] inner = keys[index];
          if (inner == null) return null;
-@@ -78,6 +86,7 @@ public class LongObjectHashMap<V> implements Cloneable, Serializable {
+@@ -78,6 +90,7 @@ public class LongObjectHashMap<V> implements Cloneable, Serializable {
      }
  
      public V put(long key, V value) {
@@ -4745,7 +4810,7 @@ index 01861cc..08b543b 100644
          int index = (int) (keyIndex(key) & (BUCKET_SIZE - 1));
          long[] innerKeys = keys[index];
          V[] innerValues = values[index];
-@@ -124,6 +133,7 @@ public class LongObjectHashMap<V> implements Cloneable, Serializable {
+@@ -124,6 +137,7 @@ public class LongObjectHashMap<V> implements Cloneable, Serializable {
      }
  
      public V remove(long key) {
@@ -4753,7 +4818,7 @@ index 01861cc..08b543b 100644
          int index = (int) (keyIndex(key) & (BUCKET_SIZE - 1));
          long[] inner = keys[index];
          if (inner == null) {
-@@ -174,6 +184,7 @@ public class LongObjectHashMap<V> implements Cloneable, Serializable {
+@@ -174,6 +188,7 @@ public class LongObjectHashMap<V> implements Cloneable, Serializable {
          size = 0;
          Arrays.fill(keys, null);
          Arrays.fill(values, null);
@@ -5078,7 +5143,7 @@ index 0000000..9285a0d
 +}
 diff --git a/src/main/java/org/spigotmc/AntiXray.java b/src/main/java/org/spigotmc/AntiXray.java
 new file mode 100644
-index 0000000..48c8a99
+index 0000000..c165304
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/AntiXray.java
 @@ -0,0 +1,204 @@
@@ -5137,7 +5202,7 @@ index 0000000..48c8a99
 +        if ( world.spigotConfig.antiXray )
 +        {
 +            update.startTiming();
-+            updateNearbyBlocks( world, x, y, z, 2 ); // 2 is the radius, we shouldn't change it as that would make it exponentially slower
++            updateNearbyBlocks( world, x, y, z, 2, false ); // 2 is the radius, we shouldn't change it as that would make it exponentially slower
 +            update.stopTiming();
 +        }
 +    }
@@ -5234,7 +5299,7 @@ index 0000000..48c8a99
 +        }
 +    }
 +
-+    private void updateNearbyBlocks(World world, int x, int y, int z, int radius)
++    private void updateNearbyBlocks(World world, int x, int y, int z, int radius, boolean updateSelf)
 +    {
 +        // If the block in question is loaded
 +        if ( world.isLoaded( x, y, z ) )
@@ -5243,7 +5308,7 @@ index 0000000..48c8a99
 +            int id = world.getTypeId( x, y, z );
 +
 +            // See if it needs update
-+            if ( obfuscateBlocks[id] )
++            if ( updateSelf && obfuscateBlocks[id] )
 +            {
 +                // Send the update
 +                world.notify( x, y, z );
@@ -5252,12 +5317,12 @@ index 0000000..48c8a99
 +            // Check other blocks for updates
 +            if ( radius > 0 )
 +            {
-+                updateNearbyBlocks( world, x + 1, y, z, radius - 1 );
-+                updateNearbyBlocks( world, x - 1, y, z, radius - 1 );
-+                updateNearbyBlocks( world, x, y + 1, z, radius - 1 );
-+                updateNearbyBlocks( world, x, y - 1, z, radius - 1 );
-+                updateNearbyBlocks( world, x, y, z + 1, radius - 1 );
-+                updateNearbyBlocks( world, x, y, z - 1, radius - 1 );
++                updateNearbyBlocks( world, x + 1, y, z, radius - 1, true );
++                updateNearbyBlocks( world, x - 1, y, z, radius - 1, true );
++                updateNearbyBlocks( world, x, y + 1, z, radius - 1, true );
++                updateNearbyBlocks( world, x, y - 1, z, radius - 1, true );
++                updateNearbyBlocks( world, x, y, z + 1, radius - 1, true );
++                updateNearbyBlocks( world, x, y, z - 1, radius - 1, true );
 +            }
 +        }
 +    }
@@ -6207,10 +6272,10 @@ index 0000000..55d8d12
 +}
 diff --git a/src/main/java/org/spigotmc/SpigotConfig.java b/src/main/java/org/spigotmc/SpigotConfig.java
 new file mode 100644
-index 0000000..e8039d7
+index 0000000..c2d033c
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/SpigotConfig.java
-@@ -0,0 +1,283 @@
+@@ -0,0 +1,289 @@
 +package org.spigotmc;
 +
 +import com.google.common.base.Throwables;
@@ -6265,7 +6330,8 @@ index 0000000..e8039d7
 +
 +        commands = new HashMap<String, Command>();
 +
-+        version = getInt( "config-version", 1 );
++        version = getInt( "config-version", 2 );
++        set( "config-version", 2 );
 +        readConfig( SpigotConfig.class, null );
 +    }
 +
@@ -6319,6 +6385,11 @@ index 0000000..e8039d7
 +        {
 +            Bukkit.getLogger().log( Level.SEVERE, "Could not save " + CONFIG_FILE, ex );
 +        }
++    }
++
++    private static void set(String path, Object val)
++    {
++        config.set( path, val );
 +    }
 +
 +    private static boolean getBoolean(String path, boolean def)
@@ -6496,10 +6567,10 @@ index 0000000..e8039d7
 +}
 diff --git a/src/main/java/org/spigotmc/SpigotWorldConfig.java b/src/main/java/org/spigotmc/SpigotWorldConfig.java
 new file mode 100644
-index 0000000..d6d957c
+index 0000000..988f7eb
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/SpigotWorldConfig.java
-@@ -0,0 +1,197 @@
+@@ -0,0 +1,206 @@
 +package org.spigotmc;
 +
 +import java.util.Arrays;
@@ -6535,6 +6606,11 @@ index 0000000..d6d957c
 +        {
 +            Bukkit.getLogger().info( s );
 +        }
++    }
++
++    private void set(String path, Object val)
++    {
++        config.set( "world-settings.default." + path, val );
 +    }
 +
 +    private boolean getBoolean(String path, boolean def)
@@ -6631,7 +6707,7 @@ index 0000000..d6d957c
 +    public int engineMode = 1;
 +    public List<Integer> blocks = Arrays.asList( new Integer[]
 +    {
-+        1, 5, 14, 15, 16, 21, 48, 49, 54, 56, 73, 74, 82, 129, 130
++        14, 15, 16, 21, 48, 49, 54, 56, 73, 74, 82, 129, 130
 +    } );
 +    public AntiXray antiXrayInstance;
 +    private void antiXray()
@@ -6642,9 +6718,13 @@ index 0000000..d6d957c
 +        engineMode = getInt( "anti-xray.engine-mode", engineMode );
 +        log( "\tEngine Mode: " + engineMode );
 +
++        if ( SpigotConfig.version < 2 )
++        {
++            set( "anti-xray.blocks", blocks );
++        }
 +        blocks = getList( "anti-xray.blocks", blocks );
 +        log( "\tBlocks: " + blocks );
-+        
++
 +        antiXrayInstance = new AntiXray( this );
 +    }
 +
@@ -6945,7 +7025,7 @@ index 0000000..c4306f7
 +}
 diff --git a/src/main/java/org/spigotmc/netty/CipherDecoder.java b/src/main/java/org/spigotmc/netty/CipherDecoder.java
 new file mode 100644
-index 0000000..a1094d2
+index 0000000..e37bae7
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/netty/CipherDecoder.java
 @@ -0,0 +1,24 @@
@@ -6953,8 +7033,8 @@ index 0000000..a1094d2
 +
 +import io.netty.buffer.ByteBuf;
 +import io.netty.channel.ChannelHandlerContext;
-+import io.netty.channel.MessageList;
 +import io.netty.handler.codec.MessageToMessageDecoder;
++import java.util.List;
 +import javax.crypto.Cipher;
 +
 +public class CipherDecoder extends MessageToMessageDecoder<ByteBuf>
@@ -6968,7 +7048,7 @@ index 0000000..a1094d2
 +    }
 +
 +    @Override
-+    protected void decode(ChannelHandlerContext ctx, ByteBuf msg, MessageList<Object> out) throws Exception
++    protected void decode(ChannelHandlerContext ctx, ByteBuf msg, List<Object> out) throws Exception
 +    {
 +        out.add( cipher.cipher( ctx, msg ) );
 +    }
@@ -7004,17 +7084,16 @@ index 0000000..2eb1dcb
 +}
 diff --git a/src/main/java/org/spigotmc/netty/NettyNetworkManager.java b/src/main/java/org/spigotmc/netty/NettyNetworkManager.java
 new file mode 100644
-index 0000000..d501d8c
+index 0000000..7dc16ac
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/netty/NettyNetworkManager.java
-@@ -0,0 +1,312 @@
+@@ -0,0 +1,307 @@
 +package org.spigotmc.netty;
 +
 +import com.google.common.util.concurrent.ThreadFactoryBuilder;
 +import io.netty.channel.Channel;
 +import io.netty.channel.ChannelHandlerContext;
-+import io.netty.channel.ChannelInboundHandlerAdapter;
-+import io.netty.channel.MessageList;
++import io.netty.channel.SimpleChannelInboundHandler;
 +import io.netty.channel.socket.SocketChannel;
 +import java.net.Socket;
 +import java.net.SocketAddress;
@@ -7041,7 +7120,7 @@ index 0000000..d501d8c
 + * {@link INetworkManager} and handles all events and inbound messages provided
 + * by the upstream Netty process.
 + */
-+public class NettyNetworkManager extends ChannelInboundHandlerAdapter implements INetworkManager
++public class NettyNetworkManager extends SimpleChannelInboundHandler<Packet> implements INetworkManager
 +{
 +
 +    private static final ExecutorService threadPool = Executors.newCachedThreadPool( new ThreadFactoryBuilder().setNameFormat( "Async Packet Handler - %1$d" ).build() );
@@ -7118,37 +7197,33 @@ index 0000000..d501d8c
 +    }
 +
 +    @Override
-+    public void messageReceived(ChannelHandlerContext ctx, MessageList<Object> msgs) throws Exception
++    protected void channelRead0(ChannelHandlerContext ctx, final Packet msg) throws Exception
 +    {
-+        MessageList<Packet> packets = msgs.cast();
-+        for ( final Packet msg : packets )
++        if ( connected )
 +        {
-+            if ( connected )
++            if ( msg instanceof Packet252KeyResponse )
 +            {
-+                if ( msg instanceof Packet252KeyResponse )
-+                {
-+                    secret = ( (Packet252KeyResponse) msg ).a( key );
-+                    Cipher decrypt = NettyServerConnection.getCipher( Cipher.DECRYPT_MODE, secret );
-+                    channel.pipeline().addBefore( "decoder", "decrypt", new CipherDecoder( decrypt ) );
-+                }
++                secret = ( (Packet252KeyResponse) msg ).a( key );
++                Cipher decrypt = NettyServerConnection.getCipher( Cipher.DECRYPT_MODE, secret );
++                channel.pipeline().addBefore( "decoder", "decrypt", new CipherDecoder( decrypt ) );
++            }
 +
-+                if ( msg.a_() )
++            if ( msg.a_() )
++            {
++                threadPool.submit( new Runnable()
 +                {
-+                    threadPool.submit( new Runnable()
++                    public void run()
 +                    {
-+                        public void run()
++                        Packet packet = PacketListener.callReceived( NettyNetworkManager.this, connection, msg );
++                        if ( packet != null )
 +                        {
-+                            Packet packet = PacketListener.callReceived( NettyNetworkManager.this, connection, msg );
-+                            if ( packet != null )
-+                            {
-+                                packet.handle( connection );
-+                            }
++                            packet.handle( connection );
 +                        }
-+                    } );
-+                } else
-+                {
-+                    syncPackets.add( msg );
-+                }
++                    }
++                } );
++            } else
++            {
++                syncPackets.add( msg );
 +            }
 +        }
 +    }
@@ -7798,7 +7873,7 @@ index 0000000..5da8a59
 +}
 diff --git a/src/main/java/org/spigotmc/netty/PacketDecoder.java b/src/main/java/org/spigotmc/netty/PacketDecoder.java
 new file mode 100644
-index 0000000..f459ed1
+index 0000000..7e43b14
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/netty/PacketDecoder.java
 @@ -0,0 +1,80 @@
@@ -7807,12 +7882,12 @@ index 0000000..f459ed1
 +import io.netty.buffer.ByteBuf;
 +import io.netty.buffer.ByteBufInputStream;
 +import io.netty.channel.ChannelHandlerContext;
-+import io.netty.channel.MessageList;
 +import io.netty.handler.codec.ReplayingDecoder;
 +import java.io.DataInput;
 +import java.io.DataInputStream;
 +import java.io.EOFException;
 +import java.io.IOException;
++import java.util.List;
 +import net.minecraft.server.MinecraftServer;
 +import net.minecraft.server.Packet;
 +import net.minecraft.server.Packet254GetInfo;
@@ -7835,7 +7910,7 @@ index 0000000..f459ed1
 +    }
 +
 +    @Override
-+    protected void decode(ChannelHandlerContext ctx, ByteBuf in, MessageList<Object> out) throws Exception
++    protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception
 +    {
 +        if ( shutdown )
 +        {
@@ -8002,7 +8077,7 @@ index 0000000..965ba12
 +}
 diff --git a/src/main/java/org/spigotmc/netty/PacketWriter.java b/src/main/java/org/spigotmc/netty/PacketWriter.java
 new file mode 100644
-index 0000000..50f59ed
+index 0000000..9d947bc
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/netty/PacketWriter.java
 @@ -0,0 +1,85 @@
@@ -8078,7 +8153,7 @@ index 0000000..50f59ed
 +            // Let Netty handle any errors from here on
 +            success = true;
 +            // Write down our single ByteBuf
-+            channel.write( outBuf );
++            channel.writeAndFlush( outBuf );
 +        } finally
 +        {
 +            // Reset packet queue
