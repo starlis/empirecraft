@@ -1,0 +1,146 @@
+From e792e8c769e0aeb3a3598a25905e81c619f9e162 Mon Sep 17 00:00:00 2001
+From: BlackHole <black-hole@live.com>
+Date: Wed, 17 Jul 2013 02:36:30 +0200
+Subject: [PATCH] Implemented LeadKnot. Adds BUKKIT-4570
+
+---
+ src/main/java/net/minecraft/server/ItemLeash.java  | 70 ++++++++++++++++++++++
+ .../java/org/bukkit/craftbukkit/CraftWorld.java    |  2 +
+ .../org/bukkit/craftbukkit/entity/CraftEntity.java |  1 +
+ .../org/bukkit/craftbukkit/entity/CraftLeash.java  | 22 +++++++
+ 4 files changed, 95 insertions(+)
+ create mode 100644 src/main/java/net/minecraft/server/ItemLeash.java
+ create mode 100644 src/main/java/org/bukkit/craftbukkit/entity/CraftLeash.java
+
+diff --git a/src/main/java/net/minecraft/server/ItemLeash.java b/src/main/java/net/minecraft/server/ItemLeash.java
+new file mode 100644
+index 0000000..be1ed16
+--- /dev/null
++++ b/src/main/java/net/minecraft/server/ItemLeash.java
+@@ -0,0 +1,70 @@
++package net.minecraft.server;
++
++import java.util.Iterator;
++import java.util.List;
++
++// CraftBukkit start
++import org.bukkit.entity.Player;
++import org.bukkit.event.hanging.HangingPlaceEvent;
++// CraftBukkit end
++
++public class ItemLeash extends Item {
++
++    public ItemLeash(int i) {
++        super(i);
++        this.a(CreativeModeTab.i);
++    }
++
++    public boolean interactWith(ItemStack itemstack, EntityHuman entityhuman, World world, int i, int j, int k, int l, float f, float f1, float f2) {
++        int i1 = world.getTypeId(i, j, k);
++
++        if (Block.byId[i1] != null && Block.byId[i1].d() == 11) {
++            if (world.isStatic) {
++                return true;
++            } else {
++                a(entityhuman, world, i, j, k);
++                return true;
++            }
++        } else {
++            return false;
++        }
++    }
++
++    public static boolean a(EntityHuman entityhuman, World world, int i, int j, int k) {
++        EntityLeash entityleash = EntityLeash.b(world, i, j, k);
++        boolean flag = false;
++        double d0 = 7.0D;
++        List list = world.a(EntityInsentient.class, AxisAlignedBB.a().a((double) i - d0, (double) j - d0, (double) k - d0, (double) i + d0, (double) j + d0, (double) k + d0));
++
++        if (list != null) {
++            Iterator iterator = list.iterator();
++
++            while (iterator.hasNext()) {
++                EntityInsentient entityinsentient = (EntityInsentient) iterator.next();
++
++                if (entityinsentient.bH() && entityinsentient.bI() == entityhuman) {
++                    if (entityleash == null) {
++                        entityleash = EntityLeash.a(world, i, j, k);
++                        // CraftBukkit start
++                        Player who = (entityhuman == null) ? null : (Player) entityhuman.getBukkitEntity();
++                        org.bukkit.block.Block blockClicked = world.getWorld().getBlockAt(i, j, k);
++
++                        HangingPlaceEvent event = new HangingPlaceEvent((org.bukkit.entity.Hanging) entityleash.getBukkitEntity(), who, blockClicked, org.bukkit.block.BlockFace.SELF);
++                        world.getServer().getPluginManager().callEvent(event);
++
++                        if (event.isCancelled()) {
++                            entityleash.die();
++                            return flag;
++                        }
++                        // CraftBukkit end
++                    }
++
++                    entityinsentient.b(entityleash, true);
++                    flag = true;
++                }
++            }
++        }
++
++        return flag;
++    }
++}
+diff --git a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
+index a68169f..12b6ca6 100644
+--- a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
++++ b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
+@@ -987,6 +987,8 @@ public class CraftWorld implements World {
+                 entity = new EntityPainting(world, (int) x, (int) y, (int) z, dir);
+             } else if (ItemFrame.class.isAssignableFrom(clazz)) {
+                 entity = new EntityItemFrame(world, (int) x, (int) y, (int) z, dir);
++            } else if (Leash.class.isAssignableFrom(clazz)) {
++                entity = new EntityLeash(world, (int) x, (int) y, (int) z);
+             }
+ 
+             if (entity != null && !((EntityHanging) entity).survives()) {
+diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java
+index 9692d7a..187d71f 100644
+--- a/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java
++++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java
+@@ -154,6 +154,7 @@ public abstract class CraftEntity implements org.bukkit.entity.Entity {
+         } else if (entity instanceof EntityHanging) {
+             if (entity instanceof EntityPainting) { return new CraftPainting(server, (EntityPainting) entity); }
+             else if (entity instanceof EntityItemFrame) { return new CraftItemFrame(server, (EntityItemFrame) entity); }
++            else if (entity instanceof EntityLeash) { return new CraftLeash(server, (EntityLeash) entity); }
+             else { return new CraftHanging(server, (EntityHanging) entity); }
+         }
+         else if (entity instanceof EntityTNTPrimed) { return new CraftTNTPrimed(server, (EntityTNTPrimed) entity); }
+diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftLeash.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftLeash.java
+new file mode 100644
+index 0000000..15b9464
+--- /dev/null
++++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftLeash.java
+@@ -0,0 +1,22 @@
++package org.bukkit.craftbukkit.entity;
++
++import net.minecraft.server.EntityLeash;
++
++import org.bukkit.craftbukkit.CraftServer;
++import org.bukkit.entity.EntityType;
++import org.bukkit.entity.Leash;
++
++public class CraftLeash extends CraftHanging implements Leash {
++    public CraftLeash(CraftServer server, EntityLeash entity) {
++        super(server, entity);
++    }
++
++    @Override
++    public EntityLeash getHandle() {
++        return (EntityLeash) entity;
++    }
++
++    public EntityType getType() {
++        return EntityType.LEASH;
++    }
++}
+-- 
+1.8.3.2
+
