@@ -1,4 +1,4 @@
-From b9c33b0dc56b0fbaeac20cef8c581c11de32704c Mon Sep 17 00:00:00 2001
+From 9907fca98c1d204efb0a433f31edae641b754082 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Mon, 17 Jun 2013 01:24:00 -0400
 Subject: [PATCH] Entity Tracking with Vehicles fix
@@ -8,12 +8,12 @@ and stop receiving updates correctly.
 
 This patch makes it so passengers track the same way as their vehicle.
 ---
- src/main/java/net/minecraft/server/Entity.java      |  1 +
- .../net/minecraft/server/EntityTrackerEntry.java    | 21 ++++++++++++++++++++-
- 2 files changed, 21 insertions(+), 1 deletion(-)
+ src/main/java/net/minecraft/server/Entity.java     |  1 +
+ .../net/minecraft/server/EntityTrackerEntry.java   | 23 +++++++++++++++++++++-
+ 2 files changed, 23 insertions(+), 1 deletion(-)
 
 diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
-index 7ef6e03..0e01388 100644
+index b3edc76..40c99f6 100644
 --- a/src/main/java/net/minecraft/server/Entity.java
 +++ b/src/main/java/net/minecraft/server/Entity.java
 @@ -38,6 +38,7 @@ public abstract class Entity {
@@ -25,7 +25,7 @@ index 7ef6e03..0e01388 100644
  
      private static int entityCount;
 diff --git a/src/main/java/net/minecraft/server/EntityTrackerEntry.java b/src/main/java/net/minecraft/server/EntityTrackerEntry.java
-index aee38f5..e4126de 100644
+index 7335a0a..77a1b79 100644
 --- a/src/main/java/net/minecraft/server/EntityTrackerEntry.java
 +++ b/src/main/java/net/minecraft/server/EntityTrackerEntry.java
 @@ -38,6 +38,7 @@ public class EntityTrackerEntry {
@@ -36,7 +36,7 @@ index aee38f5..e4126de 100644
          this.tracker = entity;
          this.b = i;
          this.c = j;
-@@ -297,7 +298,15 @@ public class EntityTrackerEntry {
+@@ -302,7 +303,17 @@ public class EntityTrackerEntry {
              double d0 = entityplayer.locX - (double) (this.xLoc / 32);
              double d1 = entityplayer.locZ - (double) (this.zLoc / 32);
  
@@ -45,7 +45,9 @@ index aee38f5..e4126de 100644
 +            boolean parent = true;
 +            boolean force = false;
 +            if (tracker.vehicle != null) {
-+                parent = tracker.vehicle.tracker != null && tracker.vehicle.tracker.trackedPlayers.contains(entityplayer);
++                parent = this.tracker.passenger instanceof EntityPlayer || (
++                    tracker.vehicle.tracker != null && tracker.vehicle.tracker.trackedPlayers.contains(entityplayer)
++                );
 +                force = true;
 +            }
 +            if (parent && (force || (d0 >= (double) (-this.b) && d0 <= (double) this.b && d1 >= (double) (-this.b) && d1 <= (double) this.b))) {
@@ -53,19 +55,19 @@ index aee38f5..e4126de 100644
                  if (!this.trackedPlayers.contains(entityplayer) && (this.d(entityplayer) || this.tracker.p)) {
                      // CraftBukkit start
                      if (this.tracker instanceof EntityPlayer) {
-@@ -311,6 +320,11 @@ public class EntityTrackerEntry {
-                     // CraftBukkit end
- 
-                     this.trackedPlayers.add(entityplayer);
+@@ -327,6 +338,11 @@ public class EntityTrackerEntry {
+                     if (!this.tracker.getDataWatcher().d()) {
+                         entityplayer.playerConnection.sendPacket(new Packet40EntityMetadata(this.tracker.id, this.tracker.getDataWatcher(), true));
+                     }
 +                    // EMC start
 +                    if (tracker.passenger != null && tracker.passenger.tracker != null) {
 +                        tracker.passenger.tracker.updatePlayer(entityplayer);
 +                    }
 +                    // EMC end
-                     Packet packet = this.c();
-                     // EMC start - colored name tags
-                     if (packet != null && packet instanceof Packet20NamedEntitySpawn && this.tracker instanceof EntityPlayer) {
-@@ -387,6 +401,11 @@ public class EntityTrackerEntry {
+ 
+                     if (this.tracker instanceof EntityLiving) {
+                         AttributeMapServer attributemapserver = (AttributeMapServer) ((EntityLiving) this.tracker).aW();
+@@ -397,6 +413,11 @@ public class EntityTrackerEntry {
                  }
              } else if (this.trackedPlayers.contains(entityplayer)) {
                  this.trackedPlayers.remove(entityplayer);
@@ -78,5 +80,5 @@ index aee38f5..e4126de 100644
              }
          }
 -- 
-1.8.3.2
+1.8.3.4
 
