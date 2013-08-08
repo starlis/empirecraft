@@ -1,6 +1,6 @@
-From 7a7d10333ddd5fa30a1bac7e57afe76f7acbf888 Mon Sep 17 00:00:00 2001
+From b380dbe946da3899e26e1cea23d2fbd98db3156f Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Wed, 24 Jul 2013 18:14:41 -0400
+Date: Wed, 7 Aug 2013 23:28:14 -0400
 Subject: [PATCH] Spigot
 
 ---
@@ -10,11 +10,13 @@ Subject: [PATCH] Spigot
  src/main/java/org/bukkit/command/Command.java      |   9 +-
  .../java/org/bukkit/command/SimpleCommandMap.java  |   7 +-
  .../org/bukkit/command/defaults/ReloadCommand.java |   1 +
- .../bukkit/command/defaults/TimingsCommand.java    | 111 +++++++++++-
+ .../bukkit/command/defaults/TimingsCommand.java    | 109 +++++++++++-
+ .../org/bukkit/conversations/BooleanPrompt.java    |   3 +-
  .../org/bukkit/conversations/Conversation.java     |   7 +
  .../bukkit/conversations/ConversationContext.java  |   8 +
  src/main/java/org/bukkit/entity/Arrow.java         |  20 ++-
- src/main/java/org/bukkit/entity/Player.java        |  24 +++
+ src/main/java/org/bukkit/entity/Entity.java        |  18 ++
+ src/main/java/org/bukkit/entity/Player.java        |  45 +++++
  .../bukkit/event/entity/CreatureSpawnEvent.java    |  32 +---
  .../org/bukkit/event/entity/EntitySpawnEvent.java  |  45 +++++
  .../org/bukkit/event/entity/ItemSpawnEvent.java    |  40 +----
@@ -22,14 +24,15 @@ Subject: [PATCH] Spigot
  .../event/inventory/InventoryClickEvent.java       |  16 ++
  .../bukkit/event/player/PlayerItemDamageEvent.java |  54 ++++++
  .../org/bukkit/event/player/PlayerLoginEvent.java  |  27 ++-
+ .../org/bukkit/metadata/MetadataStoreBase.java     |   2 +-
  .../org/bukkit/plugin/SimplePluginManager.java     |   1 +
  .../org/bukkit/plugin/TimedRegisteredListener.java |  21 ++-
  .../org/bukkit/plugin/java/JavaPluginLoader.java   |   2 +-
- .../java/org/spigotmc/CustomTimingsHandler.java    | 174 ++++++++++++++++++
+ .../java/org/spigotmc/CustomTimingsHandler.java    | 175 ++++++++++++++++++
  .../spigotmc/event/entity/EntityDismountEvent.java |  39 +++++
  .../spigotmc/event/entity/EntityMountEvent.java    |  52 ++++++
  src/test/java/org/bukkit/EffectTest.java           |   6 +-
- 25 files changed, 882 insertions(+), 133 deletions(-)
+ 28 files changed, 924 insertions(+), 134 deletions(-)
  create mode 100644 src/main/java/org/bukkit/event/entity/EntitySpawnEvent.java
  create mode 100644 src/main/java/org/bukkit/event/entity/SpawnerSpawnEvent.java
  create mode 100644 src/main/java/org/bukkit/event/player/PlayerItemDamageEvent.java
@@ -38,7 +41,7 @@ Subject: [PATCH] Spigot
  create mode 100644 src/main/java/org/spigotmc/event/entity/EntityMountEvent.java
 
 diff --git a/pom.xml b/pom.xml
-index 2401f81..b011de6 100644
+index fbdc3c3..0954ef3 100644
 --- a/pom.xml
 +++ b/pom.xml
 @@ -1,43 +1,23 @@
@@ -56,7 +59,7 @@ index 2401f81..b011de6 100644
 +
 +    <groupId>org.spigotmc</groupId>
 +    <artifactId>spigot-api</artifactId>
-     <version>1.6.2-R0.1-SNAPSHOT</version>
+     <version>1.6.2-R0.2-SNAPSHOT</version>
 -    <name>Bukkit</name>
 -    <url>http://www.bukkit.org</url>
 +    <name>Spigot-API</name>
@@ -386,10 +389,10 @@ index 175750f..ae1f4fd 100644
 +    public enum Type {SOUND, VISUAL, PARTICLE}
  }
 diff --git a/src/main/java/org/bukkit/World.java b/src/main/java/org/bukkit/World.java
-index e14fe40..9ae9b2d 100644
+index c86cfbc..186bb77 100644
 --- a/src/main/java/org/bukkit/World.java
 +++ b/src/main/java/org/bukkit/World.java
-@@ -1063,6 +1063,56 @@ public interface World extends PluginMessageRecipient, Metadatable {
+@@ -1066,6 +1066,56 @@ public interface World extends PluginMessageRecipient, Metadatable {
       */
      public boolean isGameRule(String rule);
  
@@ -472,7 +475,7 @@ index 5416c71..2f189ca 100644
              }
          }
 diff --git a/src/main/java/org/bukkit/command/SimpleCommandMap.java b/src/main/java/org/bukkit/command/SimpleCommandMap.java
-index df5f6ef..4c3e421 100644
+index f567dc0..f716782 100644
 --- a/src/main/java/org/bukkit/command/SimpleCommandMap.java
 +++ b/src/main/java/org/bukkit/command/SimpleCommandMap.java
 @@ -16,6 +16,7 @@ import java.util.regex.Pattern;
@@ -483,7 +486,7 @@ index df5f6ef..4c3e421 100644
  import org.bukkit.util.StringUtil;
  
  public class SimpleCommandMap implements CommandMap {
-@@ -224,6 +225,8 @@ public class SimpleCommandMap implements CommandMap {
+@@ -226,6 +227,8 @@ public class SimpleCommandMap implements CommandMap {
              ArrayList<String> completions = new ArrayList<String>();
              Map<String, Command> knownCommands = this.knownCommands;
  
@@ -492,7 +495,7 @@ index df5f6ef..4c3e421 100644
              for (VanillaCommand command : fallbackCommands) {
                  String name = command.getName();
  
-@@ -239,7 +242,7 @@ public class SimpleCommandMap implements CommandMap {
+@@ -241,7 +244,7 @@ public class SimpleCommandMap implements CommandMap {
                      continue;
                  }
  
@@ -501,7 +504,7 @@ index df5f6ef..4c3e421 100644
              }
  
              for (Map.Entry<String, Command> commandEntry : knownCommands.entrySet()) {
-@@ -252,7 +255,7 @@ public class SimpleCommandMap implements CommandMap {
+@@ -254,7 +257,7 @@ public class SimpleCommandMap implements CommandMap {
                  String name = commandEntry.getKey(); // Use the alias, not command name
  
                  if (StringUtil.startsWithIgnoreCase(name, cmdLine)) {
@@ -523,7 +526,7 @@ index fb3c90f..ffbcac1 100644
          Command.broadcastCommandMessage(sender, ChatColor.GREEN + "Reload complete.");
  
 diff --git a/src/main/java/org/bukkit/command/defaults/TimingsCommand.java b/src/main/java/org/bukkit/command/defaults/TimingsCommand.java
-index 29ebbe0..d2f5d29 100644
+index 05cfcb0..b9c19de 100644
 --- a/src/main/java/org/bukkit/command/defaults/TimingsCommand.java
 +++ b/src/main/java/org/bukkit/command/defaults/TimingsCommand.java
 @@ -19,30 +19,60 @@ import org.bukkit.util.StringUtil;
@@ -625,14 +628,7 @@ index 29ebbe0..d2f5d29 100644
                  if (separate) {
                      names = new File(timingFolder, "names" + index + ".txt");
                      fileNames = new PrintStream(names);
-@@ -86,13 +126,25 @@ public class TimingsCommand extends BukkitCommand {
-                             totalTime += time;
-                             Event event = trl.getEvent();
-                             if (count > 0 && event != null) {
--                                fileTimings.println("    " + event.getClass().getSimpleName() + (trl.hasMultiple() ? " (and others)" : "") + " Time: " + time + " Count: " + count + " Avg: " + avg);
-+                                fileTimings.println("    " + event.getClass().getSimpleName() + (trl.hasMultiple() ? " (and others)" : "") + " Time: " + time + " Count: " + count + " Avg: " + avg + " Violations: " + trl.violations); // Spigot
-                             }
-                         }
+@@ -92,7 +132,19 @@ public class TimingsCommand extends BukkitCommand {
                      }
                      fileTimings.println("    Total time " + totalTime + " (" + totalTime / 1000000000 + "s)");
                  }
@@ -700,11 +696,30 @@ index 29ebbe0..d2f5d29 100644
 +    }
 +    // Spigot end
  }
+diff --git a/src/main/java/org/bukkit/conversations/BooleanPrompt.java b/src/main/java/org/bukkit/conversations/BooleanPrompt.java
+index 6abb354..a51e754 100644
+--- a/src/main/java/org/bukkit/conversations/BooleanPrompt.java
++++ b/src/main/java/org/bukkit/conversations/BooleanPrompt.java
+@@ -14,12 +14,13 @@ public abstract class BooleanPrompt extends ValidatingPrompt{
+ 
+     @Override
+     protected boolean isInputValid(ConversationContext context, String input) {
+-        String[] accepted = {"true", "false", "on", "off", "yes", "no"};
++        String[] accepted = {"true", "false", "on", "off", "yes", "no" /* Spigot: */, "y", "n", "1", "0", "right", "wrong", "correct", "incorrect", "valid", "invalid"}; // Spigot
+         return ArrayUtils.contains(accepted, input.toLowerCase());
+     }
+ 
+     @Override
+     protected Prompt acceptValidatedInput(ConversationContext context, String input) {
++        if (input.equalsIgnoreCase("y") || input.equals("1") || input.equalsIgnoreCase("right") || input.equalsIgnoreCase("correct") || input.equalsIgnoreCase("valid")) input = "true"; // Spigot
+         return acceptValidatedInput(context, BooleanUtils.toBoolean(input));
+     }
+ 
 diff --git a/src/main/java/org/bukkit/conversations/Conversation.java b/src/main/java/org/bukkit/conversations/Conversation.java
-index 43cc362..219e13e 100644
+index a30745f..55c9785 100644
 --- a/src/main/java/org/bukkit/conversations/Conversation.java
 +++ b/src/main/java/org/bukkit/conversations/Conversation.java
-@@ -181,6 +181,7 @@ public class Conversation {
+@@ -193,6 +193,7 @@ public class Conversation {
       * @param input The user's chat text.
       */
      public void acceptInput(String input) {
@@ -712,7 +727,7 @@ index 43cc362..219e13e 100644
          if (currentPrompt != null) {
  
              // Echo the user's input
-@@ -200,6 +201,12 @@ public class Conversation {
+@@ -212,6 +213,12 @@ public class Conversation {
              currentPrompt = currentPrompt.acceptInput(context, input);
              outputNextPrompt();
          }
@@ -726,10 +741,10 @@ index 43cc362..219e13e 100644
  
      /**
 diff --git a/src/main/java/org/bukkit/conversations/ConversationContext.java b/src/main/java/org/bukkit/conversations/ConversationContext.java
-index 4ff9858..22aa1a9 100644
+index 7a5b5ed..6b4bcac 100644
 --- a/src/main/java/org/bukkit/conversations/ConversationContext.java
 +++ b/src/main/java/org/bukkit/conversations/ConversationContext.java
-@@ -42,6 +42,14 @@ public class ConversationContext {
+@@ -44,6 +44,14 @@ public class ConversationContext {
      }
  
      /**
@@ -743,9 +758,9 @@ index 4ff9858..22aa1a9 100644
 +    /**
       * Gets session data shared between all {@link Prompt} invocations. Use this as a way
       * to pass data through each Prompt as the conversation develops.
-      * @param key The session data key.
+      *
 diff --git a/src/main/java/org/bukkit/entity/Arrow.java b/src/main/java/org/bukkit/entity/Arrow.java
-index 26d3473..df177bc 100644
+index 26d3473..676fe2b 100644
 --- a/src/main/java/org/bukkit/entity/Arrow.java
 +++ b/src/main/java/org/bukkit/entity/Arrow.java
 @@ -3,4 +3,22 @@ package org.bukkit.entity;
@@ -756,7 +771,7 @@ index 26d3473..df177bc 100644
 +public interface Arrow extends Projectile
 +{
 +
-+    public class Spigot
++    public class Spigot extends Entity.Spigot
 +    {
 +
 +        public double getDamage()
@@ -772,17 +787,44 @@ index 26d3473..df177bc 100644
 +
 +    Spigot spigot();
 +}
+diff --git a/src/main/java/org/bukkit/entity/Entity.java b/src/main/java/org/bukkit/entity/Entity.java
+index 72af4fa..a5b2100 100644
+--- a/src/main/java/org/bukkit/entity/Entity.java
++++ b/src/main/java/org/bukkit/entity/Entity.java
+@@ -280,4 +280,22 @@ public interface Entity extends Metadatable {
+      * @return The current vehicle.
+      */
+     public Entity getVehicle();
++
++    // Spigot Start
++    public class Spigot
++    {
++
++        /**
++         * Returns whether this entity is invulnerable.
++         *         
++        * @return True if the entity is invulnerable.
++         */
++        public boolean isInvulnerable()
++        {
++            throw new UnsupportedOperationException( "Not supported yet." );
++        }
++    }
++
++    Spigot spigot();
++    // Spigot End
+ }
 diff --git a/src/main/java/org/bukkit/entity/Player.java b/src/main/java/org/bukkit/entity/Player.java
-index 3b58d12..d602594 100644
+index ab022b5..cb99199 100644
 --- a/src/main/java/org/bukkit/entity/Player.java
 +++ b/src/main/java/org/bukkit/entity/Player.java
-@@ -691,4 +691,28 @@ public interface Player extends HumanEntity, Conversable, CommandSender, Offline
+@@ -709,4 +709,49 @@ public interface Player extends HumanEntity, Conversable, CommandSender, Offline
       * @see Player#setHealthScaled(boolean)
       */
      public double getHealthScale();
 +
 +    // Spigot start
-+    public class Spigot
++    public class Spigot extends Entity.Spigot
 +    {
 +
 +        /**
@@ -797,6 +839,27 @@ index 3b58d12..d602594 100644
 +        }
 +
 +        public void playEffect(Location location, Effect effect, int id, int data, float offsetX, float offsetY, float offsetZ, float speed, int particleCount, int radius)
++        {
++            throw new UnsupportedOperationException( "Not supported yet." );
++        }
++
++        /**
++         * Gets whether the player collides with entities
++         *
++         * @return the player's collision toggle state
++         */
++        public boolean getCollidesWithEntities()
++        {
++            throw new UnsupportedOperationException( "Not supported yet." );
++        }
++
++        /**
++         * Sets whether the player collides with entities
++         *
++         * @param collides whether the player should collide with entities or
++         * not.
++         */
++        public void setCollidesWithEntities(boolean collides)
 +        {
 +            throw new UnsupportedOperationException( "Not supported yet." );
 +        }
@@ -1182,6 +1245,20 @@ index 60c0875..dab3c5c 100644
      /**
       * Gets the current result of the login, as an enum
       *
+diff --git a/src/main/java/org/bukkit/metadata/MetadataStoreBase.java b/src/main/java/org/bukkit/metadata/MetadataStoreBase.java
+index 28f35fd..f46e1ec 100644
+--- a/src/main/java/org/bukkit/metadata/MetadataStoreBase.java
++++ b/src/main/java/org/bukkit/metadata/MetadataStoreBase.java
+@@ -25,8 +25,8 @@ public abstract class MetadataStoreBase<T> {
+      * @throws IllegalArgumentException If value is null, or the owning plugin is null
+      */
+     public synchronized void setMetadata(T subject, String metadataKey, MetadataValue newMetadataValue) {
+-        Validate.notNull(newMetadataValue, "Value cannot be null");
+         Plugin owningPlugin = newMetadataValue.getOwningPlugin();
++        Validate.notNull(newMetadataValue, "Value cannot be null");
+         Validate.notNull(owningPlugin, "Plugin cannot be null");
+         String key = disambiguate(subject, metadataKey);
+         Map<Plugin, MetadataValue> entry = metadataMap.get(key);
 diff --git a/src/main/java/org/bukkit/plugin/SimplePluginManager.java b/src/main/java/org/bukkit/plugin/SimplePluginManager.java
 index 93fb4f5..a96a33b 100644
 --- a/src/main/java/org/bukkit/plugin/SimplePluginManager.java
@@ -1195,7 +1272,7 @@ index 93fb4f5..a96a33b 100644
      }
  
 diff --git a/src/main/java/org/bukkit/plugin/TimedRegisteredListener.java b/src/main/java/org/bukkit/plugin/TimedRegisteredListener.java
-index ed25e17..064a320 100644
+index d86805b..4b744ea 100644
 --- a/src/main/java/org/bukkit/plugin/TimedRegisteredListener.java
 +++ b/src/main/java/org/bukkit/plugin/TimedRegisteredListener.java
 @@ -11,6 +11,10 @@ import org.bukkit.event.Listener;
@@ -1206,7 +1283,7 @@ index ed25e17..064a320 100644
 +    public long curTickTotal = 0;
 +    public long violations = 0;
 +    // Spigot end
-     private Event event;
+     private Class<? extends Event> eventClass;
      private boolean multiple = false;
  
 @@ -20,6 +24,13 @@ public class TimedRegisteredListener extends RegisteredListener {
@@ -1214,7 +1291,7 @@ index ed25e17..064a320 100644
      @Override
      public void callEvent(Event event) throws EventException {
 +        // Spigot start
-+        if ( !org.bukkit.Bukkit.getServer().getPluginManager().useTimings() )
++        if ( org.bukkit.Bukkit.getServer() != null && !org.bukkit.Bukkit.getServer().getPluginManager().useTimings() )
 +        {
 +            super.callEvent( event );
 +            return;
@@ -1223,7 +1300,7 @@ index ed25e17..064a320 100644
          if (event.isAsynchronous()) {
              super.callEvent(event);
              return;
-@@ -33,7 +44,11 @@ public class TimedRegisteredListener extends RegisteredListener {
+@@ -34,7 +45,11 @@ public class TimedRegisteredListener extends RegisteredListener {
          }
          long start = System.nanoTime();
          super.callEvent(event);
@@ -1235,8 +1312,8 @@ index ed25e17..064a320 100644
 +        // Spigot end
      }
  
-     /**
-@@ -42,6 +57,10 @@ public class TimedRegisteredListener extends RegisteredListener {
+     private static Class<?> getCommonSuperclass(Class<?> class1, Class<?> class2) {
+@@ -50,6 +65,10 @@ public class TimedRegisteredListener extends RegisteredListener {
      public void reset() {
          count = 0;
          totalTime = 0;
@@ -1262,10 +1339,10 @@ index ea30d83..d905435 100644
                  eventSet.add(new RegisteredListener(listener, executor, eh.priority(), plugin, eh.ignoreCancelled()));
 diff --git a/src/main/java/org/spigotmc/CustomTimingsHandler.java b/src/main/java/org/spigotmc/CustomTimingsHandler.java
 new file mode 100644
-index 0000000..b2e94b6
+index 0000000..9fca481
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/CustomTimingsHandler.java
-@@ -0,0 +1,174 @@
+@@ -0,0 +1,175 @@
 +package org.spigotmc;
 +
 +import org.bukkit.event.HandlerList;
@@ -1370,6 +1447,7 @@ index 0000000..b2e94b6
 +                    timings.violations += Math.ceil( timings.curTickTotal / 50000000 );
 +                }
 +                timings.curTickTotal = 0;
++                timings.timingDepth = 0; // incase reset messes this up
 +            }
 +
 +            for ( Plugin plugin : Bukkit.getPluginManager().getPlugins() )

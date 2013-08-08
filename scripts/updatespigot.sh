@@ -16,6 +16,8 @@ function update {
     git co spigot
     git fetch spigot
     git reset --hard spigot/master
+    #git fetch origin
+    #git reset --hard origin/spigot
     git fetch upstream
     git reset --soft upstream/upstream
     if [[ $1 == "CraftBukkit" ]]; then
