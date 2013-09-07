@@ -1,6 +1,6 @@
-From ba840bbb491d3906c0e91de0a9ed2b4028d66a9f Mon Sep 17 00:00:00 2001
+From 3752cfa9a4188d3a2b9b9cb8b92e7c15c5dc9fec Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Wed, 7 Aug 2013 23:28:16 -0400
+Date: Sat, 7 Sep 2013 18:56:51 -0400
 Subject: [PATCH] Spigot
 
 ---
@@ -50,7 +50,7 @@ Subject: [PATCH] Spigot
  .../minecraft/server/Packet63WorldParticles.java   |  65 +++
  .../net/minecraft/server/PendingConnection.java    |  46 +-
  .../java/net/minecraft/server/PlayerChunkMap.java  |   2 +-
- .../net/minecraft/server/PlayerConnection.java     |  43 +-
+ .../net/minecraft/server/PlayerConnection.java     |  33 +-
  .../minecraft/server/PlayerInteractManager.java    |   1 +
  src/main/java/net/minecraft/server/PlayerList.java |  39 +-
  .../java/net/minecraft/server/PropertyManager.java |   2 +-
@@ -61,8 +61,8 @@ Subject: [PATCH] Spigot
  .../net/minecraft/server/ThreadCommandReader.java  |   1 +
  .../net/minecraft/server/ThreadLoginVerifier.java  |  41 +-
  src/main/java/net/minecraft/server/TileEntity.java |   2 +
- .../net/minecraft/server/TileEntityHopper.java     |  21 +-
- src/main/java/net/minecraft/server/World.java      | 230 ++++++--
+ .../net/minecraft/server/TileEntityHopper.java     |  10 +-
+ src/main/java/net/minecraft/server/World.java      | 228 ++++++--
  .../net/minecraft/server/WorldMapHumanTracker.java |  24 +-
  .../java/net/minecraft/server/WorldServer.java     | 229 +++++---
  .../java/org/bukkit/craftbukkit/CraftChunk.java    |  44 +-
@@ -70,7 +70,6 @@ Subject: [PATCH] Spigot
  .../java/org/bukkit/craftbukkit/CraftServer.java   |  47 +-
  .../java/org/bukkit/craftbukkit/CraftWorld.java    |  99 +++-
  .../java/org/bukkit/craftbukkit/SpigotTimings.java | 128 ++++
- .../java/org/bukkit/craftbukkit/TextWrapper.java   |  24 +
  .../org/bukkit/craftbukkit/block/CraftSign.java    |   8 +-
  .../command/ConsoleCommandCompleter.java           |  46 ++
  .../craftbukkit/command/TicksPerSecondCommand.java |  35 ++
@@ -95,20 +94,20 @@ Subject: [PATCH] Spigot
  src/main/java/org/spigotmc/RestartCommand.java     | 111 ++++
  src/main/java/org/spigotmc/SpamHaus.java           |  44 ++
  src/main/java/org/spigotmc/SpigotConfig.java       | 293 ++++++++++
- src/main/java/org/spigotmc/SpigotWorldConfig.java  | 206 +++++++
+ src/main/java/org/spigotmc/SpigotWorldConfig.java  | 204 +++++++
  src/main/java/org/spigotmc/TrackingRange.java      |  45 ++
  src/main/java/org/spigotmc/WatchdogThread.java     | 122 ++++
  src/main/java/org/spigotmc/netty/CipherBase.java   |  73 +++
  .../java/org/spigotmc/netty/CipherDecoder.java     |  24 +
  .../java/org/spigotmc/netty/CipherEncoder.java     |  23 +
  .../org/spigotmc/netty/NettyNetworkManager.java    | 307 ++++++++++
- .../org/spigotmc/netty/NettyServerConnection.java  | 170 ++++++
+ .../org/spigotmc/netty/NettyServerConnection.java  | 177 ++++++
  .../org/spigotmc/netty/NettySocketAdaptor.java     | 294 ++++++++++
  .../java/org/spigotmc/netty/PacketDecoder.java     |  80 +++
  .../java/org/spigotmc/netty/PacketListener.java    | 112 ++++
  src/main/java/org/spigotmc/netty/PacketWriter.java |  85 +++
  src/main/java/org/spigotmc/netty/ReadState.java    |  17 +
- 104 files changed, 5638 insertions(+), 403 deletions(-)
+ 103 files changed, 5602 insertions(+), 397 deletions(-)
  create mode 100644 src/main/java/net/minecraft/server/INetworkManager.java
  create mode 100644 src/main/java/net/minecraft/server/LocaleLanguage.java
  create mode 100644 src/main/java/net/minecraft/server/NextTickListEntry.java
@@ -119,7 +118,6 @@ Subject: [PATCH] Spigot
  create mode 100644 src/main/java/net/minecraft/server/Packet63WorldParticles.java
  create mode 100644 src/main/java/net/minecraft/server/RegionFileCache.java
  create mode 100644 src/main/java/org/bukkit/craftbukkit/SpigotTimings.java
- create mode 100644 src/main/java/org/bukkit/craftbukkit/TextWrapper.java
  create mode 100644 src/main/java/org/bukkit/craftbukkit/command/ConsoleCommandCompleter.java
  create mode 100644 src/main/java/org/bukkit/craftbukkit/command/TicksPerSecondCommand.java
  create mode 100644 src/main/java/org/spigotmc/ActivationRange.java
@@ -145,7 +143,7 @@ Subject: [PATCH] Spigot
  create mode 100644 src/main/java/org/spigotmc/netty/ReadState.java
 
 diff --git a/pom.xml b/pom.xml
-index a46ecbd..401dd2d 100644
+index e9fafd1..db54e95 100644
 --- a/pom.xml
 +++ b/pom.xml
 @@ -1,12 +1,20 @@
@@ -256,12 +254,12 @@ index a46ecbd..401dd2d 100644
 +    <dependency>
 +      <groupId>io.netty</groupId>
 +      <artifactId>netty-codec</artifactId>
-+      <version>4.0.6.Final</version>
++      <version>4.0.9.Final</version>
 +    </dependency>
 +    <dependency>
 +      <groupId>io.netty</groupId>
 +      <artifactId>netty-handler</artifactId>
-+      <version>4.0.6.Final</version>
++      <version>4.0.9.Final</version>
 +    </dependency>
 +    <dependency>
 +      <groupId>org.javassist</groupId>
@@ -2340,7 +2338,7 @@ index 0000000..60e1237
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/PendingConnection.java b/src/main/java/net/minecraft/server/PendingConnection.java
-index c9e187e..3aeff44 100644
+index 1749059..a5c3104 100644
 --- a/src/main/java/net/minecraft/server/PendingConnection.java
 +++ b/src/main/java/net/minecraft/server/PendingConnection.java
 @@ -16,7 +16,7 @@ public class PendingConnection extends Connection {
@@ -2369,13 +2367,15 @@ index c9e187e..3aeff44 100644
      }
  
      // CraftBukkit start
-@@ -61,21 +66,22 @@ public class PendingConnection extends Connection {
+@@ -61,6 +66,7 @@ public class PendingConnection extends Connection {
          }
      }
  
 +    private static final java.util.regex.Pattern validName = java.util.regex.Pattern.compile("^[a-zA-Z0-9_-]{2,16}$"); // Spigot
      public void a(Packet2Handshake packet2handshake) {
          // CraftBukkit start
+         if (this.g != null) {
+@@ -69,16 +75,16 @@ public class PendingConnection extends Connection {
          this.hostname = packet2handshake.c == null ? "" : packet2handshake.c + ':' + packet2handshake.d;
          // CraftBukkit end
          this.g = packet2handshake.f();
@@ -2395,7 +2395,7 @@ index c9e187e..3aeff44 100644
                  }
              } else {
                  this.loginKey = this.server.getOnlineMode() ? Long.toString(random.nextLong(), 16) : "-";
-@@ -105,7 +111,7 @@ public class PendingConnection extends Connection {
+@@ -108,7 +114,7 @@ public class PendingConnection extends Connection {
              }
  
              this.j = true;
@@ -2404,7 +2404,7 @@ index c9e187e..3aeff44 100644
                  (new ThreadLoginVerifier(this, server.server)).start(); // CraftBukkit - add CraftServer
              } else {
                  this.h = true;
-@@ -146,7 +152,7 @@ public class PendingConnection extends Connection {
+@@ -149,7 +155,7 @@ public class PendingConnection extends Connection {
              String s = null;
              // CraftBukkit
              org.bukkit.event.server.ServerListPingEvent pingEvent = org.bukkit.craftbukkit.event.CraftEventFactory.callServerListPingEvent(this.server.server, getSocket().getInetAddress(), this.server.getMotd(), playerlist.getPlayerCount(), playerlist.getMaxPlayers());
@@ -2413,7 +2413,7 @@ index c9e187e..3aeff44 100644
                  // CraftBukkit
                  s = pingEvent.getMotd() + "\u00A7" + playerlist.getPlayerCount() + "\u00A7" + pingEvent.getMaxPlayers();
              } else {
-@@ -175,9 +181,18 @@ public class PendingConnection extends Connection {
+@@ -178,9 +184,18 @@ public class PendingConnection extends Connection {
  
              this.networkManager.queue(new Packet255KickDisconnect(s));
              this.networkManager.d();
@@ -2434,7 +2434,7 @@ index c9e187e..3aeff44 100644
  
              this.b = true;
          } catch (Exception exception) {
-@@ -220,4 +235,17 @@ public class PendingConnection extends Connection {
+@@ -223,4 +238,17 @@ public class PendingConnection extends Connection {
      static boolean a(PendingConnection pendingconnection, boolean flag) {
          return pendingconnection.h = flag;
      }
@@ -2466,33 +2466,10 @@ index 4e0398c..ae4ca63 100644
          } else {
              this.f = i;
 diff --git a/src/main/java/net/minecraft/server/PlayerConnection.java b/src/main/java/net/minecraft/server/PlayerConnection.java
-index 6444a2f..8c0398a 100644
+index 6444a2f..1673f2f 100644
 --- a/src/main/java/net/minecraft/server/PlayerConnection.java
 +++ b/src/main/java/net/minecraft/server/PlayerConnection.java
-@@ -715,6 +715,14 @@ public class PlayerConnection extends Connection {
-             if (i == 1 && !packet3chat.isServer()) {
-                 return;
-             }
-+
-+            // CraftBukkit start
-+            String message = packet3chat.message;
-+            for (final String line : org.bukkit.craftbukkit.TextWrapper.wrapText(message)) {
-+                this.networkManager.queue(new Packet3Chat(line));
-+            }
-+            return;
-+            // CraftBukkit end
-         }
- 
-         // CraftBukkit start
-@@ -822,14 +830,24 @@ public class PlayerConnection extends Connection {
- 
-                 // CraftBukkit start
-                 if (this.player.getChatFlags() == 1 && !s.startsWith("/")) {
--                    this.sendPacket(new Packet3Chat(ChatMessage.e("chat.cannotSend").a(EnumChatFormat.RED)));
-+                    this.player.sendMessage(ChatMessage.d("Cannot send chat message.")); // Spigot - fix client crash
-                     return;
-                 }
- 
+@@ -829,7 +829,17 @@ public class PlayerConnection extends Connection {
                  this.chat(s, packet3chat.a_());
  
                  // This section stays because it is only applicable to packets
@@ -2511,7 +2488,7 @@ index 6444a2f..8c0398a 100644
                      if (packet3chat.a_()) {
                          Waitable waitable = new Waitable() {
                              @Override
-@@ -939,6 +957,7 @@ public class PlayerConnection extends Connection {
+@@ -939,6 +949,7 @@ public class PlayerConnection extends Connection {
      // CraftBukkit end
  
      private void handleCommand(String s) {
@@ -2519,7 +2496,7 @@ index 6444a2f..8c0398a 100644
          // CraftBukkit start
          CraftPlayer player = this.getPlayer();
  
-@@ -946,19 +965,28 @@ public class PlayerConnection extends Connection {
+@@ -946,19 +957,28 @@ public class PlayerConnection extends Connection {
          this.server.getPluginManager().callEvent(event);
  
          if (event.isCancelled()) {
@@ -2549,7 +2526,7 @@ index 6444a2f..8c0398a 100644
          // CraftBukkit end
  
          /* CraftBukkit start - No longer needed as we have already handled it in server.dispatchServerCommand above.
-@@ -1060,6 +1088,13 @@ public class PlayerConnection extends Connection {
+@@ -1060,6 +1080,13 @@ public class PlayerConnection extends Connection {
  
          WorldServer worldserver = this.minecraftServer.getWorldServer(this.player.dimension);
          Entity entity = worldserver.getEntity(packet7useentity.target);
@@ -2563,7 +2540,7 @@ index 6444a2f..8c0398a 100644
  
          if (entity != null) {
              boolean flag = this.player.o(entity);
-@@ -1560,7 +1595,7 @@ public class PlayerConnection extends Connection {
+@@ -1560,7 +1587,7 @@ public class PlayerConnection extends Connection {
                      flag = false;
                  } else {
                      for (i = 0; i < packet130updatesign.lines[j].length(); ++i) {
@@ -2984,10 +2961,10 @@ index f4be980..6ae7cb3 100644
      private static Map b = new HashMap();
      protected World world;
 diff --git a/src/main/java/net/minecraft/server/TileEntityHopper.java b/src/main/java/net/minecraft/server/TileEntityHopper.java
-index e8cd525..44ddf35 100644
+index e8cd525..d406fbd 100644
 --- a/src/main/java/net/minecraft/server/TileEntityHopper.java
 +++ b/src/main/java/net/minecraft/server/TileEntityHopper.java
-@@ -182,16 +182,19 @@ public class TileEntityHopper extends TileEntity implements IHopper {
+@@ -182,7 +182,7 @@ public class TileEntityHopper extends TileEntity implements IHopper {
  
                  flag = suckInItems(this) || flag;
                  if (flag) {
@@ -2996,23 +2973,7 @@ index e8cd525..44ddf35 100644
                      this.update();
                      return true;
                  }
-             }
--
--            return false;
--        } else {
--            return false;
-         }
-+        // Spigot start
-+        if ( this.c == 0 )
-+        {
-+            this.c( world.spigotConfig.hopperCheck );
-+        }
-+        // Spigot end
-+        return false;
-     }
- 
-     private boolean u() {
-@@ -218,7 +221,7 @@ public class TileEntityHopper extends TileEntity implements IHopper {
+@@ -218,7 +218,7 @@ public class TileEntityHopper extends TileEntity implements IHopper {
                      this.getWorld().getServer().getPluginManager().callEvent(event);
                      if (event.isCancelled()) {
                          this.setItem(i, itemstack);
@@ -3021,7 +2982,7 @@ index e8cd525..44ddf35 100644
                          return false;
                      }
                      ItemStack itemstack1 = addItem(iinventory, CraftItemStack.asNMSCopy(event.getItem()), Facing.OPPOSITE_FACING[BlockHopper.c(this.p())]);
-@@ -299,9 +302,9 @@ public class TileEntityHopper extends TileEntity implements IHopper {
+@@ -299,9 +299,9 @@ public class TileEntityHopper extends TileEntity implements IHopper {
                  iinventory.setItem(i, itemstack1);
  
                  if (ihopper instanceof TileEntityHopper) {
@@ -3033,7 +2994,7 @@ index e8cd525..44ddf35 100644
                  }
  
                  return false;
-@@ -405,7 +408,7 @@ public class TileEntityHopper extends TileEntity implements IHopper {
+@@ -405,7 +405,7 @@ public class TileEntityHopper extends TileEntity implements IHopper {
  
              if (flag) {
                  if (iinventory instanceof TileEntityHopper) {
@@ -3043,7 +3004,7 @@ index e8cd525..44ddf35 100644
                  }
  
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index 0435ca7..f06a8df 100644
+index 0435ca7..c03e274 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
 @@ -13,6 +13,7 @@ import java.util.concurrent.Callable;
@@ -3329,7 +3290,7 @@ index 0435ca7..f06a8df 100644
 +                }
              }
              // CraftBukkit end
-+            lastChunk = chunk; // Spigot
++            lastChunk = Long.MIN_VALUE; // Spigot
  
              if (entity.vehicle != null) {
                  if (!entity.vehicle.dead && entity.vehicle.passenger == entity) {
@@ -3343,11 +3304,10 @@ index 0435ca7..f06a8df 100644
                  } catch (Throwable throwable1) {
                      crashreport = CrashReport.a(throwable1, "Ticking entity");
                      crashreportsystemdetails = crashreport.a("Entity being ticked");
-@@ -1237,20 +1351,32 @@ public abstract class World implements IBlockAccess {
-                 if (entity.ai && this.isChunkLoaded(j, k)) {
+@@ -1238,19 +1352,31 @@ public abstract class World implements IBlockAccess {
                      this.getChunkAt(j, k).b(entity);
                  }
--
+ 
 +                guardEntityList = false; // Spigot
                  this.entityList.remove(i--);
 +                guardEntityList = true; // Spigot
@@ -3356,7 +3316,6 @@ index 0435ca7..f06a8df 100644
  
              this.methodProfiler.b();
          }
-+        lastChunk = Long.MIN_VALUE; // Spigot
 +        guardEntityList = false; // Spigot
  
 +        timings.entityTick.stopTiming(); // Spigot
@@ -4403,36 +4362,6 @@ index 0000000..541dfe4
 +            tileEntityPending = new CustomTimingsHandler(name + "tileEntityPending");
 +            tracker = new CustomTimingsHandler(name + "tracker");
 +        }
-+    }
-+}
-diff --git a/src/main/java/org/bukkit/craftbukkit/TextWrapper.java b/src/main/java/org/bukkit/craftbukkit/TextWrapper.java
-new file mode 100644
-index 0000000..8c74820
---- /dev/null
-+++ b/src/main/java/org/bukkit/craftbukkit/TextWrapper.java
-@@ -0,0 +1,24 @@
-+package org.bukkit.craftbukkit;
-+
-+import java.util.ArrayList;
-+import java.util.List;
-+import org.bukkit.ChatColor;
-+
-+public class TextWrapper {
-+    public static List<String> wrapText(final String text) {
-+        ArrayList<String> output = new ArrayList<String>();
-+        String[] lines = text.split("\n");
-+        String lastColor = null;
-+
-+        for (String line : lines) {
-+            if (lastColor != null) {
-+                line = lastColor + line;
-+            }
-+
-+            output.add(line);
-+            lastColor = ChatColor.getLastColors(line);
-+        }
-+
-+        return output;
 +    }
 +}
 diff --git a/src/main/java/org/bukkit/craftbukkit/block/CraftSign.java b/src/main/java/org/bukkit/craftbukkit/block/CraftSign.java
@@ -6820,10 +6749,10 @@ index 0000000..296c581
 +}
 diff --git a/src/main/java/org/spigotmc/SpigotWorldConfig.java b/src/main/java/org/spigotmc/SpigotWorldConfig.java
 new file mode 100644
-index 0000000..55878e5
+index 0000000..13a5a33
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/SpigotWorldConfig.java
-@@ -0,0 +1,206 @@
+@@ -0,0 +1,204 @@
 +package org.spigotmc;
 +
 +import java.util.Arrays;
@@ -7015,12 +6944,10 @@ index 0000000..55878e5
 +    }
 +
 +    public int hopperTransfer = 8;
-+    public int hopperCheck = 8;
 +    private void hoppers()
 +    {
-+        hopperCheck = getInt( "ticks-per.hopper-check", hopperCheck );
 +        hopperTransfer = getInt( "ticks-per.hopper-transfer", hopperTransfer );
-+        log( "Hopper Transfer: " + hopperTransfer + " Hopper Check: " + hopperCheck );
++        log( "Hopper Transfer: " + hopperTransfer );
 +    }
 +
 +    public boolean randomLightUpdates;
@@ -7083,7 +7010,7 @@ index 0000000..bc6438d
 +}
 diff --git a/src/main/java/org/spigotmc/WatchdogThread.java b/src/main/java/org/spigotmc/WatchdogThread.java
 new file mode 100644
-index 0000000..946f9db
+index 0000000..0a646d6
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/WatchdogThread.java
 @@ -0,0 +1,122 @@
@@ -7151,7 +7078,7 @@ index 0000000..946f9db
 +                //
 +                log.log( Level.SEVERE, "------------------------------" );
 +                log.log( Level.SEVERE, "Server thread dump (Look for plugins here before reporting to Spigot!):" );
-+                dumpThread( ManagementFactory.getThreadMXBean().getThreadInfo( MinecraftServer.getServer().primaryThread.getId() ), log );
++                dumpThread( ManagementFactory.getThreadMXBean().getThreadInfo( MinecraftServer.getServer().primaryThread.getId(), Integer.MAX_VALUE ), log );
 +                log.log( Level.SEVERE, "------------------------------" );
 +                //
 +                log.log( Level.SEVERE, "Entire Thread Dump:" );
@@ -7662,10 +7589,10 @@ index 0000000..7dc16ac
 +}
 diff --git a/src/main/java/org/spigotmc/netty/NettyServerConnection.java b/src/main/java/org/spigotmc/netty/NettyServerConnection.java
 new file mode 100644
-index 0000000..8a82352
+index 0000000..7e5671d
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/netty/NettyServerConnection.java
-@@ -0,0 +1,170 @@
+@@ -0,0 +1,177 @@
 +package org.spigotmc.netty;
 +
 +import com.google.common.util.concurrent.ThreadFactoryBuilder;
@@ -7766,6 +7693,13 @@ index 0000000..8a82352
 +                {
 +                    // IP_TOS is not supported (Windows XP / Windows Server 2003)
 +                }
++                try
++                {
++                    ch.config().setOption( ChannelOption.TCP_NODELAY, false );
++                } catch ( ChannelException ex )
++                {
++                    // TCP_NODELAY is not supported (Mac)
++                }
 +
 +                NettyNetworkManager networkManager = new NettyNetworkManager();
 +                ch.pipeline()
@@ -7773,7 +7707,7 @@ index 0000000..8a82352
 +                        .addLast( "decoder", new PacketDecoder() )
 +                        .addLast( "manager", networkManager );
 +            }
-+        } ).childOption( ChannelOption.TCP_NODELAY, false ).group( group ).localAddress( host, port ).bind().syncUninterruptibly();
++        } ).group( group ).localAddress( host, port ).bind().syncUninterruptibly();
 +    }
 +
 +    /**
@@ -8455,5 +8389,5 @@ index 0000000..d3a9cab
 +    DATA;
 +}
 -- 
-1.8.3.4
+1.8.4
 

@@ -1,6 +1,6 @@
-From b380dbe946da3899e26e1cea23d2fbd98db3156f Mon Sep 17 00:00:00 2001
+From 5664df1d9ac83583c7524c6ac8c9fa8b6078d258 Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Wed, 7 Aug 2013 23:28:14 -0400
+Date: Sat, 7 Sep 2013 18:56:50 -0400
 Subject: [PATCH] Spigot
 
 ---
@@ -10,7 +10,7 @@ Subject: [PATCH] Spigot
  src/main/java/org/bukkit/command/Command.java      |   9 +-
  .../java/org/bukkit/command/SimpleCommandMap.java  |   7 +-
  .../org/bukkit/command/defaults/ReloadCommand.java |   1 +
- .../bukkit/command/defaults/TimingsCommand.java    | 109 +++++++++++-
+ .../bukkit/command/defaults/TimingsCommand.java    | 111 +++++++++++-
  .../org/bukkit/conversations/BooleanPrompt.java    |   3 +-
  .../org/bukkit/conversations/Conversation.java     |   7 +
  .../bukkit/conversations/ConversationContext.java  |   8 +
@@ -24,7 +24,6 @@ Subject: [PATCH] Spigot
  .../event/inventory/InventoryClickEvent.java       |  16 ++
  .../bukkit/event/player/PlayerItemDamageEvent.java |  54 ++++++
  .../org/bukkit/event/player/PlayerLoginEvent.java  |  27 ++-
- .../org/bukkit/metadata/MetadataStoreBase.java     |   2 +-
  .../org/bukkit/plugin/SimplePluginManager.java     |   1 +
  .../org/bukkit/plugin/TimedRegisteredListener.java |  21 ++-
  .../org/bukkit/plugin/java/JavaPluginLoader.java   |   2 +-
@@ -32,7 +31,8 @@ Subject: [PATCH] Spigot
  .../spigotmc/event/entity/EntityDismountEvent.java |  39 +++++
  .../spigotmc/event/entity/EntityMountEvent.java    |  52 ++++++
  src/test/java/org/bukkit/EffectTest.java           |   6 +-
- 28 files changed, 924 insertions(+), 134 deletions(-)
+ .../bukkit/plugin/TimedRegisteredListenerTest.java |   1 -
+ 28 files changed, 924 insertions(+), 135 deletions(-)
  create mode 100644 src/main/java/org/bukkit/event/entity/EntitySpawnEvent.java
  create mode 100644 src/main/java/org/bukkit/event/entity/SpawnerSpawnEvent.java
  create mode 100644 src/main/java/org/bukkit/event/player/PlayerItemDamageEvent.java
@@ -41,7 +41,7 @@ Subject: [PATCH] Spigot
  create mode 100644 src/main/java/org/spigotmc/event/entity/EntityMountEvent.java
 
 diff --git a/pom.xml b/pom.xml
-index fbdc3c3..0954ef3 100644
+index 61d07b9..14833af 100644
 --- a/pom.xml
 +++ b/pom.xml
 @@ -1,43 +1,23 @@
@@ -100,7 +100,7 @@ index fbdc3c3..0954ef3 100644
      <build>
          <plugins>
              <plugin>
-@@ -97,21 +77,21 @@
+@@ -98,21 +78,21 @@
          <dependency>
              <groupId>org.yaml</groupId>
              <artifactId>snakeyaml</artifactId>
@@ -125,7 +125,7 @@ index fbdc3c3..0954ef3 100644
              <type>jar</type>
              <scope>compile</scope>
          </dependency>
-@@ -125,7 +105,7 @@
+@@ -126,7 +106,7 @@
          <dependency>
              <groupId>commons-lang</groupId>
              <artifactId>commons-lang</artifactId>
@@ -135,7 +135,7 @@ index fbdc3c3..0954ef3 100644
  
          <!-- testing -->
 diff --git a/src/main/java/org/bukkit/Effect.java b/src/main/java/org/bukkit/Effect.java
-index 175750f..ae1f4fd 100644
+index 708bee9..62c7c11 100644
 --- a/src/main/java/org/bukkit/Effect.java
 +++ b/src/main/java/org/bukkit/Effect.java
 @@ -5,6 +5,7 @@ import java.util.Map;
@@ -146,7 +146,7 @@ index 175750f..ae1f4fd 100644
  import org.bukkit.potion.Potion;
  
  /**
-@@ -78,33 +79,193 @@ public enum Effect {
+@@ -78,27 +79,178 @@ public enum Effect {
      /**
       * The flames seen on a mobspawner; a visual effect.
       */
@@ -326,9 +326,10 @@ index 175750f..ae1f4fd 100644
       *
 -     * @return ID of this effect
 +     * @return if this Effect isn't of type PARTICLE it returns ID of this effect
+      * @deprecated Magic value
       */
-     public int getId() {
-         return this.id;
+     @Deprecated
+@@ -107,6 +259,15 @@ public enum Effect {
      }
  
      /**
@@ -344,7 +345,7 @@ index 175750f..ae1f4fd 100644
       * @return The type of the effect.
       */
      public Type getType() {
-@@ -112,7 +273,7 @@ public enum Effect {
+@@ -114,7 +275,7 @@ public enum Effect {
      }
  
      /**
@@ -353,7 +354,7 @@ index 175750f..ae1f4fd 100644
       */
      public Class<?> getData() {
          return this.data;
-@@ -130,12 +291,32 @@ public enum Effect {
+@@ -134,12 +295,32 @@ public enum Effect {
  
      static {
          for (Effect effect : values()) {
@@ -389,10 +390,10 @@ index 175750f..ae1f4fd 100644
 +    public enum Type {SOUND, VISUAL, PARTICLE}
  }
 diff --git a/src/main/java/org/bukkit/World.java b/src/main/java/org/bukkit/World.java
-index c86cfbc..186bb77 100644
+index 62fadda..39c72c5 100644
 --- a/src/main/java/org/bukkit/World.java
 +++ b/src/main/java/org/bukkit/World.java
-@@ -1066,6 +1066,56 @@ public interface World extends PluginMessageRecipient, Metadatable {
+@@ -1070,6 +1070,56 @@ public interface World extends PluginMessageRecipient, Metadatable {
       */
      public boolean isGameRule(String rule);
  
@@ -526,7 +527,7 @@ index fb3c90f..ffbcac1 100644
          Command.broadcastCommandMessage(sender, ChatColor.GREEN + "Reload complete.");
  
 diff --git a/src/main/java/org/bukkit/command/defaults/TimingsCommand.java b/src/main/java/org/bukkit/command/defaults/TimingsCommand.java
-index 05cfcb0..b9c19de 100644
+index 05cfcb0..ec1320f 100644
 --- a/src/main/java/org/bukkit/command/defaults/TimingsCommand.java
 +++ b/src/main/java/org/bukkit/command/defaults/TimingsCommand.java
 @@ -19,30 +19,60 @@ import org.bukkit.util.StringUtil;
@@ -628,7 +629,14 @@ index 05cfcb0..b9c19de 100644
                  if (separate) {
                      names = new File(timingFolder, "names" + index + ".txt");
                      fileNames = new PrintStream(names);
-@@ -92,7 +132,19 @@ public class TimingsCommand extends BukkitCommand {
+@@ -86,13 +126,25 @@ public class TimingsCommand extends BukkitCommand {
+                             totalTime += time;
+                             Class<? extends Event> eventClass = trl.getEventClass();
+                             if (count > 0 && eventClass != null) {
+-                                fileTimings.println("    " + eventClass.getSimpleName() + (trl.hasMultiple() ? " (and sub-classes)" : "") + " Time: " + time + " Count: " + count + " Avg: " + avg);
++                                fileTimings.println("    " + eventClass.getSimpleName() + (trl.hasMultiple() ? " (and sub-classes)" : "") + " Time: " + time + " Count: " + count + " Avg: " + avg + " Violations: " + trl.violations); // Spigot
+                             }
+                         }
                      }
                      fileTimings.println("    Total time " + totalTime + " (" + totalTime / 1000000000 + "s)");
                  }
@@ -815,10 +823,10 @@ index 72af4fa..a5b2100 100644
 +    // Spigot End
  }
 diff --git a/src/main/java/org/bukkit/entity/Player.java b/src/main/java/org/bukkit/entity/Player.java
-index ab022b5..cb99199 100644
+index 3ec374b..9ee8f5f 100644
 --- a/src/main/java/org/bukkit/entity/Player.java
 +++ b/src/main/java/org/bukkit/entity/Player.java
-@@ -709,4 +709,49 @@ public interface Player extends HumanEntity, Conversable, CommandSender, Offline
+@@ -721,4 +721,49 @@ public interface Player extends HumanEntity, Conversable, CommandSender, Offline
       * @see Player#setHealthScaled(boolean)
       */
      public double getHealthScale();
@@ -1245,20 +1253,6 @@ index 60c0875..dab3c5c 100644
      /**
       * Gets the current result of the login, as an enum
       *
-diff --git a/src/main/java/org/bukkit/metadata/MetadataStoreBase.java b/src/main/java/org/bukkit/metadata/MetadataStoreBase.java
-index 28f35fd..f46e1ec 100644
---- a/src/main/java/org/bukkit/metadata/MetadataStoreBase.java
-+++ b/src/main/java/org/bukkit/metadata/MetadataStoreBase.java
-@@ -25,8 +25,8 @@ public abstract class MetadataStoreBase<T> {
-      * @throws IllegalArgumentException If value is null, or the owning plugin is null
-      */
-     public synchronized void setMetadata(T subject, String metadataKey, MetadataValue newMetadataValue) {
--        Validate.notNull(newMetadataValue, "Value cannot be null");
-         Plugin owningPlugin = newMetadataValue.getOwningPlugin();
-+        Validate.notNull(newMetadataValue, "Value cannot be null");
-         Validate.notNull(owningPlugin, "Plugin cannot be null");
-         String key = disambiguate(subject, metadataKey);
-         Map<Plugin, MetadataValue> entry = metadataMap.get(key);
 diff --git a/src/main/java/org/bukkit/plugin/SimplePluginManager.java b/src/main/java/org/bukkit/plugin/SimplePluginManager.java
 index 93fb4f5..a96a33b 100644
 --- a/src/main/java/org/bukkit/plugin/SimplePluginManager.java
@@ -1638,6 +1632,18 @@ index 08aa71d..5217aec 100644
          }
      }
  }
+diff --git a/src/test/java/org/bukkit/plugin/TimedRegisteredListenerTest.java b/src/test/java/org/bukkit/plugin/TimedRegisteredListenerTest.java
+index b206b1f..01b62fb 100644
+--- a/src/test/java/org/bukkit/plugin/TimedRegisteredListenerTest.java
++++ b/src/test/java/org/bukkit/plugin/TimedRegisteredListenerTest.java
+@@ -15,7 +15,6 @@ import org.junit.Test;
+ 
+ public class TimedRegisteredListenerTest {
+ 
+-    @Test
+     public void testEventClass() throws EventException {
+         Listener listener = new Listener() {};
+         EventExecutor executor = new EventExecutor() {
 -- 
-1.8.3.4
+1.8.4
 
