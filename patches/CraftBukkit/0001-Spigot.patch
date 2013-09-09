@@ -1,6 +1,6 @@
-From 3752cfa9a4188d3a2b9b9cb8b92e7c15c5dc9fec Mon Sep 17 00:00:00 2001
+From a3744036d2555da5e593c173a23aa05ee43749cf Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Sat, 7 Sep 2013 18:56:51 -0400
+Date: Mon, 9 Sep 2013 19:42:05 -0400
 Subject: [PATCH] Spigot
 
 ---
@@ -61,7 +61,7 @@ Subject: [PATCH] Spigot
  .../net/minecraft/server/ThreadCommandReader.java  |   1 +
  .../net/minecraft/server/ThreadLoginVerifier.java  |  41 +-
  src/main/java/net/minecraft/server/TileEntity.java |   2 +
- .../net/minecraft/server/TileEntityHopper.java     |  10 +-
+ .../net/minecraft/server/TileEntityHopper.java     |  17 +-
  src/main/java/net/minecraft/server/World.java      | 228 ++++++--
  .../net/minecraft/server/WorldMapHumanTracker.java |  24 +-
  .../java/net/minecraft/server/WorldServer.java     | 229 +++++---
@@ -94,7 +94,7 @@ Subject: [PATCH] Spigot
  src/main/java/org/spigotmc/RestartCommand.java     | 111 ++++
  src/main/java/org/spigotmc/SpamHaus.java           |  44 ++
  src/main/java/org/spigotmc/SpigotConfig.java       | 293 ++++++++++
- src/main/java/org/spigotmc/SpigotWorldConfig.java  | 204 +++++++
+ src/main/java/org/spigotmc/SpigotWorldConfig.java  | 210 +++++++
  src/main/java/org/spigotmc/TrackingRange.java      |  45 ++
  src/main/java/org/spigotmc/WatchdogThread.java     | 122 ++++
  src/main/java/org/spigotmc/netty/CipherBase.java   |  73 +++
@@ -107,7 +107,7 @@ Subject: [PATCH] Spigot
  .../java/org/spigotmc/netty/PacketListener.java    | 112 ++++
  src/main/java/org/spigotmc/netty/PacketWriter.java |  85 +++
  src/main/java/org/spigotmc/netty/ReadState.java    |  17 +
- 103 files changed, 5602 insertions(+), 397 deletions(-)
+ 103 files changed, 5614 insertions(+), 398 deletions(-)
  create mode 100644 src/main/java/net/minecraft/server/INetworkManager.java
  create mode 100644 src/main/java/net/minecraft/server/LocaleLanguage.java
  create mode 100644 src/main/java/net/minecraft/server/NextTickListEntry.java
@@ -2961,10 +2961,10 @@ index f4be980..6ae7cb3 100644
      private static Map b = new HashMap();
      protected World world;
 diff --git a/src/main/java/net/minecraft/server/TileEntityHopper.java b/src/main/java/net/minecraft/server/TileEntityHopper.java
-index e8cd525..d406fbd 100644
+index e8cd525..5793b5c 100644
 --- a/src/main/java/net/minecraft/server/TileEntityHopper.java
 +++ b/src/main/java/net/minecraft/server/TileEntityHopper.java
-@@ -182,7 +182,7 @@ public class TileEntityHopper extends TileEntity implements IHopper {
+@@ -182,12 +182,17 @@ public class TileEntityHopper extends TileEntity implements IHopper {
  
                  flag = suckInItems(this) || flag;
                  if (flag) {
@@ -2973,7 +2973,18 @@ index e8cd525..d406fbd 100644
                      this.update();
                      return true;
                  }
-@@ -218,7 +218,7 @@ public class TileEntityHopper extends TileEntity implements IHopper {
+             }
+-
++            // Spigot start
++            if ( !this.l() )
++            {
++                this.c( world.spigotConfig.hopperCheck );
++            }
++            // Spigot end
+             return false;
+         } else {
+             return false;
+@@ -218,7 +223,7 @@ public class TileEntityHopper extends TileEntity implements IHopper {
                      this.getWorld().getServer().getPluginManager().callEvent(event);
                      if (event.isCancelled()) {
                          this.setItem(i, itemstack);
@@ -2982,7 +2993,7 @@ index e8cd525..d406fbd 100644
                          return false;
                      }
                      ItemStack itemstack1 = addItem(iinventory, CraftItemStack.asNMSCopy(event.getItem()), Facing.OPPOSITE_FACING[BlockHopper.c(this.p())]);
-@@ -299,9 +299,9 @@ public class TileEntityHopper extends TileEntity implements IHopper {
+@@ -299,9 +304,9 @@ public class TileEntityHopper extends TileEntity implements IHopper {
                  iinventory.setItem(i, itemstack1);
  
                  if (ihopper instanceof TileEntityHopper) {
@@ -2994,7 +3005,7 @@ index e8cd525..d406fbd 100644
                  }
  
                  return false;
-@@ -405,7 +405,7 @@ public class TileEntityHopper extends TileEntity implements IHopper {
+@@ -405,7 +410,7 @@ public class TileEntityHopper extends TileEntity implements IHopper {
  
              if (flag) {
                  if (iinventory instanceof TileEntityHopper) {
@@ -6749,10 +6760,10 @@ index 0000000..296c581
 +}
 diff --git a/src/main/java/org/spigotmc/SpigotWorldConfig.java b/src/main/java/org/spigotmc/SpigotWorldConfig.java
 new file mode 100644
-index 0000000..13a5a33
+index 0000000..2caafa2
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/SpigotWorldConfig.java
-@@ -0,0 +1,204 @@
+@@ -0,0 +1,210 @@
 +package org.spigotmc;
 +
 +import java.util.Arrays;
@@ -6944,10 +6955,16 @@ index 0000000..13a5a33
 +    }
 +
 +    public int hopperTransfer = 8;
++    public int hopperCheck = 8;
 +    private void hoppers()
 +    {
++        // Set the tick delay between hopper item movements
 +        hopperTransfer = getInt( "ticks-per.hopper-transfer", hopperTransfer );
-+        log( "Hopper Transfer: " + hopperTransfer );
++        // Set the tick delay between checking for items after the associated
++        // container is empty. Default to the hopperTransfer value to prevent
++        // hopper sorting machines from becoming out of sync.
++        hopperCheck = getInt( "ticks-per.hopper-check", hopperTransfer );
++        log( "Hopper Transfer: " + hopperTransfer + " Hopper Check: " + hopperCheck );
 +    }
 +
 +    public boolean randomLightUpdates;
