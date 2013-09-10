@@ -1,4 +1,4 @@
-From d9f737a35541ff4e78ed2de3f04c0e05f575be69 Mon Sep 17 00:00:00 2001
+From 798267b33bade283ed3634fed068edda9e44b1f3 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Fri, 15 Feb 2013 20:10:44 -0500
 Subject: [PATCH] NIOM - NIO Manager
@@ -16,10 +16,10 @@ Network threads are no longer interrupted every tick, letting them sleep as much
  .../com/empireminecraft/niom/NiomOutputStream.java | 88 ++++++++++++++++++++++
  .../java/com/empireminecraft/niom/PacketQueue.java | 58 ++++++++++++++
  .../server/DedicatedServerConnectionThread.java    |  2 +-
- .../java/net/minecraft/server/NetworkManager.java  | 34 +++++++--
+ .../java/net/minecraft/server/NetworkManager.java  | 39 ++++++++--
  .../net/minecraft/server/NetworkWriterThread.java  |  8 +-
  .../net/minecraft/server/Packet56MapChunkBulk.java |  1 +
- 6 files changed, 181 insertions(+), 10 deletions(-)
+ 6 files changed, 186 insertions(+), 10 deletions(-)
  create mode 100644 src/main/java/com/empireminecraft/niom/NiomOutputStream.java
  create mode 100644 src/main/java/com/empireminecraft/niom/PacketQueue.java
 
@@ -195,7 +195,7 @@ index e62f738..ec55db7 100644
          this.d.setPerformancePreferences(0, 2, 1);
      }
 diff --git a/src/main/java/net/minecraft/server/NetworkManager.java b/src/main/java/net/minecraft/server/NetworkManager.java
-index fd6acab..6083d69 100644
+index fd6acab..db6f873 100644
 --- a/src/main/java/net/minecraft/server/NetworkManager.java
 +++ b/src/main/java/net/minecraft/server/NetworkManager.java
 @@ -1,5 +1,11 @@
@@ -243,17 +243,22 @@ index fd6acab..6083d69 100644
          this.v = new NetworkReaderThread(this, s + " read thread");
          this.u = new NetworkWriterThread(this, s + " write thread");
          this.v.start();
-@@ -84,7 +96,8 @@ public class NetworkManager implements INetworkManager {
+@@ -84,7 +96,13 @@ public class NetworkManager implements INetworkManager {
  
              synchronized (this.h) {
                  this.z += packet.a() + 1;
 -                this.highPriorityQueue.add(packet);
-+                if (lowPriorityQueue.isEmpty() && highPriorityQueue.isEmpty()) {this.h.notify();} // EMC
-+                (packet.lowPriority ? lowPriorityQueue : highPriorityQueue).add(packet); // EMC
++                // EMC start
++                boolean shouldNotify = lowPriorityQueue.isEmpty() && highPriorityQueue.isEmpty();
++                (packet.lowPriority ? lowPriorityQueue : highPriorityQueue).add(packet);
++                if (shouldNotify) {
++                    this.h.notify();
++                }
++                // EMC end
              }
          }
      }
-@@ -97,7 +110,7 @@ public class NetworkManager implements INetworkManager {
+@@ -97,7 +115,7 @@ public class NetworkManager implements INetworkManager {
              int i;
              int[] aint;
  
@@ -262,7 +267,7 @@ index fd6acab..6083d69 100644
                  packet = this.a(false);
                  if (packet != null) {
                      Packet.a(packet, (DataOutput) this.output);
-@@ -117,7 +130,9 @@ public class NetworkManager implements INetworkManager {
+@@ -117,7 +135,9 @@ public class NetworkManager implements INetworkManager {
              }
  
              // CraftBukkit - don't allow low priority packet to be sent unless it was placed in the queue before the first packet on the high priority queue TODO: is this still right?
@@ -273,7 +278,7 @@ index fd6acab..6083d69 100644
                  packet = this.a(true);
                  if (packet != null) {
                      Packet.a(packet, (DataOutput) this.output);
-@@ -148,6 +163,7 @@ public class NetworkManager implements INetworkManager {
+@@ -148,6 +168,7 @@ public class NetworkManager implements INetworkManager {
              while (!list.isEmpty() && packet == null) {
                  packet = (Packet) list.remove(0);
                  this.z -= packet.a() + 1;
@@ -281,7 +286,7 @@ index fd6acab..6083d69 100644
                  if (this.a(packet, flag)) {
                      packet = null;
                  }
-@@ -179,6 +195,7 @@ public class NetworkManager implements INetworkManager {
+@@ -179,6 +200,7 @@ public class NetworkManager implements INetworkManager {
      }
  
      public void a() {
@@ -289,7 +294,7 @@ index fd6acab..6083d69 100644
          if (this.v != null) {
              this.v.interrupt();
          }
-@@ -222,6 +239,7 @@ public class NetworkManager implements INetworkManager {
+@@ -222,6 +244,7 @@ public class NetworkManager implements INetworkManager {
              }
  
              return flag;
@@ -297,7 +302,7 @@ index fd6acab..6083d69 100644
          } catch (Exception exception) {
              if (!this.o) {
                  this.a(exception);
-@@ -326,9 +344,9 @@ public class NetworkManager implements INetworkManager {
+@@ -326,9 +349,9 @@ public class NetworkManager implements INetworkManager {
      private void k() throws IOException { // CraftBukkit - throws IOException
          this.output.flush();
          this.g = true;
@@ -341,5 +346,5 @@ index 63dd8d3..52cab58 100644
  
      public Packet56MapChunkBulk(List list) {
 -- 
-1.8.3.2
+1.8.4
 
