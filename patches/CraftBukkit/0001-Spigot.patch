@@ -1,6 +1,6 @@
-From a3744036d2555da5e593c173a23aa05ee43749cf Mon Sep 17 00:00:00 2001
+From 48096f4c7d0e85dc7006a6dd929c0b077175add0 Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Mon, 9 Sep 2013 19:42:05 -0400
+Date: Thu, 19 Sep 2013 21:56:37 -0400
 Subject: [PATCH] Spigot
 
 ---
@@ -15,6 +15,7 @@ Subject: [PATCH] Spigot
  src/main/java/net/minecraft/server/BlockReed.java  |   2 +-
  .../java/net/minecraft/server/BlockSapling.java    |   2 +-
  src/main/java/net/minecraft/server/BlockStem.java  |   2 +-
+ src/main/java/net/minecraft/server/BlockTNT.java   |  85 +++
  src/main/java/net/minecraft/server/Chunk.java      |  51 ++
  .../net/minecraft/server/ChunkProviderServer.java  |   2 +
  .../net/minecraft/server/ChunkRegionLoader.java    |  59 +-
@@ -25,7 +26,7 @@ Subject: [PATCH] Spigot
  .../java/net/minecraft/server/EntityAgeable.java   |  25 +
  .../java/net/minecraft/server/EntityArrow.java     |   2 +-
  .../net/minecraft/server/EntityFallingBlock.java   |   1 +
- .../java/net/minecraft/server/EntityHuman.java     |   3 +-
+ .../java/net/minecraft/server/EntityHuman.java     |   7 +-
  src/main/java/net/minecraft/server/EntityItem.java |  17 +-
  .../java/net/minecraft/server/EntityLiving.java    |   9 +-
  .../minecraft/server/EntityMinecartContainer.java  |   6 +
@@ -43,16 +44,16 @@ Subject: [PATCH] Spigot
  .../net/minecraft/server/NextTickListEntry.java    |  56 ++
  .../java/net/minecraft/server/NibbleArray.java     | 158 +++++
  .../java/net/minecraft/server/OldChunkLoader.java  | 122 ++++
- src/main/java/net/minecraft/server/Packet.java     |   2 +-
  .../net/minecraft/server/Packet254GetInfo.java     |  53 ++
  .../net/minecraft/server/Packet51MapChunk.java     | 199 +++++++
  .../net/minecraft/server/Packet56MapChunkBulk.java |  24 +-
  .../minecraft/server/Packet63WorldParticles.java   |  65 +++
+ .../server/PathfinderGoalMeleeAttack.java          |  75 ++-
  .../net/minecraft/server/PendingConnection.java    |  46 +-
  .../java/net/minecraft/server/PlayerChunkMap.java  |   2 +-
  .../net/minecraft/server/PlayerConnection.java     |  33 +-
  .../minecraft/server/PlayerInteractManager.java    |   1 +
- src/main/java/net/minecraft/server/PlayerList.java |  39 +-
+ src/main/java/net/minecraft/server/PlayerList.java |  37 +-
  .../java/net/minecraft/server/PropertyManager.java |   2 +-
  .../java/net/minecraft/server/RegionFileCache.java |  67 +++
  .../java/net/minecraft/server/ShapedRecipes.java   |   9 +-
@@ -70,8 +71,8 @@ Subject: [PATCH] Spigot
  .../java/org/bukkit/craftbukkit/CraftServer.java   |  47 +-
  .../java/org/bukkit/craftbukkit/CraftWorld.java    |  99 +++-
  .../java/org/bukkit/craftbukkit/SpigotTimings.java | 128 ++++
+ .../bukkit/craftbukkit/block/CraftBlockState.java  |   5 +
  .../org/bukkit/craftbukkit/block/CraftSign.java    |   8 +-
- .../command/ConsoleCommandCompleter.java           |  46 ++
  .../craftbukkit/command/TicksPerSecondCommand.java |  35 ++
  .../org/bukkit/craftbukkit/entity/CraftArrow.java  |  22 +
  .../org/bukkit/craftbukkit/entity/CraftEntity.java |  16 +
@@ -107,7 +108,8 @@ Subject: [PATCH] Spigot
  .../java/org/spigotmc/netty/PacketListener.java    | 112 ++++
  src/main/java/org/spigotmc/netty/PacketWriter.java |  85 +++
  src/main/java/org/spigotmc/netty/ReadState.java    |  17 +
- 103 files changed, 5614 insertions(+), 398 deletions(-)
+ 104 files changed, 5731 insertions(+), 400 deletions(-)
+ create mode 100644 src/main/java/net/minecraft/server/BlockTNT.java
  create mode 100644 src/main/java/net/minecraft/server/INetworkManager.java
  create mode 100644 src/main/java/net/minecraft/server/LocaleLanguage.java
  create mode 100644 src/main/java/net/minecraft/server/NextTickListEntry.java
@@ -118,7 +120,6 @@ Subject: [PATCH] Spigot
  create mode 100644 src/main/java/net/minecraft/server/Packet63WorldParticles.java
  create mode 100644 src/main/java/net/minecraft/server/RegionFileCache.java
  create mode 100644 src/main/java/org/bukkit/craftbukkit/SpigotTimings.java
- create mode 100644 src/main/java/org/bukkit/craftbukkit/command/ConsoleCommandCompleter.java
  create mode 100644 src/main/java/org/bukkit/craftbukkit/command/TicksPerSecondCommand.java
  create mode 100644 src/main/java/org/spigotmc/ActivationRange.java
  create mode 100644 src/main/java/org/spigotmc/AntiXray.java
@@ -143,7 +144,7 @@ Subject: [PATCH] Spigot
  create mode 100644 src/main/java/org/spigotmc/netty/ReadState.java
 
 diff --git a/pom.xml b/pom.xml
-index e9fafd1..db54e95 100644
+index 7c23af9..3ca28d6 100644
 --- a/pom.xml
 +++ b/pom.xml
 @@ -1,12 +1,20 @@
@@ -163,7 +164,7 @@ index e9fafd1..db54e95 100644
 +  <groupId>org.spigotmc</groupId>
 +  <artifactId>spigot</artifactId>
    <packaging>jar</packaging>
-   <version>1.6.2-R0.2-SNAPSHOT</version>
+   <version>1.6.4-R0.1-SNAPSHOT</version>
 -  <name>CraftBukkit</name>
 -  <url>http://www.bukkit.org</url>
 +  <name>Spigot</name>
@@ -172,7 +173,7 @@ index e9fafd1..db54e95 100644
    <properties>
      <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 @@ -16,25 +24,6 @@
-     <minecraft_version>1_6_R2</minecraft_version>
+     <minecraft_version>1_6_R3</minecraft_version>
    </properties>
  
 -  <scm>
@@ -448,8 +449,99 @@ index f2d4e57..5fe0a81 100644
                  int l = world.getData(i, j, k);
  
                  if (l < 7) {
+diff --git a/src/main/java/net/minecraft/server/BlockTNT.java b/src/main/java/net/minecraft/server/BlockTNT.java
+new file mode 100644
+index 0000000..f4955f4
+--- /dev/null
++++ b/src/main/java/net/minecraft/server/BlockTNT.java
+@@ -0,0 +1,85 @@
++package net.minecraft.server;
++
++import java.util.Random;
++
++public class BlockTNT extends Block {
++
++    public BlockTNT(int i) {
++        super(i, Material.TNT);
++        this.a(CreativeModeTab.d);
++    }
++
++    public void onPlace(World world, int i, int j, int k) {
++        super.onPlace(world, i, j, k);
++        if (world.isBlockIndirectlyPowered(i, j, k)) {
++            this.postBreak(world, i, j, k, 1);
++            world.setAir(i, j, k);
++        }
++    }
++
++    public void doPhysics(World world, int i, int j, int k, int l) {
++        if (world.isBlockIndirectlyPowered(i, j, k)) {
++            this.postBreak(world, i, j, k, 1);
++            world.setAir(i, j, k);
++        }
++    }
++
++    public int a(Random random) {
++        return 1;
++    }
++
++    public void wasExploded(World world, int i, int j, int k, Explosion explosion) {
++        if (!world.isStatic) {
++            EntityTNTPrimed entitytntprimed = new EntityTNTPrimed(world, (double) ((float) i + 0.5F), (double) ((float) j + 0.5F), (double) ((float) k + 0.5F), explosion.c());
++
++            entitytntprimed.fuseTicks = world.random.nextInt(entitytntprimed.fuseTicks / 4) + entitytntprimed.fuseTicks / 8;
++            world.addEntity(entitytntprimed);
++        }
++    }
++
++    public void postBreak(World world, int i, int j, int k, int l) {
++        this.a(world, i, j, k, l, (EntityLiving) null);
++    }
++
++    public void a(World world, int i, int j, int k, int l, EntityLiving entityliving) {
++        if (!world.isStatic) {
++            if ((l & 1) == 1) {
++                EntityTNTPrimed entitytntprimed = new EntityTNTPrimed(world, (double) ((float) i + 0.5F), (double) ((float) j + 0.5F), (double) ((float) k + 0.5F), entityliving);
++
++                world.addEntity(entitytntprimed);
++                world.makeSound(entitytntprimed, "random.fuse", 1.0F, 1.0F);
++            }
++        }
++    }
++
++    public boolean interact(World world, int i, int j, int k, EntityHuman entityhuman, int l, float f, float f1, float f2) {
++        if (entityhuman.by() != null && entityhuman.by().id == Item.FLINT_AND_STEEL.id) {
++            this.a(world, i, j, k, 1, entityhuman);
++            world.setAir(i, j, k);
++            entityhuman.by().damage(1, entityhuman);
++            return true;
++        } else {
++            return super.interact(world, i, j, k, entityhuman, l, f, f1, f2);
++        }
++    }
++
++    public void a(World world, int i, int j, int k, Entity entity) {
++        if (entity instanceof EntityArrow && !world.isStatic) {
++            EntityArrow entityarrow = (EntityArrow) entity;
++
++            if (entityarrow.isBurning()) {
++                // CraftBukkit start
++                if (org.bukkit.craftbukkit.event.CraftEventFactory.callEntityChangeBlockEvent(entityarrow, i, j, k, 0, 0).isCancelled()) {
++                    return;
++                }
++                // CraftBukkit end
++                this.a(world, i, j, k, 1, entityarrow.shooter instanceof EntityLiving ? (EntityLiving) entityarrow.shooter : null);
++                world.setAir(i, j, k);
++            }
++        }
++    }
++
++    public boolean a(Explosion explosion) {
++        return false;
++    }
++}
 diff --git a/src/main/java/net/minecraft/server/Chunk.java b/src/main/java/net/minecraft/server/Chunk.java
-index 5b13dea..dc20587 100644
+index 3fa774f..8c98f3e 100644
 --- a/src/main/java/net/minecraft/server/Chunk.java
 +++ b/src/main/java/net/minecraft/server/Chunk.java
 @@ -33,6 +33,7 @@ public class Chunk {
@@ -733,7 +825,7 @@ index 3f67a19..e69afba 100644
          return nibbleArray;
      }
 diff --git a/src/main/java/net/minecraft/server/DedicatedServer.java b/src/main/java/net/minecraft/server/DedicatedServer.java
-index 95d7e5d..a534bbd 100644
+index f871b73..32f0e75 100644
 --- a/src/main/java/net/minecraft/server/DedicatedServer.java
 +++ b/src/main/java/net/minecraft/server/DedicatedServer.java
 @@ -34,7 +34,7 @@ public class DedicatedServer extends MinecraftServer implements IMinecraftServer
@@ -745,7 +837,7 @@ index 95d7e5d..a534bbd 100644
      }
  
      protected boolean init() throws java.net.UnknownHostException { // CraftBukkit - throws UnknownHostException
-@@ -89,13 +89,22 @@ public class DedicatedServer extends MinecraftServer implements IMinecraftServer
+@@ -90,13 +90,22 @@ public class DedicatedServer extends MinecraftServer implements IMinecraftServer
          if (this.I() < 0) {
              this.setPort(this.propertyManager.getInt("server-port", 25565));
          }
@@ -769,7 +861,7 @@ index 95d7e5d..a534bbd 100644
          } catch (Throwable ioexception) { // CraftBukkit - IOException -> Throwable
              this.getLogger().warning("**** FAILED TO BIND TO PORT!");
              this.getLogger().warning("The exception was: {0}", new Object[] { ioexception.toString()});
-@@ -103,7 +112,11 @@ public class DedicatedServer extends MinecraftServer implements IMinecraftServer
+@@ -104,7 +113,11 @@ public class DedicatedServer extends MinecraftServer implements IMinecraftServer
              return false;
          }
  
@@ -820,7 +912,7 @@ index 1a58814..b83a803 100644
                      world.triggerEffect(2005, i, j, k, 0);
                  }
 diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
-index 50edbdb..ee1ce90 100644
+index 2158088..92d7dc4 100644
 --- a/src/main/java/net/minecraft/server/Entity.java
 +++ b/src/main/java/net/minecraft/server/Entity.java
 @@ -14,6 +14,7 @@ import org.bukkit.block.BlockFace;
@@ -891,7 +983,7 @@ index 50edbdb..ee1ce90 100644
 +        org.bukkit.craftbukkit.SpigotTimings.entityMoveTimer.stopTiming(); // Spigot
      }
  
-     protected void C() {
+     protected void D() {
 @@ -1410,6 +1427,7 @@ public abstract class Entity {
                      }
                  }
@@ -955,7 +1047,7 @@ index 5ba19f3..4c73a5f 100644
          super(world);
      }
 diff --git a/src/main/java/net/minecraft/server/EntityArrow.java b/src/main/java/net/minecraft/server/EntityArrow.java
-index a4766c5..23fd1a8 100644
+index c9ec78a..b1d3de8 100644
 --- a/src/main/java/net/minecraft/server/EntityArrow.java
 +++ b/src/main/java/net/minecraft/server/EntityArrow.java
 @@ -14,7 +14,7 @@ public class EntityArrow extends Entity implements IProjectile {
@@ -968,7 +1060,7 @@ index a4766c5..23fd1a8 100644
      public int shake;
      public Entity shooter;
 diff --git a/src/main/java/net/minecraft/server/EntityFallingBlock.java b/src/main/java/net/minecraft/server/EntityFallingBlock.java
-index daa376c..79c94dc 100644
+index b552421..76d1610 100644
 --- a/src/main/java/net/minecraft/server/EntityFallingBlock.java
 +++ b/src/main/java/net/minecraft/server/EntityFallingBlock.java
 @@ -86,6 +86,7 @@ public class EntityFallingBlock extends Entity {
@@ -980,10 +1072,21 @@ index daa376c..79c94dc 100644
  
                  if (this.onGround) {
 diff --git a/src/main/java/net/minecraft/server/EntityHuman.java b/src/main/java/net/minecraft/server/EntityHuman.java
-index e1a3ca1..0a35df8 100644
+index e4fe770..36eca0f 100644
 --- a/src/main/java/net/minecraft/server/EntityHuman.java
 +++ b/src/main/java/net/minecraft/server/EntityHuman.java
-@@ -304,6 +304,7 @@ public abstract class EntityHuman extends EntityLiving implements ICommandListen
+@@ -258,6 +258,10 @@ public abstract class EntityHuman extends EntityLiving implements ICommandListen
+                 // Update client
+                 if (this instanceof EntityPlayer) {
+                     ((EntityPlayer) this).playerConnection.sendPacket(new Packet103SetSlot((byte) 0, activeContainer.a((IInventory) this.inventory, this.inventory.itemInHandIndex).index, this.f));
++                    // Spigot Start
++                    ((EntityPlayer) this).getBukkitEntity().updateInventory();
++                    ((EntityPlayer) this).getBukkitEntity().updateScaledHealth();
++                    // Spigot End
+                 }
+                 return;
+             }
+@@ -304,6 +308,7 @@ public abstract class EntityHuman extends EntityLiving implements ICommandListen
      public void setPassengerOf(Entity entity) {
          // CraftBukkit end
          if (this.vehicle != null && entity == null) {
@@ -991,7 +1094,7 @@ index e1a3ca1..0a35df8 100644
              // CraftBukkit start - use parent method instead to correctly fire VehicleExitEvent
              Entity originalVehicle = this.vehicle;
              // First statement moved down, second statement handled in parent method.
-@@ -410,7 +411,7 @@ public abstract class EntityHuman extends EntityLiving implements ICommandListen
+@@ -410,7 +415,7 @@ public abstract class EntityHuman extends EntityLiving implements ICommandListen
  
              List list = this.world.getEntities(this, axisalignedbb);
  
@@ -1001,7 +1104,7 @@ index e1a3ca1..0a35df8 100644
                      Entity entity = (Entity) list.get(i);
  
 diff --git a/src/main/java/net/minecraft/server/EntityItem.java b/src/main/java/net/minecraft/server/EntityItem.java
-index 8e1b024..0b8756b 100644
+index 584102e..24c44ad 100644
 --- a/src/main/java/net/minecraft/server/EntityItem.java
 +++ b/src/main/java/net/minecraft/server/EntityItem.java
 @@ -112,7 +112,10 @@ public class EntityItem extends Entity {
@@ -1036,7 +1139,7 @@ index 8e1b024..0b8756b 100644
              }
          } else {
 diff --git a/src/main/java/net/minecraft/server/EntityLiving.java b/src/main/java/net/minecraft/server/EntityLiving.java
-index ea79919..34683a5 100644
+index 16a16cf..de07560 100644
 --- a/src/main/java/net/minecraft/server/EntityLiving.java
 +++ b/src/main/java/net/minecraft/server/EntityLiving.java
 @@ -78,6 +78,13 @@ public abstract class EntityLiving extends Entity {
@@ -1053,8 +1156,8 @@ index ea79919..34683a5 100644
  
      public EntityLiving(World world) {
          super(world);
-@@ -1455,7 +1462,7 @@ public abstract class EntityLiving extends Entity {
-     protected void bi() {
+@@ -1456,7 +1463,7 @@ public abstract class EntityLiving extends Entity {
+     protected void bj() {
          List list = this.world.getEntities(this, this.boundingBox.grow(0.20000000298023224D, 0.0D, 0.20000000298023224D));
  
 -        if (list != null && !list.isEmpty()) {
@@ -1080,10 +1183,10 @@ index e89b106..f58cd7e 100644
          super.b(i);
      }
 diff --git a/src/main/java/net/minecraft/server/EntityPlayer.java b/src/main/java/net/minecraft/server/EntityPlayer.java
-index 58e5217..9ff8c86 100644
+index 2e234f1..6c55250 100644
 --- a/src/main/java/net/minecraft/server/EntityPlayer.java
 +++ b/src/main/java/net/minecraft/server/EntityPlayer.java
-@@ -52,7 +52,23 @@ public class EntityPlayer extends EntityHuman implements ICrafting {
+@@ -54,7 +54,23 @@ public class EntityPlayer extends EntityHuman implements ICrafting {
      public int newTotalExp = 0;
      public boolean keepLevel = false;
      public double maxHealthCache;
@@ -1099,9 +1202,9 @@ index 58e5217..9ff8c86 100644
 +    }
 +
 +    @Override
-+    public boolean K()
++    public boolean M()
 +    {
-+        return this.collidesWithEntities && super.K();
++        return this.collidesWithEntities && super.M();
 +    }
 +    // Spigot end
  
@@ -1129,7 +1232,7 @@ index 1d9203b..e833454 100644
              EntityPlayer entityplayer = (EntityPlayer) entity;
              Iterator iterator = this.b.iterator();
 diff --git a/src/main/java/net/minecraft/server/EntityTrackerEntry.java b/src/main/java/net/minecraft/server/EntityTrackerEntry.java
-index 8545b50..1f5a652 100644
+index baa5b55..87877d3 100644
 --- a/src/main/java/net/minecraft/server/EntityTrackerEntry.java
 +++ b/src/main/java/net/minecraft/server/EntityTrackerEntry.java
 @@ -297,6 +297,7 @@ public class EntityTrackerEntry {
@@ -1204,7 +1307,7 @@ index bb28c12..c0836e4 100644
 +    java.util.List<ItemStack> getIngredients(); // Spigot
  }
 diff --git a/src/main/java/net/minecraft/server/ItemStack.java b/src/main/java/net/minecraft/server/ItemStack.java
-index 41ba8fe..e2011ea 100644
+index 69f81ca..f3a6027 100644
 --- a/src/main/java/net/minecraft/server/ItemStack.java
 +++ b/src/main/java/net/minecraft/server/ItemStack.java
 @@ -178,7 +178,13 @@ public final class ItemStack {
@@ -1243,8 +1346,8 @@ index 41ba8fe..e2011ea 100644
      public void damage(int i, EntityLiving entityliving) {
          if (!(entityliving instanceof EntityHuman) || !((EntityHuman) entityliving).abilities.canInstantlyBuild) {
              if (this.g()) {
--                if (this.isDamaged(i, entityliving.aC())) {
-+                if (this.isDamaged(i, entityliving.aC(), entityliving)) {
+-                if (this.isDamaged(i, entityliving.aD())) {
++                if (this.isDamaged(i, entityliving.aD(), entityliving)) {
                      entityliving.a(this);
                      --this.count;
                      if (entityliving instanceof EntityHuman) {
@@ -1328,7 +1431,7 @@ index 0000000..aa937fb
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
-index 26cfa0c..d186e47 100644
+index 029131d..fb8bc87 100644
 --- a/src/main/java/net/minecraft/server/MinecraftServer.java
 +++ b/src/main/java/net/minecraft/server/MinecraftServer.java
 @@ -7,7 +7,6 @@ import java.security.KeyPair;
@@ -1347,7 +1450,7 @@ index 26cfa0c..d186e47 100644
  import org.bukkit.craftbukkit.util.Waitable;
  import org.bukkit.event.server.RemoteServerCommandEvent;
  import org.bukkit.event.world.WorldSaveEvent;
-@@ -86,6 +86,12 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+@@ -87,6 +87,12 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
      public java.util.Queue<Runnable> processQueue = new java.util.concurrent.ConcurrentLinkedQueue<Runnable>();
      public int autosavePeriod;
      // CraftBukkit end
@@ -1360,21 +1463,21 @@ index 26cfa0c..d186e47 100644
  
      public MinecraftServer(OptionSet options) { // CraftBukkit - signature file -> OptionSet
          this.c = Proxy.NO_PROXY;
-@@ -389,39 +395,27 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+@@ -391,39 +397,27 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
      public void run() {
          try {
              if (this.init()) {
 -                long i = aq();
 -
--                for (long j = 0L; this.isRunning; this.Q = true) {
+-                for (long j = 0L; this.isRunning; this.R = true) {
 -                    long k = aq();
 -                    long l = k - i;
 -
--                    if (l > 2000L && i - this.R >= 15000L) {
+-                    if (l > 2000L && i - this.S >= 15000L) {
 -                        if (this.server.getWarnOnOverload()) // CraftBukkit - Added option to suppress warning messages
 -                        this.getLogger().warning("Can\'t keep up! Did the system time change, or is the server overloaded?");
 -                        l = 2000L;
--                        this.R = i;
+-                        this.S = i;
 -                    }
 -
 -                    if (l < 0L) {
@@ -1388,7 +1491,7 @@ index 26cfa0c..d186e47 100644
 -                        this.s();
 -                        j = 0L;
 +                // Spigot start
-+                for (long lastTick = 0L; this.isRunning; this.Q = true) {
++                for (long lastTick = 0L; this.isRunning; this.R = true) {
 +                    long curTime = System.nanoTime();
 +                    long wait = TICK_TIME - (curTime - lastTick) - catchupTime;
 +                    if (wait > 0) {
@@ -1418,7 +1521,7 @@ index 26cfa0c..d186e47 100644
              } else {
                  this.a((CrashReport) null);
              }
-@@ -447,6 +441,7 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+@@ -449,6 +443,7 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
              this.a(crashreport);
          } finally {
              try {
@@ -1426,8 +1529,8 @@ index 26cfa0c..d186e47 100644
                  this.stop();
                  this.isStopped = true;
              } catch (Throwable throwable1) {
-@@ -503,11 +498,11 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
-         this.H = Packet.p;
+@@ -505,11 +500,11 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+         this.I = Packet.p;
          this.methodProfiler.b();
          this.methodProfiler.a("snooper");
 -        if (!this.n.d() && this.ticks > 100) {
@@ -1440,7 +1543,7 @@ index 26cfa0c..d186e47 100644
              this.n.b();
          }
  
-@@ -518,6 +513,7 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+@@ -520,6 +515,7 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
      public void t() {
          this.methodProfiler.a("levels");
  
@@ -1448,7 +1551,7 @@ index 26cfa0c..d186e47 100644
          // CraftBukkit start
          this.server.getScheduler().mainThreadHeartbeat(this.ticks);
  
-@@ -526,7 +522,10 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+@@ -528,7 +524,10 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
              processQueue.remove().run();
          }
  
@@ -1459,7 +1562,7 @@ index 26cfa0c..d186e47 100644
  
          // Send time updates to everyone, it will get the right time from the world the player is in.
          if (this.ticks % 20 == 0) {
-@@ -578,7 +577,9 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+@@ -580,7 +579,9 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
  
                  this.methodProfiler.b();
                  this.methodProfiler.a("tracker");
@@ -1469,7 +1572,7 @@ index 26cfa0c..d186e47 100644
                  this.methodProfiler.b();
                  this.methodProfiler.b();
              // } // CraftBukkit
-@@ -587,14 +588,20 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+@@ -589,14 +590,20 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
          }
  
          this.methodProfiler.c("connection");
@@ -1490,7 +1593,7 @@ index 26cfa0c..d186e47 100644
  
          this.methodProfiler.b();
      }
-@@ -910,7 +917,7 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+@@ -912,7 +919,7 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
      }
  
      public void sendMessage(ChatMessage chatmessage) {
@@ -1930,19 +2033,6 @@ index 0000000..9a9e20f
 +        }
 +    }
 +}
-diff --git a/src/main/java/net/minecraft/server/Packet.java b/src/main/java/net/minecraft/server/Packet.java
-index 391c6fc..b5e0261 100644
---- a/src/main/java/net/minecraft/server/Packet.java
-+++ b/src/main/java/net/minecraft/server/Packet.java
-@@ -112,7 +112,7 @@ public abstract class Packet {
-             ++o;
-             p += (long) packet.a();
-         } catch (EOFException eofexception) {
--            iconsolelogmanager.severe("Reached end of stream for " + socket.getInetAddress());
-+            // iconsolelogmanager.severe("Reached end of stream for " + socket.getInetAddress()); // Spigot - too spammy
-             return null;
-         }
- 
 diff --git a/src/main/java/net/minecraft/server/Packet254GetInfo.java b/src/main/java/net/minecraft/server/Packet254GetInfo.java
 new file mode 100644
 index 0000000..9afa795
@@ -2337,8 +2427,104 @@ index 0000000..60e1237
 +        return 64;
 +    }
 +}
+diff --git a/src/main/java/net/minecraft/server/PathfinderGoalMeleeAttack.java b/src/main/java/net/minecraft/server/PathfinderGoalMeleeAttack.java
+index a07c6cf..ee4bc7e 100644
+--- a/src/main/java/net/minecraft/server/PathfinderGoalMeleeAttack.java
++++ b/src/main/java/net/minecraft/server/PathfinderGoalMeleeAttack.java
+@@ -63,19 +63,88 @@ public class PathfinderGoalMeleeAttack extends PathfinderGoal {
+         this.b.getNavigation().h();
+     }
+ 
++    // Spigot start
++    private double pathX;
++    private double pathY;
++    private double pathZ;
++    private boolean prevPathOK;
++    private int fullRangeSearchDelay;
++    // Spigot end
+     public void e() {
+         EntityLiving entityliving = this.b.getGoalTarget();
+ 
+         this.b.getControllerLook().a(entityliving, 30.0F, 30.0F);
++        double goalDistanceSq = this.b.e( entityliving.locX, entityliving.boundingBox.b, entityliving.locZ ); // Spigot
+         if ((this.e || this.b.getEntitySenses().canSee(entityliving)) && --this.h <= 0) {
+-            this.h = 4 + this.b.aD().nextInt(7);
+-            this.b.getNavigation().a((Entity) entityliving, this.d);
++            // Spigot start
++            double targetMovement = entityliving.e( pathX, pathY, pathZ );
++            // If this is true, then we are re-pathing
++            if ( ( this.h <= 0 && targetMovement >= 1.0D ) || ( this.h <= 0 && this.b.aD().nextInt( 200 ) == 0 ) ) /* EntityCreature random instance */
++
++            {
++                AttributeInstance rangeAttr = this.b.getAttributeInstance( GenericAttributes.b );
++                double origRange = rangeAttr.getValue();
++                if ( fullRangeSearchDelay > 0 )
++                {
++
++                    double dist = Math.sqrt( goalDistanceSq );
++                    if ( dist <= 8.0D )
++                    {
++                        dist = 8.0D;
++                    }
++                    if ( dist > origRange )
++                    {
++                        dist = origRange;
++                    }
++                    rangeAttr.setValue( dist );
++                }
++
++                prevPathOK = this.b.getNavigation().a( (Entity) entityliving, this.d );
++
++                if ( fullRangeSearchDelay > 0 )
++                {
++                    fullRangeSearchDelay--;
++                    if ( origRange > 40.0D )
++                    {
++                        origRange = 40.0D;
++                    }
++                    rangeAttr.setValue( origRange );
++                }
++
++                pathX = entityliving.locX;
++                pathY = entityliving.boundingBox.b;
++                pathZ = entityliving.locZ;
++                this.h = 4 + this.b.aD().nextInt( 7 ); /* EntityCreature random instance */
++
++                if ( goalDistanceSq > 256.0D )
++                {
++                    if ( goalDistanceSq > 1024.0D )
++                    {
++                        this.h += 8;
++                    } else
++                    {
++                        this.h += 16;
++                    }
++                } else if ( !prevPathOK )
++                {
++                    this.h += 24;
++                }
++
++                if ( !prevPathOK || goalDistanceSq <= 256.0D )
++                {
++                    if ( fullRangeSearchDelay <= 0 )
++                    {
++                        fullRangeSearchDelay = 4 + this.b.aD().nextInt( 4 ); /* EntityCreature random instance */
++                    }
++                }
++            }
+         }
++        // Spigot end
+ 
+         this.c = Math.max(this.c - 1, 0);
+         double d0 = (double) (this.b.width * 2.0F * this.b.width * 2.0F + entityliving.width);
+ 
+-        if (this.b.e(entityliving.locX, entityliving.boundingBox.b, entityliving.locZ) <= d0) {
++        if (goalDistanceSq <= d0) { // Spigot
+             if (this.c <= 0) {
+                 this.c = 20;
+                 if (this.b.aZ() != null) {
 diff --git a/src/main/java/net/minecraft/server/PendingConnection.java b/src/main/java/net/minecraft/server/PendingConnection.java
-index 1749059..a5c3104 100644
+index 1bb77a9..b098745 100644
 --- a/src/main/java/net/minecraft/server/PendingConnection.java
 +++ b/src/main/java/net/minecraft/server/PendingConnection.java
 @@ -16,7 +16,7 @@ public class PendingConnection extends Connection {
@@ -2367,35 +2553,33 @@ index 1749059..a5c3104 100644
      }
  
      // CraftBukkit start
-@@ -61,6 +66,7 @@ public class PendingConnection extends Connection {
+@@ -61,21 +66,22 @@ public class PendingConnection extends Connection {
          }
      }
  
 +    private static final java.util.regex.Pattern validName = java.util.regex.Pattern.compile("^[a-zA-Z0-9_-]{2,16}$"); // Spigot
      public void a(Packet2Handshake packet2handshake) {
-         // CraftBukkit start
          if (this.g != null) {
-@@ -69,16 +75,16 @@ public class PendingConnection extends Connection {
-         this.hostname = packet2handshake.c == null ? "" : packet2handshake.c + ':' + packet2handshake.d;
-         // CraftBukkit end
-         this.g = packet2handshake.f();
--        if (!this.g.equals(StripColor.a(this.g))) {
-+        if (!this.g.equals(StripColor.a(this.g)) || !validName.matcher( this.g ).matches() ) { // Spigot
-             this.disconnect("Invalid username!");
+             this.disconnect("Quit repeating yourself!");
          } else {
-             PublicKey publickey = this.server.H().getPublic();
- 
-             if (packet2handshake.d() != 74) {
-                 if (packet2handshake.d() > 74) {
--                    this.disconnect("Outdated server!");
-+                    this.disconnect(org.spigotmc.SpigotConfig.outdatedServerMessage); // Spigot
-                 } else {
--                    this.disconnect("Outdated client!");
-+                    this.disconnect(org.spigotmc.SpigotConfig.outdatedClientMessage); // Spigot
-                 }
+             this.g = packet2handshake.f();
+-            if (!this.g.equals(StripColor.a(this.g))) {
++            if (!this.g.equals(StripColor.a(this.g)) || !validName.matcher( this.g ).matches() ) { // Spigot
+                 this.disconnect("Invalid username!");
              } else {
-                 this.loginKey = this.server.getOnlineMode() ? Long.toString(random.nextLong(), 16) : "-";
-@@ -108,7 +114,7 @@ public class PendingConnection extends Connection {
+                 PublicKey publickey = this.server.H().getPublic();
+ 
+                 if (packet2handshake.d() != 78) {
+                     if (packet2handshake.d() > 78) {
+-                        this.disconnect("Outdated server!");
++                        this.disconnect(org.spigotmc.SpigotConfig.outdatedServerMessage); // Spigot
+                     } else {
+-                        this.disconnect("Outdated client!");
++                        this.disconnect(org.spigotmc.SpigotConfig.outdatedClientMessage); // Spigot
+                     }
+                 } else {
+                     this.loginKey = this.server.getOnlineMode() ? Long.toString(random.nextLong(), 16) : "-";
+@@ -106,7 +112,7 @@ public class PendingConnection extends Connection {
              }
  
              this.j = true;
@@ -2404,7 +2588,7 @@ index 1749059..a5c3104 100644
                  (new ThreadLoginVerifier(this, server.server)).start(); // CraftBukkit - add CraftServer
              } else {
                  this.h = true;
-@@ -149,7 +155,7 @@ public class PendingConnection extends Connection {
+@@ -147,7 +153,7 @@ public class PendingConnection extends Connection {
              String s = null;
              // CraftBukkit
              org.bukkit.event.server.ServerListPingEvent pingEvent = org.bukkit.craftbukkit.event.CraftEventFactory.callServerListPingEvent(this.server.server, getSocket().getInetAddress(), this.server.getMotd(), playerlist.getPlayerCount(), playerlist.getMaxPlayers());
@@ -2413,7 +2597,7 @@ index 1749059..a5c3104 100644
                  // CraftBukkit
                  s = pingEvent.getMotd() + "\u00A7" + playerlist.getPlayerCount() + "\u00A7" + pingEvent.getMaxPlayers();
              } else {
-@@ -178,9 +184,18 @@ public class PendingConnection extends Connection {
+@@ -176,9 +182,18 @@ public class PendingConnection extends Connection {
  
              this.networkManager.queue(new Packet255KickDisconnect(s));
              this.networkManager.d();
@@ -2434,7 +2618,7 @@ index 1749059..a5c3104 100644
  
              this.b = true;
          } catch (Exception exception) {
-@@ -223,4 +238,17 @@ public class PendingConnection extends Connection {
+@@ -221,4 +236,17 @@ public class PendingConnection extends Connection {
      static boolean a(PendingConnection pendingconnection, boolean flag) {
          return pendingconnection.h = flag;
      }
@@ -2466,10 +2650,10 @@ index 4e0398c..ae4ca63 100644
          } else {
              this.f = i;
 diff --git a/src/main/java/net/minecraft/server/PlayerConnection.java b/src/main/java/net/minecraft/server/PlayerConnection.java
-index 6444a2f..1673f2f 100644
+index a5d7500..10d853b 100644
 --- a/src/main/java/net/minecraft/server/PlayerConnection.java
 +++ b/src/main/java/net/minecraft/server/PlayerConnection.java
-@@ -829,7 +829,17 @@ public class PlayerConnection extends Connection {
+@@ -834,7 +834,17 @@ public class PlayerConnection extends Connection {
                  this.chat(s, packet3chat.a_());
  
                  // This section stays because it is only applicable to packets
@@ -2488,7 +2672,7 @@ index 6444a2f..1673f2f 100644
                      if (packet3chat.a_()) {
                          Waitable waitable = new Waitable() {
                              @Override
-@@ -939,6 +949,7 @@ public class PlayerConnection extends Connection {
+@@ -944,6 +954,7 @@ public class PlayerConnection extends Connection {
      // CraftBukkit end
  
      private void handleCommand(String s) {
@@ -2496,7 +2680,7 @@ index 6444a2f..1673f2f 100644
          // CraftBukkit start
          CraftPlayer player = this.getPlayer();
  
-@@ -946,19 +957,28 @@ public class PlayerConnection extends Connection {
+@@ -951,19 +962,28 @@ public class PlayerConnection extends Connection {
          this.server.getPluginManager().callEvent(event);
  
          if (event.isCancelled()) {
@@ -2526,7 +2710,7 @@ index 6444a2f..1673f2f 100644
          // CraftBukkit end
  
          /* CraftBukkit start - No longer needed as we have already handled it in server.dispatchServerCommand above.
-@@ -1060,6 +1080,13 @@ public class PlayerConnection extends Connection {
+@@ -1067,6 +1087,13 @@ public class PlayerConnection extends Connection {
  
          WorldServer worldserver = this.minecraftServer.getWorldServer(this.player.dimension);
          Entity entity = worldserver.getEntity(packet7useentity.target);
@@ -2538,9 +2722,9 @@ index 6444a2f..1673f2f 100644
 +        }
 +        // Spigot End
  
+         this.player.u();
          if (entity != null) {
-             boolean flag = this.player.o(entity);
-@@ -1560,7 +1587,7 @@ public class PlayerConnection extends Connection {
+@@ -1572,7 +1599,7 @@ public class PlayerConnection extends Connection {
                      flag = false;
                  } else {
                      for (i = 0; i < packet130updatesign.lines[j].length(); ++i) {
@@ -2550,7 +2734,7 @@ index 6444a2f..1673f2f 100644
                          }
                      }
 diff --git a/src/main/java/net/minecraft/server/PlayerInteractManager.java b/src/main/java/net/minecraft/server/PlayerInteractManager.java
-index a7afa55..1a60229 100644
+index 16420e4..db2e2a7 100644
 --- a/src/main/java/net/minecraft/server/PlayerInteractManager.java
 +++ b/src/main/java/net/minecraft/server/PlayerInteractManager.java
 @@ -184,6 +184,7 @@ public class PlayerInteractManager {
@@ -2562,26 +2746,10 @@ index a7afa55..1a60229 100644
      }
  
 diff --git a/src/main/java/net/minecraft/server/PlayerList.java b/src/main/java/net/minecraft/server/PlayerList.java
-index 0f17c90..de4a430 100644
+index 5dafeaf..bb13b41 100644
 --- a/src/main/java/net/minecraft/server/PlayerList.java
 +++ b/src/main/java/net/minecraft/server/PlayerList.java
-@@ -17,6 +17,7 @@ import java.util.Map.Entry;
- import org.bukkit.craftbukkit.CraftServer;
- import org.bukkit.craftbukkit.CraftWorld;
- import org.bukkit.craftbukkit.chunkio.ChunkIOExecutor;
-+import org.bukkit.craftbukkit.command.ConsoleCommandCompleter;
- 
- import org.bukkit.Bukkit;
- import org.bukkit.Location;
-@@ -55,6 +56,7 @@ public abstract class PlayerList {
-     public PlayerList(MinecraftServer minecraftserver) {
-         minecraftserver.server = new CraftServer(minecraftserver, this);
-         minecraftserver.console = org.bukkit.craftbukkit.command.ColouredConsoleSender.getInstance();
-+        minecraftserver.reader.addCompleter(new ConsoleCommandCompleter(minecraftserver.server));
-         this.cserver = minecraftserver.server;
-         // CraftBukkit end
- 
-@@ -295,7 +297,7 @@ public abstract class PlayerList {
+@@ -296,7 +296,7 @@ public abstract class PlayerList {
          // depending on the outcome.
          EntityPlayer entity = new EntityPlayer(this.server, this.server.getWorldServer(0), s, this.server.O() ? new DemoPlayerInteractManager(this.server.getWorldServer(0)) : new PlayerInteractManager(this.server.getWorldServer(0)));
          Player player = entity.getBukkitEntity();
@@ -2590,7 +2758,7 @@ index 0f17c90..de4a430 100644
  
          SocketAddress socketaddress = pendingconnection.networkManager.getSocketAddress();
  
-@@ -309,7 +311,7 @@ public abstract class PlayerList {
+@@ -310,7 +310,7 @@ public abstract class PlayerList {
  
              event.disallow(PlayerLoginEvent.Result.KICK_BANNED, s1);
          } else if (!this.isWhitelisted(s)) {
@@ -2599,7 +2767,7 @@ index 0f17c90..de4a430 100644
          } else {
              String s2 = socketaddress.toString();
  
-@@ -325,7 +327,7 @@ public abstract class PlayerList {
+@@ -326,7 +326,7 @@ public abstract class PlayerList {
  
                  event.disallow(PlayerLoginEvent.Result.KICK_BANNED, s3);
              } else if (this.players.size() >= this.maxPlayers) {
@@ -2608,7 +2776,7 @@ index 0f17c90..de4a430 100644
              } else {
                  event.disallow(PlayerLoginEvent.Result.ALLOWED, s2);
              }
-@@ -422,6 +424,9 @@ public abstract class PlayerList {
+@@ -423,6 +423,9 @@ public abstract class PlayerList {
              Player respawnPlayer = this.cserver.getPlayer(entityplayer1);
              PlayerRespawnEvent respawnEvent = new PlayerRespawnEvent(respawnPlayer, location, isBedSpawn);
              this.cserver.getPluginManager().callEvent(respawnEvent);
@@ -2618,7 +2786,7 @@ index 0f17c90..de4a430 100644
  
              location = respawnEvent.getRespawnLocation();
              entityplayer.reset();
-@@ -719,6 +724,25 @@ public abstract class PlayerList {
+@@ -720,6 +723,25 @@ public abstract class PlayerList {
              this.sendAll(new Packet201PlayerInfo(entityplayer.getName(), true, entityplayer.ping));
          }
          // CraftBukkit end */
@@ -2644,7 +2812,7 @@ index 0f17c90..de4a430 100644
      }
  
      public void sendAll(Packet packet) {
-@@ -1044,7 +1068,14 @@ public abstract class PlayerList {
+@@ -1045,7 +1067,14 @@ public abstract class PlayerList {
  
      public void r() {
          while (!this.players.isEmpty()) {
@@ -3015,7 +3183,7 @@ index e8cd525..5793b5c 100644
                  }
  
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index 0435ca7..c03e274 100644
+index 3924a5c..cb21133 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
 @@ -13,6 +13,7 @@ import java.util.concurrent.Callable;
@@ -3523,7 +3691,7 @@ index 22d9c7e..bed8705 100644
  
                      this.c[i] = -1;
 diff --git a/src/main/java/net/minecraft/server/WorldServer.java b/src/main/java/net/minecraft/server/WorldServer.java
-index eb9540f..1f864a2 100644
+index acc1eff..588c630 100644
 --- a/src/main/java/net/minecraft/server/WorldServer.java
 +++ b/src/main/java/net/minecraft/server/WorldServer.java
 @@ -25,8 +25,8 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
@@ -4375,6 +4543,29 @@ index 0000000..541dfe4
 +        }
 +    }
 +}
+diff --git a/src/main/java/org/bukkit/craftbukkit/block/CraftBlockState.java b/src/main/java/org/bukkit/craftbukkit/block/CraftBlockState.java
+index 2072db2..c2ccc73 100644
+--- a/src/main/java/org/bukkit/craftbukkit/block/CraftBlockState.java
++++ b/src/main/java/org/bukkit/craftbukkit/block/CraftBlockState.java
+@@ -9,6 +9,7 @@ import org.bukkit.block.BlockState;
+ import org.bukkit.craftbukkit.CraftChunk;
+ import org.bukkit.craftbukkit.CraftWorld;
+ import org.bukkit.material.MaterialData;
++import org.bukkit.material.Attachable;
+ import org.bukkit.metadata.MetadataValue;
+ import org.bukkit.plugin.Plugin;
+ 
+@@ -128,6 +129,10 @@ public class CraftBlockState implements BlockState {
+         }
+ 
+         block.setData(getRawData(), applyPhysics);
++        if (applyPhysics && data instanceof Attachable) {
++            Block rel = block.getRelative(((Attachable) data).getFacing(), -1);
++            world.getHandle().applyPhysics(rel.getX(), rel.getY(), rel.getZ(), block.getTypeId());
++        }
+         world.getHandle().notify(x, y, z);
+ 
+         return true;
 diff --git a/src/main/java/org/bukkit/craftbukkit/block/CraftSign.java b/src/main/java/org/bukkit/craftbukkit/block/CraftSign.java
 index 1647100..43c4434 100644
 --- a/src/main/java/org/bukkit/craftbukkit/block/CraftSign.java
@@ -4401,58 +4592,6 @@ index 1647100..43c4434 100644
              for(int i = 0; i < 4; i++) {
                  if(lines[i] != null) {
                      sign.lines[i] = lines[i];
-diff --git a/src/main/java/org/bukkit/craftbukkit/command/ConsoleCommandCompleter.java b/src/main/java/org/bukkit/craftbukkit/command/ConsoleCommandCompleter.java
-new file mode 100644
-index 0000000..a889ff3
---- /dev/null
-+++ b/src/main/java/org/bukkit/craftbukkit/command/ConsoleCommandCompleter.java
-@@ -0,0 +1,46 @@
-+package org.bukkit.craftbukkit.command;
-+
-+import jline.console.completer.Completer;
-+import org.bukkit.craftbukkit.CraftServer;
-+import org.bukkit.craftbukkit.util.Waitable;
-+
-+import java.util.List;
-+import java.util.concurrent.ExecutionException;
-+import java.util.logging.Level;
-+
-+public class ConsoleCommandCompleter implements Completer {
-+    private final CraftServer server;
-+
-+    public ConsoleCommandCompleter(CraftServer server) {
-+        this.server = server;
-+    }
-+
-+    public int complete(final String buffer, final int cursor, final List<CharSequence> candidates) {
-+        Waitable<List<String>> waitable = new Waitable<List<String>>() {
-+            @Override
-+            protected List<String> evaluate() {
-+                return server.getCommandMap().tabComplete(server.getConsoleSender(), buffer);
-+            }
-+        };
-+        this.server.getServer().processQueue.add(waitable);
-+        try {
-+            List<String> offers = waitable.get();
-+            if (offers == null) {
-+                return cursor;
-+            }
-+            candidates.addAll(offers);
-+
-+            final int lastSpace = buffer.lastIndexOf(' ');
-+            if (lastSpace == -1) {
-+                return cursor - buffer.length();
-+            } else {
-+                return cursor - (buffer.length() - lastSpace - 1);
-+            }
-+        } catch (ExecutionException e) {
-+            this.server.getLogger().log(Level.WARNING, "Unhandled exception when tab completing", e);
-+        } catch (InterruptedException e) {
-+            Thread.currentThread().interrupt();
-+        }
-+        return cursor;
-+    }
-+}
 diff --git a/src/main/java/org/bukkit/craftbukkit/command/TicksPerSecondCommand.java b/src/main/java/org/bukkit/craftbukkit/command/TicksPerSecondCommand.java
 new file mode 100644
 index 0000000..f114a31
@@ -4551,7 +4690,7 @@ index d9659fb..65a77dc 100644
 +    // Spigot end
  }
 diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
-index d5d43c9..6ee31d9 100644
+index ac73273..33674b1 100644
 --- a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
 @@ -218,6 +218,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
@@ -4618,7 +4757,7 @@ index d5d43c9..6ee31d9 100644
  
 @@ -1072,4 +1076,70 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
          }
-         collection.add(new AttributeModifiable(getHandle().aW(), (new AttributeRanged("generic.maxHealth", scaledHealth ? healthScale : getMaxHealth(), 0.0D, Float.MAX_VALUE)).a("Max Health").a(true)));
+         collection.add(new AttributeModifiable(getHandle().aX(), (new AttributeRanged("generic.maxHealth", scaledHealth ? healthScale : getMaxHealth(), 0.0D, Float.MAX_VALUE)).a("Max Health").a(true)));
      }
 +
 +    // Spigot start
