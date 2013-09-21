@@ -1,0 +1,495 @@
+From 1149409ba114c46f9883258ff6a9ba69c41b44e9 Mon Sep 17 00:00:00 2001
+From: T00thpick1 <t00thpick1dirko@gmail.com>
+Date: Sat, 21 Sep 2013 17:39:03 -0400
+Subject: [PATCH] Item Attributes
+
+---
+ .../org/bukkit/attributes/AttributeIdentifier.java |  41 ++++++++
+ .../org/bukkit/attributes/AttributeModifier.java   |  53 +++++++++++
+ .../bukkit/attributes/AttributeModifierType.java   |  30 ++++++
+ src/main/java/org/bukkit/entity/Damageable.java    |  36 ++++++-
+ src/main/java/org/bukkit/entity/Horse.java         |  33 ++++++-
+ src/main/java/org/bukkit/entity/LivingEntity.java  | 103 +++++++++++++++++++++
+ src/main/java/org/bukkit/entity/Zombie.java        |  35 +++++++
+ .../java/org/bukkit/inventory/meta/ItemMeta.java   |  33 +++++++
+ 8 files changed, 358 insertions(+), 6 deletions(-)
+ create mode 100644 src/main/java/org/bukkit/attributes/AttributeIdentifier.java
+ create mode 100644 src/main/java/org/bukkit/attributes/AttributeModifier.java
+ create mode 100644 src/main/java/org/bukkit/attributes/AttributeModifierType.java
+
+diff --git a/src/main/java/org/bukkit/attributes/AttributeIdentifier.java b/src/main/java/org/bukkit/attributes/AttributeIdentifier.java
+new file mode 100644
+index 0000000..4211c3f
+--- /dev/null
++++ b/src/main/java/org/bukkit/attributes/AttributeIdentifier.java
+@@ -0,0 +1,41 @@
++package org.bukkit.attributes;
++
++public enum AttributeIdentifier {
++
++    /**
++     * The maximum health of this mob; determines the highest Health they may
++     * be healed to.
++     */
++    MAX_HEALTH,
++    /**
++     * The range in blocks within which a mob will
++     * target an entity to track. 
++     * Exiting this range will cause the mob to stop following the
++     * entity.
++     * Max value of 2048.
++     */
++    FOLLOW_RANGE,
++    /**
++     * Resistance to knockback from attacks, explosions, and projectiles.
++     * Max value of 1.0.
++     */
++    KNOCKBACK_RESISTANCE,
++    /**
++     * The movement speed of the mob
++     */
++    MOVEMENT_SPEED,
++    /**
++     * Damage dealt by attacks, in half-hearts.
++     */
++    ATTACK_DAMAGE,
++    /**
++     * Horse jump strength 
++     * Max value of 2.0.
++     */
++    JUMP_STRENGTH,
++    /**
++     * Chance that a zombie will spawn another zombie when attacked.
++     * Max value of 1.0
++     */
++    SPAWN_REINFORCEMENTS;
++}
+diff --git a/src/main/java/org/bukkit/attributes/AttributeModifier.java b/src/main/java/org/bukkit/attributes/AttributeModifier.java
+new file mode 100644
+index 0000000..9b2e44c
+--- /dev/null
++++ b/src/main/java/org/bukkit/attributes/AttributeModifier.java
+@@ -0,0 +1,53 @@
++package org.bukkit.attributes;
++
++/**
++ * Represents an attribute modifier.
++ */
++public class AttributeModifier {
++    private AttributeIdentifier identifier;
++    private double value;
++    private AttributeModifierType modifierType;
++
++    private AttributeModifier(AttributeIdentifier identifier, double value, AttributeModifierType type) {
++        this.identifier = identifier;
++        this.value = value;
++        this.modifierType = type;
++    }
++    /**
++     * Gets the attribute identifier used to determine which attribute to modify
++     * 
++     * @return an {@link AttributeIdentifier}
++     */
++    public AttributeIdentifier getIdentifier() {
++        return identifier;
++    }
++
++    /**
++     * Gets the value the attribute is modified with
++     * 
++     * @return the modifier value
++     */
++    public double getValue() {
++        return value;
++    }
++
++    /**
++     * Gets the type of modification made to the attribute
++     * 
++     * @return an {@link AttributeModifierType}
++     */
++    public AttributeModifierType getModifierType() {
++        return modifierType;
++    }
++
++    /**
++     * Creates a new AttributeModifier with the given values
++     * @param identifier
++     * @param value
++     * @param type
++     * @return a new AttributeModifier
++     */
++    public static AttributeModifier createAttributeModifier(AttributeIdentifier identifier, double value, AttributeModifierType type) {
++        return new AttributeModifier(identifier, value, type);
++    }
++}
+diff --git a/src/main/java/org/bukkit/attributes/AttributeModifierType.java b/src/main/java/org/bukkit/attributes/AttributeModifierType.java
+new file mode 100644
+index 0000000..0db39d8
+--- /dev/null
++++ b/src/main/java/org/bukkit/attributes/AttributeModifierType.java
+@@ -0,0 +1,30 @@
++package org.bukkit.attributes;
++
++/**
++ * An enumeration representation of the modification type for an attribute
++ * modifier
++ */
++public enum AttributeModifierType {
++    /**
++     * First stage of modification, adds to base value
++     * 
++     * Follows mathematical equation  Y = X + modifier
++     */
++    ADDITIVE,
++    /**
++     * Second stage of modification, adds to the calculated value a
++     * percentage of the value
++     * 
++     * Follows mathematical equation  Y = Y + (Y * modifier)
++     */
++    ADD_PERCENTAGE,
++    /**
++     * Third stage of modification, multiplies the calculated value by a
++     * percentage of the value
++     * 
++     * Follows mathematical equation  Y = Y * (1 + modifier)
++     * Mathematically equivalent to the second stage, but sequentially
++     * after
++     */
++    MULTIPLY_PERCENTAGE;
++}
+diff --git a/src/main/java/org/bukkit/entity/Damageable.java b/src/main/java/org/bukkit/entity/Damageable.java
+index 3097b9a..926ccf0 100644
+--- a/src/main/java/org/bukkit/entity/Damageable.java
++++ b/src/main/java/org/bukkit/entity/Damageable.java
+@@ -67,7 +67,8 @@ public interface Damageable extends Entity {
+     void _INVALID_setHealth(int health);
+ 
+     /**
+-     * Gets the maximum health this entity has.
++     * Gets the maximum health this entity has with item attributes and other
++     * effects applied.
+      *
+      * @return Maximum health
+      */
+@@ -84,15 +85,41 @@ public interface Damageable extends Entity {
+     /**
+      * Sets the maximum health this entity can have.
+      * <p>
+-     * If the health of the entity is above the value provided it will be set to that value.
++     * If the health of the entity is above the value provided it will be set
++     * to that value.
+      * <p>
+-     * Note: An entity with a health bar ({@link Player}, {@link EnderDragon}, {@link Wither}, etc...} will have their bar scaled accordingly.
++     * Note: An entity with a health bar ({@link Player}, {@link EnderDragon},
++     * {@link Wither}, etc...} will have their bar scaled accordingly.
+      *
+      * @param health amount of health to set the maximum to
++     * @deprecated use {@link #setBaseMaxHealth(double)}
+      */
++    @Deprecated
+     void setMaxHealth(double health);
+ 
+     /**
++     * Gets the entities base maximum health before item attributes and other
++     * effects are applied.
++     *
++     * @return base maximum health
++     */
++    double getBaseMaxHealth();
++
++    /**
++     * Sets the entities base maximum health before item attributes and other
++     * effects are applied.
++     * <p>
++     * If the health of the entity is above {@link #getMaxHealth()} it will be
++     * set to that value.
++     * <p>
++     * Note: An entity with a health bar ({@link EnderDragon}, {@link Wither},
++     * etc...} will have their bar scaled accordingly.
++     *
++     * @param health amount of health to set the base value to
++     */
++    void setBaseMaxHealth(double health);
++
++    /**
+      * This method exists for legacy reasons to provide backwards
+      * compatibility. It will not exist at runtime and should not be used
+      * under any circumstances.
+@@ -102,6 +129,9 @@ public interface Damageable extends Entity {
+ 
+     /**
+      * Resets the max health to the original amount.
++     * 
++     * @deprecated Does not function
+      */
++    @Deprecated
+     void resetMaxHealth();
+ }
+diff --git a/src/main/java/org/bukkit/entity/Horse.java b/src/main/java/org/bukkit/entity/Horse.java
+index e90d318..ea5894c 100644
+--- a/src/main/java/org/bukkit/entity/Horse.java
++++ b/src/main/java/org/bukkit/entity/Horse.java
+@@ -230,10 +230,11 @@ public interface Horse extends Animals, Vehicle, InventoryHolder, Tameable {
+     public void setMaxDomestication(int level);
+ 
+     /**
+-     * Gets the jump strength of this horse.
++     * Gets the jump strength of this horse after Item Attributes and other
++     * effects are applied.
+      * <p>
+-     * Jump strength defines how high the horse can jump. A higher jump strength
+-     * increases how high a jump will go.
++     * Jump strength defines how high the horse can jump. A higher jump
++     * strength increases how high a jump will go.
+      *
+      * @return the horse's jump strength
+      */
+@@ -248,9 +249,35 @@ public interface Horse extends Animals, Vehicle, InventoryHolder, Tameable {
+      * above 2.
+      *
+      * @param strength jump strength for this horse
++     * @deprecated use {@link #setBaseJumpStrength(double)} instead
+      */
++    @Deprecated
+     public void setJumpStrength(double strength);
+ 
++    /**
++     * Gets the base jump strength of this horse before Item Attributes
++     * and other effects are applied.
++     * <p>
++     * Jump strength defines how high the horse can jump. A higher jump
++     * strength increases how high a jump will go.
++     *
++     * @return the horse's base jump strength
++     */
++    public double getBaseJumpStrength();
++
++    /**
++     * Sets the base jump strength of this horse before Item Attributes
++     * and other effects are applied.
++     * <p>
++     * Jump strength defines how high the horse can jump. A higher jump
++     * strength increases how high a jump will go.
++     * <p>
++     * Must be within the range of 0-2
++     *
++     * @param strength the strength to set to
++     */
++    public void setBaseJumpStrength(double strength);
++
+     @Override
+     public HorseInventory getInventory();
+ }
+diff --git a/src/main/java/org/bukkit/entity/LivingEntity.java b/src/main/java/org/bukkit/entity/LivingEntity.java
+index 4519dc4..1cd4a9d 100644
+--- a/src/main/java/org/bukkit/entity/LivingEntity.java
++++ b/src/main/java/org/bukkit/entity/LivingEntity.java
+@@ -402,4 +402,107 @@ public interface LivingEntity extends Entity, Damageable {
+      * @return whether the operation was successful
+      */
+     public boolean setLeashHolder(Entity holder);
++
++    /**
++     * Gets the movement speed of the entity with item attributes and other
++     * effects applied.
++     * 
++     * @return movement speed
++     */
++    public double getMovementSpeed();
++
++    /**
++     * Gets the base movement speed of the entity before item attributes and
++     * other effects are applied.
++     * 
++     * @return base movement speed
++     */
++    public double getBaseMovementSpeed();
++
++    /**
++     * Sets the base movement speed of the entity before item attributes and
++     * other effects are applied.
++     * 
++     * @param speed the amount to set it to
++     */
++    public void setBaseMovementSpeed(double amount);
++
++    /**
++     * Gets the attack damage of the entity with item attributes and other
++     * effects applied.
++     * 
++     * @return attack damage
++     */
++    public double getAttackDamage();
++
++    /**
++     * Gets the base attack damage of the entity before item attributes and
++     * other effects are applied.
++     * 
++     * @return base attack damage
++     */
++    public double getBaseAttackDamage();
++
++    /**
++     * Sets the base attack damage of the entity before item attributes and
++     * other effects are applied.
++     * 
++     * @param value the value to set attack damage to
++     */
++    public void setBaseAttackDamage(double value);
++
++    /**
++     * Gets the knockback resistance of the entity with item attributes and
++     * other effects applied.
++     * 
++     * @return knockback resistance
++     */
++    public double getKnockbackResistance();
++
++    /**
++     * Gets the base knockback resistance of the entity before item attributes
++     * and other effects are applied.
++     * 
++     * @return base knockback resistance
++     */
++    public double getBaseKnockbackResistance();
++
++    /**
++     * Sets the base knockback resistance of the entity before item attributes
++     * and other effects are applied.
++     * <p>
++     * Max value of 1.0.
++     * 
++     * @param resistance the value to set knockback resistance to
++     */
++    public void setBaseKnockbackResistance(double resistance);
++
++
++    /**
++     * Gets the follow range of the entity with item attributes and other
++     * effects applied.
++     * 
++     * @return the follow range, or 0 for Players
++     */
++    public double getFollowRange();
++
++    /**
++     * Gets the base follow range of the entity before item attributes and
++     * other effects are applied.
++     * 
++     * @return the base follow range, or 0 for Players
++     */
++    public double getBaseFollowRange();
++
++    /**
++     * Sets the base follow range of the entity before item attributes and
++     * other effects are applied.
++     * <p>
++     * Max value of 2048.
++     * 
++     * Will not have any effect on players
++     * 
++     * @param range the value to set follow range to
++     */
++    public void setBaseFollowRange(double range);
+ }
+diff --git a/src/main/java/org/bukkit/entity/Zombie.java b/src/main/java/org/bukkit/entity/Zombie.java
+index 59b52fd..d4836c1 100644
+--- a/src/main/java/org/bukkit/entity/Zombie.java
++++ b/src/main/java/org/bukkit/entity/Zombie.java
+@@ -32,4 +32,39 @@ public interface Zombie extends Monster {
+      * @param flag Whether the zombie is a villager
+      */
+     public void setVillager(boolean flag);
++
++    /**
++     * Gets the Spawn Reinforcement Chance of this zombie after Item
++     * Attributes and other effects are applied.
++     * <p>
++     * Note: Only applicable when world difficulty and spawn conditions allow
++     * for it
++     *
++     * @return the spawn reinforcement chance
++     */
++    public double getSpawnReinforcementsChance();
++
++    /**
++     * Gets the base Spawn Reinforcement Chance of this zombie before Item
++     * Attributes and other effects are applied.
++     * <p>
++     * Note: Only applicable when world difficulty and spawn conditions allow
++     * for it
++     *
++     * @return the base spawn reinforcement chance
++     */
++    public double getBaseSpawnReinforcementsChance();
++
++    /**
++     * Sets the base Spawn Reinforcement Chance of this zombie before Item
++     * Attributes and other effects are applied.
++     * <P>
++     * Range between 0 and 1.
++     * <p>
++     * Note: Only applicable when world difficulty and spawn conditions allow
++     * for it
++     *
++     * @param chance the base spawn reinforcement chance
++     */
++    public void setBaseSpawnReinforcementsChance(double chance);
+ }
+diff --git a/src/main/java/org/bukkit/inventory/meta/ItemMeta.java b/src/main/java/org/bukkit/inventory/meta/ItemMeta.java
+index 3dafdc0..56526bf 100644
+--- a/src/main/java/org/bukkit/inventory/meta/ItemMeta.java
++++ b/src/main/java/org/bukkit/inventory/meta/ItemMeta.java
+@@ -2,7 +2,9 @@ package org.bukkit.inventory.meta;
+ 
+ import java.util.List;
+ import java.util.Map;
++import java.util.UUID;
+ 
++import org.bukkit.attributes.AttributeModifier;
+ import org.bukkit.configuration.serialization.ConfigurationSerializable;
+ import org.bukkit.enchantments.Enchantment;
+ 
+@@ -115,6 +117,37 @@ public interface ItemMeta extends Cloneable, ConfigurationSerializable {
+     */
+     boolean hasConflictingEnchant(Enchantment ench);
+ 
++    /**
++     * Checks for the existence of any attribute modifiers.
++     *
++     * @return true if an attribute modifier exists on this meta
++     */
++    boolean hasAttributeModifiers();
++
++    /**
++     * Adds the specified attribute modifier to this item meta.
++     *
++     * @param modifier the {@link AttributeModifier} to add
++     */
++    public UUID addAttributeModifier(AttributeModifier modifier);
++
++    /**
++     * Removes the attribute modifier associated with the specified UUID from
++     * this item meta.
++     *
++     * @param uuid the UUID of the modifier to remove
++     * @return the AttributeModifier removed
++     */
++    public AttributeModifier removeAttributeModifier(UUID uuid);
++
++    /**
++     * Returns a copy the attribute modifiers in this ItemMeta.<br />
++     * Returns an empty map if none.
++     *
++     * @return An immutable map of the attribute modifiers
++     */
++    public Map<UUID, AttributeModifier> getAttributeModifiers();
++
+     @SuppressWarnings("javadoc")
+     ItemMeta clone();
+ }
+-- 
+1.8.4
+

@@ -1,0 +1,741 @@
+From c452d2d69c6557f7e591aa1fb0507c92b8edef3f Mon Sep 17 00:00:00 2001
+From: T00thpick1 <t00thpick1dirko@gmail.com>
+Date: Sat, 21 Sep 2013 17:56:20 -0400
+Subject: [PATCH] Item Attributes
+
+---
+ .../java/net/minecraft/server/EntityHorse.java     |  19 ++
+ .../java/net/minecraft/server/EntityLiving.java    |   2 +-
+ .../java/net/minecraft/server/EntityZombie.java    |   2 +-
+ .../craftbukkit/entity/CraftEnderDragonPart.java   |   8 +
+ .../org/bukkit/craftbukkit/entity/CraftHorse.java  |  13 ++
+ .../craftbukkit/entity/CraftLivingEntity.java      |  88 ++++++-
+ .../org/bukkit/craftbukkit/entity/CraftPlayer.java |   9 +
+ .../org/bukkit/craftbukkit/entity/CraftZombie.java |  16 ++
+ .../inventory/CraftAttributeIdentifier.java        |  35 +++
+ .../craftbukkit/inventory/CraftMetaItem.java       | 252 +++++++++++++++------
+ 10 files changed, 376 insertions(+), 68 deletions(-)
+ create mode 100644 src/main/java/org/bukkit/craftbukkit/inventory/CraftAttributeIdentifier.java
+
+diff --git a/src/main/java/net/minecraft/server/EntityHorse.java b/src/main/java/net/minecraft/server/EntityHorse.java
+index 92c508f..b97f10c 100644
+--- a/src/main/java/net/minecraft/server/EntityHorse.java
++++ b/src/main/java/net/minecraft/server/EntityHorse.java
+@@ -40,6 +40,7 @@ public class EntityHorse extends EntityAnimal implements IInventoryListener {
+     private String bQ;
+     private String[] bR = new String[3];
+     public int maxDomestication = 100; // CraftBukkit - store max domestication value
++    private ItemStack[] armorCache = new ItemStack[2]; // CraftBukkit
+ 
+     public EntityHorse(World world) {
+         super(world);
+@@ -738,6 +739,24 @@ public class EntityHorse extends EntityAnimal implements IInventoryListener {
+ 
+     public void l_() {
+         super.l_();
++        // CraftBukkit start - Horse Armor Attributes
++        for (int j = 0; j < 2; j++) {
++            ItemStack cached = this.armorCache[j];
++            ItemStack current = ((EntityHorse) this).inventoryChest.getItem(j);
++
++            if (!ItemStack.matches(current, cached)) {
++                if (cached != null) {
++                    this.d.a(cached.D());
++                }
++
++                if (current != null) {
++                    this.d.b(current.D());
++                }
++
++                this.armorCache[j] = current == null ? null : current.cloneItemStack();
++            }
++        }
++        // CraftBukkit end
+         if (this.world.isStatic && this.datawatcher.a()) {
+             this.datawatcher.e();
+             this.cJ();
+diff --git a/src/main/java/net/minecraft/server/EntityLiving.java b/src/main/java/net/minecraft/server/EntityLiving.java
+index d9d0ee8..189d1c5 100644
+--- a/src/main/java/net/minecraft/server/EntityLiving.java
++++ b/src/main/java/net/minecraft/server/EntityLiving.java
+@@ -17,7 +17,7 @@ public abstract class EntityLiving extends Entity {
+ 
+     private static final UUID b = UUID.fromString("662A6B8D-DA3E-4C1C-8813-96EA6097278D");
+     private static final AttributeModifier c = (new AttributeModifier(b, "Sprinting speed boost", 0.30000001192092896D, 2)).a(false);
+-    private AttributeMapBase d;
++    public AttributeMapBase d; // CraftBukkit - private -> public
+     public CombatTracker combatTracker = new CombatTracker(this); // CraftBukkit - private -> public, remove final
+     public final HashMap effects = new HashMap(); // CraftBukkit - protected -> public
+     private final ItemStack[] g = new ItemStack[5];
+diff --git a/src/main/java/net/minecraft/server/EntityZombie.java b/src/main/java/net/minecraft/server/EntityZombie.java
+index 1aa684f..69670dc 100644
+--- a/src/main/java/net/minecraft/server/EntityZombie.java
++++ b/src/main/java/net/minecraft/server/EntityZombie.java
+@@ -11,7 +11,7 @@ import org.bukkit.event.entity.EntityCombustEvent;
+ 
+ public class EntityZombie extends EntityMonster {
+ 
+-    protected static final IAttribute bp = (new AttributeRanged("zombie.spawnReinforcements", 0.0D, 0.0D, 1.0D)).a("Spawn Reinforcements Chance");
++    public static final IAttribute bp = (new AttributeRanged("zombie.spawnReinforcements", 0.0D, 0.0D, 1.0D)).a("Spawn Reinforcements Chance"); // CraftBukkit - protected -> public
+     private static final UUID bq = UUID.fromString("B9766B59-9566-4402-BC1F-2EE2A276D836");
+     private static final AttributeModifier br = new AttributeModifier(bq, "Baby speed boost", 0.5D, 1);
+     private int bs;
+diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftEnderDragonPart.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftEnderDragonPart.java
+index 736a460..619c40f 100644
+--- a/src/main/java/org/bukkit/craftbukkit/entity/CraftEnderDragonPart.java
++++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftEnderDragonPart.java
+@@ -55,6 +55,14 @@ public class CraftEnderDragonPart extends CraftComplexPart implements EnderDrago
+         getParent().resetMaxHealth();
+     }
+ 
++    public double getBaseMaxHealth() {
++        return getParent().getBaseMaxHealth();
++    }
++
++    public void setBaseMaxHealth(double health) {
++        getParent().setBaseMaxHealth(health);
++    }
++
+     @Deprecated
+     public void _INVALID_damage(int amount) {
+         damage(amount);
+diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftHorse.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftHorse.java
+index bca7a2d..3cf62dd 100644
+--- a/src/main/java/org/bukkit/craftbukkit/entity/CraftHorse.java
++++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftHorse.java
+@@ -1,6 +1,7 @@
+ package org.bukkit.craftbukkit.entity;
+ 
+ import net.minecraft.server.EntityHorse;
++
+ import org.apache.commons.lang.Validate;
+ import org.bukkit.craftbukkit.CraftServer;
+ import org.bukkit.craftbukkit.inventory.CraftInventoryHorse;
+@@ -82,6 +83,18 @@ public class CraftHorse extends CraftAnimals implements Horse {
+ 
+     public void setJumpStrength(double strength) {
+         Validate.isTrue(strength >= 0, "Jump strength cannot be less than zero");
++        Validate.isTrue(strength <= 2, "Jump strength cannot be greater than 2");
++        getHandle().getAttributeInstance(EntityHorse.attributeJumpStrength).setValue(strength);
++    }
++
++    public double getBaseJumpStrength() {
++        return getHandle().getAttributeInstance(EntityHorse.attributeJumpStrength).b();
++    }
++
++    public void setBaseJumpStrength(double strength) {
++        Validate.isTrue(strength >= 0, "Jump strength cannot be less than zero");
++        Validate.isTrue(strength <= 2, "Jump strength cannot be greater than 2");
++
+         getHandle().getAttributeInstance(EntityHorse.attributeJumpStrength).setValue(strength);
+     }
+ 
+diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftLivingEntity.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftLivingEntity.java
+index 52d4c3c..0e6eb21 100644
+--- a/src/main/java/org/bukkit/craftbukkit/entity/CraftLivingEntity.java
++++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftLivingEntity.java
+@@ -91,8 +91,22 @@ public class CraftLivingEntity extends CraftEntity implements LivingEntity {
+ 
+         getHandle().getAttributeInstance(GenericAttributes.a).setValue(amount);
+ 
+-        if (getHealth() > amount) {
+-            setHealth(amount);
++        if (getHealth() > getMaxHealth()) {
++            setHealth(getMaxHealth());
++        }
++    }
++
++    public double getBaseMaxHealth() {
++        return getHandle().getAttributeInstance(GenericAttributes.a).b();
++    }
++
++    public void setBaseMaxHealth(double amount) {
++        Validate.isTrue(amount > 0, "Max health must be greater than 0");
++
++        getHandle().getAttributeInstance(GenericAttributes.a).setValue(amount);
++
++        if (getHealth() > getMaxHealth()) {
++            setHealth(getMaxHealth());
+         }
+     }
+ 
+@@ -100,6 +114,76 @@ public class CraftLivingEntity extends CraftEntity implements LivingEntity {
+         setMaxHealth(getHandle().getMaxHealth());
+     }
+ 
++    public double getMovementSpeed() {
++        return getHandle().getAttributeInstance(GenericAttributes.d).getValue();
++    }
++
++    public double getBaseMovementSpeed() {
++        return getHandle().getAttributeInstance(GenericAttributes.d).b();
++    }
++
++    public void setBaseMovementSpeed(double amount) {
++        Validate.isTrue(amount >= 0, "Movement Speed must be greater than or equal to 0");
++
++        getHandle().getAttributeInstance(GenericAttributes.d).setValue(amount);
++    }
++
++    public double getAttackDamage() {
++        return getHandle().getAttributeInstance(GenericAttributes.e).getValue();
++    }
++
++    public double getBaseAttackDamage() {
++        return getHandle().getAttributeInstance(GenericAttributes.e).b();
++    }
++
++    public void setBaseAttackDamage(double amount) {
++        Validate.isTrue(amount >= 0, "Attack Damage must be greater than or equal to 0");
++
++        getHandle().getAttributeInstance(GenericAttributes.e).setValue(amount);
++    }
++
++    public double getKnockbackResistance() {
++        return getHandle().getAttributeInstance(GenericAttributes.c).getValue();
++    }
++
++    public double getBaseKnockbackResistance() {
++        return getHandle().getAttributeInstance(GenericAttributes.c).b();
++    }
++
++    public void setBaseKnockbackResistance(double amount) {
++        Validate.isTrue(amount >= 0, "Knockback Resistance must be greater than or equal to 0");
++        Validate.isTrue(amount <= 1, "Knockback Resistance must be less than or equal to 1");
++
++        getHandle().getAttributeInstance(GenericAttributes.c).setValue(amount);
++    }
++
++    public double getFollowRange() {
++        if (!(getHandle() instanceof EntityInsentient)) {
++            return 0;
++        }
++
++        return getHandle().getAttributeInstance(GenericAttributes.b).getValue();
++    }
++
++    public double getBaseFollowRange() {
++        if (!(getHandle() instanceof EntityInsentient)) {
++            return 0;
++        }
++
++        return getHandle().getAttributeInstance(GenericAttributes.b).b();
++    }
++
++    public void setBaseFollowRange(double amount) {
++        if (!(getHandle() instanceof EntityInsentient)) {
++            return;
++        }
++
++        Validate.isTrue(amount >= 0, "Follow Range must be greater than or equal to 0");
++        Validate.isTrue(amount <= 2048, "Follow Range must be less than or equal to 2048");
++
++        getHandle().getAttributeInstance(GenericAttributes.b).setValue(amount);
++    }
++
+     @Deprecated
+     public Egg throwEgg() {
+         return launchProjectile(Egg.class);
+diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
+index bdbd0d0..1e1b028 100644
+--- a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
++++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
+@@ -994,6 +994,15 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+         return getHandle().abilities.walkSpeed * 2f;
+     }
+ 
++    @Override
++    public void setBaseMovementSpeed(double speed) {
++        Validate.isTrue(speed >= 0, "Movement Speed must be greater than or equal to 0");
++
++        super.setBaseMovementSpeed(speed);
++        getHandle().abilities.walkSpeed = (float) speed;
++        getHandle().updateAbilities();
++    }
++
+     private void validateSpeed(float value) {
+         if (value < 0) {
+             if (value < -1f) {
+diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftZombie.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftZombie.java
+index 619579d..c564ccd 100644
+--- a/src/main/java/org/bukkit/craftbukkit/entity/CraftZombie.java
++++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftZombie.java
+@@ -2,6 +2,7 @@ package org.bukkit.craftbukkit.entity;
+ 
+ import net.minecraft.server.EntityZombie;
+ 
++import org.apache.commons.lang.Validate;
+ import org.bukkit.craftbukkit.CraftServer;
+ import org.bukkit.entity.EntityType;
+ import org.bukkit.entity.Zombie;
+@@ -41,4 +42,19 @@ public class CraftZombie extends CraftMonster implements Zombie {
+     public void setVillager(boolean flag) {
+         getHandle().setVillager(flag);
+     }
++
++    public double getSpawnReinforcementsChance() {
++        return getHandle().getAttributeInstance(EntityZombie.bp).getValue();
++    }
++
++    public double getBaseSpawnReinforcementsChance() {
++        return getHandle().getAttributeInstance(EntityZombie.bp).b();
++    }
++
++    public void setBaseSpawnReinforcementsChance(double amount) {
++        Validate.isTrue(amount > 0, "Spawn Reinforcements Chance must be greater than 0");
++        Validate.isTrue(amount <= 1, "Spawn Reinforcements Chance must be less than or equal to 1");
++
++        getHandle().getAttributeInstance(EntityZombie.bp).setValue(amount);
++    }
+ }
+diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftAttributeIdentifier.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftAttributeIdentifier.java
+new file mode 100644
+index 0000000..4c9d075
+--- /dev/null
++++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftAttributeIdentifier.java
+@@ -0,0 +1,35 @@
++package org.bukkit.craftbukkit.inventory;
++
++import static org.bukkit.attributes.AttributeIdentifier.*;
++
++import org.apache.commons.lang.Validate;
++import org.bukkit.attributes.AttributeIdentifier;
++
++public class CraftAttributeIdentifier {
++    private static final String[] identifiers = new String[AttributeIdentifier.values().length];
++
++    static {
++        identifiers[MAX_HEALTH.ordinal()] = "generic.maxHealth";
++        identifiers[FOLLOW_RANGE.ordinal()] = "generic.followRange";
++        identifiers[KNOCKBACK_RESISTANCE.ordinal()] = "generic.knockbackResistance";
++        identifiers[MOVEMENT_SPEED.ordinal()] = "generic.movementSpeed";
++        identifiers[ATTACK_DAMAGE.ordinal()] = "generic.attackDamage";
++        identifiers[JUMP_STRENGTH.ordinal()] = "horse.jumpStrength";
++        identifiers[SPAWN_REINFORCEMENTS.ordinal()] = "zombie.spawnReinforcements";
++    }
++
++    public static AttributeIdentifier getByName(final String identifier) {
++        Validate.notNull(identifier, "Identifier cannot be null");
++        for (int i = 0; i < identifiers.length; i++) {
++            if (identifiers[i].equals(identifier)) {
++                return AttributeIdentifier.values()[i];
++            }
++        }
++        return null;
++    }
++
++    public static String getName(final AttributeIdentifier identifier) {
++        Validate.notNull(identifier, "AttributeIdentifier can not be null");
++        return identifiers[identifier.ordinal()];
++    }
++}
+diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java
+index 41ce351..c8115cb 100644
+--- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java
++++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java
+@@ -12,6 +12,7 @@ import java.util.HashMap;
+ import java.util.List;
+ import java.util.Map;
+ import java.util.NoSuchElementException;
++import java.util.UUID;
+ 
+ import net.minecraft.server.NBTBase;
+ import net.minecraft.server.NBTTagCompound;
+@@ -23,6 +24,9 @@ import net.minecraft.server.NBTTagString;
+ 
+ import org.apache.commons.lang.Validate;
+ import org.bukkit.Material;
++import org.bukkit.attributes.AttributeIdentifier;
++import org.bukkit.attributes.AttributeModifier;
++import org.bukkit.attributes.AttributeModifierType;
+ import org.bukkit.configuration.serialization.ConfigurationSerializable;
+ import org.bukkit.configuration.serialization.DelegateDeserialization;
+ import org.bukkit.configuration.serialization.SerializableAs;
+@@ -200,11 +204,10 @@ class CraftMetaItem implements ItemMeta, Repairable {
+     private List<String> lore;
+     private Map<Enchantment, Integer> enchantments;
+     private int repairCost;
+-    private final NBTTagList attributes;
++    private Map<UUID, AttributeModifier> attributeModifiers;
+ 
+     CraftMetaItem(CraftMetaItem meta) {
+         if (meta == null) {
+-            attributes = null;
+             return;
+         }
+ 
+@@ -218,8 +221,11 @@ class CraftMetaItem implements ItemMeta, Repairable {
+             this.enchantments = new HashMap<Enchantment, Integer>(meta.enchantments);
+         }
+ 
++        if (meta.hasAttributeModifiers()) {
++            this.attributeModifiers = new HashMap<UUID, AttributeModifier>(meta.attributeModifiers);
++        }
++
+         this.repairCost = meta.repairCost;
+-        this.attributes = meta.attributes;
+     }
+ 
+     CraftMetaItem(NBTTagCompound tag) {
+@@ -241,60 +247,13 @@ class CraftMetaItem implements ItemMeta, Repairable {
+             }
+         }
+ 
+-        this.enchantments = buildEnchantments(tag, ENCHANTMENTS);
++        enchantments = buildEnchantments(tag, ENCHANTMENTS);
+ 
+         if (tag.hasKey(REPAIR.NBT)) {
+             repairCost = tag.getInt(REPAIR.NBT);
+         }
+ 
+-
+-        if (tag.get(ATTRIBUTES.NBT) instanceof NBTTagList) {
+-            NBTTagList save = null;
+-            NBTTagList nbttaglist = tag.getList(ATTRIBUTES.NBT);
+-
+-            for (int i = 0; i < nbttaglist.size(); ++i) {
+-                if (!(nbttaglist.get(i) instanceof NBTTagCompound)) {
+-                    continue;
+-                }
+-                NBTTagCompound nbttagcompound = (NBTTagCompound) nbttaglist.get(i);
+-
+-                if (!(nbttagcompound.get(ATTRIBUTES_UUID_HIGH.NBT) instanceof NBTTagLong)) {
+-                    continue;
+-                }
+-                if (!(nbttagcompound.get(ATTRIBUTES_UUID_LOW.NBT) instanceof NBTTagLong)) {
+-                    continue;
+-                }
+-                if (!(nbttagcompound.get(ATTRIBUTES_IDENTIFIER.NBT) instanceof NBTTagString) || !CraftItemFactory.KNOWN_NBT_ATTRIBUTE_NAMES.contains(nbttagcompound.getString(ATTRIBUTES_IDENTIFIER.NBT))) {
+-                    continue;
+-                }
+-                if (!(nbttagcompound.get(ATTRIBUTES_NAME.NBT) instanceof NBTTagString) || nbttagcompound.getString(ATTRIBUTES_NAME.NBT).isEmpty()) {
+-                    continue;
+-                }
+-                if (!(nbttagcompound.get(ATTRIBUTES_VALUE.NBT) instanceof NBTTagDouble)) {
+-                    continue;
+-                }
+-                if (!(nbttagcompound.get(ATTRIBUTES_TYPE.NBT) instanceof NBTTagInt) || nbttagcompound.getInt(ATTRIBUTES_TYPE.NBT) < 0 || nbttagcompound.getInt(ATTRIBUTES_TYPE.NBT) > 2) {
+-                    continue;
+-                }
+-
+-                if (save == null) {
+-                    save = new NBTTagList(ATTRIBUTES.NBT);
+-                }
+-
+-                NBTTagCompound entry = new NBTTagCompound();
+-                entry.set(ATTRIBUTES_UUID_HIGH.NBT, nbttagcompound.get(ATTRIBUTES_UUID_HIGH.NBT));
+-                entry.set(ATTRIBUTES_UUID_LOW.NBT, nbttagcompound.get(ATTRIBUTES_UUID_LOW.NBT));
+-                entry.set(ATTRIBUTES_IDENTIFIER.NBT, nbttagcompound.get(ATTRIBUTES_IDENTIFIER.NBT));
+-                entry.set(ATTRIBUTES_NAME.NBT, nbttagcompound.get(ATTRIBUTES_NAME.NBT));
+-                entry.set(ATTRIBUTES_VALUE.NBT, nbttagcompound.get(ATTRIBUTES_VALUE.NBT));
+-                entry.set(ATTRIBUTES_TYPE.NBT, nbttagcompound.get(ATTRIBUTES_TYPE.NBT));
+-                save.add(entry);
+-            }
+-
+-            attributes = save;
+-        } else {
+-            attributes = null;
+-        }
++        attributeModifiers = buildAttributeModifiers(tag, ATTRIBUTES);
+     }
+ 
+     static Map<Enchantment, Integer> buildEnchantments(NBTTagCompound tag, ItemMetaKey key) {
+@@ -315,6 +274,53 @@ class CraftMetaItem implements ItemMeta, Repairable {
+         return enchantments;
+     }
+ 
++    static Map<UUID, AttributeModifier> buildAttributeModifiers(NBTTagCompound tag, ItemMetaKey key) {
++        if (!tag.hasKey(key.NBT)) {
++            return null;
++        }
++
++        NBTTagList attrib = tag.getList(key.NBT);
++        Map<UUID, AttributeModifier> attributes = new HashMap<UUID, AttributeModifier>(attrib.size());
++
++        for (int i = 0; i < attrib.size(); i++) {
++            NBTTagCompound nbttagcompound = (NBTTagCompound) attrib.get(i);
++
++            if (!(nbttagcompound.get(ATTRIBUTES_UUID_HIGH.NBT) instanceof NBTTagLong)) {
++                continue;
++            }
++            if (!(nbttagcompound.get(ATTRIBUTES_UUID_LOW.NBT) instanceof NBTTagLong)) {
++                continue;
++            }
++            if (!(nbttagcompound.get(ATTRIBUTES_IDENTIFIER.NBT) instanceof NBTTagString)) {
++                continue;
++            }
++            if (!(nbttagcompound.get(ATTRIBUTES_NAME.NBT) instanceof NBTTagString) || nbttagcompound.getString(ATTRIBUTES_NAME.NBT).isEmpty()) {
++                continue;
++            }
++            if (!(nbttagcompound.get(ATTRIBUTES_VALUE.NBT) instanceof NBTTagDouble)) {
++                continue;
++            }
++            if (!(nbttagcompound.get(ATTRIBUTES_TYPE.NBT) instanceof NBTTagInt) || nbttagcompound.getInt(ATTRIBUTES_TYPE.NBT) < 0 || nbttagcompound.getInt(ATTRIBUTES_TYPE.NBT) > 2) {
++                continue;
++            }
++
++            AttributeIdentifier identifier = CraftAttributeIdentifier.getByName(nbttagcompound.getString(ATTRIBUTES_IDENTIFIER.NBT));
++            if (identifier == null) {
++                continue;
++            }
++            double value = nbttagcompound.getDouble(ATTRIBUTES_VALUE.NBT);
++            int type = nbttagcompound.getInt(ATTRIBUTES_TYPE.NBT);
++            if (type < 0 || type > 2) {
++                continue;
++            }
++            UUID uuid = new UUID(nbttagcompound.getLong(ATTRIBUTES_UUID_HIGH.NBT), nbttagcompound.getLong(ATTRIBUTES_UUID_LOW.NBT));
++            AttributeModifier attribute = AttributeModifier.createAttributeModifier(identifier, value, AttributeModifierType.values()[type]);
++            attributes.put(uuid, attribute);
++        }
++
++        return attributes;
++    }
++
+     CraftMetaItem(Map<String, Object> map) {
+         setDisplayName(SerializableMeta.getString(map, NAME.BUKKIT, true));
+ 
+@@ -330,7 +336,7 @@ class CraftMetaItem implements ItemMeta, Repairable {
+             setRepairCost(repairCost);
+         }
+ 
+-        attributes = null;
++        attributeModifiers = buildAttributeModifiers(map, ATTRIBUTES);
+     }
+ 
+     static Map<Enchantment, Integer> buildEnchantments(Map<String, Object> map, ItemMetaKey key) {
+@@ -351,6 +357,49 @@ class CraftMetaItem implements ItemMeta, Repairable {
+         return enchantments;
+     }
+ 
++    static Map<UUID, AttributeModifier> buildAttributeModifiers(Map<String, Object> map, ItemMetaKey key) {
++        Map<?, ?> attrib = SerializableMeta.getObject(Map.class, map, key.BUKKIT, true);
++        if (attrib == null) {
++            return null;
++        }
++
++        Map<UUID, AttributeModifier> attributes = new HashMap<UUID, AttributeModifier>(attrib.size());
++        for (Map.Entry<?, ?> entry : attrib.entrySet()) {
++            UUID uuid = null;
++            try {
++                uuid = UUID.fromString(entry.getKey().toString());
++            } catch (IllegalArgumentException e) { }
++
++            if ((uuid != null) && (entry.getValue() instanceof Map<?, ?>)) {
++                AttributeModifier attribute = buildAttributeModifier(map, uuid);
++
++                if (attribute != null) {
++                    attributes.put(uuid, attribute);
++                }
++            }
++        }
++
++        return attributes;
++    }
++
++    private static AttributeModifier buildAttributeModifier(Map<String, Object> map, UUID uuid) {
++        Map<?, ?> attrib = SerializableMeta.getObject(Map.class, map, uuid.toString(), true);
++        if (attrib == null) {
++            return null;
++        }
++
++        AttributeIdentifier identifier = CraftAttributeIdentifier.getByName(SerializableMeta.getObject(String.class, attrib, "Identifier", true));
++        String name = SerializableMeta.getObject(String.class, attrib, "Name", true);
++        Double value = SerializableMeta.getObject(Double.class, attrib, "Value", true);
++        Integer type = SerializableMeta.getObject(Integer.class, attrib, "Type", true);
++
++        if (identifier == null || name == null || value == null || type == null || type < 0 || type > 2) {
++            return null;
++        }
++
++        return AttributeModifier.createAttributeModifier(identifier, value, AttributeModifierType.values()[type]);
++    }
++
+     @Overridden
+     void applyToItem(NBTTagCompound itemTag) {
+         if (hasDisplayName()) {
+@@ -367,9 +416,7 @@ class CraftMetaItem implements ItemMeta, Repairable {
+             itemTag.setInt(REPAIR.NBT, repairCost);
+         }
+ 
+-        if (attributes != null) {
+-            itemTag.set(ATTRIBUTES.NBT, attributes);
+-        }
++        applyAttributeModifiers(attributeModifiers, itemTag, ATTRIBUTES);
+     }
+ 
+     static NBTTagList createStringList(List<String> list, ItemMetaKey key) {
+@@ -404,6 +451,29 @@ class CraftMetaItem implements ItemMeta, Repairable {
+         tag.set(key.NBT, list);
+     }
+ 
++    static void applyAttributeModifiers(Map<UUID, AttributeModifier> attributes, NBTTagCompound tag, ItemMetaKey key) {
++        if (attributes == null || attributes.size() == 0) {
++            return;
++        }
++
++        NBTTagList list = new NBTTagList(key.NBT);
++
++        for (Map.Entry<UUID, AttributeModifier> entry : attributes.entrySet()) {
++            NBTTagCompound subtag = new NBTTagCompound();
++
++            subtag.setLong(ATTRIBUTES_UUID_HIGH.NBT, entry.getKey().getMostSignificantBits());
++            subtag.setLong(ATTRIBUTES_UUID_LOW.NBT, entry.getKey().getLeastSignificantBits());
++            subtag.setString(ATTRIBUTES_IDENTIFIER.NBT, CraftAttributeIdentifier.getName(entry.getValue().getIdentifier()));
++            subtag.setString(ATTRIBUTES_NAME.NBT, entry.getValue().getIdentifier().name());
++            subtag.setDouble(ATTRIBUTES_VALUE.NBT, entry.getValue().getValue());
++            subtag.setInt(ATTRIBUTES_TYPE.NBT, entry.getValue().getModifierType().ordinal());
++
++            list.add(subtag);
++        }
++
++        tag.set(key.NBT, list);
++    }
++
+     void setDisplayTag(NBTTagCompound tag, String key, NBTBase value) {
+         final NBTTagCompound display = tag.getCompound(DISPLAY.NBT);
+ 
+@@ -421,7 +491,7 @@ class CraftMetaItem implements ItemMeta, Repairable {
+ 
+     @Overridden
+     boolean isEmpty() {
+-        return !(hasDisplayName() || hasEnchants() || hasLore() || hasAttributes());
++        return !(hasDisplayName() || hasEnchants() || hasLore() || hasAttributeModifiers());
+     }
+ 
+     public String getDisplayName() {
+@@ -429,7 +499,7 @@ class CraftMetaItem implements ItemMeta, Repairable {
+     }
+ 
+     public final void setDisplayName(String name) {
+-        this.displayName = name;
++        displayName = name;
+     }
+ 
+     public boolean hasDisplayName() {
+@@ -437,11 +507,11 @@ class CraftMetaItem implements ItemMeta, Repairable {
+     }
+ 
+     public boolean hasLore() {
+-        return this.lore != null && !this.lore.isEmpty();
++        return lore != null && !lore.isEmpty();
+     }
+ 
+-    public boolean hasAttributes() {
+-        return this.attributes != null;
++    public boolean hasAttributeModifiers() {
++        return attributeModifiers != null;
+     }
+ 
+     public boolean hasRepairCost() {
+@@ -489,7 +559,7 @@ class CraftMetaItem implements ItemMeta, Repairable {
+     }
+ 
+     public List<String> getLore() {
+-        return this.lore == null ? null : new ArrayList<String>(this.lore);
++        return lore == null ? null : new ArrayList<String>(lore);
+     }
+ 
+     public void setLore(List<String> lore) { // too tired to think if .clone is better
+@@ -513,6 +583,28 @@ class CraftMetaItem implements ItemMeta, Repairable {
+         repairCost = cost;
+     }
+ 
++    public UUID addAttributeModifier(AttributeModifier modifier) {
++        if (attributeModifiers == null) {
++            attributeModifiers = new HashMap<UUID, AttributeModifier>();
++        }
++
++        if (modifier == null) {
++            throw new IllegalArgumentException("AttributeModifier cannot be null");
++        }
++
++        UUID uuid = UUID.randomUUID();
++        attributeModifiers.put(uuid, modifier);
++        return uuid;
++    }
++
++    public AttributeModifier removeAttributeModifier(UUID uuid) {
++        return hasAttributeModifiers() ? attributeModifiers.remove(uuid) : null;
++    }
++
++    public Map<UUID, AttributeModifier> getAttributeModifiers() {
++        return hasAttributeModifiers() ? ImmutableMap.copyOf(attributeModifiers) : ImmutableMap.<UUID, AttributeModifier>of();
++    }
++
+     @Override
+     public final boolean equals(Object object) {
+         if (object == null) {
+@@ -537,7 +629,7 @@ class CraftMetaItem implements ItemMeta, Repairable {
+         return ((this.hasDisplayName() ? that.hasDisplayName() && this.displayName.equals(that.displayName) : !that.hasDisplayName()))
+                 && (this.hasEnchants() ? that.hasEnchants() && this.enchantments.equals(that.enchantments) : !that.hasEnchants())
+                 && (this.hasLore() ? that.hasLore() && this.lore.equals(that.lore) : !that.hasLore())
+-                && (this.hasAttributes() ? that.hasAttributes() && this.attributes.equals(that.attributes) : !that.hasAttributes())
++                && (this.hasAttributeModifiers() ? that.hasAttributeModifiers() && this.attributeModifiers.equals(that.attributeModifiers) : !that.hasAttributeModifiers())
+                 && (this.hasRepairCost() ? that.hasRepairCost() && this.repairCost == that.repairCost : !that.hasRepairCost());
+     }
+ 
+@@ -562,7 +654,7 @@ class CraftMetaItem implements ItemMeta, Repairable {
+         hash = 61 * hash + (hasDisplayName() ? this.displayName.hashCode() : 0);
+         hash = 61 * hash + (hasLore() ? this.lore.hashCode() : 0);
+         hash = 61 * hash + (hasEnchants() ? this.enchantments.hashCode() : 0);
+-        hash = 61 * hash + (hasAttributes() ? this.attributes.hashCode() : 0);
++        hash = 61 * hash + (hasAttributeModifiers() ? this.attributeModifiers.hashCode() : 0);
+         hash = 61 * hash + (hasRepairCost() ? this.repairCost : 0);
+         return hash;
+     }
+@@ -578,6 +670,9 @@ class CraftMetaItem implements ItemMeta, Repairable {
+             if (this.enchantments != null) {
+                 clone.enchantments = new HashMap<Enchantment, Integer>(this.enchantments);
+             }
++            if (this.attributeModifiers != null) {
++                clone.attributeModifiers = new HashMap<UUID, AttributeModifier>(this.attributeModifiers);
++            }
+             return clone;
+         } catch (CloneNotSupportedException e) {
+             throw new Error(e);
+@@ -607,6 +702,8 @@ class CraftMetaItem implements ItemMeta, Repairable {
+             builder.put(REPAIR.BUKKIT, repairCost);
+         }
+ 
++        serializeAttributeModifiers(attributeModifiers, builder, ATTRIBUTES);
++
+         return builder;
+     }
+ 
+@@ -623,6 +720,33 @@ class CraftMetaItem implements ItemMeta, Repairable {
+         builder.put(key.BUKKIT, enchants.build());
+     }
+ 
++    static void serializeAttributeModifiers(Map<UUID, AttributeModifier> attributes, ImmutableMap.Builder<String, Object> builder, ItemMetaKey key) {
++        if (attributes == null || attributes.isEmpty()) {
++            return;
++        }
++
++        ImmutableMap.Builder<UUID, Object> attribs = ImmutableMap.builder();
++        for (Map.Entry<UUID, AttributeModifier> attribute : attributes.entrySet()) {
++            serializeAttributeModifier(attribute.getValue(), attribs, attribute.getKey());
++        }
++
++        builder.put(key.BUKKIT, attribs.build());
++    }
++
++    static void serializeAttributeModifier(AttributeModifier attribute, ImmutableMap.Builder<UUID, Object> attribs, UUID uuid) {
++        if (attribute == null) {
++            return;
++        }
++
++        ImmutableMap.Builder<String, Object> attributeMap = ImmutableMap.builder();
++        attributeMap.put("Identifier", CraftAttributeIdentifier.getName(attribute.getIdentifier()));
++        attributeMap.put("Name", attribute.getIdentifier().name());
++        attributeMap.put("Value", Double.valueOf(attribute.getValue()));
++        attributeMap.put("Type", Integer.valueOf(attribute.getModifierType().ordinal()));
++
++        attribs.put(uuid, attributeMap.build());
++    }
++
+     static void safelyAdd(Iterable<?> addFrom, Collection<String> addTo, int maxItemLength) {
+         if (addFrom == null) {
+             return;
+-- 
+1.8.4
+
