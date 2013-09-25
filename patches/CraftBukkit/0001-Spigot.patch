@@ -1,6 +1,6 @@
-From 48096f4c7d0e85dc7006a6dd929c0b077175add0 Mon Sep 17 00:00:00 2001
+From ea62205dab35e1d21dcb4ff98880f9d892e59fc6 Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Thu, 19 Sep 2013 21:56:37 -0400
+Date: Wed, 25 Sep 2013 08:50:46 -0400
 Subject: [PATCH] Spigot
 
 ---
@@ -27,7 +27,7 @@ Subject: [PATCH] Spigot
  .../java/net/minecraft/server/EntityArrow.java     |   2 +-
  .../net/minecraft/server/EntityFallingBlock.java   |   1 +
  .../java/net/minecraft/server/EntityHuman.java     |   7 +-
- src/main/java/net/minecraft/server/EntityItem.java |  17 +-
+ src/main/java/net/minecraft/server/EntityItem.java |  19 +-
  .../java/net/minecraft/server/EntityLiving.java    |   9 +-
  .../minecraft/server/EntityMinecartContainer.java  |   6 +
  .../java/net/minecraft/server/EntityPlayer.java    |  16 +
@@ -59,6 +59,7 @@ Subject: [PATCH] Spigot
  .../java/net/minecraft/server/ShapedRecipes.java   |   9 +-
  .../net/minecraft/server/ShapelessRecipes.java     |   9 +-
  .../java/net/minecraft/server/SpawnerCreature.java |  35 +-
+ .../net/minecraft/server/StructureGenerator.java   | 224 +++++++
  .../net/minecraft/server/ThreadCommandReader.java  |   1 +
  .../net/minecraft/server/ThreadLoginVerifier.java  |  41 +-
  src/main/java/net/minecraft/server/TileEntity.java |   2 +
@@ -71,7 +72,6 @@ Subject: [PATCH] Spigot
  .../java/org/bukkit/craftbukkit/CraftServer.java   |  47 +-
  .../java/org/bukkit/craftbukkit/CraftWorld.java    |  99 +++-
  .../java/org/bukkit/craftbukkit/SpigotTimings.java | 128 ++++
- .../bukkit/craftbukkit/block/CraftBlockState.java  |   5 +
  .../org/bukkit/craftbukkit/block/CraftSign.java    |   8 +-
  .../craftbukkit/command/TicksPerSecondCommand.java |  35 ++
  .../org/bukkit/craftbukkit/entity/CraftArrow.java  |  22 +
@@ -95,7 +95,7 @@ Subject: [PATCH] Spigot
  src/main/java/org/spigotmc/RestartCommand.java     | 111 ++++
  src/main/java/org/spigotmc/SpamHaus.java           |  44 ++
  src/main/java/org/spigotmc/SpigotConfig.java       | 293 ++++++++++
- src/main/java/org/spigotmc/SpigotWorldConfig.java  | 210 +++++++
+ src/main/java/org/spigotmc/SpigotWorldConfig.java  | 229 ++++++++
  src/main/java/org/spigotmc/TrackingRange.java      |  45 ++
  src/main/java/org/spigotmc/WatchdogThread.java     | 122 ++++
  src/main/java/org/spigotmc/netty/CipherBase.java   |  73 +++
@@ -108,7 +108,7 @@ Subject: [PATCH] Spigot
  .../java/org/spigotmc/netty/PacketListener.java    | 112 ++++
  src/main/java/org/spigotmc/netty/PacketWriter.java |  85 +++
  src/main/java/org/spigotmc/netty/ReadState.java    |  17 +
- 104 files changed, 5731 insertions(+), 400 deletions(-)
+ 104 files changed, 5970 insertions(+), 401 deletions(-)
  create mode 100644 src/main/java/net/minecraft/server/BlockTNT.java
  create mode 100644 src/main/java/net/minecraft/server/INetworkManager.java
  create mode 100644 src/main/java/net/minecraft/server/LocaleLanguage.java
@@ -119,6 +119,7 @@ Subject: [PATCH] Spigot
  create mode 100644 src/main/java/net/minecraft/server/Packet51MapChunk.java
  create mode 100644 src/main/java/net/minecraft/server/Packet63WorldParticles.java
  create mode 100644 src/main/java/net/minecraft/server/RegionFileCache.java
+ create mode 100644 src/main/java/net/minecraft/server/StructureGenerator.java
  create mode 100644 src/main/java/org/bukkit/craftbukkit/SpigotTimings.java
  create mode 100644 src/main/java/org/bukkit/craftbukkit/command/TicksPerSecondCommand.java
  create mode 100644 src/main/java/org/spigotmc/ActivationRange.java
@@ -451,7 +452,7 @@ index f2d4e57..5fe0a81 100644
                  if (l < 7) {
 diff --git a/src/main/java/net/minecraft/server/BlockTNT.java b/src/main/java/net/minecraft/server/BlockTNT.java
 new file mode 100644
-index 0000000..f4955f4
+index 0000000..312b4c8
 --- /dev/null
 +++ b/src/main/java/net/minecraft/server/BlockTNT.java
 @@ -0,0 +1,85 @@
@@ -511,7 +512,7 @@ index 0000000..f4955f4
 +
 +    public boolean interact(World world, int i, int j, int k, EntityHuman entityhuman, int l, float f, float f1, float f2) {
 +        if (entityhuman.by() != null && entityhuman.by().id == Item.FLINT_AND_STEEL.id) {
-+            this.a(world, i, j, k, 1, entityhuman);
++            this.a(world, i, j, k, 1, (EntityLiving) entityhuman); // Spigot - Fix decompile error!
 +            world.setAir(i, j, k);
 +            entityhuman.by().damage(1, entityhuman);
 +            return true;
@@ -1104,9 +1105,18 @@ index e4fe770..36eca0f 100644
                      Entity entity = (Entity) list.get(i);
  
 diff --git a/src/main/java/net/minecraft/server/EntityItem.java b/src/main/java/net/minecraft/server/EntityItem.java
-index 584102e..24c44ad 100644
+index 584102e..52878ff 100644
 --- a/src/main/java/net/minecraft/server/EntityItem.java
 +++ b/src/main/java/net/minecraft/server/EntityItem.java
+@@ -100,7 +100,7 @@ public class EntityItem extends Entity {
+         }
+ 
+         // ++this.age; // CraftBukkit - Moved up
+-        if (!this.world.isStatic && this.age >= 6000) {
++        if (!this.world.isStatic && this.age >= world.spigotConfig.itemDespawnRate) {
+             // CraftBukkit start
+             if (org.bukkit.craftbukkit.event.CraftEventFactory.callItemDespawnEvent(this).isCancelled()) {
+                 this.age = 0;
 @@ -112,7 +112,10 @@ public class EntityItem extends Entity {
      }
  
@@ -2524,7 +2534,7 @@ index a07c6cf..ee4bc7e 100644
                  this.c = 20;
                  if (this.b.aZ() != null) {
 diff --git a/src/main/java/net/minecraft/server/PendingConnection.java b/src/main/java/net/minecraft/server/PendingConnection.java
-index 1bb77a9..b098745 100644
+index 2a96168..358cba4 100644
 --- a/src/main/java/net/minecraft/server/PendingConnection.java
 +++ b/src/main/java/net/minecraft/server/PendingConnection.java
 @@ -16,7 +16,7 @@ public class PendingConnection extends Connection {
@@ -2553,7 +2563,7 @@ index 1bb77a9..b098745 100644
      }
  
      // CraftBukkit start
-@@ -61,21 +66,22 @@ public class PendingConnection extends Connection {
+@@ -61,22 +66,23 @@ public class PendingConnection extends Connection {
          }
      }
  
@@ -2562,6 +2572,7 @@ index 1bb77a9..b098745 100644
          if (this.g != null) {
              this.disconnect("Quit repeating yourself!");
          } else {
+             this.hostname = packet2handshake.c + ':' + packet2handshake.d; // CraftBukkit - initialize field
              this.g = packet2handshake.f();
 -            if (!this.g.equals(StripColor.a(this.g))) {
 +            if (!this.g.equals(StripColor.a(this.g)) || !validName.matcher( this.g ).matches() ) { // Spigot
@@ -2579,7 +2590,7 @@ index 1bb77a9..b098745 100644
                      }
                  } else {
                      this.loginKey = this.server.getOnlineMode() ? Long.toString(random.nextLong(), 16) : "-";
-@@ -106,7 +112,7 @@ public class PendingConnection extends Connection {
+@@ -107,7 +113,7 @@ public class PendingConnection extends Connection {
              }
  
              this.j = true;
@@ -2588,7 +2599,7 @@ index 1bb77a9..b098745 100644
                  (new ThreadLoginVerifier(this, server.server)).start(); // CraftBukkit - add CraftServer
              } else {
                  this.h = true;
-@@ -147,7 +153,7 @@ public class PendingConnection extends Connection {
+@@ -148,7 +154,7 @@ public class PendingConnection extends Connection {
              String s = null;
              // CraftBukkit
              org.bukkit.event.server.ServerListPingEvent pingEvent = org.bukkit.craftbukkit.event.CraftEventFactory.callServerListPingEvent(this.server.server, getSocket().getInetAddress(), this.server.getMotd(), playerlist.getPlayerCount(), playerlist.getMaxPlayers());
@@ -2597,7 +2608,7 @@ index 1bb77a9..b098745 100644
                  // CraftBukkit
                  s = pingEvent.getMotd() + "\u00A7" + playerlist.getPlayerCount() + "\u00A7" + pingEvent.getMaxPlayers();
              } else {
-@@ -176,9 +182,18 @@ public class PendingConnection extends Connection {
+@@ -177,9 +183,18 @@ public class PendingConnection extends Connection {
  
              this.networkManager.queue(new Packet255KickDisconnect(s));
              this.networkManager.d();
@@ -2618,7 +2629,7 @@ index 1bb77a9..b098745 100644
  
              this.b = true;
          } catch (Exception exception) {
-@@ -221,4 +236,17 @@ public class PendingConnection extends Connection {
+@@ -222,4 +237,17 @@ public class PendingConnection extends Connection {
      static boolean a(PendingConnection pendingconnection, boolean flag) {
          return pendingconnection.h = flag;
      }
@@ -3036,6 +3047,236 @@ index 9812538..ecf13aa 100644
                                                                  if (j2 >= entityinsentient.bv()) {
                                                                      continue label110;
                                                                  }
+diff --git a/src/main/java/net/minecraft/server/StructureGenerator.java b/src/main/java/net/minecraft/server/StructureGenerator.java
+new file mode 100644
+index 0000000..cb8ff49
+--- /dev/null
++++ b/src/main/java/net/minecraft/server/StructureGenerator.java
+@@ -0,0 +1,224 @@
++package net.minecraft.server;
++
++import java.util.HashMap;
++import java.util.Iterator;
++import java.util.List;
++import java.util.Map;
++import java.util.Random;
++import java.util.concurrent.Callable;
++
++public abstract class StructureGenerator extends WorldGenBase {
++
++    private WorldGenFeature e;
++    protected Map d = new HashMap();
++
++    public StructureGenerator() {}
++
++    public abstract String a();
++
++    protected final void a(World world, int i, int j, int k, int l, byte[] abyte) {
++        this.a(world);
++        if (!this.d.containsKey(Long.valueOf(ChunkCoordIntPair.a(i, j)))) {
++            this.b.nextInt();
++
++            try {
++                if (this.a(i, j)) {
++                    StructureStart structurestart = this.b(i, j);
++
++                    this.d.put(Long.valueOf(ChunkCoordIntPair.a(i, j)), structurestart);
++                    this.a(i, j, structurestart);
++                }
++            } catch (Throwable throwable) {
++                CrashReport crashreport = CrashReport.a(throwable, "Exception preparing structure feature");
++                CrashReportSystemDetails crashreportsystemdetails = crashreport.a("Feature being prepared");
++
++                crashreportsystemdetails.a("Is feature chunk", (Callable) (new CrashReportIsFeatureChunk(this, i, j)));
++                crashreportsystemdetails.a("Chunk location", String.format("%d,%d", new Object[] { Integer.valueOf(i), Integer.valueOf(j)}));
++                crashreportsystemdetails.a("Chunk pos hash", (Callable) (new CrashReportChunkPosHash(this, i, j)));
++                crashreportsystemdetails.a("Structure type", (Callable) (new CrashReportStructureType(this)));
++                throw new ReportedException(crashreport);
++            }
++        }
++    }
++
++    public boolean a(World world, Random random, int i, int j) {
++        this.a(world);
++        int k = (i << 4) + 8;
++        int l = (j << 4) + 8;
++        boolean flag = false;
++        Iterator iterator = this.d.values().iterator();
++
++        while (iterator.hasNext()) {
++            StructureStart structurestart = (StructureStart) iterator.next();
++
++            if (structurestart.d() && structurestart.a().a(k, l, k + 15, l + 15)) {
++                structurestart.a(world, random, new StructureBoundingBox(k, l, k + 15, l + 15));
++                flag = true;
++                this.a(structurestart.e(), structurestart.f(), structurestart);
++            }
++        }
++
++        return flag;
++    }
++
++    public boolean b(int i, int j, int k) {
++        this.a(this.c);
++        return this.c(i, j, k) != null;
++    }
++
++    protected StructureStart c(int i, int j, int k) {
++        Iterator iterator = this.d.values().iterator();
++
++        while (iterator.hasNext()) {
++            StructureStart structurestart = (StructureStart) iterator.next();
++
++            if (structurestart.d() && structurestart.a().a(i, k, i, k)) {
++                Iterator iterator1 = structurestart.b().iterator();
++
++                while (iterator1.hasNext()) {
++                    StructurePiece structurepiece = (StructurePiece) iterator1.next();
++
++                    if (structurepiece.c().b(i, j, k)) {
++                        return structurestart;
++                    }
++                }
++            }
++        }
++
++        return null;
++    }
++
++    public boolean d(int i, int j, int k) {
++        this.a(this.c);
++        Iterator iterator = this.d.values().iterator();
++
++        StructureStart structurestart;
++
++        do {
++            if (!iterator.hasNext()) {
++                return false;
++            }
++
++            structurestart = (StructureStart) iterator.next();
++        } while (!structurestart.d());
++
++        return structurestart.a().a(i, k, i, k);
++    }
++
++    public ChunkPosition getNearestGeneratedFeature(World world, int i, int j, int k) {
++        this.c = world;
++        this.a(world);
++        this.b.setSeed(world.getSeed());
++        long l = this.b.nextLong();
++        long i1 = this.b.nextLong();
++        long j1 = (long) (i >> 4) * l;
++        long k1 = (long) (k >> 4) * i1;
++
++        this.b.setSeed(j1 ^ k1 ^ world.getSeed());
++        this.a(world, i >> 4, k >> 4, 0, 0, (byte[]) null);
++        double d0 = Double.MAX_VALUE;
++        ChunkPosition chunkposition = null;
++        Iterator iterator = this.d.values().iterator();
++
++        ChunkPosition chunkposition1;
++        int l1;
++        int i2;
++        double d1;
++        int j2;
++
++        while (iterator.hasNext()) {
++            StructureStart structurestart = (StructureStart) iterator.next();
++
++            if (structurestart.d()) {
++                StructurePiece structurepiece = (StructurePiece) structurestart.b().get(0);
++
++                chunkposition1 = structurepiece.a();
++                i2 = chunkposition1.x - i;
++                l1 = chunkposition1.y - j;
++                j2 = chunkposition1.z - k;
++                d1 = (double) (i2 * i2 + l1 * l1 + j2 * j2);
++                if (d1 < d0) {
++                    d0 = d1;
++                    chunkposition = chunkposition1;
++                }
++            }
++        }
++
++        if (chunkposition != null) {
++            return chunkposition;
++        } else {
++            List list = this.p_();
++
++            if (list != null) {
++                ChunkPosition chunkposition2 = null;
++                Iterator iterator1 = list.iterator();
++
++                while (iterator1.hasNext()) {
++                    chunkposition1 = (ChunkPosition) iterator1.next();
++                    i2 = chunkposition1.x - i;
++                    l1 = chunkposition1.y - j;
++                    j2 = chunkposition1.z - k;
++                    d1 = (double) (i2 * i2 + l1 * l1 + j2 * j2);
++                    if (d1 < d0) {
++                        d0 = d1;
++                        chunkposition2 = chunkposition1;
++                    }
++                }
++
++                return chunkposition2;
++            } else {
++                return null;
++            }
++        }
++    }
++
++    protected List p_() {
++        return null;
++    }
++
++    private void a(World world) {
++        if (this.e == null) {
++            // Spigot Start
++            if ( world.spigotConfig.saveStructureInfo )
++            {
++                this.e = (WorldGenFeature) world.a( WorldGenFeature.class, this.a() );
++            } else
++            {
++                this.e = new WorldGenFeature( this.a() );
++            }
++            // Spigot End
++            if (this.e == null) {
++                this.e = new WorldGenFeature(this.a());
++                world.a(this.a(), (WorldMapBase) this.e);
++            } else {
++                NBTTagCompound nbttagcompound = this.e.a();
++                Iterator iterator = nbttagcompound.c().iterator();
++
++                while (iterator.hasNext()) {
++                    NBTBase nbtbase = (NBTBase) iterator.next();
++
++                    if (nbtbase.getTypeId() == 10) {
++                        NBTTagCompound nbttagcompound1 = (NBTTagCompound) nbtbase;
++
++                        if (nbttagcompound1.hasKey("ChunkX") && nbttagcompound1.hasKey("ChunkZ")) {
++                            int i = nbttagcompound1.getInt("ChunkX");
++                            int j = nbttagcompound1.getInt("ChunkZ");
++                            StructureStart structurestart = WorldGenFactory.a(nbttagcompound1, world);
++
++                            this.d.put(Long.valueOf(ChunkCoordIntPair.a(i, j)), structurestart);
++                        }
++                    }
++                }
++            }
++        }
++    }
++
++    private void a(int i, int j, StructureStart structurestart) {
++        this.e.a(structurestart.a(i, j), i, j);
++        this.e.c();
++    }
++
++    protected abstract boolean a(int i, int j);
++
++    protected abstract StructureStart b(int i, int j);
++}
 diff --git a/src/main/java/net/minecraft/server/ThreadCommandReader.java b/src/main/java/net/minecraft/server/ThreadCommandReader.java
 index 489e184..bfd219c 100644
 --- a/src/main/java/net/minecraft/server/ThreadCommandReader.java
@@ -4543,29 +4784,6 @@ index 0000000..541dfe4
 +        }
 +    }
 +}
-diff --git a/src/main/java/org/bukkit/craftbukkit/block/CraftBlockState.java b/src/main/java/org/bukkit/craftbukkit/block/CraftBlockState.java
-index 2072db2..c2ccc73 100644
---- a/src/main/java/org/bukkit/craftbukkit/block/CraftBlockState.java
-+++ b/src/main/java/org/bukkit/craftbukkit/block/CraftBlockState.java
-@@ -9,6 +9,7 @@ import org.bukkit.block.BlockState;
- import org.bukkit.craftbukkit.CraftChunk;
- import org.bukkit.craftbukkit.CraftWorld;
- import org.bukkit.material.MaterialData;
-+import org.bukkit.material.Attachable;
- import org.bukkit.metadata.MetadataValue;
- import org.bukkit.plugin.Plugin;
- 
-@@ -128,6 +129,10 @@ public class CraftBlockState implements BlockState {
-         }
- 
-         block.setData(getRawData(), applyPhysics);
-+        if (applyPhysics && data instanceof Attachable) {
-+            Block rel = block.getRelative(((Attachable) data).getFacing(), -1);
-+            world.getHandle().applyPhysics(rel.getX(), rel.getY(), rel.getZ(), block.getTypeId());
-+        }
-         world.getHandle().notify(x, y, z);
- 
-         return true;
 diff --git a/src/main/java/org/bukkit/craftbukkit/block/CraftSign.java b/src/main/java/org/bukkit/craftbukkit/block/CraftSign.java
 index 1647100..43c4434 100644
 --- a/src/main/java/org/bukkit/craftbukkit/block/CraftSign.java
@@ -6899,10 +7117,10 @@ index 0000000..296c581
 +}
 diff --git a/src/main/java/org/spigotmc/SpigotWorldConfig.java b/src/main/java/org/spigotmc/SpigotWorldConfig.java
 new file mode 100644
-index 0000000..2caafa2
+index 0000000..4631165
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/SpigotWorldConfig.java
-@@ -0,0 +1,210 @@
+@@ -0,0 +1,229 @@
 +package org.spigotmc;
 +
 +import java.util.Arrays;
@@ -7111,6 +7329,25 @@ index 0000000..2caafa2
 +    {
 +        randomLightUpdates = getBoolean( "random-light-updates", false );
 +        log( "Random Lighting Updates: " + randomLightUpdates );
++    }
++
++    public boolean saveStructureInfo;
++    private void structureInfo()
++    {
++        saveStructureInfo = getBoolean( "save-structure-info", true );
++        log( "Structure Info Saving: " + saveStructureInfo );
++        if ( !saveStructureInfo )
++        {
++            log( "*** WARNING *** You have selected to NOT save structure info. This may cause structures such as fortresses to not spawn mobs when updating to 1.7!" );
++            log( "*** WARNING *** Please use this option with caution, SpigotMC is not responsible for any issues this option may cause in the future!" );
++        }
++    }
++
++    public int itemDespawnRate;
++    private void itemDespawnRate()
++    {
++        itemDespawnRate = getInt( "item-despawn-rate", 6000 );
++        log( "Item Despawn Rate: " + itemDespawnRate );
 +    }
 +}
 diff --git a/src/main/java/org/spigotmc/TrackingRange.java b/src/main/java/org/spigotmc/TrackingRange.java
