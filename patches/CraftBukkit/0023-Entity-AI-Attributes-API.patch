@@ -1,4 +1,4 @@
-From 9ab4fa57b2b4c3065f63a32a56435338d3204d4b Mon Sep 17 00:00:00 2001
+From a9dc04e767635bcf8b09250851c24bac306aa808 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Fri, 31 May 2013 22:40:25 -0400
 Subject: [PATCH] Entity AI / Attributes API
@@ -7,18 +7,20 @@ This gives us control over some Entity AIe
 Also API for Attributes
 This will be expanded as future needs.
 ---
- .../empireminecraft/entityai/AttributesAPI.java    | 47 ++++++++++++
- .../com/empireminecraft/entityai/EntityAIApi.java  | 87 ++++++++++++++++++++++
- .../empireminecraft/entityai/EntityMoveApi.java    | 43 +++++++++++
- .../net/minecraft/server/AttributesAccessor.java   | 39 ++++++++++
+ .../empireminecraft/entityai/AttributesAPI.java    | 47 +++++++++++
+ .../com/empireminecraft/entityai/EntityAIApi.java  | 95 ++++++++++++++++++++++
+ .../empireminecraft/entityai/EntityMoveApi.java    | 43 ++++++++++
+ .../net/minecraft/server/AttributesAccessor.java   | 39 +++++++++
  src/main/java/net/minecraft/server/Entity.java     |  3 +-
+ .../java/net/minecraft/server/EntityCreature.java  |  4 +-
  .../net/minecraft/server/EntityInsentient.java     |  7 +-
  .../java/net/minecraft/server/EntityLiving.java    |  1 +
+ .../java/net/minecraft/server/EntityMonster.java   |  1 +
  .../net/minecraft/server/PathfinderAccessor.java   | 10 +++
  .../server/PathfinderGoalArrowAttack.java          |  8 +-
  .../minecraft/server/PathfinderGoalSelector.java   |  4 +-
  .../net/minecraft/server/PathfinderGoalTarget.java |  2 +-
- 11 files changed, 240 insertions(+), 11 deletions(-)
+ 13 files changed, 252 insertions(+), 12 deletions(-)
  create mode 100644 src/main/java/com/empireminecraft/entityai/AttributesAPI.java
  create mode 100644 src/main/java/com/empireminecraft/entityai/EntityAIApi.java
  create mode 100644 src/main/java/com/empireminecraft/entityai/EntityMoveApi.java
@@ -80,19 +82,22 @@ index 0000000..2c7a83b
 +}
 diff --git a/src/main/java/com/empireminecraft/entityai/EntityAIApi.java b/src/main/java/com/empireminecraft/entityai/EntityAIApi.java
 new file mode 100644
-index 0000000..a84b6ba
+index 0000000..4ab97a6
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/entityai/EntityAIApi.java
-@@ -0,0 +1,87 @@
+@@ -0,0 +1,95 @@
 +package com.empireminecraft.entityai;
 +
 +import net.minecraft.server.*;
++import org.apache.commons.lang3.StringUtils;
 +import org.bukkit.craftbukkit.entity.CraftEntity;
 +import org.bukkit.craftbukkit.entity.CraftCreature;
 +import org.bukkit.entity.Creature;
 +import org.bukkit.entity.Monster;
 +
++import java.util.ArrayList;
 +import java.util.Iterator;
++import java.util.List;
 +
 +public class EntityAIApi {
 +
@@ -102,34 +107,39 @@ index 0000000..a84b6ba
 +    }
 +    public static void makeAggressive(Creature creature, float range) {
 +        EntityCreature entity = ((CraftCreature)creature).getHandle();
++        entity.targetSelector.a(2, new PathfinderGoalMeleeAttack(entity, EntityHuman.class,  0, true));
 +        entity.targetSelector.a(2, new PathfinderGoalNearestAttackableTarget(entity, EntityHuman.class,  0, true));
 +        setTargetRange(creature, range);
 +    }
 +
 +    public static void makePeaceful(Creature creature) {
 +        EntityCreature entity = (EntityCreature) ((CraftEntity)creature).getHandle();
-+        Iterator iterator = entity.goalSelector.a.iterator();
-+        while (iterator.hasNext()) {
-+            Object o = iterator.next();
++
++        List check = new ArrayList();
++        check.addAll(entity.goalSelector.a);
++        check.addAll(entity.goalSelector.b);
++        check.addAll(entity.targetSelector.a);
++        check.addAll(entity.targetSelector.b);
++
++
++        entity.peaceful = true;
++
++        for (Object o : check) {
 +            PathfinderGoal goal = PathfinderAccessor.getPathfinderGoal(o);
 +            if (goal instanceof PathfinderGoalMeleeAttack ||
 +                goal instanceof PathfinderGoalArrowAttack ||
 +                goal instanceof PathfinderGoalMoveThroughVillage ||
-+                goal instanceof PathfinderGoalBreakDoor) {
-+
-+                iterator.remove();
-+                entity.goalSelector.b.remove(o);
-+            }
-+        }
-+        iterator = entity.targetSelector.a.iterator();
-+        while (iterator.hasNext()) {
-+            Object o = iterator.next();
-+            PathfinderGoal goal = PathfinderAccessor.getPathfinderGoal(o);
-+            if (goal instanceof PathfinderGoalNearestAttackableTarget ||
++                goal instanceof PathfinderGoalBreakDoor ||
++                goal instanceof PathfinderGoalNearestAttackableTarget ||
 +                goal instanceof PathfinderGoalHurtByTarget) {
-+                iterator.remove();
++
++                System.out.println("removing" + goal.getClass().getSimpleName());
++                entity.goalSelector.a.remove(o);
++                entity.goalSelector.b.remove(o);
++                entity.targetSelector.a.remove(o);
 +                entity.targetSelector.b.remove(o);
 +            }
++
 +        }
 +    }
 +    public static void setEntitySize(Creature creature, float width, float height) {
@@ -286,6 +296,35 @@ index 58489d5..2a8c6ff 100644
      protected void a(float f, float f1) {
          float f2;
  
+diff --git a/src/main/java/net/minecraft/server/EntityCreature.java b/src/main/java/net/minecraft/server/EntityCreature.java
+index a2ad05d..d3240c9 100644
+--- a/src/main/java/net/minecraft/server/EntityCreature.java
++++ b/src/main/java/net/minecraft/server/EntityCreature.java
+@@ -29,6 +29,7 @@ public abstract class EntityCreature extends EntityInsentient {
+         return false;
+     }
+ 
++    public boolean peaceful = false; // EMC
+     protected void bl() {
+         this.world.methodProfiler.a("ai");
+         if (this.bo > 0 && --this.bo == 0) {
+@@ -42,7 +43,7 @@ public abstract class EntityCreature extends EntityInsentient {
+ 
+         if (this.target == null) {
+             // CraftBukkit start
+-            Entity target = this.findTarget();
++            Entity target = peaceful ? null : this.findTarget(); // EMC
+             if (target != null) {
+                 EntityTargetEvent event = new EntityTargetEvent(this.getBukkitEntity(), target.getBukkitEntity(), EntityTargetEvent.TargetReason.CLOSEST_PLAYER);
+                 this.world.getServer().getPluginManager().callEvent(event);
+@@ -80,6 +81,7 @@ public abstract class EntityCreature extends EntityInsentient {
+             }
+             // CraftBukkit end
+         }
++        if (peaceful) target = null; // EMC
+ 
+         this.world.methodProfiler.b();
+         if (!this.bn && this.target != null && (this.pathEntity == null || this.random.nextInt(20) == 0)) {
 diff --git a/src/main/java/net/minecraft/server/EntityInsentient.java b/src/main/java/net/minecraft/server/EntityInsentient.java
 index 90d46f7..54b57be 100644
 --- a/src/main/java/net/minecraft/server/EntityInsentient.java
@@ -323,6 +362,18 @@ index de07560..6bc0215 100644
          if (!this.bf()) {
              this.getAttributeInstance(GenericAttributes.d).setValue(0.10000000149011612D);
          }
+diff --git a/src/main/java/net/minecraft/server/EntityMonster.java b/src/main/java/net/minecraft/server/EntityMonster.java
+index ea7df62..b66b2bb 100644
+--- a/src/main/java/net/minecraft/server/EntityMonster.java
++++ b/src/main/java/net/minecraft/server/EntityMonster.java
+@@ -68,6 +68,7 @@ public abstract class EntityMonster extends EntityCreature implements IMonster {
+     }
+ 
+     public boolean m(Entity entity) {
++        if (peaceful) return false; // EMC
+         float f = (float) this.getAttributeInstance(GenericAttributes.e).getValue();
+         int i = 0;
+ 
 diff --git a/src/main/java/net/minecraft/server/PathfinderAccessor.java b/src/main/java/net/minecraft/server/PathfinderAccessor.java
 new file mode 100644
 index 0000000..e550a04
