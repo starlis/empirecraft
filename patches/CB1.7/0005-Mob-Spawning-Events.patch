@@ -1,0 +1,231 @@
+From c41fd705b2fd5ce9038c9c20a6a43d633f7a812f Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Thu, 29 Nov 2012 10:48:07 -0500
+Subject: [PATCH] Mob Spawning Events
+
+Add 2 events for better control of mob spawning (Natural and Spawners) This allows us a much more powerful control over spawning and improve performance
+---
+ .../net/minecraft/server/MobSpawnerAbstract.java   | 20 ++++++-
+ .../java/net/minecraft/server/SpawnerCreature.java | 13 +++++
+ .../org/bukkit/event/entity/SpawnTickEvent.java    | 62 +++++++++++++++++++++
+ .../bukkit/event/entity/SpawnerInitiateEvent.java  | 65 ++++++++++++++++++++++
+ 4 files changed, 159 insertions(+), 1 deletion(-)
+ create mode 100644 src/main/java/org/bukkit/event/entity/SpawnTickEvent.java
+ create mode 100644 src/main/java/org/bukkit/event/entity/SpawnerInitiateEvent.java
+
+diff --git a/src/main/java/net/minecraft/server/MobSpawnerAbstract.java b/src/main/java/net/minecraft/server/MobSpawnerAbstract.java
+index 4edd5e3..6d343ae 100644
+--- a/src/main/java/net/minecraft/server/MobSpawnerAbstract.java
++++ b/src/main/java/net/minecraft/server/MobSpawnerAbstract.java
+@@ -9,6 +9,8 @@ import java.util.List;
+ import org.bukkit.craftbukkit.event.CraftEventFactory;
+ import org.bukkit.event.entity.CreatureSpawnEvent;
+ import org.bukkit.event.entity.SpawnerSpawnEvent;
++import org.bukkit.Bukkit; // EMC
++import org.bukkit.event.entity.SpawnerInitiateEvent; // EMC
+ // CraftBukkit end
+ 
+ public abstract class MobSpawnerAbstract {
+@@ -46,7 +48,23 @@ public abstract class MobSpawnerAbstract {
+     }
+ 
+     public boolean f() {
+-        return this.a().findNearbyPlayer((double) this.b() + 0.5D, (double) this.c() + 0.5D, (double) this.d() + 0.5D, (double) this.requiredPlayerRange) != null;
++        // EMC start - Add in SpawnerInitiateEvent
++        final World world = this.a();
++        final int x = this.b();
++        final int y = this.c();
++        final int z = this.d();
++        EntityHuman entity = world.findNearbyPlayer((double) x + 0.5D,
++            (double) y + 0.5D,
++            (double) z + 0.5D,
++            (double) this.requiredPlayerRange);
++        if (entity == null) {
++            return false;
++        }
++        org.bukkit.Location loc = new org.bukkit.Location(world.getWorld(), x, y, z);
++        SpawnerInitiateEvent event = new SpawnerInitiateEvent(this.mobName, world.getWorld(), loc, entity.getBukkitEntity());
++        Bukkit.getPluginManager().callEvent(event);
++        return !event.isCancelled();
++        // EMC end
+     }
+ 
+     public void g() {
+diff --git a/src/main/java/net/minecraft/server/SpawnerCreature.java b/src/main/java/net/minecraft/server/SpawnerCreature.java
+index 02ca87f..5ba3d57 100644
+--- a/src/main/java/net/minecraft/server/SpawnerCreature.java
++++ b/src/main/java/net/minecraft/server/SpawnerCreature.java
+@@ -5,11 +5,15 @@ import java.util.HashMap;
+ import java.util.Iterator;
+ import java.util.List;
+ import java.util.Random;
++import org.bukkit.Bukkit;
++import org.bukkit.craftbukkit.CraftChunk;
+ 
+ // CraftBukkit start
+ import org.bukkit.craftbukkit.util.LongHash;
+ import org.bukkit.craftbukkit.util.LongObjectHashMap;
++import org.bukkit.event.Cancellable;
+ import org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason;
++import org.bukkit.event.entity.SpawnTickEvent;
+ // CraftBukkit end
+ 
+ public final class SpawnerCreature {
+@@ -65,6 +69,15 @@ public final class SpawnerCreature {
+                 b0 = ( b0 > 8 ) ? 8 : b0;
+                 // Spigot End
+ 
++                // EMC start - SpawnTickEvent
++                SpawnTickEvent event = new SpawnTickEvent(worldserver.getWorld(), b0, entityhuman.getBukkitEntity());
++                Bukkit.getPluginManager().callEvent(event);
++                if (event.isCancelled()) {
++                    continue;
++                }
++                b0 = event.getSpawnRadius();
++                // EMC end
++
+                 for (int l = -b0; l <= b0; ++l) {
+                     for (int i1 = -b0; i1 <= b0; ++i1) {
+                         boolean flag3 = l == -b0 || l == b0 || i1 == -b0 || i1 == b0;
+diff --git a/src/main/java/org/bukkit/event/entity/SpawnTickEvent.java b/src/main/java/org/bukkit/event/entity/SpawnTickEvent.java
+new file mode 100644
+index 0000000..64e0311
+--- /dev/null
++++ b/src/main/java/org/bukkit/event/entity/SpawnTickEvent.java
+@@ -0,0 +1,62 @@
++/*
++ * To change this template, choose Tools | Templates
++ * and open the template in the editor.
++ */
++package org.bukkit.event.entity;
++
++
++
++import org.bukkit.World;
++import org.bukkit.entity.HumanEntity;
++import org.bukkit.event.Cancellable;
++import org.bukkit.event.Event;
++import org.bukkit.event.HandlerList;
++
++/**
++ *
++ * @author aikar
++ */
++public class SpawnTickEvent extends Event implements Cancellable {
++    private static final HandlerList handlers = new HandlerList();
++    private boolean canceled;
++    byte radius;
++    World world;
++    HumanEntity entity;
++    public SpawnTickEvent(World world, byte radius, HumanEntity entity) {        
++        this.world = world;
++        this.radius = radius;
++        this.entity = entity;
++    }
++
++    public World getWorld() {
++        return this.world;
++    }
++
++    public HumanEntity getEntity() {
++        return this.entity;
++    }
++
++    public byte getSpawnRadius() {
++        return this.radius;
++    }
++
++    public void setSpawnRadius(byte radius) {
++        this.radius = radius;
++    }
++
++    public boolean isCancelled() {
++        return canceled;
++    }
++
++    public void setCancelled(boolean cancel) {
++        canceled = cancel;
++    }
++
++    public HandlerList getHandlers() {
++        return handlers;
++    }
++
++    public static HandlerList getHandlerList() {
++        return handlers;
++    }
++}
+diff --git a/src/main/java/org/bukkit/event/entity/SpawnerInitiateEvent.java b/src/main/java/org/bukkit/event/entity/SpawnerInitiateEvent.java
+new file mode 100644
+index 0000000..3dac565
+--- /dev/null
++++ b/src/main/java/org/bukkit/event/entity/SpawnerInitiateEvent.java
+@@ -0,0 +1,65 @@
++/*
++ * To change this template, choose Tools | Templates
++ * and open the template in the editor.
++ */
++package org.bukkit.event.entity;
++
++
++
++import org.bukkit.Location;
++import org.bukkit.World;
++import org.bukkit.entity.HumanEntity;
++import org.bukkit.event.Cancellable;
++import org.bukkit.event.Event;
++import org.bukkit.event.HandlerList;
++
++/**
++ *
++ * @author aikar
++ */
++public class SpawnerInitiateEvent extends Event implements Cancellable {
++    private static final HandlerList handlers = new HandlerList();
++    private boolean canceled;
++    Location loc;
++    World world;
++    String mob;
++    HumanEntity entity;
++    public SpawnerInitiateEvent(String mob, World world, Location loc, HumanEntity entity) {        
++        this.world = world;
++        this.loc = loc;
++        this.mob = mob;
++        this.entity = entity;
++    }
++
++    public World getWorld() {
++        return this.world;
++    }
++    
++    public String getMobName() {
++        return this.mob;
++    }
++    
++    public HumanEntity getTriggeringPlayer() {
++        return this.entity;
++    }
++
++    public Location getSpawnerLocation() {
++        return this.loc;
++    }
++
++    public boolean isCancelled() {
++        return canceled;
++    }
++
++    public void setCancelled(boolean cancel) {
++        canceled = cancel;
++    }
++
++    public HandlerList getHandlers() {
++        return handlers;
++    }
++
++    public static HandlerList getHandlerList() {
++        return handlers;
++    }
++}
+-- 
+1.8.3.2
+

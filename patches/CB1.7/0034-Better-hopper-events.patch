@@ -1,0 +1,151 @@
+From 58b3671b8e41c35db700fa93b34abe90d874c2d2 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Mon, 9 Sep 2013 19:41:07 -0400
+Subject: [PATCH] Better hopper events
+
+---
+ .../empireminecraft/customevents/HopperEvents.java | 99 ++++++++++++++++++++++
+ .../net/minecraft/server/TileEntityHopper.java     |  6 ++
+ 2 files changed, 105 insertions(+)
+ create mode 100644 src/main/java/com/empireminecraft/customevents/HopperEvents.java
+
+diff --git a/src/main/java/com/empireminecraft/customevents/HopperEvents.java b/src/main/java/com/empireminecraft/customevents/HopperEvents.java
+new file mode 100644
+index 0000000..c060b79
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/customevents/HopperEvents.java
+@@ -0,0 +1,99 @@
++package com.empireminecraft.customevents;
++
++import net.minecraft.server.IInventory;
++import org.bukkit.Bukkit;
++import org.bukkit.Location;
++import org.bukkit.World;
++import org.bukkit.craftbukkit.CraftWorld;
++import org.bukkit.craftbukkit.inventory.CraftInventory;
++import org.bukkit.event.Cancellable;
++import org.bukkit.event.Event;
++import org.bukkit.event.HandlerList;
++import org.bukkit.inventory.Inventory;
++
++
++public class HopperEvents {
++    public static boolean drain(CraftWorld world, Inventory inventory, double x, double y, double z) {
++        Drain event = new Drain(world, inventory, x, y, z);
++        Bukkit.getPluginManager().callEvent(event);
++        return event.isCancelled();
++    }
++    public static boolean fill(CraftWorld world, Inventory inventory, double x, double y, double z, double tx, double ty, double tz) {
++        Fill event = new Fill(world, inventory, x, y, z, tx, ty, tz);
++        Bukkit.getPluginManager().callEvent(event);
++        return event.isCancelled();
++    }
++
++    public static class Drain extends Event implements Cancellable {
++        private static final HandlerList handlers = new HandlerList();
++        private final Inventory inventory;
++        private boolean canceled;
++        Location loc;
++        public Drain(World world, Inventory inventory, double x, double y, double z) {
++            this.inventory = inventory;
++            loc = new Location(world, x, y, z);
++        }
++        public Location getHopperLocation() {
++            return this.loc;
++        }
++
++        public boolean isCancelled() {
++            return canceled;
++        }
++
++        public void setCancelled(boolean cancel) {
++            canceled = cancel;
++        }
++
++        public HandlerList getHandlers() {
++            return handlers;
++        }
++
++        public static HandlerList getHandlerList() {
++            return handlers;
++        }
++
++        public Inventory getInventory() {
++            return inventory;
++        }
++    }
++
++    public static class Fill extends Event implements Cancellable {
++        private static final HandlerList handlers = new HandlerList();
++        private final Inventory inventory;
++        private boolean canceled;
++        Location loc;
++        Location target;
++        public Fill(World world, Inventory inventory, double x, double y, double z, double tx, double ty, double tz) {
++            this.inventory = inventory;
++            loc = new Location(world, x, y, z);
++            target = new Location(world, x, y, z);
++        }
++        public Location getHopperLocation() {
++            return this.loc;
++        }
++        public Location getTarget() {
++            return this.target;
++        }
++
++        public boolean isCancelled() {
++            return canceled;
++        }
++
++        public void setCancelled(boolean cancel) {
++            canceled = cancel;
++        }
++
++        public HandlerList getHandlers() {
++            return handlers;
++        }
++
++        public static HandlerList getHandlerList() {
++            return handlers;
++        }
++
++        public Inventory getInventory() {
++            return inventory;
++        }
++    }
++}
+diff --git a/src/main/java/net/minecraft/server/TileEntityHopper.java b/src/main/java/net/minecraft/server/TileEntityHopper.java
+index 5793b5c..b0eca1b 100644
+--- a/src/main/java/net/minecraft/server/TileEntityHopper.java
++++ b/src/main/java/net/minecraft/server/TileEntityHopper.java
+@@ -3,7 +3,9 @@ package net.minecraft.server;
+ import java.util.List;
+ 
+ // CraftBukkit start
++import com.empireminecraft.customevents.HopperEvents;
+ import org.bukkit.craftbukkit.entity.CraftHumanEntity;
++import org.bukkit.craftbukkit.inventory.CraftInventory;
+ import org.bukkit.craftbukkit.inventory.CraftItemStack;
+ import org.bukkit.entity.HumanEntity;
+ import org.bukkit.event.inventory.InventoryMoveItemEvent;
+@@ -205,6 +207,9 @@ public class TileEntityHopper extends TileEntity implements IHopper {
+         if (iinventory == null) {
+             return false;
+         } else {
++            int facing = BlockHopper.c(this.p());
++
++            if (HopperEvents.fill(world.getWorld(), this.getOwner().getInventory(), x, y, z, (double) (this.x + Facing.b[facing]), (double) (this.y + Facing.c[facing]), (double) (this.z + Facing.d[facing]))) { return false; } // EMC
+             for (int i = 0; i < this.getSize(); ++i) {
+                 if (this.getItem(i) != null) {
+                     ItemStack itemstack = this.getItem(i).cloneItemStack();
+@@ -252,6 +257,7 @@ public class TileEntityHopper extends TileEntity implements IHopper {
+         if (iinventory != null) {
+             byte b0 = 0;
+ 
++            if (HopperEvents.drain(ihopper.getWorld().getWorld(), new CraftInventory(ihopper), ihopper.aA(), ihopper.aB(), ihopper.aC())) { return false; } // EMC
+             if (iinventory instanceof IWorldInventory && b0 > -1) {
+                 IWorldInventory iworldinventory = (IWorldInventory) iinventory;
+                 int[] aint = iworldinventory.getSlotsForFace(b0);
+-- 
+1.8.4.4
+

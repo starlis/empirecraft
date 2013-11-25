@@ -1,0 +1,54 @@
+From 99410dec1d9b24881fc665a2ffc8690cc2f9c869 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Thu, 21 Nov 2013 20:14:53 -0500
+Subject: [PATCH] Add a Session Verify Whitelist for BungeeCord connections.
+
+Allows online-mode and bungee support at same time.
+---
+ src/main/java/net/minecraft/server/ThreadLoginVerifier.java | 2 ++
+ src/main/java/org/spigotmc/SpigotConfig.java                | 2 ++
+ 2 files changed, 4 insertions(+)
+
+diff --git a/src/main/java/net/minecraft/server/ThreadLoginVerifier.java b/src/main/java/net/minecraft/server/ThreadLoginVerifier.java
+index 3dd5f9a..2663652 100644
+--- a/src/main/java/net/minecraft/server/ThreadLoginVerifier.java
++++ b/src/main/java/net/minecraft/server/ThreadLoginVerifier.java
+@@ -12,6 +12,7 @@ import org.bukkit.craftbukkit.CraftServer;
+ import org.bukkit.craftbukkit.util.Waitable;
+ import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
+ import org.bukkit.event.player.PlayerPreLoginEvent;
++
+ // CraftBukkit end
+ 
+ class ThreadLoginVerifier extends Thread {
+@@ -29,6 +30,7 @@ class ThreadLoginVerifier extends Thread {
+     }
+ public static class NewResponse{private String id;}
+     private boolean auth() throws java.io.IOException {
++        if (org.spigotmc.SpigotConfig.bungee && org.spigotmc.SpigotConfig.verifyWhitelist.contains(this.pendingConnection.getSocket().getInetAddress().getHostAddress())) { return true; } // Spigot
+         String s = (new BigInteger(MinecraftEncryption.a(PendingConnection.a(this.pendingConnection), PendingConnection.b(this.pendingConnection).H().getPublic(), PendingConnection.c(this.pendingConnection)))).toString(16);
+         URL url = new URL("https://sessionserver.mojang.com/session/minecraft/hasJoined?username=" + URLEncoder.encode(PendingConnection.d(this.pendingConnection), "UTF-8") + "&serverId=" + URLEncoder.encode(s, "UTF-8"));
+         BufferedReader bufferedreader = new BufferedReader(new InputStreamReader(url.openConnection(PendingConnection.b(this.pendingConnection).ap()).getInputStream()));
+diff --git a/src/main/java/org/spigotmc/SpigotConfig.java b/src/main/java/org/spigotmc/SpigotConfig.java
+index 06cc126..abdcb98 100644
+--- a/src/main/java/org/spigotmc/SpigotConfig.java
++++ b/src/main/java/org/spigotmc/SpigotConfig.java
+@@ -43,6 +43,7 @@ public class SpigotConfig
+     static Map<String, Command> commands;
+     /*========================================================================*/
+     private static Metrics metrics;
++    public static List<String> verifyWhitelist = Collections.singletonList("127.0.0.1");
+ 
+     public static void init()
+     {
+@@ -55,6 +56,7 @@ public class SpigotConfig
+         version = getInt( "config-version", 4 );
+         set( "config-version", 4 );
+         readConfig( SpigotConfig.class, null );
++        verifyWhitelist = getList("verify-whitelist", verifyWhitelist);
+     }
+ 
+     public static void registerCommands()
+-- 
+1.8.4.4
+

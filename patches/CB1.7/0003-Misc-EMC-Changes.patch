@@ -1,0 +1,174 @@
+From 281af18e5c271d0aec2df44a6f4fa37d07c42ed7 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Thu, 22 Nov 2012 21:30:59 -0500
+Subject: [PATCH] Misc EMC Changes
+
+Only spawn 1 ocelot ever from eggs.
+Load custom permissions before plugins
+Unload plugins after everything else
+Color name tags to match list
+Make Durability enchant scale 0-80% reduction on Armor damage (up to level 5)
+Zombies break down doors on normal
+Update inventory on block place/interact cancellation
+Get rid of yellow disconnect log
+---
+ src/main/java/net/minecraft/server/EntityOcelot.java         |  2 +-
+ src/main/java/net/minecraft/server/EntityTrackerEntry.java   |  5 +++++
+ src/main/java/net/minecraft/server/ItemStack.java            |  9 +++++++++
+ src/main/java/net/minecraft/server/MinecraftServer.java      | 12 +++++++-----
+ .../java/net/minecraft/server/PathfinderGoalBreakDoor.java   |  2 +-
+ src/main/java/net/minecraft/server/PlayerConnection.java     |  2 +-
+ src/main/java/org/bukkit/craftbukkit/CraftServer.java        |  3 ++-
+ .../java/org/bukkit/craftbukkit/event/CraftEventFactory.java |  2 ++
+ 8 files changed, 28 insertions(+), 9 deletions(-)
+
+diff --git a/src/main/java/net/minecraft/server/EntityOcelot.java b/src/main/java/net/minecraft/server/EntityOcelot.java
+index 14bc0dd..1d71efb 100644
+--- a/src/main/java/net/minecraft/server/EntityOcelot.java
++++ b/src/main/java/net/minecraft/server/EntityOcelot.java
+@@ -215,7 +215,7 @@ public class EntityOcelot extends EntityTameableAnimal {
+ 
+     public GroupDataEntity a(GroupDataEntity groupdataentity) {
+         groupdataentity = super.a(groupdataentity);
+-        if (this.world.random.nextInt(7) == 0) {
++        if (false && this.world.random.nextInt(7) == 0) {
+             for (int i = 0; i < 2; ++i) {
+                 EntityOcelot entityocelot = new EntityOcelot(this.world);
+ 
+diff --git a/src/main/java/net/minecraft/server/EntityTrackerEntry.java b/src/main/java/net/minecraft/server/EntityTrackerEntry.java
+index 2182ff8..2761892 100644
+--- a/src/main/java/net/minecraft/server/EntityTrackerEntry.java
++++ b/src/main/java/net/minecraft/server/EntityTrackerEntry.java
+@@ -317,6 +317,11 @@ public class EntityTrackerEntry {
+ 
+                     this.trackedPlayers.add(entityplayer);
+                     Packet packet = this.c();
++                    // EMC start - colored name tags
++                    if (packet != null && packet instanceof Packet20NamedEntitySpawn && this.tracker instanceof EntityPlayer) {
++                        ((Packet20NamedEntitySpawn) packet).b = ((EntityPlayer) this.tracker).listName;
++                    }
++                    // EMC end
+ 
+                     entityplayer.playerConnection.sendPacket(packet);
+                     if (!this.tracker.getDataWatcher().d()) {
+diff --git a/src/main/java/net/minecraft/server/ItemStack.java b/src/main/java/net/minecraft/server/ItemStack.java
+index 3bbe9f6..d0ba057 100644
+--- a/src/main/java/net/minecraft/server/ItemStack.java
++++ b/src/main/java/net/minecraft/server/ItemStack.java
+@@ -201,7 +201,16 @@ public final class ItemStack {
+                 int j = EnchantmentManager.getEnchantmentLevel(Enchantment.DURABILITY.id, this);
+                 int k = 0;
+ 
++                j = Math.min(5, j); // EMC
+                 for (int l = 0; j > 0 && l < i; ++l) {
++                    // EMC start - make Unbreaking scale to level for armor. 5 = 80% chance of no loss.
++                    if (getItem() instanceof ItemArmor) {
++                        if (random.nextFloat() >= 1 - (.8 * (j / 5))) {
++                            k++;
++                        }
++                        continue;
++                    }
++                    // EMC end
+                     if (EnchantmentDurability.a(this, j, random)) {
+                         ++k;
+                     }
+diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
+index 0ba3468..43da101 100644
+--- a/src/main/java/net/minecraft/server/MinecraftServer.java
++++ b/src/main/java/net/minecraft/server/MinecraftServer.java
+@@ -356,11 +356,6 @@ public String favicon;
+     public void stop() throws ExceptionWorldConflict { // CraftBukkit - added throws
+         if (!this.P) {
+             this.getLogger().info("Stopping server");
+-            // CraftBukkit start
+-            if (this.server != null) {
+-                this.server.disablePlugins();
+-            }
+-            // CraftBukkit end
+ 
+             if (this.ag() != null) {
+                 this.ag().a();
+@@ -382,6 +377,13 @@ public String favicon;
+                 worldserver.saveLevel();
+             }
+             // CraftBukkit end */
++
++            // CraftBukkit start
++            if (this.server != null) {
++                this.server.disablePlugins();
++            }
++            // CraftBukkit end
++
+             if (this.n != null && this.n.d()) {
+                 this.n.e();
+             }
+diff --git a/src/main/java/net/minecraft/server/PathfinderGoalBreakDoor.java b/src/main/java/net/minecraft/server/PathfinderGoalBreakDoor.java
+index 557dad3..1c5e7bb 100644
+--- a/src/main/java/net/minecraft/server/PathfinderGoalBreakDoor.java
++++ b/src/main/java/net/minecraft/server/PathfinderGoalBreakDoor.java
+@@ -43,7 +43,7 @@ public class PathfinderGoalBreakDoor extends PathfinderGoalDoorInteract {
+             this.j = i;
+         }
+ 
+-        if (this.i == 240 && this.a.world.difficulty == 3) {
++        if (this.i == 240 && this.a.world.difficulty >= 2) { // EMC - normal mode
+             // CraftBukkit start
+             if (org.bukkit.craftbukkit.event.CraftEventFactory.callEntityBreakDoorEvent(this.a, this.b, this.c, this.d).isCancelled()) {
+                 this.e();
+diff --git a/src/main/java/net/minecraft/server/PlayerConnection.java b/src/main/java/net/minecraft/server/PlayerConnection.java
+index 5f87e39..c332af9 100644
+--- a/src/main/java/net/minecraft/server/PlayerConnection.java
++++ b/src/main/java/net/minecraft/server/PlayerConnection.java
+@@ -147,7 +147,7 @@ public class PlayerConnection extends Connection {
+ 
+             PlayerKickEvent event = new PlayerKickEvent(this.server.getPlayer(this.player), s, leaveMessage);
+ 
+-            if (this.server.getServer().isRunning()) {
++            if (true) { // EMC - get rid of yellow quit messages
+                 this.server.getPluginManager().callEvent(event);
+             }
+ 
+diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
+index 3629959..b1edfce 100644
+--- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
++++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
+@@ -261,6 +261,7 @@ public final class CraftServer implements Server {
+         if (type == PluginLoadOrder.STARTUP) {
+             helpMap.clear();
+             helpMap.initializeGeneralTopics();
++            loadCustomPermissions(); // EMC - Plugins should have access to this
+         }
+ 
+         Plugin[] plugins = pluginManager.getPlugins();
+@@ -273,7 +274,7 @@ public final class CraftServer implements Server {
+ 
+         if (type == PluginLoadOrder.POSTWORLD) {
+             commandMap.registerServerAliases();
+-            loadCustomPermissions();
++            // loadCustomPermissions(); // EMC - Moving up
+             DefaultPermissions.registerCorePermissions();
+             helpMap.initializeCommands();
+         }
+diff --git a/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java b/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
+index d8f56e9..c586b0d 100644
+--- a/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
++++ b/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
+@@ -112,6 +112,7 @@ public class CraftEventFactory {
+         BlockPlaceEvent event = new BlockPlaceEvent(placedBlock, replacedBlockState, blockClicked, player.getItemInHand(), player, canBuild);
+         craftServer.getPluginManager().callEvent(event);
+ 
++        if (event.isCancelled()) { player.updateInventory(); } // EMC
+         return event;
+     }
+ 
+@@ -206,6 +207,7 @@ public class CraftEventFactory {
+         PlayerInteractEvent event = new PlayerInteractEvent(player, action, itemInHand, blockClicked, blockFace);
+         craftServer.getPluginManager().callEvent(event);
+ 
++        if (action == Action.RIGHT_CLICK_BLOCK && event.isCancelled()) { player.updateInventory(); } // EMC
+         return event;
+     }
+ 
+-- 
+1.8.4.4
+
