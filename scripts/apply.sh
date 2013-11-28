@@ -12,6 +12,11 @@ echo "Rebuilding Forked projects.... "
 function applyPatch {
     what=$1
     cd $basedir
+    if [ ! -f "$basedir/Bukkit/pom.xml" ]; then
+	cd ..
+	git submodule init --update
+	cd $basedir
+    fi
     if [ ! -d "$basedir/EMC-$what" ]; then
         git clone github.com:aikar/EMC-$what EMC-$what
     fi
@@ -21,7 +26,7 @@ function applyPatch {
     echo "Synchronizing EMC-$what/master to $what/master"
     git remote rm upstream > /dev/null 2>&1
     git remote add upstream ../$what >/dev/null 2>&1
-    git co master >/dev/null 2>&1
+    git checkout master >/dev/null 2>&1
     git fetch upstream >/dev/null 2>&1
     git reset --hard upstream/upstream >/dev/null
     echo "  Applying patches to EMC-$what..."
