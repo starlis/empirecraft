@@ -14,7 +14,7 @@ function applyPatch {
     cd $basedir
     if [ ! -f "$basedir/Bukkit/pom.xml" ]; then
 	cd ..
-	git submodule init --update
+	git submodule update --init
 	cd $basedir
     fi
     if [ ! -d "$basedir/EMC-$what" ]; then
