@@ -1,4 +1,4 @@
-From 034f3206c33ff56d3fbfb5cf01331e171aa80264 Mon Sep 17 00:00:00 2001
+From f85cee6b91d80994938ce63f422cf4e907e8fae3 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Thu, 22 Nov 2012 21:30:59 -0500
 Subject: [PATCH] Misc EMC Changes
@@ -10,16 +10,15 @@ Color name tags to match list
 Make Durability enchant scale 0-80% reduction on Armor damage (up to level 5)
 Zombies break down doors on normal
 Update inventory on block place/interact cancellation
-Get rid of yellow disconnect log
 ---
  src/main/java/net/minecraft/server/EntityOcelot.java          |  2 +-
- src/main/java/net/minecraft/server/EntityTrackerEntry.java    |  5 +++++
  src/main/java/net/minecraft/server/ItemStack.java             |  9 +++++++++
  src/main/java/net/minecraft/server/MinecraftServer.java       | 11 ++++++-----
+ .../net/minecraft/server/PacketPlayOutNamedEntitySpawn.java   |  4 +++-
  .../java/net/minecraft/server/PathfinderGoalBreakDoor.java    |  2 +-
  src/main/java/org/bukkit/craftbukkit/CraftServer.java         |  3 ++-
  .../java/org/bukkit/craftbukkit/event/CraftEventFactory.java  |  2 ++
- 7 files changed, 26 insertions(+), 8 deletions(-)
+ 7 files changed, 24 insertions(+), 9 deletions(-)
 
 diff --git a/src/main/java/net/minecraft/server/EntityOcelot.java b/src/main/java/net/minecraft/server/EntityOcelot.java
 index 867abd7..3c3f28c 100644
@@ -34,22 +33,6 @@ index 867abd7..3c3f28c 100644
              for (int i = 0; i < 2; ++i) {
                  EntityOcelot entityocelot = new EntityOcelot(this.world);
  
-diff --git a/src/main/java/net/minecraft/server/EntityTrackerEntry.java b/src/main/java/net/minecraft/server/EntityTrackerEntry.java
-index 8052ea6..b5ab90e 100644
---- a/src/main/java/net/minecraft/server/EntityTrackerEntry.java
-+++ b/src/main/java/net/minecraft/server/EntityTrackerEntry.java
-@@ -319,6 +319,11 @@ public class EntityTrackerEntry {
- 
-                     this.trackedPlayers.add(entityplayer);
-                     Packet packet = this.c();
-+                    // EMC start - colored name tags
-+                    if (packet != null && packet instanceof Packet20NamedEntitySpawn && this.tracker instanceof EntityPlayer) {
-+                        ((Packet20NamedEntitySpawn) packet).b = ((EntityPlayer) this.tracker).listName;
-+                    }
-+                    // EMC end
- 
-                     entityplayer.playerConnection.sendPacket(packet);
-                     if (!this.tracker.getDataWatcher().d()) {
 diff --git a/src/main/java/net/minecraft/server/ItemStack.java b/src/main/java/net/minecraft/server/ItemStack.java
 index 123e4a5..dce9f23 100644
 --- a/src/main/java/net/minecraft/server/ItemStack.java
@@ -100,6 +83,35 @@ index 831707c..c541308 100644
              if (this.k.d()) {
                  this.k.e();
              }
+diff --git a/src/main/java/net/minecraft/server/PacketPlayOutNamedEntitySpawn.java b/src/main/java/net/minecraft/server/PacketPlayOutNamedEntitySpawn.java
+index 8bab528..9fcc015 100644
+--- a/src/main/java/net/minecraft/server/PacketPlayOutNamedEntitySpawn.java
++++ b/src/main/java/net/minecraft/server/PacketPlayOutNamedEntitySpawn.java
+@@ -8,6 +8,7 @@ import java.io.IOException; // CraftBukkit
+ 
+ public class PacketPlayOutNamedEntitySpawn extends Packet {
+ 
++    private EntityPlayer entityhuman = null; // EMC
+     private int a;
+     private GameProfile b;
+     private int c;
+@@ -22,6 +23,7 @@ public class PacketPlayOutNamedEntitySpawn extends Packet {
+     public PacketPlayOutNamedEntitySpawn() {}
+ 
+     public PacketPlayOutNamedEntitySpawn(EntityHuman entityhuman) {
++        this.entityhuman = (EntityPlayer) entityhuman; // EMC
+         this.a = entityhuman.getId();
+         this.b = entityhuman.getProfile();
+         this.c = MathHelper.floor(entityhuman.locX * 32.0D);
+@@ -50,7 +52,7 @@ public class PacketPlayOutNamedEntitySpawn extends Packet {
+     public void b(PacketDataSerializer packetdataserializer) throws IOException { // CraftBukkit - added throws
+         packetdataserializer.b(this.a);
+         packetdataserializer.a(this.b.getId());
+-        packetdataserializer.a(this.b.getName().length() > 16 ? this.b.getName().substring(0, 16) : this.b.getName()); // CraftBukkit - Limit name length to 16 characters
++        packetdataserializer.a(entityhuman.listName.length() > 16 ? entityhuman.listName.substring(0, 16) : this.b.getName()); // EMC
+         packetdataserializer.writeInt(this.c);
+         packetdataserializer.writeInt(this.d);
+         packetdataserializer.writeInt(this.e);
 diff --git a/src/main/java/net/minecraft/server/PathfinderGoalBreakDoor.java b/src/main/java/net/minecraft/server/PathfinderGoalBreakDoor.java
 index 5390ef1..b69cbcd 100644
 --- a/src/main/java/net/minecraft/server/PathfinderGoalBreakDoor.java
