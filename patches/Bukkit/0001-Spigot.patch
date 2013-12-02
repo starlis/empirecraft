@@ -1,13 +1,12 @@
-From 3084b8d084f95f2e4849749925c13120d86e6bb3 Mon Sep 17 00:00:00 2001
+From 65801cad010d896ad54d174b6e51cfb7b85e47d0 Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Wed, 25 Sep 2013 08:50:45 -0400
+Date: Sun, 1 Dec 2013 17:47:39 -0500
 Subject: [PATCH] Spigot
 
 ---
  pom.xml                                            |  52 ++----
  src/main/java/org/bukkit/Effect.java               | 195 ++++++++++++++++++++-
  src/main/java/org/bukkit/World.java                |  50 ++++++
- .../org/bukkit/command/defaults/EffectCommand.java |   2 +-
  .../org/bukkit/command/defaults/ReloadCommand.java |   1 +
  .../bukkit/command/defaults/TimingsCommand.java    | 111 +++++++++++-
  .../org/bukkit/conversations/BooleanPrompt.java    |   3 +-
@@ -15,7 +14,7 @@ Subject: [PATCH] Spigot
  .../bukkit/conversations/ConversationContext.java  |   8 +
  src/main/java/org/bukkit/entity/Arrow.java         |  20 ++-
  src/main/java/org/bukkit/entity/Entity.java        |  18 ++
- src/main/java/org/bukkit/entity/Player.java        |  45 +++++
+ src/main/java/org/bukkit/entity/Player.java        |  53 ++++++
  .../bukkit/event/entity/CreatureSpawnEvent.java    |  32 +---
  .../org/bukkit/event/entity/EntitySpawnEvent.java  |  45 +++++
  .../org/bukkit/event/entity/ItemSpawnEvent.java    |  40 +----
@@ -26,12 +25,13 @@ Subject: [PATCH] Spigot
  .../org/bukkit/plugin/SimplePluginManager.java     |   1 +
  .../org/bukkit/plugin/TimedRegisteredListener.java |  21 ++-
  .../org/bukkit/plugin/java/JavaPluginLoader.java   |   2 +-
+ .../bukkit/plugin/messaging/StandardMessenger.java |  10 +-
  .../java/org/spigotmc/CustomTimingsHandler.java    | 175 ++++++++++++++++++
  .../spigotmc/event/entity/EntityDismountEvent.java |  39 +++++
  .../spigotmc/event/entity/EntityMountEvent.java    |  52 ++++++
  src/test/java/org/bukkit/EffectTest.java           |   6 +-
  .../bukkit/plugin/TimedRegisteredListenerTest.java |   1 -
- 27 files changed, 918 insertions(+), 127 deletions(-)
+ 27 files changed, 934 insertions(+), 127 deletions(-)
  create mode 100644 src/main/java/org/bukkit/event/entity/EntitySpawnEvent.java
  create mode 100644 src/main/java/org/bukkit/event/entity/SpawnerSpawnEvent.java
  create mode 100644 src/main/java/org/bukkit/event/player/PlayerItemDamageEvent.java
@@ -40,7 +40,7 @@ Subject: [PATCH] Spigot
  create mode 100644 src/main/java/org/spigotmc/event/entity/EntityMountEvent.java
 
 diff --git a/pom.xml b/pom.xml
-index dfdcbdf..2e2c963 100644
+index a83e578..8632d3d 100644
 --- a/pom.xml
 +++ b/pom.xml
 @@ -1,43 +1,23 @@
@@ -58,7 +58,7 @@ index dfdcbdf..2e2c963 100644
 +
 +    <groupId>org.spigotmc</groupId>
 +    <artifactId>spigot-api</artifactId>
-     <version>1.6.4-R0.1-SNAPSHOT</version>
+     <version>1.7.2-R0.1-SNAPSHOT</version>
 -    <name>Bukkit</name>
 -    <url>http://www.bukkit.org</url>
 +    <name>Spigot-API</name>
@@ -99,7 +99,7 @@ index dfdcbdf..2e2c963 100644
      <build>
          <plugins>
              <plugin>
-@@ -98,21 +78,21 @@
+@@ -97,21 +77,21 @@
          <dependency>
              <groupId>org.yaml</groupId>
              <artifactId>snakeyaml</artifactId>
@@ -124,7 +124,7 @@ index dfdcbdf..2e2c963 100644
              <type>jar</type>
              <scope>compile</scope>
          </dependency>
-@@ -126,7 +106,7 @@
+@@ -125,7 +105,7 @@
          <dependency>
              <groupId>commons-lang</groupId>
              <artifactId>commons-lang</artifactId>
@@ -389,7 +389,7 @@ index 708bee9..62c7c11 100644
 +    public enum Type {SOUND, VISUAL, PARTICLE}
  }
 diff --git a/src/main/java/org/bukkit/World.java b/src/main/java/org/bukkit/World.java
-index 62fadda..39c72c5 100644
+index 63507c9..7de6186 100644
 --- a/src/main/java/org/bukkit/World.java
 +++ b/src/main/java/org/bukkit/World.java
 @@ -1070,6 +1070,56 @@ public interface World extends PluginMessageRecipient, Metadatable {
@@ -449,19 +449,6 @@ index 62fadda..39c72c5 100644
      /**
       * Represents various map environment types that a world may be
       */
-diff --git a/src/main/java/org/bukkit/command/defaults/EffectCommand.java b/src/main/java/org/bukkit/command/defaults/EffectCommand.java
-index 7d0662e..8d9b742 100644
---- a/src/main/java/org/bukkit/command/defaults/EffectCommand.java
-+++ b/src/main/java/org/bukkit/command/defaults/EffectCommand.java
-@@ -100,7 +100,7 @@ public class EffectCommand extends VanillaCommand {
-             final PotionEffect applyEffect = new PotionEffect(effect, duration, amplification);
- 
-             player.addPotionEffect(applyEffect, true);
--            broadcastCommandMessage(sender, String.format("Given %s (ID %d) * %d to %s for %d seconds", effect.getName(), effect.getId(), amplification, args[0], duration_temp));
-+            broadcastCommandMessage(sender, String.format("Given %s (ID %d) * %d to %s for %d seconds", effect.getName(), effect.getId(), amplification, args[0], duration));
-         }
- 
-         return true;
 diff --git a/src/main/java/org/bukkit/command/defaults/ReloadCommand.java b/src/main/java/org/bukkit/command/defaults/ReloadCommand.java
 index fb3c90f..ffbcac1 100644
 --- a/src/main/java/org/bukkit/command/defaults/ReloadCommand.java
@@ -771,10 +758,10 @@ index 72af4fa..a5b2100 100644
 +    // Spigot End
  }
 diff --git a/src/main/java/org/bukkit/entity/Player.java b/src/main/java/org/bukkit/entity/Player.java
-index 3ec374b..9ee8f5f 100644
+index 3ec374b..8fd9a07 100644
 --- a/src/main/java/org/bukkit/entity/Player.java
 +++ b/src/main/java/org/bukkit/entity/Player.java
-@@ -721,4 +721,49 @@ public interface Player extends HumanEntity, Conversable, CommandSender, Offline
+@@ -721,4 +721,57 @@ public interface Player extends HumanEntity, Conversable, CommandSender, Offline
       * @see Player#setHealthScaled(boolean)
       */
      public double getHealthScale();
@@ -816,6 +803,14 @@ index 3ec374b..9ee8f5f 100644
 +         * not.
 +         */
 +        public void setCollidesWithEntities(boolean collides)
++        {
++            throw new UnsupportedOperationException( "Not supported yet." );
++        }
++
++        /**
++         * Respawns the player if dead.
++         */
++        public void respawn()
 +        {
 +            throw new UnsupportedOperationException( "Not supported yet." );
 +        }
@@ -1279,6 +1274,27 @@ index ea30d83..d905435 100644
                  eventSet.add(new TimedRegisteredListener(listener, executor, eh.priority(), plugin, eh.ignoreCancelled()));
              } else {
                  eventSet.add(new RegisteredListener(listener, executor, eh.priority(), plugin, eh.ignoreCancelled()));
+diff --git a/src/main/java/org/bukkit/plugin/messaging/StandardMessenger.java b/src/main/java/org/bukkit/plugin/messaging/StandardMessenger.java
+index e90f2e1..e6f008c 100644
+--- a/src/main/java/org/bukkit/plugin/messaging/StandardMessenger.java
++++ b/src/main/java/org/bukkit/plugin/messaging/StandardMessenger.java
+@@ -421,7 +421,15 @@ public class StandardMessenger implements Messenger {
+         Set<PluginMessageListenerRegistration> registrations = getIncomingChannelRegistrations(channel);
+ 
+         for (PluginMessageListenerRegistration registration : registrations) {
+-            registration.getListener().onPluginMessageReceived(channel, source, message);
++            // Spigot Start
++            try
++            {
++                registration.getListener().onPluginMessageReceived( channel, source, message );
++            } catch ( Throwable t )
++            {
++                org.bukkit.Bukkit.getLogger().log( java.util.logging.Level.WARNING, "Could not pass incoming plugin message to " + registration.getPlugin(), t );
++            }
++            // Spigot End
+         }
+     }
+ 
 diff --git a/src/main/java/org/spigotmc/CustomTimingsHandler.java b/src/main/java/org/spigotmc/CustomTimingsHandler.java
 new file mode 100644
 index 0000000..9fca481
@@ -1593,5 +1609,5 @@ index b206b1f..01b62fb 100644
          Listener listener = new Listener() {};
          EventExecutor executor = new EventExecutor() {
 -- 
-1.8.4
+1.8.5
 

@@ -1,0 +1,91 @@
+From e04b9c7b66442d187a47231c19f8e0fe7f00f78b Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Fri, 26 Jul 2013 22:19:29 -0400
+Subject: [PATCH] Allow force spawns
+
+Pass spawn reason force to not allow plugins to block
+Force some cases where plugins should not be allowed to block it.
+---
+ src/main/java/net/minecraft/server/Entity.java     | 8 ++------
+ src/main/java/net/minecraft/server/PlayerList.java | 3 ++-
+ src/main/java/net/minecraft/server/World.java      | 4 ++--
+ 3 files changed, 6 insertions(+), 9 deletions(-)
+
+diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
+index 5465320..5eeecc8 100644
+--- a/src/main/java/net/minecraft/server/Entity.java
++++ b/src/main/java/net/minecraft/server/Entity.java
+@@ -14,8 +14,8 @@ import org.bukkit.block.BlockFace;
+ import org.bukkit.entity.LivingEntity;
+ import org.bukkit.entity.Painting;
+ import org.bukkit.entity.Vehicle;
++import org.bukkit.event.entity.*;
+ import org.spigotmc.CustomTimingsHandler; // Spigot
+-import org.bukkit.event.entity.EntityCombustByEntityEvent;
+ import org.bukkit.event.painting.PaintingBreakByEntityEvent;
+ import org.bukkit.event.vehicle.VehicleBlockCollisionEvent;
+ import org.bukkit.event.vehicle.VehicleEnterEvent;
+@@ -23,10 +23,6 @@ import org.bukkit.event.vehicle.VehicleExitEvent;
+ import org.bukkit.craftbukkit.CraftWorld;
+ import org.bukkit.craftbukkit.entity.CraftEntity;
+ import org.bukkit.craftbukkit.entity.CraftPlayer;
+-import org.bukkit.event.entity.EntityCombustEvent;
+-import org.bukkit.event.entity.EntityDamageByBlockEvent;
+-import org.bukkit.event.entity.EntityDamageEvent;
+-import org.bukkit.event.entity.EntityPortalEvent;
+ import org.bukkit.plugin.PluginManager;
+ // CraftBukkit end
+ 
+@@ -1860,7 +1856,7 @@ public abstract class Entity {
+                     entity.setPositionRotation((double) chunkcoordinates.x, (double) chunkcoordinates.y, (double) chunkcoordinates.z, entity.yaw, entity.pitch);
+                 }
+                 // CraftBukkit end */
+-                worldserver1.addEntity(entity);
++                worldserver1.addEntity(entity, CreatureSpawnEvent.SpawnReason.FORCE); // EMC
+                 // CraftBukkit start - Forward the CraftEntity to the new entity
+                 this.getBukkitEntity().setHandle(entity);
+                 entity.bukkitEntity = this.getBukkitEntity();
+diff --git a/src/main/java/net/minecraft/server/PlayerList.java b/src/main/java/net/minecraft/server/PlayerList.java
+index c6719c6..8929ee0 100644
+--- a/src/main/java/net/minecraft/server/PlayerList.java
++++ b/src/main/java/net/minecraft/server/PlayerList.java
+@@ -27,6 +27,7 @@ import org.bukkit.Bukkit;
+ import org.bukkit.Location;
+ import org.bukkit.TravelAgent;
+ import org.bukkit.entity.Player;
++import org.bukkit.event.entity.CreatureSpawnEvent;
+ import org.bukkit.event.player.PlayerChangedWorldEvent;
+ import org.bukkit.event.player.PlayerPortalEvent;
+ import org.bukkit.event.player.PlayerJoinEvent;
+@@ -135,7 +136,7 @@ public abstract class PlayerList {
+ 
+             if (entity != null) {
+                 entity.o = true;
+-                worldserver.addEntity(entity);
++                worldserver.addEntity(entity, CreatureSpawnEvent.SpawnReason.FORCE); // EMC
+                 entityplayer.mount(entity);
+                 entity.o = false;
+             }
+diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
+index b972cfa..56c02dc 100644
+--- a/src/main/java/net/minecraft/server/World.java
++++ b/src/main/java/net/minecraft/server/World.java
+@@ -968,13 +968,13 @@ public abstract class World implements IBlockAccess {
+             }
+         } // Spigot end
+ 
+-        if (event != null && (event.isCancelled() || entity.dead)) {
++        if (spawnReason != SpawnReason.FORCE && event != null && (event.isCancelled() || entity.dead)) { // EMC
+             entity.dead = true;
+             return false;
+         }
+         // CraftBukkit end
+ 
+-        if (!flag && !this.isChunkLoaded(i, j)) {
++        if (spawnReason != SpawnReason.FORCE && !flag && !this.isChunkLoaded(i, j)) { // EMC
+             entity.dead = true; // CraftBukkit
+             return false;
+         } else {
+-- 
+1.8.5
+

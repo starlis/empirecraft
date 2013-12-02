@@ -8,7 +8,7 @@ while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symli
 done
 . $(dirname $SOURCE)/init.sh
 
-wget -O mc-dev.zip https://github.com/Bukkit/mc-dev/archive/master.zip
+wget -O mc-dev.zip https://github.com/SpigotMC/mc-dev/archive/master.zip
 cd EMC-CraftBukkit/src/main/java
 find . -type f -name "*.java" | sed -e 's/\.\///g' | xargs -I{} zip -d $basedir/mc-dev.zip mc-dev-master/{} 2>/dev/null 1>&2
 

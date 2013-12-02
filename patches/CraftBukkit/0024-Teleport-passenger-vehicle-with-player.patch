@@ -1,0 +1,112 @@
+From 47bc5fd5f3997e1b6d805d55f4bda18435e4cac6 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Wed, 17 Jul 2013 21:06:55 -0400
+Subject: [PATCH] Teleport passenger/vehicle with player
+
+Will teleport entities with a player for vehicle/passenger
+---
+ src/main/java/net/minecraft/server/Entity.java     | 14 ++++++++-
+ .../org/bukkit/craftbukkit/entity/CraftPlayer.java | 34 ++++++++++++++++++++--
+ 2 files changed, 44 insertions(+), 4 deletions(-)
+
+diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
+index acb1dee..5465320 100644
+--- a/src/main/java/net/minecraft/server/Entity.java
++++ b/src/main/java/net/minecraft/server/Entity.java
+@@ -40,6 +40,14 @@ public abstract class Entity {
+         return tag.hasKey("Bukkit.updateLevel") && tag.getInt("Bukkit.updateLevel") >= level;
+     }
+     EntityTrackerEntry tracker; // EMC
++    // EMC start
++    public void retrack() {
++        final EntityTracker entityTracker = ((WorldServer) world).getTracker();
++        entityTracker.untrackEntity(this);
++        entityTracker.track(this);
++
++    }
++    // EMC end
+     // CraftBukkit end
+ 
+     private static int entityCount;
+@@ -1832,7 +1840,7 @@ public abstract class Entity {
+             // minecraftserver.getPlayerList().a(this, j, worldserver, worldserver1);
+             boolean before = worldserver1.chunkProviderServer.forceChunkLoad;
+             worldserver1.chunkProviderServer.forceChunkLoad = true;
+-            worldserver1.getMinecraftServer().getPlayerList().repositionEntity(this, exit, portal);
++            //worldserver1.getMinecraftServer().getPlayerList().repositionEntity(this, exit, portal); // EMC - no... this entity is dead;
+             worldserver1.chunkProviderServer.forceChunkLoad = before;
+             // CraftBukkit end
+             this.world.methodProfiler.c("reloading");
+@@ -1840,6 +1848,10 @@ public abstract class Entity {
+ 
+             if (entity != null) {
+                 entity.a(this, true);
++                // EMC start - move entity to new location
++                exit.getBlock(); // force load
++                entity.setLocation(exit.getX(), exit.getY(), exit.getZ(), exit.getYaw(), exit.getPitch());
++                // EMC end
+                 /* CraftBukkit start - We need to do this...
+                 if (j == 1 && i == 1) {
+                     ChunkCoordinates chunkcoordinates = worldserver1.getSpawn();
+diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
+index f870cc6..6b419ab 100644
+--- a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
++++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
+@@ -430,9 +430,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+             return false;
+         }
+ 
+-        if (entity.vehicle != null || entity.passenger != null) {
+-            return false;
+-        }
++        // EMC dont block this
+ 
+         // From = Players current Location
+         Location from = this.getLocation();
+@@ -447,6 +445,26 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+             return false;
+         }
+ 
++        // EMC start
++        Entity vehicle = entity.vehicle;
++        Entity passenger = entity.passenger;
++        if (vehicle != null) {
++            vehicle.passenger = null;
++            vehicle.teleportTo(location, false);
++            vehicle = vehicle.getBukkitEntity().getHandle();
++            entity.vehicle = vehicle;
++            vehicle.passenger = entity;
++        }
++
++        if (passenger != null) {
++            passenger.vehicle = null;
++            passenger.teleportTo(location, false);
++            passenger = passenger.getBukkitEntity().getHandle();
++            entity.passenger = passenger;
++            passenger.vehicle = entity;
++        }
++        // EMC end
++
+         // Update the From Location
+         from = event.getFrom();
+         // Grab the new To Location dependent on whether the event was cancelled.
+@@ -466,6 +484,16 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+         } else {
+             server.getHandle().moveToWorld(entity, toWorld.dimension, true, to, true);
+         }
++
++        // EMC start
++        if (vehicle != null) {
++            vehicle.retrack();
++            //entity.retrack();
++        }
++        if (passenger != null) {
++            passenger.retrack();
++        }
++        // EMC end
+         return true;
+     }
+ 
+-- 
+1.8.5
+

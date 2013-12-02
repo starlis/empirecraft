@@ -1,4 +1,4 @@
-From 921d9126c8d8f40a0cdd23441447bddb81f7279c Mon Sep 17 00:00:00 2001
+From b3ff189322bb2dd942dc760716cd197d1097f57d Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Wed, 27 Feb 2013 23:27:45 -0500
 Subject: [PATCH] Hidden Item Meta
@@ -13,36 +13,14 @@ Then you can store Data on 21+
 Also adds a &&::SHINY tag to send a fake enchantment aura if it does not exists.
 Must be set before META
 ---
- src/main/java/net/minecraft/server/Packet.java | 54 ++++++++++++++++++++++++++
+ .../net/minecraft/server/PacketDataSerializer.java | 54 ++++++++++++++++++++++
  1 file changed, 54 insertions(+)
 
-diff --git a/src/main/java/net/minecraft/server/Packet.java b/src/main/java/net/minecraft/server/Packet.java
-index 9389a7d..b549973 100644
---- a/src/main/java/net/minecraft/server/Packet.java
-+++ b/src/main/java/net/minecraft/server/Packet.java
-@@ -205,6 +205,21 @@ public abstract class Packet {
-             itemstack.tag = d(datainput);
-             // CraftBukkit start
-             if (itemstack.tag != null) {
-+                // EMC start - get around creative menu having ultimate control of the NBT...
-+                if (itemstack.tag.hasKey("display")) {
-+                    NBTTagCompound display = itemstack.tag.getCompound("display");
-+                    if (display.hasKey("OriginalLore")) {
-+                        display.set("Lore", display.getList("OriginalLore"));
-+                        display.remove("OriginalLore");
-+                    }
-+                }
-+                // If shiny was used
-+                if (itemstack.tag.hasKey("ench")) {
-+                    if (itemstack.tag.getList("ench").size() == 0) {
-+                        itemstack.tag.remove("ench");
-+                    }
-+                }
-+                // EMC end
-                 CraftItemStack.setItemMeta(itemstack, CraftItemStack.getItemMeta(itemstack));
-             }
-             // CraftBukkit end
-@@ -224,6 +239,45 @@ public abstract class Packet {
+diff --git a/src/main/java/net/minecraft/server/PacketDataSerializer.java b/src/main/java/net/minecraft/server/PacketDataSerializer.java
+index fe2b24d..9913013 100644
+--- a/src/main/java/net/minecraft/server/PacketDataSerializer.java
++++ b/src/main/java/net/minecraft/server/PacketDataSerializer.java
+@@ -89,6 +89,45 @@ public class PacketDataSerializer extends ByteBuf {
  
              if (itemstack.getItem().usesDurability() || itemstack.getItem().s()) {
                  nbttagcompound = itemstack.tag;
@@ -50,11 +28,11 @@ index 9389a7d..b549973 100644
 +                if (nbttagcompound != null && nbttagcompound.hasKey("display")) {
 +                    NBTTagCompound display = nbttagcompound.getCompound("display");
 +                    if (display.hasKey("Lore")) {
-+                        NBTTagList lore = display.getList("Lore");
++                        NBTTagList lore = display.getList("Lore", 8);
 +                        int lastLine = 0;
 +                        boolean hasSpecial = false;
 +                        for (int i = 0; i < lore.size(); i++) {
-+                            String line = ((NBTTagString) lore.get(i)).data;
++                            String line = lore.f(i);
 +
 +                            if (line.equals("&&::META")) {
 +                                hasSpecial = true;
@@ -72,7 +50,7 @@ index 9389a7d..b549973 100644
 +                            }
 +                        }
 +                        if (hasSpecial) {
-+                            NBTTagList newlore = new NBTTagList("Lore");
++                            NBTTagList newlore = new NBTTagList();
 +                            for (int x = 0; x < lastLine; x++) {
 +                                newlore.add(lore.get(x));
 +                            }
@@ -87,7 +65,29 @@ index 9389a7d..b549973 100644
 +                // EMC end
              }
  
-             a(nbttagcompound, dataoutput);
+             this.a(nbttagcompound);
+@@ -107,6 +146,21 @@ public class PacketDataSerializer extends ByteBuf {
+             itemstack.tag = this.b();
+             // CraftBukkit start
+             if (itemstack.tag != null) {
++                // EMC start - get around creative menu having ultimate control of the NBT...
++                if (itemstack.tag.hasKey("display")) {
++                    NBTTagCompound display = itemstack.tag.getCompound("display");
++                    if (display.hasKey("OriginalLore")) {
++                        display.set("Lore", display.getList("OriginalLore", 8));
++                        display.remove("OriginalLore");
++                    }
++                }
++                // If shiny was used
++                if (itemstack.tag.hasKey("ench")) {
++                    if (itemstack.tag.getList("ench", 8).size() == 0) {
++                        itemstack.tag.remove("ench");
++                    }
++                }
++                // EMC end
+                 CraftItemStack.setItemMeta(itemstack, CraftItemStack.getItemMeta(itemstack));
+             }
+             // CraftBukkit end
 -- 
-1.8.3.2
+1.8.5
 

@@ -1,0 +1,69 @@
+From 0ae93fe2009a1c383fb743e2190210179ba48fe2 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Sun, 9 Jun 2013 18:39:32 -0400
+Subject: [PATCH] Show 1/10s TPS averages
+
+---
+ src/main/java/net/minecraft/server/MinecraftServer.java   |  6 ++++--
+ .../bukkit/craftbukkit/command/TicksPerSecondCommand.java | 15 ++++++++++-----
+ 2 files changed, 14 insertions(+), 7 deletions(-)
+
+diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
+index c541308..5ece57b 100644
+--- a/src/main/java/net/minecraft/server/MinecraftServer.java
++++ b/src/main/java/net/minecraft/server/MinecraftServer.java
+@@ -104,7 +104,8 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+     // Spigot start
+     private static final int TPS = 20;
+     private static final int TICK_TIME = 1000000000 / TPS;
+-    public static double currentTPS = 0;
++    public static double currentTPS1 = 0;
++    public static double currentTPS10 = 0;
+     private static long catchupTime = 0;
+     // Spigot end
+ 
+@@ -430,7 +431,8 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+                     } else {
+                         catchupTime = Math.min(TICK_TIME * TPS, Math.abs(wait));
+                     }
+-                    currentTPS = (currentTPS * 0.95) + (1E9 / (curTime - lastTick) * 0.05);
++                    currentTPS1 = (currentTPS1 * 0.95) + (1E9 / (curTime - lastTick) * 0.05);
++                    currentTPS10 = (currentTPS10 * 0.995) + (1E9 / (curTime - lastTick) * 0.005);
+                     lastTick = curTime;
+                     MinecraftServer.currentTick++;
+                     SpigotTimings.serverTickTimer.startTiming();
+diff --git a/src/main/java/org/bukkit/craftbukkit/command/TicksPerSecondCommand.java b/src/main/java/org/bukkit/craftbukkit/command/TicksPerSecondCommand.java
+index f114a31..767bebe 100644
+--- a/src/main/java/org/bukkit/craftbukkit/command/TicksPerSecondCommand.java
++++ b/src/main/java/org/bukkit/craftbukkit/command/TicksPerSecondCommand.java
+@@ -18,7 +18,15 @@ public class TicksPerSecondCommand extends Command {
+     public boolean execute(CommandSender sender, String currentAlias, String[] args) {
+         if (!testPermission(sender)) return true;
+ 
+-        double tps = Math.min(20,  Math.round(MinecraftServer.currentTPS * 10) / 10.0);
++        double tps1 = Math.min(20,  Math.round(MinecraftServer.currentTPS1 * 10) / 10.0);
++        double tps10 = Math.min(20,  Math.round(MinecraftServer.currentTPS10 * 10) / 10.0);
++
++        sender.sendMessage(ChatColor.GOLD + "[TPS] " + getColoredTPS(tps1) +
++            ChatColor.GOLD + " (avg: " + getColoredTPS(tps10) + ChatColor.GOLD + ")");
++
++        return true;
++    }
++    private String getColoredTPS(double tps) {
+         ChatColor color;
+         if (tps > 19.2D) {
+             color = ChatColor.GREEN;
+@@ -27,9 +35,6 @@ public class TicksPerSecondCommand extends Command {
+         } else {
+             color = ChatColor.RED;
+         }
+-
+-        sender.sendMessage(ChatColor.GOLD + "[TPS] " + color + tps);
+-
+-        return true;
++        return "" + color + tps;
+     }
+ }
+-- 
+1.8.5
+
