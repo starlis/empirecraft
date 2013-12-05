@@ -8,7 +8,10 @@ while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symli
 done
 . $(dirname $SOURCE)/init.sh
 
-wget -O mc-dev.zip https://github.com/SpigotMC/mc-dev/archive/master.zip
-cd EMC-CraftBukkit/src/main/java
-find . -type f -name "*.java" | sed -e 's/\.\///g' | xargs -I{} zip -d $basedir/mc-dev.zip mc-dev-master/{} 2>/dev/null 1>&2
+rm -rf mc-dev-master
+wget -O mc-dev.zip https://github.com/SpigotMC/mc-dev/archive/master.zip 1>/dev/null
+unzip mc-dev.zip 1>/dev/null
+rm -rf mc-dev.zip mc-dev-master/{achievement,font.txt,lang,META-INF,null,README.md} 1>/dev/null
 
+cd EMC-CraftBukkit/src/main/java
+find . -type f -name "*.java" | sed -e 's/\.\///g' | xargs -I{} rm $basedir/mc-dev-master/{} 2>/dev/null 1>&2
