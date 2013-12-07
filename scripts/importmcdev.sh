@@ -29,6 +29,8 @@ function import {
 }
 
 import EntityItemFrame
+import ServerStatisticManager
+
 cd $basedir
 git add mc-dev-master --all
 git commit mc-dev-master -m "Updating mc-dev\n\n$MODLOG"
