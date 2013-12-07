@@ -1,6 +1,6 @@
-From 49cdf06148f9f7c04842c2c967905b488b9e8be4 Mon Sep 17 00:00:00 2001
+From 56fb6b76cfef2c7d52c2f01c7099013985a91d08 Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Thu, 5 Dec 2013 01:01:21 -0500
+Date: Fri, 6 Dec 2013 20:55:54 -0500
 Subject: [PATCH] Spigot
 
 ---
@@ -30,7 +30,7 @@ Subject: [PATCH] Spigot
  .../net/minecraft/server/EntityFallingBlock.java   |   2 +
  .../java/net/minecraft/server/EntityHuman.java     |   7 +-
  src/main/java/net/minecraft/server/EntityItem.java |  19 +-
- .../java/net/minecraft/server/EntityItemFrame.java | 146 +++++
+ .../java/net/minecraft/server/EntityItemFrame.java | 158 +++++
  .../java/net/minecraft/server/EntityLiving.java    |   9 +-
  .../minecraft/server/EntityMinecartContainer.java  |   6 +
  .../java/net/minecraft/server/EntityPlayer.java    |  16 +
@@ -50,11 +50,12 @@ Subject: [PATCH] Spigot
  .../minecraft/server/PacketPlayOutMapChunk.java    | 191 ++++++
  .../server/PacketPlayOutMapChunkBulk.java          |  24 +-
  .../java/net/minecraft/server/PlayerChunkMap.java  |   2 +-
- .../net/minecraft/server/PlayerConnection.java     |  32 +-
+ .../net/minecraft/server/PlayerConnection.java     | 148 +++--
  .../minecraft/server/PlayerInteractManager.java    |   1 +
  src/main/java/net/minecraft/server/PlayerList.java |  39 +-
  .../java/net/minecraft/server/PropertyManager.java |   2 +-
  .../java/net/minecraft/server/RegionFileCache.java |  67 +++
+ .../minecraft/server/ServerStatisticManager.java   | 201 +++++++
  .../java/net/minecraft/server/ShapedRecipes.java   |   9 +-
  .../net/minecraft/server/ShapelessRecipes.java     |   9 +-
  .../java/net/minecraft/server/SpawnerCreature.java |  35 +-
@@ -68,14 +69,17 @@ Subject: [PATCH] Spigot
  .../java/net/minecraft/server/WorldServer.java     |  40 +-
  .../java/org/bukkit/craftbukkit/CraftChunk.java    |  44 +-
  .../java/org/bukkit/craftbukkit/CraftServer.java   |  47 +-
- .../java/org/bukkit/craftbukkit/CraftWorld.java    |  13 +
+ .../java/org/bukkit/craftbukkit/CraftWorld.java    |  15 +-
  .../java/org/bukkit/craftbukkit/SpigotTimings.java | 128 ++++
  .../org/bukkit/craftbukkit/block/CraftSign.java    |   8 +-
  .../craftbukkit/command/TicksPerSecondCommand.java |  35 ++
+ .../craftbukkit/enchantments/CraftEnchantment.java |   6 -
  .../org/bukkit/craftbukkit/entity/CraftArrow.java  |  22 +
  .../org/bukkit/craftbukkit/entity/CraftEntity.java |  16 +
- .../org/bukkit/craftbukkit/entity/CraftPlayer.java |  38 +-
+ .../bukkit/craftbukkit/entity/CraftFirework.java   |   8 -
+ .../org/bukkit/craftbukkit/entity/CraftPlayer.java |  51 +-
  .../craftbukkit/event/CraftEventFactory.java       |  17 +
+ .../craftbukkit/inventory/CraftFurnaceRecipe.java  |   3 +-
  .../craftbukkit/inventory/CraftInventoryAnvil.java |  22 +
  .../craftbukkit/inventory/CraftMetaFirework.java   |   4 +-
  .../org/bukkit/craftbukkit/map/CraftMapView.java   |   6 +-
@@ -95,7 +99,7 @@ Subject: [PATCH] Spigot
  src/main/java/org/spigotmc/SpigotWorldConfig.java  | 235 ++++++++
  src/main/java/org/spigotmc/TrackingRange.java      |  45 ++
  src/main/java/org/spigotmc/WatchdogThread.java     | 121 ++++
- 91 files changed, 4664 insertions(+), 286 deletions(-)
+ 95 files changed, 4948 insertions(+), 363 deletions(-)
  create mode 100644 src/main/java/net/minecraft/server/BlockBrewingStand.java
  create mode 100644 src/main/java/net/minecraft/server/BlockFlowerPot.java
  create mode 100644 src/main/java/net/minecraft/server/BlockTNT.java
@@ -105,6 +109,7 @@ Subject: [PATCH] Spigot
  create mode 100644 src/main/java/net/minecraft/server/OldChunkLoader.java
  create mode 100644 src/main/java/net/minecraft/server/PacketPlayOutMapChunk.java
  create mode 100644 src/main/java/net/minecraft/server/RegionFileCache.java
+ create mode 100644 src/main/java/net/minecraft/server/ServerStatisticManager.java
  create mode 100644 src/main/java/net/minecraft/server/StructureGenerator.java
  create mode 100644 src/main/java/net/minecraft/server/WorldGenPackedIce2.java
  create mode 100644 src/main/java/org/bukkit/craftbukkit/SpigotTimings.java
@@ -1456,10 +1461,10 @@ index bbcf674..8ea7abc 100644
          } else {
 diff --git a/src/main/java/net/minecraft/server/EntityItemFrame.java b/src/main/java/net/minecraft/server/EntityItemFrame.java
 new file mode 100644
-index 0000000..261d0c1
+index 0000000..0fdcffe
 --- /dev/null
 +++ b/src/main/java/net/minecraft/server/EntityItemFrame.java
-@@ -0,0 +1,146 @@
+@@ -0,0 +1,158 @@
 +package net.minecraft.server;
 +
 +public class EntityItemFrame extends EntityHanging {
@@ -1485,6 +1490,18 @@ index 0000000..261d0c1
 +            return false;
 +        } else if (this.getItem() != null) {
 +            if (!this.world.isStatic) {
++                // Spigot Start
++                if ( damagesource.getEntity() != null )
++                {
++                    org.bukkit.event.entity.EntityDamageByEntityEvent event = new org.bukkit.event.entity.EntityDamageByEntityEvent(
++                            damagesource.getEntity().getBukkitEntity(), getBukkitEntity(), org.bukkit.event.entity.EntityDamageEvent.DamageCause.ENTITY_ATTACK, f );
++                    getBukkitEntity().getServer().getPluginManager().callEvent( event );
++                    if ( event.isCancelled() )
++                    {
++                        return false;
++                    }
++                }
++                // Spigot End
 +                this.b(damagesource.getEntity(), false);
 +                this.setItem((ItemStack) null);
 +            }
@@ -2716,7 +2733,7 @@ index 4e0398c..ae4ca63 100644
          } else {
              this.f = i;
 diff --git a/src/main/java/net/minecraft/server/PlayerConnection.java b/src/main/java/net/minecraft/server/PlayerConnection.java
-index aa6d8d8..35c66c6 100644
+index 54c8881..35c66c6 100644
 --- a/src/main/java/net/minecraft/server/PlayerConnection.java
 +++ b/src/main/java/net/minecraft/server/PlayerConnection.java
 @@ -77,6 +77,7 @@ public class PlayerConnection implements PacketPlayInListener {
@@ -2774,7 +2791,146 @@ index aa6d8d8..35c66c6 100644
              }
  
              if (Double.isNaN(packetplayinflying.x) || Double.isNaN(packetplayinflying.y) || Double.isNaN(packetplayinflying.z) || Double.isNaN(packetplayinflying.stance)) {
-@@ -910,6 +919,7 @@ public class PlayerConnection implements PacketPlayInListener {
+@@ -758,7 +767,7 @@ public class PlayerConnection implements PacketPlayInListener {
+     }
+ 
+     public void a(PacketPlayInChat packetplayinchat) {
+-        if (this.player.dead || this.player.getChatFlags() == EnumChatVisibility.HIDDEN) { // CraftBukkit - dead men tell no tales
++        if (this.player.getChatFlags() == EnumChatVisibility.HIDDEN) {
+             ChatMessage chatmessage = new ChatMessage("chat.cannotSend", new Object[0]);
+ 
+             chatmessage.b().setColor(EnumChatFormat.RED);
+@@ -835,71 +844,73 @@ public class PlayerConnection implements PacketPlayInListener {
+ 
+     // CraftBukkit start
+     public void chat(String s, boolean async) {
+-        if (s.isEmpty() || this.player.getChatFlags() == EnumChatVisibility.HIDDEN) {
++        if (s.isEmpty()) {
+             return;
+         }
+ 
+-        if (s.startsWith("/")) {
+-            this.handleCommand(s);
+-        } else if (this.player.getChatFlags() == EnumChatVisibility.SYSTEM) {
+-            // Do nothing, this is coming from a plugin
+-        } else {
+-            Player player = this.getPlayer();
+-            AsyncPlayerChatEvent event = new AsyncPlayerChatEvent(async, player, s, new LazyPlayerSet());
+-            this.server.getPluginManager().callEvent(event);
++        if (!this.player.dead) {
++            if (s.startsWith("/")) {
++                this.handleCommand(s);
++            } else if (this.player.getChatFlags() != EnumChatVisibility.FULL) {
++                // Do nothing, this is coming from a plugin
++            } else {
++                Player player = this.getPlayer();
++                AsyncPlayerChatEvent event = new AsyncPlayerChatEvent(async, player, s, new LazyPlayerSet());
++                this.server.getPluginManager().callEvent(event);
+ 
+-            if (PlayerChatEvent.getHandlerList().getRegisteredListeners().length != 0) {
+-                // Evil plugins still listening to deprecated event
+-                final PlayerChatEvent queueEvent = new PlayerChatEvent(player, event.getMessage(), event.getFormat(), event.getRecipients());
+-                queueEvent.setCancelled(event.isCancelled());
+-                Waitable waitable = new Waitable() {
+-                    @Override
+-                    protected Object evaluate() {
+-                        org.bukkit.Bukkit.getPluginManager().callEvent(queueEvent);
++                if (PlayerChatEvent.getHandlerList().getRegisteredListeners().length != 0) {
++                    // Evil plugins still listening to deprecated event
++                    final PlayerChatEvent queueEvent = new PlayerChatEvent(player, event.getMessage(), event.getFormat(), event.getRecipients());
++                    queueEvent.setCancelled(event.isCancelled());
++                    Waitable waitable = new Waitable() {
++                        @Override
++                        protected Object evaluate() {
++                            org.bukkit.Bukkit.getPluginManager().callEvent(queueEvent);
+ 
+-                        if (queueEvent.isCancelled()) {
+-                            return null;
+-                        }
+-
+-                        String message = String.format(queueEvent.getFormat(), queueEvent.getPlayer().getDisplayName(), queueEvent.getMessage());
+-                        PlayerConnection.this.minecraftServer.console.sendMessage(message);
+-                        if (((LazyPlayerSet) queueEvent.getRecipients()).isLazy()) {
+-                            for (Object player : PlayerConnection.this.minecraftServer.getPlayerList().players) {
+-                                ((EntityPlayer) player).sendMessage(CraftChatMessage.fromString(message));
+-                            }
+-                        } else {
+-                            for (Player player : queueEvent.getRecipients()) {
+-                                player.sendMessage(message);
++                            if (queueEvent.isCancelled()) {
++                                return null;
+                             }
+-                        }
+-                        return null;
+-                    }};
+-                if (async) {
+-                    minecraftServer.processQueue.add(waitable);
+-                } else {
+-                    waitable.run();
+-                }
+-                try {
+-                    waitable.get();
+-                } catch (InterruptedException e) {
+-                    Thread.currentThread().interrupt(); // This is proper habit for java. If we aren't handling it, pass it on!
+-                } catch (ExecutionException e) {
+-                    throw new RuntimeException("Exception processing chat event", e.getCause());
+-                }
+-            } else {
+-                if (event.isCancelled()) {
+-                    return;
+-                }
+ 
+-                s = String.format(event.getFormat(), event.getPlayer().getDisplayName(), event.getMessage());
+-                minecraftServer.console.sendMessage(s);
+-                if (((LazyPlayerSet) event.getRecipients()).isLazy()) {
+-                    for (Object recipient : minecraftServer.getPlayerList().players) {
+-                        ((EntityPlayer) recipient).sendMessage(CraftChatMessage.fromString(s));
++                            String message = String.format(queueEvent.getFormat(), queueEvent.getPlayer().getDisplayName(), queueEvent.getMessage());
++                            PlayerConnection.this.minecraftServer.console.sendMessage(message);
++                            if (((LazyPlayerSet) queueEvent.getRecipients()).isLazy()) {
++                                for (Object player : PlayerConnection.this.minecraftServer.getPlayerList().players) {
++                                    ((EntityPlayer) player).sendMessage(CraftChatMessage.fromString(message));
++                                }
++                            } else {
++                                for (Player player : queueEvent.getRecipients()) {
++                                    player.sendMessage(message);
++                                }
++                            }
++                            return null;
++                        }};
++                    if (async) {
++                        minecraftServer.processQueue.add(waitable);
++                    } else {
++                        waitable.run();
++                    }
++                    try {
++                        waitable.get();
++                    } catch (InterruptedException e) {
++                        Thread.currentThread().interrupt(); // This is proper habit for java. If we aren't handling it, pass it on!
++                    } catch (ExecutionException e) {
++                        throw new RuntimeException("Exception processing chat event", e.getCause());
+                     }
+                 } else {
+-                    for (Player recipient : event.getRecipients()) {
+-                        recipient.sendMessage(s);
++                    if (event.isCancelled()) {
++                        return;
++                    }
++
++                    s = String.format(event.getFormat(), event.getPlayer().getDisplayName(), event.getMessage());
++                    minecraftServer.console.sendMessage(s);
++                    if (((LazyPlayerSet) event.getRecipients()).isLazy()) {
++                        for (Object recipient : minecraftServer.getPlayerList().players) {
++                            ((EntityPlayer) recipient).sendMessage(CraftChatMessage.fromString(s));
++                        }
++                    } else {
++                        for (Player recipient : event.getRecipients()) {
++                            recipient.sendMessage(s);
++                        }
+                     }
+                 }
+             }
+@@ -908,6 +919,7 @@ public class PlayerConnection implements PacketPlayInListener {
      // CraftBukkit end
  
      private void handleCommand(String s) {
@@ -2782,7 +2938,7 @@ index aa6d8d8..35c66c6 100644
          // CraftBukkit start
          CraftPlayer player = this.getPlayer();
  
-@@ -917,19 +927,28 @@ public class PlayerConnection implements PacketPlayInListener {
+@@ -915,19 +927,28 @@ public class PlayerConnection implements PacketPlayInListener {
          this.server.getPluginManager().callEvent(event);
  
          if (event.isCancelled()) {
@@ -2812,7 +2968,7 @@ index aa6d8d8..35c66c6 100644
          //this.minecraftServer.getCommandHandler().a(this.player, s);
          // CraftBukkit end
      }
-@@ -1020,6 +1039,13 @@ public class PlayerConnection implements PacketPlayInListener {
+@@ -1018,6 +1039,13 @@ public class PlayerConnection implements PacketPlayInListener {
          if (this.player.dead) return; // CraftBukkit
          WorldServer worldserver = this.minecraftServer.getWorldServer(this.player.dimension);
          Entity entity = packetplayinuseentity.a((World) worldserver);
@@ -3000,6 +3156,213 @@ index 0000000..829f4a3
 +        RegionFile regionfile = a(file1, i, j);
 +
 +        return regionfile.b(i & 31, j & 31);
++    }
++}
+diff --git a/src/main/java/net/minecraft/server/ServerStatisticManager.java b/src/main/java/net/minecraft/server/ServerStatisticManager.java
+new file mode 100644
+index 0000000..2f980cb
+--- /dev/null
++++ b/src/main/java/net/minecraft/server/ServerStatisticManager.java
+@@ -0,0 +1,201 @@
++package net.minecraft.server;
++
++import java.io.File;
++import java.io.IOException;
++import java.lang.reflect.Constructor;
++import java.util.HashMap;
++import java.util.HashSet;
++import java.util.Iterator;
++import java.util.Map;
++import java.util.Set;
++import java.util.Map.Entry;
++
++import net.minecraft.util.com.google.common.collect.Maps;
++import net.minecraft.util.com.google.common.collect.Sets;
++import net.minecraft.util.com.google.gson.JsonElement;
++import net.minecraft.util.com.google.gson.JsonObject;
++import net.minecraft.util.com.google.gson.JsonParseException;
++import net.minecraft.util.com.google.gson.JsonParser;
++import net.minecraft.util.org.apache.commons.io.FileUtils;
++import org.apache.logging.log4j.LogManager;
++import org.apache.logging.log4j.Logger;
++
++public class ServerStatisticManager extends StatisticManager {
++
++    private static final Logger b = LogManager.getLogger();
++    private final MinecraftServer c;
++    private final File d;
++    private final Set e = Sets.newHashSet();
++    private int f = -300;
++    private boolean g = false;
++
++    public ServerStatisticManager(MinecraftServer minecraftserver, File file1) {
++        this.c = minecraftserver;
++        this.d = file1;
++    }
++
++    public void a() {
++        if (this.d.isFile()) {
++            try {
++                this.a.clear();
++                this.a.putAll(this.a(FileUtils.readFileToString(this.d)));
++            } catch (IOException ioexception) {
++                b.error("Couldn\'t read statistics file " + this.d, ioexception);
++            } catch (JsonParseException jsonparseexception) {
++                b.error("Couldn\'t parse statistics file " + this.d, jsonparseexception);
++            }
++        }
++    }
++
++    public void b() {
++        try {
++            FileUtils.writeStringToFile(this.d, a(this.a));
++        } catch (IOException ioexception) {
++            b.error("Couldn\'t save stats", ioexception);
++        }
++    }
++
++    public void a(EntityHuman entityhuman, Statistic statistic, int i) {
++        int j = statistic.d() ? this.a(statistic) : 0;
++
++        super.a(entityhuman, statistic, i);
++        this.e.add(statistic);
++        if (statistic.d() && j == 0 && i > 0) {
++            this.g = true;
++            if (this.c.ar()) {
++                this.c.getPlayerList().sendMessage(new ChatMessage("chat.type.achievement", new Object[] { entityhuman.getScoreboardDisplayName(), statistic.j()}));
++            }
++        }
++    }
++
++    public Set c() {
++        HashSet hashset = Sets.newHashSet(this.e);
++
++        this.e.clear();
++        this.g = false;
++        return hashset;
++    }
++
++    public Map a(String s) {
++        JsonElement jsonelement = (new JsonParser()).parse(s);
++
++        if (!jsonelement.isJsonObject()) {
++            return Maps.newHashMap();
++        } else {
++            JsonObject jsonobject = jsonelement.getAsJsonObject();
++            HashMap hashmap = Maps.newHashMap();
++            Iterator iterator = jsonobject.entrySet().iterator();
++
++            while (iterator.hasNext()) {
++                Entry entry = (Entry) iterator.next();
++                Statistic statistic = StatisticList.a((String) entry.getKey());
++
++                if (statistic != null) {
++                    StatisticWrapper statisticwrapper = new StatisticWrapper();
++
++                    if (((JsonElement) entry.getValue()).isJsonPrimitive() && ((JsonElement) entry.getValue()).getAsJsonPrimitive().isNumber()) {
++                        statisticwrapper.a(((JsonElement) entry.getValue()).getAsInt());
++                    } else if (((JsonElement) entry.getValue()).isJsonObject()) {
++                        JsonObject jsonobject1 = ((JsonElement) entry.getValue()).getAsJsonObject();
++
++                        if (jsonobject1.has("value") && jsonobject1.get("value").isJsonPrimitive() && jsonobject1.get("value").getAsJsonPrimitive().isNumber()) {
++                            statisticwrapper.a(jsonobject1.getAsJsonPrimitive("value").getAsInt());
++                        }
++
++                        if (jsonobject1.has("progress") && statistic.l() != null) {
++                            try {
++                                Constructor constructor = statistic.l().getConstructor(new Class[0]);
++                                IJsonStatistic ijsonstatistic = (IJsonStatistic) constructor.newInstance(new Object[0]);
++
++                                statisticwrapper.a(ijsonstatistic);
++                            } catch (Throwable throwable) {
++                                b.warn("Invalid statistic progress in " + this.d, throwable);
++                            }
++                        }
++                    }
++
++                    hashmap.put(statistic, statisticwrapper);
++                } else {
++                    b.warn("Invalid statistic in " + this.d + ": Don\'t know what " + (String) entry.getKey() + " is");
++                }
++            }
++
++            return hashmap;
++        }
++    }
++
++    public static String a(Map map) {
++        JsonObject jsonobject = new JsonObject();
++        Iterator iterator = map.entrySet().iterator();
++
++        while (iterator.hasNext()) {
++            Entry entry = (Entry) iterator.next();
++
++            if (((StatisticWrapper) entry.getValue()).b() != null) {
++                JsonObject jsonobject1 = new JsonObject();
++
++                jsonobject1.addProperty("value", Integer.valueOf(((StatisticWrapper) entry.getValue()).a()));
++
++                try {
++                    jsonobject1.add("progress", ((StatisticWrapper) entry.getValue()).b().a());
++                } catch (Throwable throwable) {
++                    b.warn("Couldn\'t save statistic " + ((Statistic) entry.getKey()).e() + ": error serializing progress", throwable);
++                }
++
++                jsonobject.add(((Statistic) entry.getKey()).e, jsonobject1);
++            } else {
++                jsonobject.addProperty(((Statistic) entry.getKey()).e, Integer.valueOf(((StatisticWrapper) entry.getValue()).a()));
++            }
++        }
++
++        return jsonobject.toString();
++    }
++
++    public void d() {
++        Iterator iterator = this.a.keySet().iterator();
++
++        while (iterator.hasNext()) {
++            Statistic statistic = (Statistic) iterator.next();
++
++            this.e.add(statistic);
++        }
++    }
++
++    public void a(EntityPlayer entityplayer) {
++        int i = this.c.aj();
++        HashMap hashmap = Maps.newHashMap();
++
++        if (this.g || i - this.f > 300) {
++            this.f = i;
++            Iterator iterator = this.c().iterator();
++
++            while (iterator.hasNext()) {
++                Statistic statistic = (Statistic) iterator.next();
++
++                hashmap.put(statistic, Integer.valueOf(this.a(statistic)));
++            }
++        }
++
++        entityplayer.playerConnection.sendPacket(new PacketPlayOutStatistic(hashmap));
++    }
++
++    public void b(EntityPlayer entityplayer) {
++        HashMap hashmap = Maps.newHashMap();
++        Iterator iterator = AchievementList.e.iterator();
++
++        while (iterator.hasNext()) {
++            Achievement achievement = (Achievement) iterator.next();
++
++            if (this.a(achievement)) {
++                hashmap.put(achievement, Integer.valueOf(this.a((Statistic) achievement)));
++                this.e.remove(achievement);
++            }
++        }
++
++        entityplayer.playerConnection.sendPacket(new PacketPlayOutStatistic(hashmap));
++    }
++
++    public boolean e() {
++        return this.g;
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/ShapedRecipes.java b/src/main/java/net/minecraft/server/ShapedRecipes.java
@@ -4357,7 +4720,7 @@ index 362b507..be43d4b 100644
              player.sendMessage(ChatColor.RED + "An internal error occurred while attempting to tab-complete this command");
              getLogger().log(Level.SEVERE, "Exception when " + player.getName() + " attempted to tab complete " + message, ex);
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
-index 5626e98..0f21e89 100644
+index 5626e98..291c044 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
 @@ -159,6 +159,7 @@ public class CraftWorld implements World {
@@ -4384,6 +4747,15 @@ index 5626e98..0f21e89 100644
          chunkLoadCount++;
          if (generate) {
              // Use the default variant of loadChunk when generate == true.
+@@ -370,7 +373,7 @@ public class CraftWorld implements World {
+             gen = new WorldGenTaiga1();
+             break;
+         case JUNGLE:
+-            gen = new WorldGenMegaTree(true, rand.nextBoolean());
++            gen = new WorldGenJungleTree(true, 10, 20, 3, 3); // Magic values as in BlockSapling 
+             break;
+         case SMALL_JUNGLE:
+             gen = new WorldGenTrees(true, 4 + rand.nextInt(7), 3, 3, false);
 @@ -1274,4 +1277,14 @@ public class CraftWorld implements World {
              cps.queueUnload(chunk.locX, chunk.locZ);
          }
@@ -4600,6 +4972,30 @@ index 0000000..f114a31
 +        return true;
 +    }
 +}
+diff --git a/src/main/java/org/bukkit/craftbukkit/enchantments/CraftEnchantment.java b/src/main/java/org/bukkit/craftbukkit/enchantments/CraftEnchantment.java
+index 18a6e38..5e69163 100644
+--- a/src/main/java/org/bukkit/craftbukkit/enchantments/CraftEnchantment.java
++++ b/src/main/java/org/bukkit/craftbukkit/enchantments/CraftEnchantment.java
+@@ -45,8 +45,6 @@ public class CraftEnchantment extends Enchantment {
+             return EnchantmentTarget.WEAPON;
+         case BOW:
+             return EnchantmentTarget.BOW;
+-        case FISHING_ROD:
+-            return EnchantmentTarget.FISHING_ROD;
+         default:
+             return null;
+         }
+@@ -104,10 +102,6 @@ public class CraftEnchantment extends Enchantment {
+             return "ARROW_FIRE";
+         case 51:
+             return "ARROW_INFINITE";
+-        case 61:
+-            return "LUCK";
+-        case 62:
+-            return "LURE";
+         default:
+             return "UNKNOWN_ENCHANT_" + target.id;
+         }
 diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftArrow.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftArrow.java
 index b46b9c4..236384f 100644
 --- a/src/main/java/org/bukkit/craftbukkit/entity/CraftArrow.java
@@ -4656,8 +5052,40 @@ index fe0f200..96d763b 100644
 +    }
 +    // Spigot end
  }
+diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftFirework.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftFirework.java
+index 5437d85..7082d62 100644
+--- a/src/main/java/org/bukkit/craftbukkit/entity/CraftFirework.java
++++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftFirework.java
+@@ -47,17 +47,14 @@ public class CraftFirework extends CraftEntity implements Firework {
+         return "CraftFirework";
+     }
+ 
+-    @Override
+     public EntityType getType() {
+         return EntityType.FIREWORK;
+     }
+ 
+-    @Override
+     public FireworkMeta getFireworkMeta() {
+         return (FireworkMeta) item.getItemMeta();
+     }
+ 
+-    @Override
+     public void setFireworkMeta(FireworkMeta meta) {
+         item.setItemMeta(meta);
+ 
+@@ -66,9 +63,4 @@ public class CraftFirework extends CraftEntity implements Firework {
+ 
+         getHandle().getDataWatcher().h(FIREWORK_ITEM_INDEX); // Update
+     }
+-
+-    @Override
+-    public void detonate() {
+-        getHandle().expectedLifespan = 0;
+-    }
+ }
 diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
-index 0153608..f870cc6 100644
+index 0153608..5635c35 100644
 --- a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
 @@ -230,6 +230,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
@@ -4668,7 +5096,34 @@ index 0153608..f870cc6 100644
          if (getHandle().playerConnection == null) return;
  
          getHandle().playerConnection.disconnect(message == null ? "" : message);
-@@ -1001,7 +1002,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+@@ -429,9 +430,11 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+             return false;
+         }
+ 
+-        if (entity.vehicle != null || entity.passenger != null) {
+-            return false;
+-        }
++        // Spigot Start
++        // if (entity.vehicle != null || entity.passenger != null) {
++        // return false;
++        // }
++        // Spigot End
+ 
+         // From = Players current Location
+         Location from = this.getLocation();
+@@ -445,6 +448,11 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+         if (event.isCancelled()) {
+             return false;
+         }
++        
++        // Spigot Start
++        eject();
++        leaveVehicle();
++        // Spigot End
+ 
+         // Update the From Location
+         from = event.getFrom();
+@@ -1001,7 +1009,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
      public void setFlySpeed(float value) {
          validateSpeed(value);
          EntityPlayer player = getHandle();
@@ -4677,7 +5132,7 @@ index 0153608..f870cc6 100644
          player.updateAbilities();
  
      }
-@@ -1009,7 +1010,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+@@ -1009,7 +1017,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
      public void setWalkSpeed(float value) {
          validateSpeed(value);
          EntityPlayer player = getHandle();
@@ -4686,7 +5141,7 @@ index 0153608..f870cc6 100644
          player.updateAbilities();
      }
  
-@@ -1125,4 +1126,37 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+@@ -1125,4 +1133,37 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
          }
          collection.add(new AttributeModifiable(getHandle().bc(), (new AttributeRanged("generic.maxHealth", scaledHealth ? healthScale : getMaxHealth(), 0.0D, Float.MAX_VALUE)).a("Max Health").a(true)));
      }
@@ -4759,6 +5214,22 @@ index 902aa88..a994264 100644
       * Bucket methods
       */
      public static PlayerBucketEmptyEvent callPlayerBucketEmptyEvent(EntityHuman who, int clickedX, int clickedY, int clickedZ, int clickedFace, ItemStack itemInHand) {
+diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftFurnaceRecipe.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftFurnaceRecipe.java
+index 49b2cba..39772fe 100644
+--- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftFurnaceRecipe.java
++++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftFurnaceRecipe.java
+@@ -18,10 +18,9 @@ public class CraftFurnaceRecipe extends FurnaceRecipe implements CraftRecipe {
+         return new CraftFurnaceRecipe(recipe.getResult(), recipe.getInput());
+     }
+ 
+-    @Override
+     public void addToCraftingManager() {
+         ItemStack result = this.getResult();
+         ItemStack input = this.getInput();
+-        RecipesFurnace.getInstance().a(CraftMagicNumbers.getItem(input.getTypeId()), CraftItemStack.asNMSCopy(result), 0.1f);
++        RecipesFurnace.getInstance().registerRecipe(CraftMagicNumbers.getBlock(input.getTypeId()), CraftItemStack.asNMSCopy(result), 0.1f);
+     }
+ }
 diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftInventoryAnvil.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftInventoryAnvil.java
 index a91d81a..46a1d38 100644
 --- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftInventoryAnvil.java

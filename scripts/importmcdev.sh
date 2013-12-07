@@ -28,7 +28,7 @@ function import {
 	fi
 }
 
-import EntityItemFrame
+#import EntityItemFrame
 import ServerStatisticManager
 
 cd $basedir
