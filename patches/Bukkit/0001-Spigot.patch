@@ -1,6 +1,6 @@
-From ede672e39fccd2d57b856d59c2cfe5dde38595ff Mon Sep 17 00:00:00 2001
+From e1b372e9afd6df9b70d20dc921a83c263c3af789 Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Fri, 6 Dec 2013 20:55:44 -0500
+Date: Mon, 9 Dec 2013 20:40:46 -0500
 Subject: [PATCH] Spigot
 
 ---
@@ -12,11 +12,8 @@ Subject: [PATCH] Spigot
  .../org/bukkit/conversations/BooleanPrompt.java    |   3 +-
  .../org/bukkit/conversations/Conversation.java     |   7 +
  .../bukkit/conversations/ConversationContext.java  |   8 +
- .../java/org/bukkit/enchantments/Enchantment.java  |  10 --
- .../org/bukkit/enchantments/EnchantmentTarget.java |  11 +-
  src/main/java/org/bukkit/entity/Arrow.java         |  20 ++-
  src/main/java/org/bukkit/entity/Entity.java        |  18 ++
- src/main/java/org/bukkit/entity/Firework.java      |   6 -
  src/main/java/org/bukkit/entity/Player.java        |  53 ++++++
  .../bukkit/event/entity/CreatureSpawnEvent.java    |  32 +---
  .../org/bukkit/event/entity/EntitySpawnEvent.java  |  45 +++++
@@ -34,7 +31,7 @@ Subject: [PATCH] Spigot
  .../spigotmc/event/entity/EntityMountEvent.java    |  52 ++++++
  src/test/java/org/bukkit/EffectTest.java           |   6 +-
  .../bukkit/plugin/TimedRegisteredListenerTest.java |   1 -
- 30 files changed, 935 insertions(+), 153 deletions(-)
+ 27 files changed, 934 insertions(+), 127 deletions(-)
  create mode 100644 src/main/java/org/bukkit/event/entity/EntitySpawnEvent.java
  create mode 100644 src/main/java/org/bukkit/event/entity/SpawnerSpawnEvent.java
  create mode 100644 src/main/java/org/bukkit/event/player/PlayerItemDamageEvent.java
@@ -705,56 +702,6 @@ index 7a5b5ed..6b4bcac 100644
       * Gets session data shared between all {@link Prompt} invocations. Use this as a way
       * to pass data through each Prompt as the conversation develops.
       *
-diff --git a/src/main/java/org/bukkit/enchantments/Enchantment.java b/src/main/java/org/bukkit/enchantments/Enchantment.java
-index 61a8bca..b6cfaea 100644
---- a/src/main/java/org/bukkit/enchantments/Enchantment.java
-+++ b/src/main/java/org/bukkit/enchantments/Enchantment.java
-@@ -120,16 +120,6 @@ public abstract class Enchantment {
-      */
-     public static final Enchantment ARROW_INFINITE = new EnchantmentWrapper(51);
- 
--    /**
--     * Decreases odds of catching worthless junk
--     */
--    public static final Enchantment LUCK = new EnchantmentWrapper(61);
--
--    /**
--     * Increases rate of fish biting your hook
--     */
--    public static final Enchantment LURE = new EnchantmentWrapper(62);
--
-     private static final Map<Integer, Enchantment> byId = new HashMap<Integer, Enchantment>();
-     private static final Map<String, Enchantment> byName = new HashMap<String, Enchantment>();
-     private static boolean acceptingNew = true;
-diff --git a/src/main/java/org/bukkit/enchantments/EnchantmentTarget.java b/src/main/java/org/bukkit/enchantments/EnchantmentTarget.java
-index 6578b36..4a981a4 100644
---- a/src/main/java/org/bukkit/enchantments/EnchantmentTarget.java
-+++ b/src/main/java/org/bukkit/enchantments/EnchantmentTarget.java
-@@ -127,6 +127,7 @@ public enum EnchantmentTarget {
-                 || item.equals(Material.DIAMOND_AXE)
-                 || item.equals(Material.GOLD_AXE)
-                 || item.equals(Material.SHEARS)           // NOTE: No vanilla enchantments for this
-+                || item.equals(Material.FISHING_ROD)      // NOTE: No vanilla enchantments for this
-                 || item.equals(Material.FLINT_AND_STEEL); // NOTE: No vanilla enchantments for this
-         }
-     },
-@@ -139,16 +140,6 @@ public enum EnchantmentTarget {
-         public boolean includes(Material item) {
-             return item.equals(Material.BOW);
-         }
--    },
--
--    /**
--     * Allows the Enchantment to be placed on fishing rods.
--     */
--    FISHING_ROD {
--        @Override
--        public boolean includes(Material item) {
--            return item.equals(Material.FISHING_ROD);
--        }
-     };
- 
-     /**
 diff --git a/src/main/java/org/bukkit/entity/Arrow.java b/src/main/java/org/bukkit/entity/Arrow.java
 index 26d3473..676fe2b 100644
 --- a/src/main/java/org/bukkit/entity/Arrow.java
@@ -809,21 +756,6 @@ index 72af4fa..a5b2100 100644
 +
 +    Spigot spigot();
 +    // Spigot End
- }
-diff --git a/src/main/java/org/bukkit/entity/Firework.java b/src/main/java/org/bukkit/entity/Firework.java
-index b8a8c07..cd03b2f 100644
---- a/src/main/java/org/bukkit/entity/Firework.java
-+++ b/src/main/java/org/bukkit/entity/Firework.java
-@@ -17,10 +17,4 @@ public interface Firework extends Entity {
-      * @param meta The FireworkMeta to apply
-      */
-     void setFireworkMeta(FireworkMeta meta);
--
--    /**
--     * Cause this firework to explode at earliest opportunity, as if it has no
--     * remaining fuse.
--     */
--    void detonate();
  }
 diff --git a/src/main/java/org/bukkit/entity/Player.java b/src/main/java/org/bukkit/entity/Player.java
 index 3ec374b..8fd9a07 100644

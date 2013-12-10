@@ -1,6 +1,6 @@
-From 56fb6b76cfef2c7d52c2f01c7099013985a91d08 Mon Sep 17 00:00:00 2001
+From 22a3451d47604bf58259b592c34952bfe74d1882 Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Fri, 6 Dec 2013 20:55:54 -0500
+Date: Mon, 9 Dec 2013 20:40:51 -0500
 Subject: [PATCH] Spigot
 
 ---
@@ -23,14 +23,12 @@ Subject: [PATCH] Spigot
  .../net/minecraft/server/ChunkRegionLoader.java    |  57 +-
  .../java/net/minecraft/server/ChunkSection.java    |  26 +-
  .../java/net/minecraft/server/DedicatedServer.java |  11 +-
- .../minecraft/server/DispenseBehaviorBonemeal.java |   7 +-
- src/main/java/net/minecraft/server/Entity.java     |  32 +-
+ src/main/java/net/minecraft/server/Entity.java     |  33 +-
  .../java/net/minecraft/server/EntityAgeable.java   |  25 +
  .../java/net/minecraft/server/EntityArrow.java     |   4 +-
  .../net/minecraft/server/EntityFallingBlock.java   |   2 +
  .../java/net/minecraft/server/EntityHuman.java     |   7 +-
  src/main/java/net/minecraft/server/EntityItem.java |  19 +-
- .../java/net/minecraft/server/EntityItemFrame.java | 158 +++++
  .../java/net/minecraft/server/EntityLiving.java    |   9 +-
  .../minecraft/server/EntityMinecartContainer.java  |   6 +
  .../java/net/minecraft/server/EntityPlayer.java    |  16 +
@@ -50,7 +48,7 @@ Subject: [PATCH] Spigot
  .../minecraft/server/PacketPlayOutMapChunk.java    | 191 ++++++
  .../server/PacketPlayOutMapChunkBulk.java          |  24 +-
  .../java/net/minecraft/server/PlayerChunkMap.java  |   2 +-
- .../net/minecraft/server/PlayerConnection.java     | 148 +++--
+ .../net/minecraft/server/PlayerConnection.java     |  25 +-
  .../minecraft/server/PlayerInteractManager.java    |   1 +
  src/main/java/net/minecraft/server/PlayerList.java |  39 +-
  .../java/net/minecraft/server/PropertyManager.java |   2 +-
@@ -63,7 +61,6 @@ Subject: [PATCH] Spigot
  src/main/java/net/minecraft/server/TileEntity.java |   2 +
  .../net/minecraft/server/TileEntityHopper.java     |  17 +-
  src/main/java/net/minecraft/server/World.java      | 233 ++++++--
- .../net/minecraft/server/WorldGenHugeMushroom.java |   2 +-
  .../net/minecraft/server/WorldGenPackedIce2.java   | 101 ++++
  .../net/minecraft/server/WorldMapHumanTracker.java |  24 +-
  .../java/net/minecraft/server/WorldServer.java     |  40 +-
@@ -73,19 +70,16 @@ Subject: [PATCH] Spigot
  .../java/org/bukkit/craftbukkit/SpigotTimings.java | 128 ++++
  .../org/bukkit/craftbukkit/block/CraftSign.java    |   8 +-
  .../craftbukkit/command/TicksPerSecondCommand.java |  35 ++
- .../craftbukkit/enchantments/CraftEnchantment.java |   6 -
  .../org/bukkit/craftbukkit/entity/CraftArrow.java  |  22 +
  .../org/bukkit/craftbukkit/entity/CraftEntity.java |  16 +
- .../bukkit/craftbukkit/entity/CraftFirework.java   |   8 -
  .../org/bukkit/craftbukkit/entity/CraftPlayer.java |  51 +-
  .../craftbukkit/event/CraftEventFactory.java       |  17 +
- .../craftbukkit/inventory/CraftFurnaceRecipe.java  |   3 +-
  .../craftbukkit/inventory/CraftInventoryAnvil.java |  22 +
  .../craftbukkit/inventory/CraftMetaFirework.java   |   4 +-
- .../org/bukkit/craftbukkit/map/CraftMapView.java   |   6 +-
+ .../org/bukkit/craftbukkit/map/CraftMapView.java   |   2 +-
  .../craftbukkit/scheduler/CraftScheduler.java      |   2 +-
  .../bukkit/craftbukkit/scheduler/CraftTask.java    |  22 +-
- .../bukkit/craftbukkit/util/CraftChatMessage.java  |  44 ++
+ .../bukkit/craftbukkit/util/CraftChatMessage.java  |  40 ++
  .../java/org/bukkit/craftbukkit/util/LongHash.java |   2 +-
  .../org/bukkit/craftbukkit/util/LongHashSet.java   |  33 +-
  .../bukkit/craftbukkit/util/LongObjectHashMap.java |  15 +
@@ -99,11 +93,10 @@ Subject: [PATCH] Spigot
  src/main/java/org/spigotmc/SpigotWorldConfig.java  | 235 ++++++++
  src/main/java/org/spigotmc/TrackingRange.java      |  45 ++
  src/main/java/org/spigotmc/WatchdogThread.java     | 121 ++++
- 95 files changed, 4948 insertions(+), 363 deletions(-)
+ 89 files changed, 4715 insertions(+), 282 deletions(-)
  create mode 100644 src/main/java/net/minecraft/server/BlockBrewingStand.java
  create mode 100644 src/main/java/net/minecraft/server/BlockFlowerPot.java
  create mode 100644 src/main/java/net/minecraft/server/BlockTNT.java
- create mode 100644 src/main/java/net/minecraft/server/EntityItemFrame.java
  create mode 100644 src/main/java/net/minecraft/server/NextTickListEntry.java
  create mode 100644 src/main/java/net/minecraft/server/NibbleArray.java
  create mode 100644 src/main/java/net/minecraft/server/OldChunkLoader.java
@@ -950,7 +943,7 @@ index 95b4704..d458dbb 100644
  
      public ChunkCoordIntPair l() {
 diff --git a/src/main/java/net/minecraft/server/ChunkProviderServer.java b/src/main/java/net/minecraft/server/ChunkProviderServer.java
-index a702fe8..e642388 100644
+index 2f842c3..88853ca 100644
 --- a/src/main/java/net/minecraft/server/ChunkProviderServer.java
 +++ b/src/main/java/net/minecraft/server/ChunkProviderServer.java
 @@ -107,6 +107,7 @@ public class ChunkProviderServer implements IChunkProvider {
@@ -1170,45 +1163,8 @@ index 30ce5f4..c9bb3a6 100644
  
          if (!this.getOnlineMode()) {
              h.warn("**** SERVER IS RUNNING IN OFFLINE/INSECURE MODE!");
-diff --git a/src/main/java/net/minecraft/server/DispenseBehaviorBonemeal.java b/src/main/java/net/minecraft/server/DispenseBehaviorBonemeal.java
-index 713bbe8..92b3789 100644
---- a/src/main/java/net/minecraft/server/DispenseBehaviorBonemeal.java
-+++ b/src/main/java/net/minecraft/server/DispenseBehaviorBonemeal.java
-@@ -20,9 +20,8 @@ final class DispenseBehaviorBonemeal extends DispenseBehaviorItem {
-             int k = isourceblock.getBlockZ() + enumfacing.e();
- 
-             // CraftBukkit start
--            ItemStack itemstack1 = itemstack.a(1);
-             org.bukkit.block.Block block = world.getWorld().getBlockAt(isourceblock.getBlockX(), isourceblock.getBlockY(), isourceblock.getBlockZ());
--            CraftItemStack craftItem = CraftItemStack.asCraftMirror(itemstack1);
-+            CraftItemStack craftItem = CraftItemStack.asNewCraftStack(itemstack.getItem());
- 
-             BlockDispenseEvent event = new BlockDispenseEvent(block, craftItem.clone(), new org.bukkit.util.Vector(0, 0, 0));
-             if (!BlockDispenser.eventFired) {
-@@ -30,12 +29,10 @@ final class DispenseBehaviorBonemeal extends DispenseBehaviorItem {
-             }
- 
-             if (event.isCancelled()) {
--                itemstack.count++;
-                 return itemstack;
-             }
- 
-             if (!event.getItem().equals(craftItem)) {
--                itemstack.count++;
-                 // Chain to handler for new item
-                 ItemStack eventStack = CraftItemStack.asNMSCopy(event.getItem());
-                 IDispenseBehavior idispensebehavior = (IDispenseBehavior) BlockDispenser.a.a(eventStack.getItem());
-@@ -46,7 +43,7 @@ final class DispenseBehaviorBonemeal extends DispenseBehaviorItem {
-             }
-             // CraftBukkit end
- 
--            if (ItemDye.a(itemstack1, world, i, j, k)) { // CraftBukkit - itemstack -> itemstack1
-+            if (ItemDye.a(itemstack, world, i, j, k)) {
-                 if (!world.isStatic) {
-                     world.triggerEffect(2005, i, j, k, 0);
-                 }
 diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
-index fec07f8..3450502 100644
+index fec07f8..b18d34b 100644
 --- a/src/main/java/net/minecraft/server/Entity.java
 +++ b/src/main/java/net/minecraft/server/Entity.java
 @@ -14,6 +14,7 @@ import org.bukkit.block.BlockFace;
@@ -1243,10 +1199,11 @@ index fec07f8..3450502 100644
      public int getId() {
          return this.id;
      }
-@@ -130,12 +139,18 @@ public abstract class Entity {
+@@ -129,13 +138,18 @@ public abstract class Entity {
+         this.random = new Random();
          this.maxFireTicks = 1;
          this.justCreated = true;
-         this.uniqueID = UUID.randomUUID();
+-        this.uniqueID = UUID.randomUUID();
 +        this.uniqueID = new UUID(random.nextLong(), random.nextLong()); // Spigot
          this.at = EnumEntitySize.SIZE_2;
          this.world = world;
@@ -1262,7 +1219,7 @@ index fec07f8..3450502 100644
  
          this.datawatcher = new DataWatcher(this);
          this.datawatcher.a(0, Byte.valueOf((byte) 0));
-@@ -423,6 +438,8 @@ public abstract class Entity {
+@@ -423,6 +437,8 @@ public abstract class Entity {
              return;
          }
          // CraftBukkit end
@@ -1271,7 +1228,7 @@ index fec07f8..3450502 100644
          if (this.Y) {
              this.boundingBox.d(d0, d1, d2);
              this.locX = (this.boundingBox.a + this.boundingBox.d) / 2.0D;
-@@ -731,6 +748,7 @@ public abstract class Entity {
+@@ -731,6 +747,7 @@ public abstract class Entity {
  
              this.world.methodProfiler.b();
          }
@@ -1279,7 +1236,7 @@ index fec07f8..3450502 100644
      }
  
      protected String H() {
-@@ -1434,6 +1452,7 @@ public abstract class Entity {
+@@ -1434,6 +1451,7 @@ public abstract class Entity {
                      }
                  }
                  // CraftBukkit end
@@ -1287,7 +1244,7 @@ index fec07f8..3450502 100644
  
                  this.setPositionRotation(this.vehicle.locX, this.vehicle.boundingBox.b + (double) this.vehicle.length, this.vehicle.locZ, this.yaw, this.pitch);
                  this.vehicle.passenger = null;
-@@ -1469,6 +1488,17 @@ public abstract class Entity {
+@@ -1469,6 +1487,17 @@ public abstract class Entity {
                  }
              }
              // CraftBukkit end
@@ -1459,170 +1416,6 @@ index bbcf674..8ea7abc 100644
                  return true;
              }
          } else {
-diff --git a/src/main/java/net/minecraft/server/EntityItemFrame.java b/src/main/java/net/minecraft/server/EntityItemFrame.java
-new file mode 100644
-index 0000000..0fdcffe
---- /dev/null
-+++ b/src/main/java/net/minecraft/server/EntityItemFrame.java
-@@ -0,0 +1,158 @@
-+package net.minecraft.server;
-+
-+public class EntityItemFrame extends EntityHanging {
-+
-+    private float e = 1.0F;
-+
-+    public EntityItemFrame(World world) {
-+        super(world);
-+    }
-+
-+    public EntityItemFrame(World world, int i, int j, int k, int l) {
-+        super(world, i, j, k, l);
-+        this.setDirection(l);
-+    }
-+
-+    protected void c() {
-+        this.getDataWatcher().a(2, 5);
-+        this.getDataWatcher().a(3, Byte.valueOf((byte) 0));
-+    }
-+
-+    public boolean damageEntity(DamageSource damagesource, float f) {
-+        if (this.isInvulnerable()) {
-+            return false;
-+        } else if (this.getItem() != null) {
-+            if (!this.world.isStatic) {
-+                // Spigot Start
-+                if ( damagesource.getEntity() != null )
-+                {
-+                    org.bukkit.event.entity.EntityDamageByEntityEvent event = new org.bukkit.event.entity.EntityDamageByEntityEvent(
-+                            damagesource.getEntity().getBukkitEntity(), getBukkitEntity(), org.bukkit.event.entity.EntityDamageEvent.DamageCause.ENTITY_ATTACK, f );
-+                    getBukkitEntity().getServer().getPluginManager().callEvent( event );
-+                    if ( event.isCancelled() )
-+                    {
-+                        return false;
-+                    }
-+                }
-+                // Spigot End
-+                this.b(damagesource.getEntity(), false);
-+                this.setItem((ItemStack) null);
-+            }
-+
-+            return true;
-+        } else {
-+            return super.damageEntity(damagesource, f);
-+        }
-+    }
-+
-+    public int f() {
-+        return 9;
-+    }
-+
-+    public int i() {
-+        return 9;
-+    }
-+
-+    public void b(Entity entity) {
-+        this.b(entity, true);
-+    }
-+
-+    public void b(Entity entity, boolean flag) {
-+        ItemStack itemstack = this.getItem();
-+
-+        if (entity instanceof EntityHuman) {
-+            EntityHuman entityhuman = (EntityHuman) entity;
-+
-+            if (entityhuman.abilities.canInstantlyBuild) {
-+                this.b(itemstack);
-+                return;
-+            }
-+        }
-+
-+        if (flag) {
-+            this.a(new ItemStack(Items.ITEM_FRAME), 0.0F);
-+        }
-+
-+        if (itemstack != null && this.random.nextFloat() < this.e) {
-+            itemstack = itemstack.cloneItemStack();
-+            this.b(itemstack);
-+            this.a(itemstack, 0.0F);
-+        }
-+    }
-+
-+    private void b(ItemStack itemstack) {
-+        if (itemstack != null) {
-+            if (itemstack.getItem() == Items.MAP) {
-+                WorldMap worldmap = ((ItemWorldMap) itemstack.getItem()).getSavedMap(itemstack, this.world);
-+
-+                worldmap.g.remove("frame-" + this.getId());
-+            }
-+
-+            itemstack.a((EntityItemFrame) null);
-+        }
-+    }
-+
-+    public ItemStack getItem() {
-+        return this.getDataWatcher().getItemStack(2);
-+    }
-+
-+    public void setItem(ItemStack itemstack) {
-+        if (itemstack != null) {
-+            itemstack = itemstack.cloneItemStack();
-+            itemstack.count = 1;
-+            itemstack.a(this);
-+        }
-+
-+        this.getDataWatcher().watch(2, itemstack);
-+        this.getDataWatcher().h(2);
-+    }
-+
-+    public int getRotation() {
-+        return this.getDataWatcher().getByte(3);
-+    }
-+
-+    public void setRotation(int i) {
-+        this.getDataWatcher().watch(3, Byte.valueOf((byte) (i % 4)));
-+    }
-+
-+    public void b(NBTTagCompound nbttagcompound) {
-+        if (this.getItem() != null) {
-+            nbttagcompound.set("Item", this.getItem().save(new NBTTagCompound()));
-+            nbttagcompound.setByte("ItemRotation", (byte) this.getRotation());
-+            nbttagcompound.setFloat("ItemDropChance", this.e);
-+        }
-+
-+        super.b(nbttagcompound);
-+    }
-+
-+    public void a(NBTTagCompound nbttagcompound) {
-+        NBTTagCompound nbttagcompound1 = nbttagcompound.getCompound("Item");
-+
-+        if (nbttagcompound1 != null && !nbttagcompound1.isEmpty()) {
-+            this.setItem(ItemStack.createStack(nbttagcompound1));
-+            this.setRotation(nbttagcompound.getByte("ItemRotation"));
-+            if (nbttagcompound.hasKeyOfType("ItemDropChance", 99)) {
-+                this.e = nbttagcompound.getFloat("ItemDropChance");
-+            }
-+        }
-+
-+        super.a(nbttagcompound);
-+    }
-+
-+    public boolean c(EntityHuman entityhuman) {
-+        if (this.getItem() == null) {
-+            ItemStack itemstack = entityhuman.be();
-+
-+            if (itemstack != null && !this.world.isStatic) {
-+                this.setItem(itemstack);
-+                if (!entityhuman.abilities.canInstantlyBuild && --itemstack.count <= 0) {
-+                    entityhuman.inventory.setItem(entityhuman.inventory.itemInHandIndex, (ItemStack) null);
-+                }
-+            }
-+        } else if (!this.world.isStatic) {
-+            this.setRotation(this.getRotation() + 1);
-+        }
-+
-+        return true;
-+    }
-+}
 diff --git a/src/main/java/net/minecraft/server/EntityLiving.java b/src/main/java/net/minecraft/server/EntityLiving.java
 index 75b1ec1..24a59eb 100644
 --- a/src/main/java/net/minecraft/server/EntityLiving.java
@@ -2733,18 +2526,10 @@ index 4e0398c..ae4ca63 100644
          } else {
              this.f = i;
 diff --git a/src/main/java/net/minecraft/server/PlayerConnection.java b/src/main/java/net/minecraft/server/PlayerConnection.java
-index 54c8881..35c66c6 100644
+index da1a7e7..2f45a3e 100644
 --- a/src/main/java/net/minecraft/server/PlayerConnection.java
 +++ b/src/main/java/net/minecraft/server/PlayerConnection.java
-@@ -77,6 +77,7 @@ public class PlayerConnection implements PacketPlayInListener {
-     private double z;
-     private double q;
-     public boolean checkMovement = true; // CraftBukkit - private -> public
-+    private boolean disconnected; // Spigot
- 
-     public PlayerConnection(MinecraftServer minecraftserver, NetworkManager networkmanager, EntityPlayer entityplayer) {
-         this.minecraftServer = minecraftserver;
-@@ -102,6 +103,7 @@ public class PlayerConnection implements PacketPlayInListener {
+@@ -103,6 +103,7 @@ public class PlayerConnection implements PacketPlayInListener {
      private float lastPitch = Float.MAX_VALUE;
      private float lastYaw = Float.MAX_VALUE;
      private boolean justTeleported = false;
@@ -2752,28 +2537,7 @@ index 54c8881..35c66c6 100644
  
      // For the PacketPlayOutBlockPlace hack :(
      Long lastPacket;
-@@ -148,6 +150,12 @@ public class PlayerConnection implements PacketPlayInListener {
-     }
- 
-     public void disconnect(String s) {
-+        // Spigot Start
-+        if ( disconnected )
-+        {
-+            return;
-+        }
-+        // Spigot End
-         // CraftBukkit start
-         String leaveMessage = EnumChatFormat.YELLOW + this.player.getName() + " left the game.";
- 
-@@ -169,6 +177,7 @@ public class PlayerConnection implements PacketPlayInListener {
-         this.networkManager.handle(new PacketPlayOutKickDisconnect(chatcomponenttext), new GenericFutureListener[] { new PlayerConnectionFuture(this, chatcomponenttext)});
-         this.a(chatcomponenttext); // CraftBukkit - Process quit immediately
-         this.networkManager.g();
-+        disconnected = true; // Spigot
-     }
- 
-     public void a(PacketPlayInSteerVehicle packetplayinsteervehicle) {
-@@ -219,7 +228,7 @@ public class PlayerConnection implements PacketPlayInListener {
+@@ -220,7 +221,7 @@ public class PlayerConnection implements PacketPlayInListener {
                  this.lastPitch = to.getPitch();
  
                  // Skip the first time we do this
@@ -2782,7 +2546,7 @@ index 54c8881..35c66c6 100644
                      PlayerMoveEvent event = new PlayerMoveEvent(player, from, to);
                      this.server.getPluginManager().callEvent(event);
  
-@@ -243,7 +252,7 @@ public class PlayerConnection implements PacketPlayInListener {
+@@ -244,7 +245,7 @@ public class PlayerConnection implements PacketPlayInListener {
                          this.justTeleported = false;
                          return;
                      }
@@ -2791,146 +2555,7 @@ index 54c8881..35c66c6 100644
              }
  
              if (Double.isNaN(packetplayinflying.x) || Double.isNaN(packetplayinflying.y) || Double.isNaN(packetplayinflying.z) || Double.isNaN(packetplayinflying.stance)) {
-@@ -758,7 +767,7 @@ public class PlayerConnection implements PacketPlayInListener {
-     }
- 
-     public void a(PacketPlayInChat packetplayinchat) {
--        if (this.player.dead || this.player.getChatFlags() == EnumChatVisibility.HIDDEN) { // CraftBukkit - dead men tell no tales
-+        if (this.player.getChatFlags() == EnumChatVisibility.HIDDEN) {
-             ChatMessage chatmessage = new ChatMessage("chat.cannotSend", new Object[0]);
- 
-             chatmessage.b().setColor(EnumChatFormat.RED);
-@@ -835,71 +844,73 @@ public class PlayerConnection implements PacketPlayInListener {
- 
-     // CraftBukkit start
-     public void chat(String s, boolean async) {
--        if (s.isEmpty() || this.player.getChatFlags() == EnumChatVisibility.HIDDEN) {
-+        if (s.isEmpty()) {
-             return;
-         }
- 
--        if (s.startsWith("/")) {
--            this.handleCommand(s);
--        } else if (this.player.getChatFlags() == EnumChatVisibility.SYSTEM) {
--            // Do nothing, this is coming from a plugin
--        } else {
--            Player player = this.getPlayer();
--            AsyncPlayerChatEvent event = new AsyncPlayerChatEvent(async, player, s, new LazyPlayerSet());
--            this.server.getPluginManager().callEvent(event);
-+        if (!this.player.dead) {
-+            if (s.startsWith("/")) {
-+                this.handleCommand(s);
-+            } else if (this.player.getChatFlags() != EnumChatVisibility.FULL) {
-+                // Do nothing, this is coming from a plugin
-+            } else {
-+                Player player = this.getPlayer();
-+                AsyncPlayerChatEvent event = new AsyncPlayerChatEvent(async, player, s, new LazyPlayerSet());
-+                this.server.getPluginManager().callEvent(event);
- 
--            if (PlayerChatEvent.getHandlerList().getRegisteredListeners().length != 0) {
--                // Evil plugins still listening to deprecated event
--                final PlayerChatEvent queueEvent = new PlayerChatEvent(player, event.getMessage(), event.getFormat(), event.getRecipients());
--                queueEvent.setCancelled(event.isCancelled());
--                Waitable waitable = new Waitable() {
--                    @Override
--                    protected Object evaluate() {
--                        org.bukkit.Bukkit.getPluginManager().callEvent(queueEvent);
-+                if (PlayerChatEvent.getHandlerList().getRegisteredListeners().length != 0) {
-+                    // Evil plugins still listening to deprecated event
-+                    final PlayerChatEvent queueEvent = new PlayerChatEvent(player, event.getMessage(), event.getFormat(), event.getRecipients());
-+                    queueEvent.setCancelled(event.isCancelled());
-+                    Waitable waitable = new Waitable() {
-+                        @Override
-+                        protected Object evaluate() {
-+                            org.bukkit.Bukkit.getPluginManager().callEvent(queueEvent);
- 
--                        if (queueEvent.isCancelled()) {
--                            return null;
--                        }
--
--                        String message = String.format(queueEvent.getFormat(), queueEvent.getPlayer().getDisplayName(), queueEvent.getMessage());
--                        PlayerConnection.this.minecraftServer.console.sendMessage(message);
--                        if (((LazyPlayerSet) queueEvent.getRecipients()).isLazy()) {
--                            for (Object player : PlayerConnection.this.minecraftServer.getPlayerList().players) {
--                                ((EntityPlayer) player).sendMessage(CraftChatMessage.fromString(message));
--                            }
--                        } else {
--                            for (Player player : queueEvent.getRecipients()) {
--                                player.sendMessage(message);
-+                            if (queueEvent.isCancelled()) {
-+                                return null;
-                             }
--                        }
--                        return null;
--                    }};
--                if (async) {
--                    minecraftServer.processQueue.add(waitable);
--                } else {
--                    waitable.run();
--                }
--                try {
--                    waitable.get();
--                } catch (InterruptedException e) {
--                    Thread.currentThread().interrupt(); // This is proper habit for java. If we aren't handling it, pass it on!
--                } catch (ExecutionException e) {
--                    throw new RuntimeException("Exception processing chat event", e.getCause());
--                }
--            } else {
--                if (event.isCancelled()) {
--                    return;
--                }
- 
--                s = String.format(event.getFormat(), event.getPlayer().getDisplayName(), event.getMessage());
--                minecraftServer.console.sendMessage(s);
--                if (((LazyPlayerSet) event.getRecipients()).isLazy()) {
--                    for (Object recipient : minecraftServer.getPlayerList().players) {
--                        ((EntityPlayer) recipient).sendMessage(CraftChatMessage.fromString(s));
-+                            String message = String.format(queueEvent.getFormat(), queueEvent.getPlayer().getDisplayName(), queueEvent.getMessage());
-+                            PlayerConnection.this.minecraftServer.console.sendMessage(message);
-+                            if (((LazyPlayerSet) queueEvent.getRecipients()).isLazy()) {
-+                                for (Object player : PlayerConnection.this.minecraftServer.getPlayerList().players) {
-+                                    ((EntityPlayer) player).sendMessage(CraftChatMessage.fromString(message));
-+                                }
-+                            } else {
-+                                for (Player player : queueEvent.getRecipients()) {
-+                                    player.sendMessage(message);
-+                                }
-+                            }
-+                            return null;
-+                        }};
-+                    if (async) {
-+                        minecraftServer.processQueue.add(waitable);
-+                    } else {
-+                        waitable.run();
-+                    }
-+                    try {
-+                        waitable.get();
-+                    } catch (InterruptedException e) {
-+                        Thread.currentThread().interrupt(); // This is proper habit for java. If we aren't handling it, pass it on!
-+                    } catch (ExecutionException e) {
-+                        throw new RuntimeException("Exception processing chat event", e.getCause());
-                     }
-                 } else {
--                    for (Player recipient : event.getRecipients()) {
--                        recipient.sendMessage(s);
-+                    if (event.isCancelled()) {
-+                        return;
-+                    }
-+
-+                    s = String.format(event.getFormat(), event.getPlayer().getDisplayName(), event.getMessage());
-+                    minecraftServer.console.sendMessage(s);
-+                    if (((LazyPlayerSet) event.getRecipients()).isLazy()) {
-+                        for (Object recipient : minecraftServer.getPlayerList().players) {
-+                            ((EntityPlayer) recipient).sendMessage(CraftChatMessage.fromString(s));
-+                        }
-+                    } else {
-+                        for (Player recipient : event.getRecipients()) {
-+                            recipient.sendMessage(s);
-+                        }
-                     }
-                 }
-             }
-@@ -908,6 +919,7 @@ public class PlayerConnection implements PacketPlayInListener {
+@@ -915,6 +916,7 @@ public class PlayerConnection implements PacketPlayInListener {
      // CraftBukkit end
  
      private void handleCommand(String s) {
@@ -2938,7 +2563,7 @@ index 54c8881..35c66c6 100644
          // CraftBukkit start
          CraftPlayer player = this.getPlayer();
  
-@@ -915,19 +927,28 @@ public class PlayerConnection implements PacketPlayInListener {
+@@ -922,19 +924,28 @@ public class PlayerConnection implements PacketPlayInListener {
          this.server.getPluginManager().callEvent(event);
  
          if (event.isCancelled()) {
@@ -2968,7 +2593,7 @@ index 54c8881..35c66c6 100644
          //this.minecraftServer.getCommandHandler().a(this.player, s);
          // CraftBukkit end
      }
-@@ -1018,6 +1039,13 @@ public class PlayerConnection implements PacketPlayInListener {
+@@ -1025,6 +1036,13 @@ public class PlayerConnection implements PacketPlayInListener {
          if (this.player.dead) return; // CraftBukkit
          WorldServer worldserver = this.minecraftServer.getWorldServer(this.player.dimension);
          Entity entity = packetplayinuseentity.a((World) worldserver);
@@ -2982,6 +2607,14 @@ index 54c8881..35c66c6 100644
  
          this.player.w();
          if (entity != null) {
+@@ -1532,6 +1550,7 @@ public class PlayerConnection implements PacketPlayInListener {
+ 
+             for (j = 0; j < 4; ++j) {
+                 boolean flag = true;
++                packetplayinupdatesign.f()[j] = packetplayinupdatesign.f()[j].replaceAll( "\uF700", "" ).replaceAll( "\uF701", "" ); // Spigot - Mac OSX sends weird chars
+ 
+                 if (packetplayinupdatesign.f()[j].length() > 15) {
+                     flag = false;
 diff --git a/src/main/java/net/minecraft/server/PlayerInteractManager.java b/src/main/java/net/minecraft/server/PlayerInteractManager.java
 index bceba7b..c963fac 100644
 --- a/src/main/java/net/minecraft/server/PlayerInteractManager.java
@@ -3790,7 +3423,7 @@ index 730eb78..a68b748 100644
                  }
  
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index 0194e74..29907b2 100644
+index f850a0f..04f5ed1 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
 @@ -14,6 +14,7 @@ import java.util.concurrent.Callable;
@@ -3837,7 +3470,7 @@ index 0194e74..29907b2 100644
      private int L;
      public boolean allowMonsters;
      public boolean allowAnimals;
-@@ -75,6 +94,31 @@ public abstract class World implements IBlockAccess {
+@@ -76,6 +95,31 @@ public abstract class World implements IBlockAccess {
      private boolean N;
      int[] I;
  
@@ -3869,7 +3502,7 @@ index 0194e74..29907b2 100644
      public BiomeBase getBiome(int i, int j) {
          if (this.isLoaded(i, 0, j)) {
              Chunk chunk = this.getChunkAtWorldCoords(i, j);
-@@ -106,6 +150,9 @@ public abstract class World implements IBlockAccess {
+@@ -107,6 +151,9 @@ public abstract class World implements IBlockAccess {
      int lastXAccessed = Integer.MIN_VALUE;
      int lastZAccessed = Integer.MIN_VALUE;
      final Object chunkLock = new Object();
@@ -3879,7 +3512,7 @@ index 0194e74..29907b2 100644
  
      public CraftWorld getWorld() {
          return this.world;
-@@ -117,11 +164,17 @@ public abstract class World implements IBlockAccess {
+@@ -118,11 +165,17 @@ public abstract class World implements IBlockAccess {
  
      // Changed signature - added gen and env
      public World(IDataManager idatamanager, String s, WorldSettings worldsettings, WorldProvider worldprovider, MethodProfiler methodprofiler, ChunkGenerator gen, org.bukkit.World.Environment env) {
@@ -3897,7 +3530,7 @@ index 0194e74..29907b2 100644
  
          this.L = this.random.nextInt(12000);
          this.allowMonsters = true;
-@@ -180,6 +233,7 @@ public abstract class World implements IBlockAccess {
+@@ -181,6 +234,7 @@ public abstract class World implements IBlockAccess {
          this.a();
  
          this.getServer().addWorld(this.world); // CraftBukkit
@@ -3905,7 +3538,7 @@ index 0194e74..29907b2 100644
      }
  
      protected abstract IChunkProvider j();
-@@ -260,20 +314,18 @@ public abstract class World implements IBlockAccess {
+@@ -261,20 +315,18 @@ public abstract class World implements IBlockAccess {
          return this.getChunkAt(i >> 4, j >> 4);
      }
  
@@ -3934,7 +3567,7 @@ index 0194e74..29907b2 100644
  
      public boolean setTypeAndData(int i, int j, int k, Block block, int l, int i1) {
          if (i >= -30000000 && k >= -30000000 && i < 30000000 && k < 30000000) {
-@@ -432,6 +484,7 @@ public abstract class World implements IBlockAccess {
+@@ -438,6 +490,7 @@ public abstract class World implements IBlockAccess {
          this.e(i, j + 1, k, block);
          this.e(i, j, k - 1, block);
          this.e(i, j, k + 1, block);
@@ -3942,7 +3575,7 @@ index 0194e74..29907b2 100644
      }
  
      public void b(int i, int j, int k, Block block, int l) {
-@@ -866,6 +919,7 @@ public abstract class World implements IBlockAccess {
+@@ -872,6 +925,7 @@ public abstract class World implements IBlockAccess {
      }
  
      public boolean addEntity(Entity entity, SpawnReason spawnReason) { // Changed signature, added SpawnReason
@@ -3950,7 +3583,7 @@ index 0194e74..29907b2 100644
          if (entity == null) return false;
          // CraftBukkit end
  
-@@ -897,6 +951,23 @@ public abstract class World implements IBlockAccess {
+@@ -903,6 +957,23 @@ public abstract class World implements IBlockAccess {
              // Not all projectiles extend EntityProjectile, so check for Bukkit interface instead
              event = CraftEventFactory.callProjectileLaunchEvent(entity);
          }
@@ -3974,7 +3607,7 @@ index 0194e74..29907b2 100644
  
          if (event != null && (event.isCancelled() || entity.dead)) {
              entity.dead = true;
-@@ -955,6 +1026,7 @@ public abstract class World implements IBlockAccess {
+@@ -961,6 +1032,7 @@ public abstract class World implements IBlockAccess {
      }
  
      public void removeEntity(Entity entity) {
@@ -3982,7 +3615,7 @@ index 0194e74..29907b2 100644
          entity.die();
          if (entity instanceof EntityHuman) {
              this.players.remove(entity);
-@@ -985,23 +1057,42 @@ public abstract class World implements IBlockAccess {
+@@ -991,23 +1063,42 @@ public abstract class World implements IBlockAccess {
          int i1 = MathHelper.floor(axisalignedbb.c);
          int j1 = MathHelper.floor(axisalignedbb.f + 1.0D);
  
@@ -4037,7 +3670,7 @@ index 0194e74..29907b2 100644
  
          double d0 = 0.25D;
          List list = this.getEntities(entity, axisalignedbb.grow(d0, d0, d0));
-@@ -1121,6 +1212,7 @@ public abstract class World implements IBlockAccess {
+@@ -1127,6 +1218,7 @@ public abstract class World implements IBlockAccess {
          CrashReport crashreport;
          CrashReportSystemDetails crashreportsystemdetails;
  
@@ -4045,7 +3678,7 @@ index 0194e74..29907b2 100644
          for (i = 0; i < this.i.size(); ++i) {
              entity = (Entity) this.i.get(i);
              // CraftBukkit start - Fixed an NPE, don't process entities in chunks queued for unload
-@@ -1129,10 +1221,15 @@ public abstract class World implements IBlockAccess {
+@@ -1135,10 +1227,15 @@ public abstract class World implements IBlockAccess {
              }
  
              ChunkProviderServer chunkProviderServer = ((WorldServer) this).chunkProviderServer;
@@ -4063,7 +3696,7 @@ index 0194e74..29907b2 100644
  
              try {
                  ++entity.ticksLived;
-@@ -1153,6 +1250,7 @@ public abstract class World implements IBlockAccess {
+@@ -1159,6 +1256,7 @@ public abstract class World implements IBlockAccess {
                  this.i.remove(i--);
              }
          }
@@ -4071,7 +3704,7 @@ index 0194e74..29907b2 100644
  
          this.methodProfiler.c("remove");
          this.entityList.removeAll(this.f);
-@@ -1176,15 +1274,23 @@ public abstract class World implements IBlockAccess {
+@@ -1182,15 +1280,23 @@ public abstract class World implements IBlockAccess {
          this.f.clear();
          this.methodProfiler.c("regular");
  
@@ -4097,7 +3730,7 @@ index 0194e74..29907b2 100644
  
              if (entity.vehicle != null) {
                  if (!entity.vehicle.dead && entity.vehicle.passenger == entity) {
-@@ -1198,7 +1304,9 @@ public abstract class World implements IBlockAccess {
+@@ -1204,7 +1310,9 @@ public abstract class World implements IBlockAccess {
              this.methodProfiler.a("tick");
              if (!entity.dead) {
                  try {
@@ -4107,7 +3740,7 @@ index 0194e74..29907b2 100644
                  } catch (Throwable throwable1) {
                      crashreport = CrashReport.a(throwable1, "Ticking entity");
                      crashreportsystemdetails = crashreport.a("Entity being ticked");
-@@ -1216,19 +1324,31 @@ public abstract class World implements IBlockAccess {
+@@ -1222,19 +1330,31 @@ public abstract class World implements IBlockAccess {
                      this.getChunkAt(j, k).b(entity);
                  }
  
@@ -4139,7 +3772,7 @@ index 0194e74..29907b2 100644
              // CraftBukkit start - Don't tick entities in chunks queued for unload
              ChunkProviderServer chunkProviderServer = ((WorldServer) this).chunkProviderServer;
              if (chunkProviderServer.unloadQueue.contains(tileentity.x >> 4, tileentity.z >> 4)) {
-@@ -1238,8 +1358,11 @@ public abstract class World implements IBlockAccess {
+@@ -1244,8 +1364,11 @@ public abstract class World implements IBlockAccess {
  
              if (!tileentity.r() && tileentity.o() && this.isLoaded(tileentity.x, tileentity.y, tileentity.z)) {
                  try {
@@ -4151,7 +3784,7 @@ index 0194e74..29907b2 100644
                      crashreport = CrashReport.a(throwable2, "Ticking block entity");
                      crashreportsystemdetails = crashreport.a("Block entity being ticked");
                      tileentity.a(crashreportsystemdetails);
-@@ -1259,6 +1382,8 @@ public abstract class World implements IBlockAccess {
+@@ -1265,6 +1388,8 @@ public abstract class World implements IBlockAccess {
              }
          }
  
@@ -4160,7 +3793,7 @@ index 0194e74..29907b2 100644
          this.N = false;
          if (!this.b.isEmpty()) {
              this.tileEntityList.removeAll(this.b);
-@@ -1297,6 +1422,7 @@ public abstract class World implements IBlockAccess {
+@@ -1303,6 +1428,7 @@ public abstract class World implements IBlockAccess {
              this.a.clear();
          }
  
@@ -4168,7 +3801,7 @@ index 0194e74..29907b2 100644
          this.methodProfiler.b();
          this.methodProfiler.b();
      }
-@@ -1318,7 +1444,12 @@ public abstract class World implements IBlockAccess {
+@@ -1324,7 +1450,12 @@ public abstract class World implements IBlockAccess {
          int j = MathHelper.floor(entity.locZ);
          byte b0 = 32;
  
@@ -4182,7 +3815,7 @@ index 0194e74..29907b2 100644
              entity.T = entity.locX;
              entity.U = entity.locY;
              entity.V = entity.locZ;
-@@ -1380,6 +1511,7 @@ public abstract class World implements IBlockAccess {
+@@ -1386,6 +1517,7 @@ public abstract class World implements IBlockAccess {
                      entity.passenger = null;
                  }
              }
@@ -4190,7 +3823,7 @@ index 0194e74..29907b2 100644
          }
      }
  
-@@ -1895,24 +2027,44 @@ public abstract class World implements IBlockAccess {
+@@ -1901,24 +2033,44 @@ public abstract class World implements IBlockAccess {
          int j;
          int k;
  
@@ -4245,7 +3878,7 @@ index 0194e74..29907b2 100644
          }
  
          this.methodProfiler.b();
-@@ -1921,7 +2073,7 @@ public abstract class World implements IBlockAccess {
+@@ -1927,7 +2079,7 @@ public abstract class World implements IBlockAccess {
          }
  
          this.methodProfiler.a("playerCheckLight");
@@ -4254,7 +3887,7 @@ index 0194e74..29907b2 100644
              i = this.random.nextInt(this.players.size());
              entityhuman = (EntityHuman) this.players.get(i);
              j = MathHelper.floor(entityhuman.locX) + this.random.nextInt(11) - 5;
-@@ -2304,6 +2456,7 @@ public abstract class World implements IBlockAccess {
+@@ -2310,6 +2462,7 @@ public abstract class World implements IBlockAccess {
      }
  
      public void a(List list) {
@@ -4262,19 +3895,6 @@ index 0194e74..29907b2 100644
          // CraftBukkit start
          // this.entityList.addAll(list);
          Entity entity = null;
-diff --git a/src/main/java/net/minecraft/server/WorldGenHugeMushroom.java b/src/main/java/net/minecraft/server/WorldGenHugeMushroom.java
-index 160fc7e..67273f2 100644
---- a/src/main/java/net/minecraft/server/WorldGenHugeMushroom.java
-+++ b/src/main/java/net/minecraft/server/WorldGenHugeMushroom.java
-@@ -168,7 +168,7 @@ public class WorldGenHugeMushroom extends WorldGenerator implements BlockSapling
-                                     if (event == null) {
-                                         this.setTypeAndData(world, j2, j1, k2, Block.e(Block.b(Blocks.BIG_MUSHROOM_1) + l), l2);
-                                     } else {
--                                        BlockState state = bukkitWorld.getBlockAt(i2, k1, k2).getState();
-+                                        BlockState state = bukkitWorld.getBlockAt(j2, j1, k2).getState();
-                                         state.setTypeId(Block.b(Blocks.BIG_MUSHROOM_1) + l);
-                                         state.setData(new MaterialData(Block.b(Blocks.BIG_MUSHROOM_1) + l, (byte) l2));
-                                         event.getBlocks().add(state);
 diff --git a/src/main/java/net/minecraft/server/WorldGenPackedIce2.java b/src/main/java/net/minecraft/server/WorldGenPackedIce2.java
 new file mode 100644
 index 0000000..a830758
@@ -4972,30 +4592,6 @@ index 0000000..f114a31
 +        return true;
 +    }
 +}
-diff --git a/src/main/java/org/bukkit/craftbukkit/enchantments/CraftEnchantment.java b/src/main/java/org/bukkit/craftbukkit/enchantments/CraftEnchantment.java
-index 18a6e38..5e69163 100644
---- a/src/main/java/org/bukkit/craftbukkit/enchantments/CraftEnchantment.java
-+++ b/src/main/java/org/bukkit/craftbukkit/enchantments/CraftEnchantment.java
-@@ -45,8 +45,6 @@ public class CraftEnchantment extends Enchantment {
-             return EnchantmentTarget.WEAPON;
-         case BOW:
-             return EnchantmentTarget.BOW;
--        case FISHING_ROD:
--            return EnchantmentTarget.FISHING_ROD;
-         default:
-             return null;
-         }
-@@ -104,10 +102,6 @@ public class CraftEnchantment extends Enchantment {
-             return "ARROW_FIRE";
-         case 51:
-             return "ARROW_INFINITE";
--        case 61:
--            return "LUCK";
--        case 62:
--            return "LURE";
-         default:
-             return "UNKNOWN_ENCHANT_" + target.id;
-         }
 diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftArrow.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftArrow.java
 index b46b9c4..236384f 100644
 --- a/src/main/java/org/bukkit/craftbukkit/entity/CraftArrow.java
@@ -5051,38 +4647,6 @@ index fe0f200..96d763b 100644
 +        return spigot;
 +    }
 +    // Spigot end
- }
-diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftFirework.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftFirework.java
-index 5437d85..7082d62 100644
---- a/src/main/java/org/bukkit/craftbukkit/entity/CraftFirework.java
-+++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftFirework.java
-@@ -47,17 +47,14 @@ public class CraftFirework extends CraftEntity implements Firework {
-         return "CraftFirework";
-     }
- 
--    @Override
-     public EntityType getType() {
-         return EntityType.FIREWORK;
-     }
- 
--    @Override
-     public FireworkMeta getFireworkMeta() {
-         return (FireworkMeta) item.getItemMeta();
-     }
- 
--    @Override
-     public void setFireworkMeta(FireworkMeta meta) {
-         item.setItemMeta(meta);
- 
-@@ -66,9 +63,4 @@ public class CraftFirework extends CraftEntity implements Firework {
- 
-         getHandle().getDataWatcher().h(FIREWORK_ITEM_INDEX); // Update
-     }
--
--    @Override
--    public void detonate() {
--        getHandle().expectedLifespan = 0;
--    }
  }
 diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
 index 0153608..5635c35 100644
@@ -5214,22 +4778,6 @@ index 902aa88..a994264 100644
       * Bucket methods
       */
      public static PlayerBucketEmptyEvent callPlayerBucketEmptyEvent(EntityHuman who, int clickedX, int clickedY, int clickedZ, int clickedFace, ItemStack itemInHand) {
-diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftFurnaceRecipe.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftFurnaceRecipe.java
-index 49b2cba..39772fe 100644
---- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftFurnaceRecipe.java
-+++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftFurnaceRecipe.java
-@@ -18,10 +18,9 @@ public class CraftFurnaceRecipe extends FurnaceRecipe implements CraftRecipe {
-         return new CraftFurnaceRecipe(recipe.getResult(), recipe.getInput());
-     }
- 
--    @Override
-     public void addToCraftingManager() {
-         ItemStack result = this.getResult();
-         ItemStack input = this.getInput();
--        RecipesFurnace.getInstance().a(CraftMagicNumbers.getItem(input.getTypeId()), CraftItemStack.asNMSCopy(result), 0.1f);
-+        RecipesFurnace.getInstance().registerRecipe(CraftMagicNumbers.getBlock(input.getTypeId()), CraftItemStack.asNMSCopy(result), 0.1f);
-     }
- }
 diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftInventoryAnvil.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftInventoryAnvil.java
 index a91d81a..46a1d38 100644
 --- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftInventoryAnvil.java
@@ -5294,7 +4842,7 @@ index 0f7da6b..5a409ae 100644
      }
  
 diff --git a/src/main/java/org/bukkit/craftbukkit/map/CraftMapView.java b/src/main/java/org/bukkit/craftbukkit/map/CraftMapView.java
-index 1a150d9..e70e4e4 100644
+index 1a150d9..c9f0027 100644
 --- a/src/main/java/org/bukkit/craftbukkit/map/CraftMapView.java
 +++ b/src/main/java/org/bukkit/craftbukkit/map/CraftMapView.java
 @@ -18,7 +18,7 @@ import org.bukkit.map.MapView;
@@ -5306,17 +4854,6 @@ index 1a150d9..e70e4e4 100644
      private final Map<MapRenderer, Map<CraftPlayer, CraftMapCanvas>> canvases = new HashMap<MapRenderer, Map<CraftPlayer, CraftMapCanvas>>();
      protected final WorldMap worldMap;
  
-@@ -147,9 +147,7 @@ public final class CraftMapView implements MapView {
- 
-             byte[] buf = canvas.getBuffer();
-             for (int i = 0; i < buf.length; ++i) {
--                byte color = buf[i];
--                // There are 143 valid color id's, 0 -> 127 and -128 -> -113
--                if (color >= 0 || color <= -113) render.buffer[i] = color;
-+                if (buf[i] >= 0) render.buffer[i] = buf[i];
-             }
- 
-             for (int i = 0; i < canvas.getCursors().size(); ++i) {
 diff --git a/src/main/java/org/bukkit/craftbukkit/scheduler/CraftScheduler.java b/src/main/java/org/bukkit/craftbukkit/scheduler/CraftScheduler.java
 index 84dcfcc..a30f217 100644
 --- a/src/main/java/org/bukkit/craftbukkit/scheduler/CraftScheduler.java
@@ -5390,7 +4927,7 @@ index 55db3ff..7d294c0 100644
      }
  
 diff --git a/src/main/java/org/bukkit/craftbukkit/util/CraftChatMessage.java b/src/main/java/org/bukkit/craftbukkit/util/CraftChatMessage.java
-index cc8e715..5d6ce54 100644
+index cc8e715..22d1346 100644
 --- a/src/main/java/org/bukkit/craftbukkit/util/CraftChatMessage.java
 +++ b/src/main/java/org/bukkit/craftbukkit/util/CraftChatMessage.java
 @@ -3,11 +3,15 @@ package org.bukkit.craftbukkit.util;
@@ -5418,7 +4955,7 @@ index cc8e715..5d6ce54 100644
  
          private FromString(String message) {
              if (message == null) {
-@@ -38,10 +44,13 @@ public final class CraftChatMessage {
+@@ -38,10 +44,14 @@ public final class CraftChatMessage {
              list.add(currentChatComponent);
  
              EnumChatFormat format = null;
@@ -5428,31 +4965,30 @@ index cc8e715..5d6ce54 100644
              for (int i = 0; i < message.length(); i++) {
                  char currentChar = message.charAt(i);
                  if (currentChar == '\u00A7' && (i < (message.length() - 1)) && (format = formatMap.get(message.charAt(i + 1))) != null) {
-+                    checkUrl(matcher, message, i, false);
++                    checkUrl(matcher, message, i);
++                    lastWord++;
                      if (builder.length() > 0) {
                          appendNewComponent();
                      }
-@@ -78,6 +87,11 @@ public final class CraftChatMessage {
+@@ -78,6 +88,11 @@ public final class CraftChatMessage {
                      }
                      currentChatComponent = null;
                  } else {
 +                    if (currentChar == ' ' || i == message.length() - 1) {
-+                        if (checkUrl(matcher, message, i, true)) {
++                        if (checkUrl(matcher, message, i)) {
 +                            break;
 +                        }
 +                    }
                      builder.append(currentChar);
                  }
              }
-@@ -89,6 +103,36 @@ public final class CraftChatMessage {
+@@ -89,6 +104,31 @@ public final class CraftChatMessage {
              output = list.toArray(new IChatBaseComponent[0]);
          }
  
-+        private boolean checkUrl(Matcher matcher, String message, int i, boolean newWord) {
++        private boolean checkUrl(Matcher matcher, String message, int i) {
 +            Matcher urlMatcher = matcher.region(lastWord, i == message.length() - 1 ? message.length() : i);
-+            if (newWord) {
-+                lastWord = i + 1;
-+            }
++            lastWord = i + 1;
 +            if (urlMatcher.find()) {
 +                String fullUrl = urlMatcher.group(2);
 +                String protocol = urlMatcher.group(3);
@@ -5468,9 +5004,6 @@ index cc8e715..5d6ce54 100644
 +                modifier.a(link);
 +                appendNewComponent();
 +                modifier.a((ChatClickable) null);
-+                if (!newWord) { //Force new word to prevent double checking
-+                    lastWord = i + 1;
-+                }
 +                if (i == message.length() - 1) {
 +                    return true;
 +                }
