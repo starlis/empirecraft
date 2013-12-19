@@ -1,12 +1,13 @@
-From e1b372e9afd6df9b70d20dc921a83c263c3af789 Mon Sep 17 00:00:00 2001
+From 492165f86bc84791f2e029871053ed71dbcd12b1 Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Mon, 9 Dec 2013 20:40:46 -0500
+Date: Wed, 18 Dec 2013 22:40:08 -0500
 Subject: [PATCH] Spigot
 
 ---
  pom.xml                                            |  52 ++----
- src/main/java/org/bukkit/Effect.java               | 195 ++++++++++++++++++++-
+ src/main/java/org/bukkit/Effect.java               | 196 ++++++++++++++++++++-
  src/main/java/org/bukkit/World.java                |  50 ++++++
+ .../java/org/bukkit/command/SimpleCommandMap.java  |  14 ++
  .../org/bukkit/command/defaults/ReloadCommand.java |   1 +
  .../bukkit/command/defaults/TimingsCommand.java    | 111 +++++++++++-
  .../org/bukkit/conversations/BooleanPrompt.java    |   3 +-
@@ -27,11 +28,11 @@ Subject: [PATCH] Spigot
  .../org/bukkit/plugin/java/JavaPluginLoader.java   |   2 +-
  .../bukkit/plugin/messaging/StandardMessenger.java |  10 +-
  .../java/org/spigotmc/CustomTimingsHandler.java    | 175 ++++++++++++++++++
- .../spigotmc/event/entity/EntityDismountEvent.java |  39 +++++
+ .../spigotmc/event/entity/EntityDismountEvent.java |  39 ++++
  .../spigotmc/event/entity/EntityMountEvent.java    |  52 ++++++
  src/test/java/org/bukkit/EffectTest.java           |   6 +-
  .../bukkit/plugin/TimedRegisteredListenerTest.java |   1 -
- 27 files changed, 934 insertions(+), 127 deletions(-)
+ 28 files changed, 948 insertions(+), 128 deletions(-)
  create mode 100644 src/main/java/org/bukkit/event/entity/EntitySpawnEvent.java
  create mode 100644 src/main/java/org/bukkit/event/entity/SpawnerSpawnEvent.java
  create mode 100644 src/main/java/org/bukkit/event/player/PlayerItemDamageEvent.java
@@ -40,7 +41,7 @@ Subject: [PATCH] Spigot
  create mode 100644 src/main/java/org/spigotmc/event/entity/EntityMountEvent.java
 
 diff --git a/pom.xml b/pom.xml
-index a83e578..8632d3d 100644
+index 2a947f6..97aef52 100644
 --- a/pom.xml
 +++ b/pom.xml
 @@ -1,43 +1,23 @@
@@ -58,7 +59,7 @@ index a83e578..8632d3d 100644
 +
 +    <groupId>org.spigotmc</groupId>
 +    <artifactId>spigot-api</artifactId>
-     <version>1.7.2-R0.1-SNAPSHOT</version>
+     <version>1.7.2-R0.2-SNAPSHOT</version>
 -    <name>Bukkit</name>
 -    <url>http://www.bukkit.org</url>
 +    <name>Spigot-API</name>
@@ -134,7 +135,7 @@ index a83e578..8632d3d 100644
  
          <!-- testing -->
 diff --git a/src/main/java/org/bukkit/Effect.java b/src/main/java/org/bukkit/Effect.java
-index 708bee9..62c7c11 100644
+index 2474a2d..4a4a12d 100644
 --- a/src/main/java/org/bukkit/Effect.java
 +++ b/src/main/java/org/bukkit/Effect.java
 @@ -5,6 +5,7 @@ import java.util.Map;
@@ -145,7 +146,7 @@ index 708bee9..62c7c11 100644
  import org.bukkit.potion.Potion;
  
  /**
-@@ -78,27 +79,178 @@ public enum Effect {
+@@ -79,27 +80,178 @@ public enum Effect {
      /**
       * The flames seen on a mobspawner; a visual effect.
       */
@@ -328,7 +329,7 @@ index 708bee9..62c7c11 100644
       * @deprecated Magic value
       */
      @Deprecated
-@@ -107,6 +259,15 @@ public enum Effect {
+@@ -108,6 +260,15 @@ public enum Effect {
      }
  
      /**
@@ -344,16 +345,17 @@ index 708bee9..62c7c11 100644
       * @return The type of the effect.
       */
      public Type getType() {
-@@ -114,7 +275,7 @@ public enum Effect {
+@@ -115,8 +276,7 @@ public enum Effect {
      }
  
      /**
--     * @return The class which represents data for this effect, or null if none
+-     * @return The class which represents data for this effect, or null if
+-     *     none
 +     * @return if this Effect isn't of type PARTICLE it returns the class which represents data for this effect, or null if none
       */
      public Class<?> getData() {
          return this.data;
-@@ -134,12 +295,32 @@ public enum Effect {
+@@ -136,12 +296,32 @@ public enum Effect {
  
      static {
          for (Effect effect : values()) {
@@ -389,10 +391,10 @@ index 708bee9..62c7c11 100644
 +    public enum Type {SOUND, VISUAL, PARTICLE}
  }
 diff --git a/src/main/java/org/bukkit/World.java b/src/main/java/org/bukkit/World.java
-index 63507c9..7de6186 100644
+index f02bfb7..a58eb05 100644
 --- a/src/main/java/org/bukkit/World.java
 +++ b/src/main/java/org/bukkit/World.java
-@@ -1070,6 +1070,56 @@ public interface World extends PluginMessageRecipient, Metadatable {
+@@ -1151,6 +1151,56 @@ public interface World extends PluginMessageRecipient, Metadatable {
       */
      public boolean isGameRule(String rule);
  
@@ -449,6 +451,29 @@ index 63507c9..7de6186 100644
      /**
       * Represents various map environment types that a world may be
       */
+diff --git a/src/main/java/org/bukkit/command/SimpleCommandMap.java b/src/main/java/org/bukkit/command/SimpleCommandMap.java
+index c2f488a..9283b23 100644
+--- a/src/main/java/org/bukkit/command/SimpleCommandMap.java
++++ b/src/main/java/org/bukkit/command/SimpleCommandMap.java
+@@ -330,4 +330,18 @@ public class SimpleCommandMap implements CommandMap {
+             }
+         }
+     }
++
++    // Spigot Start
++    public static void removeFallback(String name)
++    {
++        Iterator<VanillaCommand> it = fallbackCommands.iterator();
++        while ( it.hasNext() )
++        {
++            if ( it.next().getName().equals( name ) )
++            {
++                it.remove();
++            }
++        }
++    }
++    // Spigot End
+ }
 diff --git a/src/main/java/org/bukkit/command/defaults/ReloadCommand.java b/src/main/java/org/bukkit/command/defaults/ReloadCommand.java
 index fb3c90f..ffbcac1 100644
 --- a/src/main/java/org/bukkit/command/defaults/ReloadCommand.java
@@ -640,10 +665,10 @@ index 05cfcb0..ec1320f 100644
 +    // Spigot end
  }
 diff --git a/src/main/java/org/bukkit/conversations/BooleanPrompt.java b/src/main/java/org/bukkit/conversations/BooleanPrompt.java
-index 6abb354..a51e754 100644
+index 3f2c97f..81ef78c 100644
 --- a/src/main/java/org/bukkit/conversations/BooleanPrompt.java
 +++ b/src/main/java/org/bukkit/conversations/BooleanPrompt.java
-@@ -14,12 +14,13 @@ public abstract class BooleanPrompt extends ValidatingPrompt{
+@@ -15,12 +15,13 @@ public abstract class BooleanPrompt extends ValidatingPrompt{
  
      @Override
      protected boolean isInputValid(ConversationContext context, String input) {
@@ -659,10 +684,10 @@ index 6abb354..a51e754 100644
      }
  
 diff --git a/src/main/java/org/bukkit/conversations/Conversation.java b/src/main/java/org/bukkit/conversations/Conversation.java
-index a30745f..55c9785 100644
+index d4c1f6d..46912c8 100644
 --- a/src/main/java/org/bukkit/conversations/Conversation.java
 +++ b/src/main/java/org/bukkit/conversations/Conversation.java
-@@ -193,6 +193,7 @@ public class Conversation {
+@@ -209,6 +209,7 @@ public class Conversation {
       * @param input The user's chat text.
       */
      public void acceptInput(String input) {
@@ -670,7 +695,7 @@ index a30745f..55c9785 100644
          if (currentPrompt != null) {
  
              // Echo the user's input
-@@ -212,6 +213,12 @@ public class Conversation {
+@@ -228,6 +229,12 @@ public class Conversation {
              currentPrompt = currentPrompt.acceptInput(context, input);
              outputNextPrompt();
          }
@@ -684,10 +709,10 @@ index a30745f..55c9785 100644
  
      /**
 diff --git a/src/main/java/org/bukkit/conversations/ConversationContext.java b/src/main/java/org/bukkit/conversations/ConversationContext.java
-index 7a5b5ed..6b4bcac 100644
+index 4f33ff4..7390a77 100644
 --- a/src/main/java/org/bukkit/conversations/ConversationContext.java
 +++ b/src/main/java/org/bukkit/conversations/ConversationContext.java
-@@ -44,6 +44,14 @@ public class ConversationContext {
+@@ -46,6 +46,14 @@ public class ConversationContext {
      }
  
      /**
@@ -699,9 +724,9 @@ index 7a5b5ed..6b4bcac 100644
 +    }
 +
 +    /**
-      * Gets session data shared between all {@link Prompt} invocations. Use this as a way
-      * to pass data through each Prompt as the conversation develops.
-      *
+      * Gets session data shared between all {@link Prompt} invocations. Use
+      * this as a way to pass data through each Prompt as the conversation
+      * develops.
 diff --git a/src/main/java/org/bukkit/entity/Arrow.java b/src/main/java/org/bukkit/entity/Arrow.java
 index 26d3473..676fe2b 100644
 --- a/src/main/java/org/bukkit/entity/Arrow.java
@@ -731,10 +756,10 @@ index 26d3473..676fe2b 100644
 +    Spigot spigot();
 +}
 diff --git a/src/main/java/org/bukkit/entity/Entity.java b/src/main/java/org/bukkit/entity/Entity.java
-index 72af4fa..a5b2100 100644
+index 396ea20..294e80b 100644
 --- a/src/main/java/org/bukkit/entity/Entity.java
 +++ b/src/main/java/org/bukkit/entity/Entity.java
-@@ -280,4 +280,22 @@ public interface Entity extends Metadatable {
+@@ -291,4 +291,22 @@ public interface Entity extends Metadatable {
       * @return The current vehicle.
       */
      public Entity getVehicle();
@@ -758,10 +783,10 @@ index 72af4fa..a5b2100 100644
 +    // Spigot End
  }
 diff --git a/src/main/java/org/bukkit/entity/Player.java b/src/main/java/org/bukkit/entity/Player.java
-index 3ec374b..8fd9a07 100644
+index 7aa697d..15481e7 100644
 --- a/src/main/java/org/bukkit/entity/Player.java
 +++ b/src/main/java/org/bukkit/entity/Player.java
-@@ -721,4 +721,57 @@ public interface Player extends HumanEntity, Conversable, CommandSender, Offline
+@@ -788,4 +788,57 @@ public interface Player extends HumanEntity, Conversable, CommandSender, Offline
       * @see Player#setHealthScaled(boolean)
       */
      public double getHealthScale();
@@ -820,7 +845,7 @@ index 3ec374b..8fd9a07 100644
 +    // Spigot end
  }
 diff --git a/src/main/java/org/bukkit/event/entity/CreatureSpawnEvent.java b/src/main/java/org/bukkit/event/entity/CreatureSpawnEvent.java
-index f60c86f..303479d 100644
+index 3055ea7..6bde0fe 100644
 --- a/src/main/java/org/bukkit/event/entity/CreatureSpawnEvent.java
 +++ b/src/main/java/org/bukkit/event/entity/CreatureSpawnEvent.java
 @@ -4,17 +4,13 @@ import org.bukkit.Location;
@@ -871,8 +896,8 @@ index f60c86f..303479d 100644
 -    /**
       * Gets the type of creature being spawned.
       *
-      * @return A CreatureType value detailing the type of creature being spawned
-@@ -70,15 +49,6 @@ public class CreatureSpawnEvent extends EntityEvent implements Cancellable {
+      * @return A CreatureType value detailing the type of creature being
+@@ -72,15 +51,6 @@ public class CreatureSpawnEvent extends EntityEvent implements Cancellable {
          return spawnReason;
      }
  
@@ -1131,7 +1156,7 @@ index 0000000..38a72ab
 +    }
 +}
 diff --git a/src/main/java/org/bukkit/event/player/PlayerLoginEvent.java b/src/main/java/org/bukkit/event/player/PlayerLoginEvent.java
-index 60c0875..dab3c5c 100644
+index b74b7b8..8fb1c98 100644
 --- a/src/main/java/org/bukkit/event/player/PlayerLoginEvent.java
 +++ b/src/main/java/org/bukkit/event/player/PlayerLoginEvent.java
 @@ -14,6 +14,7 @@ public class PlayerLoginEvent extends PlayerEvent {
@@ -1142,9 +1167,9 @@ index 60c0875..dab3c5c 100644
  
      /**
       * @deprecated Address should be provided in other constructor
-@@ -38,10 +39,17 @@ public class PlayerLoginEvent extends PlayerEvent {
-      * @param hostname The hostname that was used to connect to the server
-      * @param address The address the player used to connect, provided for timing issues
+@@ -40,10 +41,17 @@ public class PlayerLoginEvent extends PlayerEvent {
+      * @param address The address the player used to connect, provided for
+      *     timing issues
       */
 -    public PlayerLoginEvent(final Player player, final String hostname, final InetAddress address) {
 +    public PlayerLoginEvent(final Player player, final String hostname, final InetAddress address, final InetAddress realAddress) { // Spigot
@@ -1161,7 +1186,7 @@ index 60c0875..dab3c5c 100644
      }
  
      /**
-@@ -49,7 +57,7 @@ public class PlayerLoginEvent extends PlayerEvent {
+@@ -52,7 +60,7 @@ public class PlayerLoginEvent extends PlayerEvent {
       */
      @Deprecated
      public PlayerLoginEvent(final Player player, final Result result, final String message) {
@@ -1170,7 +1195,7 @@ index 60c0875..dab3c5c 100644
      }
  
      /**
-@@ -61,12 +69,23 @@ public class PlayerLoginEvent extends PlayerEvent {
+@@ -65,12 +73,23 @@ public class PlayerLoginEvent extends PlayerEvent {
       * @param result The result status for this event
       * @param message The message to be displayed if result denies login
       */
@@ -1197,10 +1222,10 @@ index 60c0875..dab3c5c 100644
       * Gets the current result of the login, as an enum
       *
 diff --git a/src/main/java/org/bukkit/plugin/SimplePluginManager.java b/src/main/java/org/bukkit/plugin/SimplePluginManager.java
-index 93fb4f5..a96a33b 100644
+index 3c9611b..2c4b03b 100644
 --- a/src/main/java/org/bukkit/plugin/SimplePluginManager.java
 +++ b/src/main/java/org/bukkit/plugin/SimplePluginManager.java
-@@ -274,6 +274,7 @@ public final class SimplePluginManager implements PluginManager {
+@@ -275,6 +275,7 @@ public final class SimplePluginManager implements PluginManager {
              }
          }
  
@@ -1209,7 +1234,7 @@ index 93fb4f5..a96a33b 100644
      }
  
 diff --git a/src/main/java/org/bukkit/plugin/TimedRegisteredListener.java b/src/main/java/org/bukkit/plugin/TimedRegisteredListener.java
-index d86805b..4b744ea 100644
+index e09234c..ab2c65e 100644
 --- a/src/main/java/org/bukkit/plugin/TimedRegisteredListener.java
 +++ b/src/main/java/org/bukkit/plugin/TimedRegisteredListener.java
 @@ -11,6 +11,10 @@ import org.bukkit.event.Listener;
@@ -1275,7 +1300,7 @@ index ea30d83..d905435 100644
              } else {
                  eventSet.add(new RegisteredListener(listener, executor, eh.priority(), plugin, eh.ignoreCancelled()));
 diff --git a/src/main/java/org/bukkit/plugin/messaging/StandardMessenger.java b/src/main/java/org/bukkit/plugin/messaging/StandardMessenger.java
-index e90f2e1..e6f008c 100644
+index a906f8d..4c171e8 100644
 --- a/src/main/java/org/bukkit/plugin/messaging/StandardMessenger.java
 +++ b/src/main/java/org/bukkit/plugin/messaging/StandardMessenger.java
 @@ -421,7 +421,15 @@ public class StandardMessenger implements Messenger {

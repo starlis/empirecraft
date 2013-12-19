@@ -1,6 +1,6 @@
-From 22a3451d47604bf58259b592c34952bfe74d1882 Mon Sep 17 00:00:00 2001
+From c49436fc4fe96d3f5fbff26aebb22d09b6a211f9 Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Mon, 9 Dec 2013 20:40:51 -0500
+Date: Wed, 18 Dec 2013 22:40:15 -0500
 Subject: [PATCH] Spigot
 
 ---
@@ -22,6 +22,9 @@ Subject: [PATCH] Spigot
  .../net/minecraft/server/ChunkProviderServer.java  |   2 +
  .../net/minecraft/server/ChunkRegionLoader.java    |  57 +-
  .../java/net/minecraft/server/ChunkSection.java    |  26 +-
+ .../server/CommandBlockListenerAbstract.java       |   2 +-
+ .../net/minecraft/server/CommandDispatcher.java    |  93 +++
+ .../java/net/minecraft/server/DataWatcher.java     | 306 ++++++++++
  .../java/net/minecraft/server/DedicatedServer.java |  11 +-
  src/main/java/net/minecraft/server/Entity.java     |  33 +-
  .../java/net/minecraft/server/EntityAgeable.java   |  25 +
@@ -34,13 +37,15 @@ Subject: [PATCH] Spigot
  .../java/net/minecraft/server/EntityPlayer.java    |  16 +
  .../java/net/minecraft/server/EntityTracker.java   |   3 +
  .../net/minecraft/server/EntityTrackerEntry.java   |   2 +
+ .../java/net/minecraft/server/EntityZombie.java    |   4 +-
  src/main/java/net/minecraft/server/Explosion.java  |   1 +
- .../net/minecraft/server/HandshakeListener.java    |  13 +-
+ .../net/minecraft/server/HandshakeListener.java    |  17 +-
  src/main/java/net/minecraft/server/IRecipe.java    |   2 +
  src/main/java/net/minecraft/server/ItemStack.java  |  19 +-
- .../java/net/minecraft/server/MinecraftServer.java |  79 +--
+ .../java/net/minecraft/server/LoginListener.java   |  17 +-
+ .../java/net/minecraft/server/MinecraftServer.java |  91 +--
  .../net/minecraft/server/MobSpawnerAbstract.java   |  25 +-
- .../java/net/minecraft/server/NetworkManager.java  |   2 +-
+ .../java/net/minecraft/server/NetworkManager.java  |   3 +-
  .../net/minecraft/server/NextTickListEntry.java    |  60 ++
  .../java/net/minecraft/server/NibbleArray.java     | 158 +++++
  .../java/net/minecraft/server/OldChunkLoader.java  | 122 ++++
@@ -53,20 +58,23 @@ Subject: [PATCH] Spigot
  src/main/java/net/minecraft/server/PlayerList.java |  39 +-
  .../java/net/minecraft/server/PropertyManager.java |   2 +-
  .../java/net/minecraft/server/RegionFileCache.java |  67 +++
+ .../minecraft/server/RemoteControlListener.java    | 107 ++++
  .../minecraft/server/ServerStatisticManager.java   | 201 +++++++
  .../java/net/minecraft/server/ShapedRecipes.java   |   9 +-
  .../net/minecraft/server/ShapelessRecipes.java     |   9 +-
  .../java/net/minecraft/server/SpawnerCreature.java |  35 +-
  .../net/minecraft/server/StructureGenerator.java   | 225 +++++++
+ .../minecraft/server/ThreadPlayerLookupUUID.java   |  88 +--
  src/main/java/net/minecraft/server/TileEntity.java |   2 +
  .../net/minecraft/server/TileEntityHopper.java     |  17 +-
+ .../java/net/minecraft/server/WatchableObject.java |  44 ++
  src/main/java/net/minecraft/server/World.java      | 233 ++++++--
  .../net/minecraft/server/WorldGenPackedIce2.java   | 101 ++++
  .../net/minecraft/server/WorldMapHumanTracker.java |  24 +-
  .../java/net/minecraft/server/WorldServer.java     |  40 +-
  .../java/org/bukkit/craftbukkit/CraftChunk.java    |  44 +-
- .../java/org/bukkit/craftbukkit/CraftServer.java   |  47 +-
- .../java/org/bukkit/craftbukkit/CraftWorld.java    |  15 +-
+ .../java/org/bukkit/craftbukkit/CraftServer.java   |  72 ++-
+ .../java/org/bukkit/craftbukkit/CraftWorld.java    |  13 +
  .../java/org/bukkit/craftbukkit/SpigotTimings.java | 128 ++++
  .../org/bukkit/craftbukkit/block/CraftSign.java    |   8 +-
  .../craftbukkit/command/TicksPerSecondCommand.java |  35 ++
@@ -79,31 +87,36 @@ Subject: [PATCH] Spigot
  .../org/bukkit/craftbukkit/map/CraftMapView.java   |   2 +-
  .../craftbukkit/scheduler/CraftScheduler.java      |   2 +-
  .../bukkit/craftbukkit/scheduler/CraftTask.java    |  22 +-
- .../bukkit/craftbukkit/util/CraftChatMessage.java  |  40 ++
+ .../bukkit/craftbukkit/util/CraftChatMessage.java  | 101 ++--
  .../java/org/bukkit/craftbukkit/util/LongHash.java |   2 +-
  .../org/bukkit/craftbukkit/util/LongHashSet.java   |  33 +-
  .../bukkit/craftbukkit/util/LongObjectHashMap.java |  15 +
  .../org/bukkit/craftbukkit/util/Versioning.java    |   2 +-
  src/main/java/org/spigotmc/ActivationRange.java    | 296 ++++++++++
- src/main/java/org/spigotmc/AntiXray.java           | 204 +++++++
+ src/main/java/org/spigotmc/AntiXray.java           | 200 +++++++
  src/main/java/org/spigotmc/FlatMap.java            |  64 ++
  src/main/java/org/spigotmc/Metrics.java            | 645 +++++++++++++++++++++
  src/main/java/org/spigotmc/RestartCommand.java     | 113 ++++
- src/main/java/org/spigotmc/SpigotConfig.java       | 195 +++++++
- src/main/java/org/spigotmc/SpigotWorldConfig.java  | 235 ++++++++
+ src/main/java/org/spigotmc/SpigotConfig.java       | 218 +++++++
+ src/main/java/org/spigotmc/SpigotWorldConfig.java  | 249 ++++++++
  src/main/java/org/spigotmc/TrackingRange.java      |  45 ++
+ .../java/org/spigotmc/VanillaCommandWrapper.java   | 194 +++++++
  src/main/java/org/spigotmc/WatchdogThread.java     | 121 ++++
- 89 files changed, 4715 insertions(+), 282 deletions(-)
+ 98 files changed, 5620 insertions(+), 366 deletions(-)
  create mode 100644 src/main/java/net/minecraft/server/BlockBrewingStand.java
  create mode 100644 src/main/java/net/minecraft/server/BlockFlowerPot.java
  create mode 100644 src/main/java/net/minecraft/server/BlockTNT.java
+ create mode 100644 src/main/java/net/minecraft/server/CommandDispatcher.java
+ create mode 100644 src/main/java/net/minecraft/server/DataWatcher.java
  create mode 100644 src/main/java/net/minecraft/server/NextTickListEntry.java
  create mode 100644 src/main/java/net/minecraft/server/NibbleArray.java
  create mode 100644 src/main/java/net/minecraft/server/OldChunkLoader.java
  create mode 100644 src/main/java/net/minecraft/server/PacketPlayOutMapChunk.java
  create mode 100644 src/main/java/net/minecraft/server/RegionFileCache.java
+ create mode 100644 src/main/java/net/minecraft/server/RemoteControlListener.java
  create mode 100644 src/main/java/net/minecraft/server/ServerStatisticManager.java
  create mode 100644 src/main/java/net/minecraft/server/StructureGenerator.java
+ create mode 100644 src/main/java/net/minecraft/server/WatchableObject.java
  create mode 100644 src/main/java/net/minecraft/server/WorldGenPackedIce2.java
  create mode 100644 src/main/java/org/bukkit/craftbukkit/SpigotTimings.java
  create mode 100644 src/main/java/org/bukkit/craftbukkit/command/TicksPerSecondCommand.java
@@ -115,10 +128,11 @@ Subject: [PATCH] Spigot
  create mode 100644 src/main/java/org/spigotmc/SpigotConfig.java
  create mode 100644 src/main/java/org/spigotmc/SpigotWorldConfig.java
  create mode 100644 src/main/java/org/spigotmc/TrackingRange.java
+ create mode 100644 src/main/java/org/spigotmc/VanillaCommandWrapper.java
  create mode 100644 src/main/java/org/spigotmc/WatchdogThread.java
 
 diff --git a/pom.xml b/pom.xml
-index 2afdff4..fb6b5c4 100644
+index f81e47a..a4051a1 100644
 --- a/pom.xml
 +++ b/pom.xml
 @@ -1,12 +1,20 @@
@@ -138,7 +152,7 @@ index 2afdff4..fb6b5c4 100644
 +  <groupId>org.spigotmc</groupId>
 +  <artifactId>spigot</artifactId>
    <packaging>jar</packaging>
-   <version>1.7.2-R0.1-SNAPSHOT</version>
+   <version>1.7.2-R0.2-SNAPSHOT</version>
 -  <name>CraftBukkit</name>
 -  <url>http://www.bukkit.org</url>
 +  <name>Spigot</name>
@@ -943,10 +957,10 @@ index 95b4704..d458dbb 100644
  
      public ChunkCoordIntPair l() {
 diff --git a/src/main/java/net/minecraft/server/ChunkProviderServer.java b/src/main/java/net/minecraft/server/ChunkProviderServer.java
-index 2f842c3..88853ca 100644
+index 9c99177..b88f75c 100644
 --- a/src/main/java/net/minecraft/server/ChunkProviderServer.java
 +++ b/src/main/java/net/minecraft/server/ChunkProviderServer.java
-@@ -107,6 +107,7 @@ public class ChunkProviderServer implements IChunkProvider {
+@@ -106,6 +106,7 @@ public class ChunkProviderServer implements IChunkProvider {
          // CraftBukkit end
  
          if (chunk == null) {
@@ -954,7 +968,7 @@ index 2f842c3..88853ca 100644
              chunk = this.loadChunk(i, j);
              if (chunk == null) {
                  if (this.chunkProvider == null) {
-@@ -143,6 +144,7 @@ public class ChunkProviderServer implements IChunkProvider {
+@@ -141,6 +142,7 @@ public class ChunkProviderServer implements IChunkProvider {
              }
              // CraftBukkit end
              chunk.a(this, this, i, j);
@@ -1134,6 +1148,430 @@ index a05efa0..360de1a 100644
  
          return nibbleArray;
      }
+diff --git a/src/main/java/net/minecraft/server/CommandBlockListenerAbstract.java b/src/main/java/net/minecraft/server/CommandBlockListenerAbstract.java
+index 5271272..f8d2ecb 100644
+--- a/src/main/java/net/minecraft/server/CommandBlockListenerAbstract.java
++++ b/src/main/java/net/minecraft/server/CommandBlockListenerAbstract.java
+@@ -96,7 +96,7 @@ public abstract class CommandBlockListenerAbstract implements ICommandListener {
+ 
+             // Make sure this is a valid command
+             if (commandMap.getCommand(args[0]) == null) {
+-                this.b = 0;
++                this.b = org.spigotmc.VanillaCommandWrapper.dispatch( sender, command ); // Spigot - Try vanilla commands
+                 return;
+             }
+ 
+diff --git a/src/main/java/net/minecraft/server/CommandDispatcher.java b/src/main/java/net/minecraft/server/CommandDispatcher.java
+new file mode 100644
+index 0000000..e58be15
+--- /dev/null
++++ b/src/main/java/net/minecraft/server/CommandDispatcher.java
+@@ -0,0 +1,93 @@
++package net.minecraft.server;
++
++import java.util.Iterator;
++
++public class CommandDispatcher extends CommandHandler implements ICommandDispatcher {
++
++    public CommandDispatcher() {
++        this.a(new CommandTime());
++        this.a(new CommandGamemode());
++        this.a(new CommandDifficulty());
++        this.a(new CommandGamemodeDefault());
++        this.a(new CommandKill());
++        this.a(new CommandToggleDownfall());
++        this.a(new CommandWeather());
++        this.a(new CommandXp());
++        this.a(new CommandTp());
++        this.a(new CommandGive());
++        this.a(new CommandEffect());
++        this.a(new CommandEnchant());
++        this.a(new CommandMe());
++        this.a(new CommandSeed());
++        this.a(new CommandHelp());
++        this.a(new CommandDebug());
++        this.a(new CommandTell());
++        this.a(new CommandSay());
++        this.a(new CommandSpawnpoint());
++        this.a(new CommandSetWorldSpawn());
++        this.a(new CommandGamerule());
++        this.a(new CommandClear());
++        this.a(new CommandTestFor());
++        this.a(new CommandSpreadPlayers());
++        this.a(new CommandPlaySound());
++        this.a(new CommandScoreboard());
++        this.a(new CommandAchievement());
++        this.a(new CommandSummon());
++        this.a(new CommandSetBlock());
++        this.a(new CommandTestForBlock());
++        this.a(new CommandTellRaw());
++        if (MinecraftServer.getServer().V()) {
++            this.a(new CommandOp());
++            this.a(new CommandDeop());
++            this.a(new CommandStop());
++            this.a(new CommandSaveAll());
++            this.a(new CommandSaveOff());
++            this.a(new CommandSaveOn());
++            this.a(new CommandBanIp());
++            this.a(new CommandPardonIP());
++            this.a(new CommandBan());
++            this.a(new CommandBanList());
++            this.a(new CommandPardon());
++            this.a(new CommandKick());
++            this.a(new CommandList());
++            this.a(new CommandWhitelist());
++            this.a(new CommandIdleTimeout());
++        } else {
++            this.a(new CommandPublish());
++        }
++
++        CommandAbstract.a((ICommandDispatcher) this);
++    }
++
++    public void a(ICommandListener icommandlistener, int i, String s, Object... aobject) {
++        boolean flag = true;
++
++        if (icommandlistener instanceof CommandBlockListenerAbstract && !MinecraftServer.getServer().worlds.get(0).getGameRules().getBoolean("commandBlockOutput")) { // Spigot - worldServer -> worlds
++            flag = false;
++        }
++
++        ChatMessage chatmessage = new ChatMessage("chat.type.admin", new Object[] { icommandlistener.getName(), new ChatMessage(s, aobject)});
++
++        chatmessage.b().setColor(EnumChatFormat.GRAY);
++        chatmessage.b().setItalic(Boolean.valueOf(true));
++        if (flag) {
++            Iterator iterator = MinecraftServer.getServer().getPlayerList().players.iterator();
++
++            while (iterator.hasNext()) {
++                EntityPlayer entityplayer = (EntityPlayer) iterator.next();
++
++                if (entityplayer != icommandlistener && MinecraftServer.getServer().getPlayerList().isOp(entityplayer.getName())) {
++                    entityplayer.sendMessage(chatmessage);
++                }
++            }
++        }
++
++        if (icommandlistener != MinecraftServer.getServer()) {
++            MinecraftServer.getServer().sendMessage(chatmessage);
++        }
++
++        if ((i & 1) != 1) {
++            icommandlistener.sendMessage(new ChatMessage(s, aobject));
++        }
++    }
++}
+diff --git a/src/main/java/net/minecraft/server/DataWatcher.java b/src/main/java/net/minecraft/server/DataWatcher.java
+new file mode 100644
+index 0000000..cca6bd9
+--- /dev/null
++++ b/src/main/java/net/minecraft/server/DataWatcher.java
+@@ -0,0 +1,306 @@
++package net.minecraft.server;
++
++import java.util.ArrayList;
++import java.util.HashMap;
++import java.util.Iterator;
++import java.util.List;
++import java.util.Map;
++import java.util.concurrent.locks.ReadWriteLock;
++import java.util.concurrent.locks.ReentrantReadWriteLock;
++
++import net.minecraft.util.org.apache.commons.lang3.ObjectUtils;
++
++public class DataWatcher {
++
++    private final Entity a;
++    private boolean b = true;
++    // Spigot Start
++    private static final gnu.trove.map.TObjectIntMap classToId = new gnu.trove.map.hash.TObjectIntHashMap( 10, 0.5f, -1 );
++    private final gnu.trove.map.TIntObjectMap dataValues = new gnu.trove.map.hash.TIntObjectHashMap( 10, 0.5f, -1 );
++    // These exist as an attempt at backwards compatability for (broken) NMS plugins
++    private static final Map c = gnu.trove.TDecorators.wrap( classToId );
++    private final Map d = gnu.trove.TDecorators.wrap( dataValues );
++    // Spigot End
++    private boolean e;
++    private ReadWriteLock f = new ReentrantReadWriteLock();
++
++    public DataWatcher(Entity entity) {
++        this.a = entity;
++    }
++
++    public void a(int i, Object object) {
++        int integer = classToId.get(object.getClass()); // Spigot
++
++        if (integer == -1) { // Spigot
++            throw new IllegalArgumentException("Unknown data type: " + object.getClass());
++        } else if (i > 31) {
++            throw new IllegalArgumentException("Data value id is too big with " + i + "! (Max is " + 31 + ")");
++        } else if (this.dataValues.containsKey(i)) { // Spigot
++            throw new IllegalArgumentException("Duplicate id value for " + i + "!");
++        } else {
++            WatchableObject watchableobject = new WatchableObject(integer, i, object); // Spigot
++
++            this.f.writeLock().lock();
++            this.dataValues.put(i, watchableobject); // Spigot
++            this.f.writeLock().unlock();
++            this.b = false;
++        }
++    }
++
++    public void a(int i, int j) {
++        WatchableObject watchableobject = new WatchableObject(j, i, null);
++
++        this.f.writeLock().lock();
++        this.dataValues.put(i, watchableobject); // Spigot
++        this.f.writeLock().unlock();
++        this.b = false;
++    }
++
++    public byte getByte(int i) {
++        return ((Byte) this.i(i).b()).byteValue();
++    }
++
++    public short getShort(int i) {
++        return ((Short) this.i(i).b()).shortValue();
++    }
++
++    public int getInt(int i) {
++        return ((Integer) this.i(i).b()).intValue();
++    }
++
++    public float getFloat(int i) {
++        return ((Float) this.i(i).b()).floatValue();
++    }
++
++    public String getString(int i) {
++        return (String) this.i(i).b();
++    }
++
++    public ItemStack getItemStack(int i) {
++        return (ItemStack) this.i(i).b();
++    }
++
++    private WatchableObject i(int i) {
++        this.f.readLock().lock();
++
++        WatchableObject watchableobject;
++
++        try {
++            watchableobject = (WatchableObject) this.dataValues.get(i); // Spigot
++        } catch (Throwable throwable) {
++            CrashReport crashreport = CrashReport.a(throwable, "Getting synched entity data");
++            CrashReportSystemDetails crashreportsystemdetails = crashreport.a("Synched entity data");
++
++            crashreportsystemdetails.a("Data ID", Integer.valueOf(i));
++            throw new ReportedException(crashreport);
++        }
++
++        this.f.readLock().unlock();
++        return watchableobject;
++    }
++
++    public void watch(int i, Object object) {
++        WatchableObject watchableobject = this.i(i);
++
++        if (ObjectUtils.notEqual(object, watchableobject.b())) {
++            watchableobject.a(object);
++            this.a.i(i);
++            watchableobject.a(true);
++            this.e = true;
++        }
++    }
++
++    public void h(int i) {
++        WatchableObject.a(this.i(i), true);
++        this.e = true;
++    }
++
++    public boolean a() {
++        return this.e;
++    }
++
++    public static void a(List list, PacketDataSerializer packetdataserializer) {
++        if (list != null) {
++            Iterator iterator = list.iterator();
++
++            while (iterator.hasNext()) {
++                WatchableObject watchableobject = (WatchableObject) iterator.next();
++
++                a(packetdataserializer, watchableobject);
++            }
++        }
++
++        packetdataserializer.writeByte(127);
++    }
++
++    public List b() {
++        ArrayList arraylist = null;
++
++        if (this.e) {
++            this.f.readLock().lock();
++            Iterator iterator = this.dataValues.valueCollection().iterator(); // Spigot
++
++            while (iterator.hasNext()) {
++                WatchableObject watchableobject = (WatchableObject) iterator.next();
++
++                if (watchableobject.d()) {
++                    watchableobject.a(false);
++                    if (arraylist == null) {
++                        arraylist = new ArrayList();
++                    }
++
++                    arraylist.add(watchableobject);
++                }
++            }
++
++            this.f.readLock().unlock();
++        }
++
++        this.e = false;
++        return arraylist;
++    }
++
++    public void a(PacketDataSerializer packetdataserializer) {
++        this.f.readLock().lock();
++        Iterator iterator = this.dataValues.valueCollection().iterator(); // Spigot
++
++        while (iterator.hasNext()) {
++            WatchableObject watchableobject = (WatchableObject) iterator.next();
++
++            a(packetdataserializer, watchableobject);
++        }
++
++        this.f.readLock().unlock();
++        packetdataserializer.writeByte(127);
++    }
++
++    public List c() {
++        ArrayList arraylist = new ArrayList(); // Spigot
++
++        this.f.readLock().lock();
++
++        arraylist.addAll(this.dataValues.valueCollection()); // Spigot
++
++        this.f.readLock().unlock();
++        return arraylist;
++    }
++
++    private static void a(PacketDataSerializer packetdataserializer, WatchableObject watchableobject) {
++        int i = (watchableobject.c() << 5 | watchableobject.a() & 31) & 255;
++
++        packetdataserializer.writeByte(i);
++        switch (watchableobject.c()) {
++        case 0:
++            packetdataserializer.writeByte(((Byte) watchableobject.b()).byteValue());
++            break;
++
++        case 1:
++            packetdataserializer.writeShort(((Short) watchableobject.b()).shortValue());
++            break;
++
++        case 2:
++            packetdataserializer.writeInt(((Integer) watchableobject.b()).intValue());
++            break;
++
++        case 3:
++            packetdataserializer.writeFloat(((Float) watchableobject.b()).floatValue());
++            break;
++
++        case 4:
++            try {
++                packetdataserializer.a((String) watchableobject.b());
++            } catch (java.io.IOException ex) {
++                throw new RuntimeException(ex);
++            }
++            break;
++
++        case 5:
++            ItemStack itemstack = (ItemStack) watchableobject.b();
++
++            packetdataserializer.a(itemstack);
++            break;
++
++        case 6:
++            ChunkCoordinates chunkcoordinates = (ChunkCoordinates) watchableobject.b();
++
++            packetdataserializer.writeInt(chunkcoordinates.x);
++            packetdataserializer.writeInt(chunkcoordinates.y);
++            packetdataserializer.writeInt(chunkcoordinates.z);
++        }
++    }
++
++    public static List b(PacketDataSerializer packetdataserializer) {
++        ArrayList arraylist = null;
++
++        for (byte b0 = packetdataserializer.readByte(); b0 != 127; b0 = packetdataserializer.readByte()) {
++            if (arraylist == null) {
++                arraylist = new ArrayList();
++            }
++
++            int i = (b0 & 224) >> 5;
++            int j = b0 & 31;
++            WatchableObject watchableobject = null;
++
++            switch (i) {
++            case 0:
++                watchableobject = new WatchableObject(i, j, Byte.valueOf(packetdataserializer.readByte()));
++                break;
++
++            case 1:
++                watchableobject = new WatchableObject(i, j, Short.valueOf(packetdataserializer.readShort()));
++                break;
++
++            case 2:
++                watchableobject = new WatchableObject(i, j, Integer.valueOf(packetdataserializer.readInt()));
++                break;
++
++            case 3:
++                watchableobject = new WatchableObject(i, j, Float.valueOf(packetdataserializer.readFloat()));
++                break;
++
++            case 4:
++                try {
++                    watchableobject = new WatchableObject(i, j, packetdataserializer.c(32767));
++                } catch (java.io.IOException ex) {
++                    throw new RuntimeException(ex);
++                }
++                break;
++
++            case 5:
++                watchableobject = new WatchableObject(i, j, packetdataserializer.c());
++                break;
++
++            case 6:
++                int k = packetdataserializer.readInt();
++                int l = packetdataserializer.readInt();
++                int i1 = packetdataserializer.readInt();
++
++                watchableobject = new WatchableObject(i, j, new ChunkCoordinates(k, l, i1));
++            }
++
++            arraylist.add(watchableobject);
++        }
++
++        return arraylist;
++    }
++
++    public boolean d() {
++        return this.b;
++    }
++
++    public void e() {
++        this.e = false;
++    }
++
++    static {
++        // Spigot Start - remove valueOf
++        classToId.put(Byte.class, 0);
++        classToId.put(Short.class, 1);
++        classToId.put(Integer.class, 2);
++        classToId.put(Float.class, 3);
++        classToId.put(String.class, 4);
++        classToId.put(ItemStack.class, 5);
++        classToId.put(ChunkCoordinates.class, 6);
++        // Spigot End
++    }
++}
 diff --git a/src/main/java/net/minecraft/server/DedicatedServer.java b/src/main/java/net/minecraft/server/DedicatedServer.java
 index 30ce5f4..c9bb3a6 100644
 --- a/src/main/java/net/minecraft/server/DedicatedServer.java
@@ -1164,7 +1602,7 @@ index 30ce5f4..c9bb3a6 100644
          if (!this.getOnlineMode()) {
              h.warn("**** SERVER IS RUNNING IN OFFLINE/INSECURE MODE!");
 diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
-index fec07f8..b18d34b 100644
+index dc0abc5..9ef9f88 100644
 --- a/src/main/java/net/minecraft/server/Entity.java
 +++ b/src/main/java/net/minecraft/server/Entity.java
 @@ -14,6 +14,7 @@ import org.bukkit.block.BlockFace;
@@ -1417,7 +1855,7 @@ index bbcf674..8ea7abc 100644
              }
          } else {
 diff --git a/src/main/java/net/minecraft/server/EntityLiving.java b/src/main/java/net/minecraft/server/EntityLiving.java
-index 75b1ec1..24a59eb 100644
+index 7211da8..35b2f75 100644
 --- a/src/main/java/net/minecraft/server/EntityLiving.java
 +++ b/src/main/java/net/minecraft/server/EntityLiving.java
 @@ -78,6 +78,13 @@ public abstract class EntityLiving extends Entity {
@@ -1434,7 +1872,7 @@ index 75b1ec1..24a59eb 100644
  
      public EntityLiving(World world) {
          super(world);
-@@ -1471,7 +1478,7 @@ public abstract class EntityLiving extends Entity {
+@@ -1478,7 +1485,7 @@ public abstract class EntityLiving extends Entity {
      protected void bo() {
          List list = this.world.getEntities(this, this.boundingBox.grow(0.20000000298023224D, 0.0D, 0.20000000298023224D));
  
@@ -1529,6 +1967,28 @@ index 9f818cf..8052ea6 100644
          if (this.trackedPlayers.contains(entityplayer)) {
              this.trackedPlayers.remove(entityplayer);
              entityplayer.removeQueue.add(Integer.valueOf(this.tracker.getId()));
+diff --git a/src/main/java/net/minecraft/server/EntityZombie.java b/src/main/java/net/minecraft/server/EntityZombie.java
+index 6c6e03e..5c8b0a8 100644
+--- a/src/main/java/net/minecraft/server/EntityZombie.java
++++ b/src/main/java/net/minecraft/server/EntityZombie.java
+@@ -26,7 +26,7 @@ public class EntityZombie extends EntityMonster {
+         this.getNavigation().b(true);
+         this.goalSelector.a(0, new PathfinderGoalFloat(this));
+         this.goalSelector.a(2, new PathfinderGoalMeleeAttack(this, EntityHuman.class, 1.0D, false));
+-        this.goalSelector.a(4, new PathfinderGoalMeleeAttack(this, EntityVillager.class, 1.0D, true));
++        if ( world.spigotConfig.zombieAggressiveTowardsVillager ) { this.goalSelector.a(4, new PathfinderGoalMeleeAttack(this, EntityVillager.class, 1.0D, true)); } // Spigot
+         this.goalSelector.a(5, new PathfinderGoalMoveTowardsRestriction(this, 1.0D));
+         this.goalSelector.a(6, new PathfinderGoalMoveThroughVillage(this, 1.0D, false));
+         this.goalSelector.a(7, new PathfinderGoalRandomStroll(this, 1.0D));
+@@ -34,7 +34,7 @@ public class EntityZombie extends EntityMonster {
+         this.goalSelector.a(8, new PathfinderGoalRandomLookaround(this));
+         this.targetSelector.a(1, new PathfinderGoalHurtByTarget(this, true));
+         this.targetSelector.a(2, new PathfinderGoalNearestAttackableTarget(this, EntityHuman.class, 0, true));
+-        this.targetSelector.a(2, new PathfinderGoalNearestAttackableTarget(this, EntityVillager.class, 0, false));
++        if ( world.spigotConfig.zombieAggressiveTowardsVillager ) { this.targetSelector.a(2, new PathfinderGoalNearestAttackableTarget(this, EntityVillager.class, 0, false)); } // Spigot
+         this.a(0.6F, 1.8F);
+     }
+ 
 diff --git a/src/main/java/net/minecraft/server/Explosion.java b/src/main/java/net/minecraft/server/Explosion.java
 index 39e5b5b..d2587c1 100644
 --- a/src/main/java/net/minecraft/server/Explosion.java
@@ -1542,10 +2002,10 @@ index 39e5b5b..d2587c1 100644
                      double d0 = (double) ((float) i + this.world.random.nextFloat());
                      double d1 = (double) ((float) j + this.world.random.nextFloat());
 diff --git a/src/main/java/net/minecraft/server/HandshakeListener.java b/src/main/java/net/minecraft/server/HandshakeListener.java
-index b7f6775..251e510 100644
+index b7f6775..fe2098e 100644
 --- a/src/main/java/net/minecraft/server/HandshakeListener.java
 +++ b/src/main/java/net/minecraft/server/HandshakeListener.java
-@@ -19,15 +19,24 @@ public class HandshakeListener implements PacketHandshakingInListener {
+@@ -19,15 +19,28 @@ public class HandshakeListener implements PacketHandshakingInListener {
              ChatComponentText chatcomponenttext;
  
              if (packethandshakinginsetprotocol.d() > 4) {
@@ -1563,9 +2023,13 @@ index b7f6775..251e510 100644
 +                // Spigot Start
 +                if (org.spigotmc.SpigotConfig.bungee) {
 +                    String[] split = packethandshakinginsetprotocol.b.split("\00");
-+                    if (split.length == 2) {
++                    if (split.length == 2 || split.length == 3) {
 +                        packethandshakinginsetprotocol.b = split[0];
 +                        b.l = new java.net.InetSocketAddress(split[1], ((java.net.InetSocketAddress) b.getSocketAddress()).getPort());
++                    }
++                    if ( split.length == 3 )
++                    {
++                        b.spoofedUUID = split[2];
 +                    }
 +                }
 +                // Spigot End
@@ -1584,10 +2048,10 @@ index bb28c12..c0836e4 100644
 +    java.util.List<ItemStack> getIngredients(); // Spigot
  }
 diff --git a/src/main/java/net/minecraft/server/ItemStack.java b/src/main/java/net/minecraft/server/ItemStack.java
-index 53c665b..123e4a5 100644
+index b308e03..f32322e 100644
 --- a/src/main/java/net/minecraft/server/ItemStack.java
 +++ b/src/main/java/net/minecraft/server/ItemStack.java
-@@ -175,7 +175,13 @@ public final class ItemStack {
+@@ -176,7 +176,13 @@ public final class ItemStack {
          return this.item.getMaxDurability();
      }
  
@@ -1601,7 +2065,7 @@ index 53c665b..123e4a5 100644
          if (!this.g()) {
              return false;
          } else {
-@@ -190,7 +196,16 @@ public final class ItemStack {
+@@ -191,7 +197,16 @@ public final class ItemStack {
                  }
  
                  i -= k;
@@ -1619,7 +2083,7 @@ index 53c665b..123e4a5 100644
                      return false;
                  }
              }
-@@ -203,7 +218,7 @@ public final class ItemStack {
+@@ -204,7 +219,7 @@ public final class ItemStack {
      public void damage(int i, EntityLiving entityliving) {
          if (!(entityliving instanceof EntityHuman) || !((EntityHuman) entityliving).abilities.canInstantlyBuild) {
              if (this.g()) {
@@ -1628,8 +2092,43 @@ index 53c665b..123e4a5 100644
                      entityliving.a(this);
                      --this.count;
                      if (entityliving instanceof EntityHuman) {
+diff --git a/src/main/java/net/minecraft/server/LoginListener.java b/src/main/java/net/minecraft/server/LoginListener.java
+index 6beac82..fa80b74 100644
+--- a/src/main/java/net/minecraft/server/LoginListener.java
++++ b/src/main/java/net/minecraft/server/LoginListener.java
+@@ -61,9 +61,18 @@ public class LoginListener implements PacketLoginInListener {
+ 
+     public void c() {
+         if (!this.i.isComplete()) {
+-            UUID uuid = UUID.nameUUIDFromBytes(("OfflinePlayer:" + this.i.getName()).getBytes(Charsets.UTF_8));
+-
+-            this.i = new GameProfile(uuid.toString().replaceAll("-", ""), this.i.getName());
++            // Spigot Start
++            String uuid;
++            if ( networkManager.spoofedUUID != null )
++            {
++                uuid = networkManager.spoofedUUID;
++            } else
++            {
++                uuid = UUID.nameUUIDFromBytes(("OfflinePlayer:" + this.i.getName()).getBytes(Charsets.UTF_8)).toString().replaceAll("-", "");
++            }
++
++            this.i = new GameProfile(uuid, this.i.getName());
++            // Spigot End
+         }
+ 
+         // CraftBukkit start
+@@ -99,7 +108,7 @@ public class LoginListener implements PacketLoginInListener {
+             this.g = EnumProtocolState.KEY;
+             this.networkManager.handle(new PacketLoginOutEncryptionBegin(this.j, this.server.I().getPublic(), this.e), new GenericFutureListener[0]);
+         } else {
+-            this.g = EnumProtocolState.READY_TO_ACCEPT;
++            (new ThreadPlayerLookupUUID(this, "User Authenticator #" + b.incrementAndGet())).start(); // Spigot
+         }
+     }
+ 
 diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
-index c1c4aa0..170cdef 100644
+index c78e47b..5375787 100644
 --- a/src/main/java/net/minecraft/server/MinecraftServer.java
 +++ b/src/main/java/net/minecraft/server/MinecraftServer.java
 @@ -10,7 +10,6 @@ import java.util.ArrayList;
@@ -1648,7 +2147,16 @@ index c1c4aa0..170cdef 100644
  import org.bukkit.craftbukkit.util.Waitable;
  import org.bukkit.event.server.RemoteServerCommandEvent;
  import org.bukkit.event.world.WorldSaveEvent;
-@@ -101,6 +101,12 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+@@ -51,7 +51,7 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+     private final List m = new ArrayList();
+     private final ICommandHandler n;
+     public final MethodProfiler methodProfiler = new MethodProfiler();
+-    private final ServerConnection o;
++    private ServerConnection o; // Spigot
+     private final ServerPing p = new ServerPing();
+     private final Random q = new Random();
+     private String serverIp;
+@@ -101,12 +101,18 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
      public java.util.Queue<Runnable> processQueue = new java.util.concurrent.ConcurrentLinkedQueue<Runnable>();
      public int autosavePeriod;
      // CraftBukkit end
@@ -1661,7 +2169,14 @@ index c1c4aa0..170cdef 100644
  
      public MinecraftServer(OptionSet options, Proxy proxy) { // CraftBukkit - signature file -> OptionSet
          i = this;
-@@ -418,45 +424,27 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+         this.c = proxy;
+         // this.universe = file1; // CraftBukkit
+-        this.o = new ServerConnection(this);
++        // this.o = new ServerConnection(this); // Spigot
+         this.n = new CommandDispatcher();
+         // this.convertable = new WorldLoaderServer(file1); // CraftBukkit - moved to DedicatedServer.init
+         this.S = (new YggdrasilAuthenticationService(proxy, UUID.randomUUID().toString())).createMinecraftSessionService();
+@@ -422,50 +428,38 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
      public void run() {
          try {
              if (this.init()) {
@@ -1725,7 +2240,18 @@ index c1c4aa0..170cdef 100644
              } else {
                  this.a((CrashReport) null);
              }
-@@ -481,6 +469,7 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+         } catch (Throwable throwable) {
+             h.error("Encountered an unexpected exception", throwable);
++            // Spigot Start
++            if ( throwable.getCause() != null )
++            {
++                h.error( "\tCause of unexpected exception was", throwable.getCause() );
++            }
++            // Spigot End
+             CrashReport crashreport = null;
+ 
+             if (throwable instanceof ReportedException) {
+@@ -485,6 +479,7 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
              this.a(crashreport);
          } finally {
              try {
@@ -1733,7 +2259,7 @@ index c1c4aa0..170cdef 100644
                  this.stop();
                  this.isStopped = true;
              } catch (Throwable throwable1) {
-@@ -564,11 +553,11 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+@@ -568,11 +563,11 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
          this.f[this.ticks % 100] = System.nanoTime() - i;
          this.methodProfiler.b();
          this.methodProfiler.a("snooper");
@@ -1747,7 +2273,7 @@ index c1c4aa0..170cdef 100644
              this.k.b();
          }
  
-@@ -579,6 +568,7 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+@@ -583,6 +578,7 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
      public void u() {
          this.methodProfiler.a("levels");
  
@@ -1755,7 +2281,7 @@ index c1c4aa0..170cdef 100644
          // CraftBukkit start
          this.server.getScheduler().mainThreadHeartbeat(this.ticks);
  
-@@ -587,7 +577,10 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+@@ -591,7 +587,10 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
              processQueue.remove().run();
          }
  
@@ -1766,7 +2292,7 @@ index c1c4aa0..170cdef 100644
  
          // Send time updates to everyone, it will get the right time from the world the player is in.
          if (this.ticks % 20 == 0) {
-@@ -639,7 +632,9 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+@@ -643,7 +642,9 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
  
                  this.methodProfiler.b();
                  this.methodProfiler.a("tracker");
@@ -1776,7 +2302,7 @@ index c1c4aa0..170cdef 100644
                  this.methodProfiler.b();
                  this.methodProfiler.b();
              // } // CraftBukkit
-@@ -648,14 +643,20 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+@@ -652,14 +653,20 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
          }
  
          this.methodProfiler.c("connection");
@@ -1797,6 +2323,15 @@ index c1c4aa0..170cdef 100644
  
          this.methodProfiler.b();
      }
+@@ -1210,7 +1217,7 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+     }
+ 
+     public ServerConnection ag() {
+-        return this.o;
++        return ( this.o ) == null ? this.o = new ServerConnection( this ) : this.o; // Spigot
+     }
+ 
+     public boolean ai() {
 diff --git a/src/main/java/net/minecraft/server/MobSpawnerAbstract.java b/src/main/java/net/minecraft/server/MobSpawnerAbstract.java
 index 67c3397..bb6b3d5 100644
 --- a/src/main/java/net/minecraft/server/MobSpawnerAbstract.java
@@ -1855,15 +2390,16 @@ index 67c3397..bb6b3d5 100644
  
          return entity;
 diff --git a/src/main/java/net/minecraft/server/NetworkManager.java b/src/main/java/net/minecraft/server/NetworkManager.java
-index 8f829bb..42e6311 100644
+index 8f829bb..4907a62 100644
 --- a/src/main/java/net/minecraft/server/NetworkManager.java
 +++ b/src/main/java/net/minecraft/server/NetworkManager.java
-@@ -34,7 +34,7 @@ public class NetworkManager extends SimpleChannelInboundHandler {
+@@ -34,7 +34,8 @@ public class NetworkManager extends SimpleChannelInboundHandler {
      private final Queue i = Queues.newConcurrentLinkedQueue();
      private final Queue j = Queues.newConcurrentLinkedQueue();
      private Channel k;
 -    private SocketAddress l;
 +    public SocketAddress l; // Spigot
++    public String spoofedUUID; // Spigot
      private PacketListener m;
      private EnumProtocol n;
      private IChatBaseComponent o;
@@ -2454,7 +2990,7 @@ index 0000000..3006712
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/PacketPlayOutMapChunkBulk.java b/src/main/java/net/minecraft/server/PacketPlayOutMapChunkBulk.java
-index 3eac231..8e1c4cb 100644
+index 3eac231..30bf8a7 100644
 --- a/src/main/java/net/minecraft/server/PacketPlayOutMapChunkBulk.java
 +++ b/src/main/java/net/minecraft/server/PacketPlayOutMapChunkBulk.java
 @@ -22,10 +22,11 @@ public class PacketPlayOutMapChunkBulk extends Packet {
@@ -2497,7 +3033,7 @@ index 3eac231..8e1c4cb 100644
 +        int finalBufferSize = 0;
 +        // Obfuscate all sections
 +        for (int i = 0; i < a.length; i++) {
-+            world.spigotConfig.antiXrayInstance.obfuscate(c[i], d[i], a[i], inflatedBuffers[i], world);
++            world.spigotConfig.antiXrayInstance.obfuscate(a[i], b[i], c[i], inflatedBuffers[i], world);
 +            finalBufferSize += inflatedBuffers[i].length;
 +        }
 +
@@ -2526,7 +3062,7 @@ index 4e0398c..ae4ca63 100644
          } else {
              this.f = i;
 diff --git a/src/main/java/net/minecraft/server/PlayerConnection.java b/src/main/java/net/minecraft/server/PlayerConnection.java
-index da1a7e7..2f45a3e 100644
+index e3bd043..34fcdc2 100644
 --- a/src/main/java/net/minecraft/server/PlayerConnection.java
 +++ b/src/main/java/net/minecraft/server/PlayerConnection.java
 @@ -103,6 +103,7 @@ public class PlayerConnection implements PacketPlayInListener {
@@ -2555,7 +3091,7 @@ index da1a7e7..2f45a3e 100644
              }
  
              if (Double.isNaN(packetplayinflying.x) || Double.isNaN(packetplayinflying.y) || Double.isNaN(packetplayinflying.z) || Double.isNaN(packetplayinflying.stance)) {
-@@ -915,6 +916,7 @@ public class PlayerConnection implements PacketPlayInListener {
+@@ -914,6 +915,7 @@ public class PlayerConnection implements PacketPlayInListener {
      // CraftBukkit end
  
      private void handleCommand(String s) {
@@ -2563,7 +3099,7 @@ index da1a7e7..2f45a3e 100644
          // CraftBukkit start
          CraftPlayer player = this.getPlayer();
  
-@@ -922,19 +924,28 @@ public class PlayerConnection implements PacketPlayInListener {
+@@ -921,19 +923,28 @@ public class PlayerConnection implements PacketPlayInListener {
          this.server.getPluginManager().callEvent(event);
  
          if (event.isCancelled()) {
@@ -2593,7 +3129,7 @@ index da1a7e7..2f45a3e 100644
          //this.minecraftServer.getCommandHandler().a(this.player, s);
          // CraftBukkit end
      }
-@@ -1025,6 +1036,13 @@ public class PlayerConnection implements PacketPlayInListener {
+@@ -1034,6 +1045,13 @@ public class PlayerConnection implements PacketPlayInListener {
          if (this.player.dead) return; // CraftBukkit
          WorldServer worldserver = this.minecraftServer.getWorldServer(this.player.dimension);
          Entity entity = packetplayinuseentity.a((World) worldserver);
@@ -2607,7 +3143,7 @@ index da1a7e7..2f45a3e 100644
  
          this.player.w();
          if (entity != null) {
-@@ -1532,6 +1550,7 @@ public class PlayerConnection implements PacketPlayInListener {
+@@ -1541,6 +1559,7 @@ public class PlayerConnection implements PacketPlayInListener {
  
              for (j = 0; j < 4; ++j) {
                  boolean flag = true;
@@ -2789,6 +3325,119 @@ index 0000000..829f4a3
 +        RegionFile regionfile = a(file1, i, j);
 +
 +        return regionfile.b(i & 31, j & 31);
++    }
++}
+diff --git a/src/main/java/net/minecraft/server/RemoteControlListener.java b/src/main/java/net/minecraft/server/RemoteControlListener.java
+new file mode 100644
+index 0000000..368f14c
+--- /dev/null
++++ b/src/main/java/net/minecraft/server/RemoteControlListener.java
+@@ -0,0 +1,107 @@
++package net.minecraft.server;
++
++import java.io.IOException;
++import java.net.InetAddress;
++import java.net.ServerSocket;
++import java.net.Socket;
++import java.net.SocketTimeoutException;
++import java.util.HashMap;
++import java.util.Iterator;
++import java.util.Map;
++import java.util.Map.Entry;
++
++public class RemoteControlListener extends RemoteConnectionThread {
++
++    private int h;
++    private int i;
++    private String j;
++    private ServerSocket k;
++    private String l;
++    private Map m;
++
++    public RemoteControlListener(IMinecraftServer iminecraftserver) {
++        super(iminecraftserver, "RCON Listener");
++        this.h = iminecraftserver.a("rcon.port", 0);
++        this.l = iminecraftserver.a("rcon.password", "");
++        this.j = iminecraftserver.x();
++        this.i = iminecraftserver.y();
++        if (0 == this.h) {
++            this.h = this.i + 10;
++            this.info("Setting default rcon port to " + this.h);
++            iminecraftserver.a("rcon.port", Integer.valueOf(this.h));
++            if (0 == this.l.length()) {
++                iminecraftserver.a("rcon.password", "");
++            }
++
++            iminecraftserver.a();
++        }
++
++        if (0 == this.j.length()) {
++            this.j = "0.0.0.0";
++        }
++
++        this.f();
++        this.k = null;
++    }
++
++    private void f() {
++        this.m = new HashMap();
++    }
++
++    private void g() {
++        Iterator iterator = this.m.entrySet().iterator();
++
++        while (iterator.hasNext()) {
++            Entry entry = (Entry) iterator.next();
++
++            if (!((RemoteControlSession) entry.getValue()).c()) {
++                iterator.remove();
++            }
++        }
++    }
++
++    public void run() {
++        this.info("RCON running on " + this.j + ":" + this.h);
++
++        try {
++            while (this.running) {
++                try {
++                    Socket socket = this.k.accept();
++
++                    socket.setSoTimeout(500);
++                    RemoteControlSession remotecontrolsession = new RemoteControlSession(this.server, socket);
++
++                    remotecontrolsession.a();
++                    this.m.put(socket.getRemoteSocketAddress(), remotecontrolsession);
++                    this.g();
++                } catch (SocketTimeoutException sockettimeoutexception) {
++                    this.g();
++                } catch (IOException ioexception) {
++                    if (this.running) {
++                        this.info("IO: " + ioexception.getMessage());
++                    }
++                }
++            }
++        } finally {
++            this.b(this.k);
++        }
++    }
++
++    public void a() {
++        if (0 == this.l.length()) {
++            this.warning("No rcon password set in \'" + this.server.b() + "\', rcon disabled!");
++        } else if (0 < this.h && '\uffff' >= this.h) {
++            if (!this.running) {
++                try {
++                    this.k = new ServerSocket(this.h, 0, InetAddress.getByName(this.j));
++                    this.k.setSoTimeout(500);
++                    super.a();
++                } catch (IOException ioexception) {
++                    this.warning("Unable to initialise rcon on " + this.j + ":" + this.h + " : " + ioexception.getMessage());
++                }
++            }
++        } else {
++            this.warning("Invalid rcon port " + this.h + " found in \'" + this.server.b() + "\', rcon disabled!");
++        }
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/ServerStatisticManager.java b/src/main/java/net/minecraft/server/ServerStatisticManager.java
@@ -3122,7 +3771,7 @@ index f514b78..3f0dd70 100644
                                                                  }
 diff --git a/src/main/java/net/minecraft/server/StructureGenerator.java b/src/main/java/net/minecraft/server/StructureGenerator.java
 new file mode 100644
-index 0000000..b3c8101
+index 0000000..2a6a571
 --- /dev/null
 +++ b/src/main/java/net/minecraft/server/StructureGenerator.java
 @@ -0,0 +1,225 @@
@@ -3307,7 +3956,7 @@ index 0000000..b3c8101
 +    private void a(World world) {
 +        if (this.e == null) {
 +            // Spigot Start
-+            if ( world.spigotConfig.saveStructureInfo )
++            if ( world.spigotConfig.saveStructureInfo && !this.a().equals( "Mineshaft" ) )
 +            {
 +            this.e = (PersistentStructure) world.a(PersistentStructure.class, this.a());
 +            } else
@@ -3351,6 +4000,114 @@ index 0000000..b3c8101
 +
 +    protected abstract StructureStart b(int i, int j);
 +}
+diff --git a/src/main/java/net/minecraft/server/ThreadPlayerLookupUUID.java b/src/main/java/net/minecraft/server/ThreadPlayerLookupUUID.java
+index cc96775..ea8c269 100644
+--- a/src/main/java/net/minecraft/server/ThreadPlayerLookupUUID.java
++++ b/src/main/java/net/minecraft/server/ThreadPlayerLookupUUID.java
+@@ -22,47 +22,21 @@ class ThreadPlayerLookupUUID extends Thread {
+ 
+     public void run() {
+         try {
++            // Spigot Start
++            if ( !LoginListener.b( this.a ).getOnlineMode() )
++            {
++                fireLoginEvents();
++                LoginListener.a(this.a, EnumProtocolState.READY_TO_ACCEPT);
++                return;
++            }
++            // Spigot End            
+             String s = (new BigInteger(MinecraftEncryption.a(LoginListener.a(this.a), LoginListener.b(this.a).I().getPublic(), LoginListener.c(this.a)))).toString(16);
+ 
+             LoginListener.a(this.a, LoginListener.b(this.a).as().hasJoinedServer(new GameProfile((String) null, LoginListener.d(this.a).getName()), s));
+             if (LoginListener.d(this.a) != null) {
+-                // CraftBukkit start
+-                if (!this.a.networkManager.d()) {
+-                    return;
+-                }
+-
+-                String playerName = LoginListener.d(this.a).getName();
+-                java.net.InetAddress address = ((java.net.InetSocketAddress) a.networkManager.getSocketAddress()).getAddress();
+-                final org.bukkit.craftbukkit.CraftServer server = LoginListener.b(this.a).server;
+-
+-                AsyncPlayerPreLoginEvent asyncEvent = new AsyncPlayerPreLoginEvent(playerName, address);
+-                server.getPluginManager().callEvent(asyncEvent);
+-
+-                if (PlayerPreLoginEvent.getHandlerList().getRegisteredListeners().length != 0) {
+-                    final PlayerPreLoginEvent event = new PlayerPreLoginEvent(playerName, address);
+-                    if (asyncEvent.getResult() != PlayerPreLoginEvent.Result.ALLOWED) {
+-                        event.disallow(asyncEvent.getResult(), asyncEvent.getKickMessage());
+-                    }
+-                    Waitable<PlayerPreLoginEvent.Result> waitable = new Waitable<PlayerPreLoginEvent.Result>() {
+-                        @Override
+-                        protected PlayerPreLoginEvent.Result evaluate() {
+-                            server.getPluginManager().callEvent(event);
+-                            return event.getResult();
+-                        }};
+-
+-                    LoginListener.b(this.a).processQueue.add(waitable);
+-                    if (waitable.get() != PlayerPreLoginEvent.Result.ALLOWED) {
+-                        this.a.disconnect(event.getKickMessage());
+-                        return;
+-                    }
+-                } else {
+-                    if (asyncEvent.getLoginResult() != AsyncPlayerPreLoginEvent.Result.ALLOWED) {
+-                        this.a.disconnect(asyncEvent.getKickMessage());
+-                        return;
+-                    }
+-                }
+-                // CraftBukkit end
+-
++                // Spigot Start
++                fireLoginEvents();
++                // Spigot End
+                 LoginListener.e().info("UUID of player " + LoginListener.d(this.a).getName() + " is " + LoginListener.d(this.a).getId());
+                 LoginListener.a(this.a, EnumProtocolState.READY_TO_ACCEPT);
+             } else {
+@@ -79,4 +53,44 @@ class ThreadPlayerLookupUUID extends Thread {
+             // CraftBukkit end
+         }
+     }
++
++    private void fireLoginEvents() throws Exception
++    {
++        // CraftBukkit start
++        if (!this.a.networkManager.d()) {
++            return;
++        }
++
++        String playerName = LoginListener.d(this.a).getName();
++        java.net.InetAddress address = ((java.net.InetSocketAddress) a.networkManager.getSocketAddress()).getAddress();
++        final org.bukkit.craftbukkit.CraftServer server = LoginListener.b(this.a).server;
++
++        AsyncPlayerPreLoginEvent asyncEvent = new AsyncPlayerPreLoginEvent(playerName, address);
++        server.getPluginManager().callEvent(asyncEvent);
++
++        if (PlayerPreLoginEvent.getHandlerList().getRegisteredListeners().length != 0) {
++            final PlayerPreLoginEvent event = new PlayerPreLoginEvent(playerName, address);
++            if (asyncEvent.getResult() != PlayerPreLoginEvent.Result.ALLOWED) {
++                event.disallow(asyncEvent.getResult(), asyncEvent.getKickMessage());
++            }
++            Waitable<PlayerPreLoginEvent.Result> waitable = new Waitable<PlayerPreLoginEvent.Result>() {
++                @Override
++                protected PlayerPreLoginEvent.Result evaluate() {
++                    server.getPluginManager().callEvent(event);
++                    return event.getResult();
++                }};
++
++            LoginListener.b(this.a).processQueue.add(waitable);
++            if (waitable.get() != PlayerPreLoginEvent.Result.ALLOWED) {
++                this.a.disconnect(event.getKickMessage());
++                return;
++            }
++        } else {
++            if (asyncEvent.getLoginResult() != AsyncPlayerPreLoginEvent.Result.ALLOWED) {
++                this.a.disconnect(asyncEvent.getKickMessage());
++                return;
++            }
++        }
++        // CraftBukkit end
++    }
+ }
 diff --git a/src/main/java/net/minecraft/server/TileEntity.java b/src/main/java/net/minecraft/server/TileEntity.java
 index 811f1a4..3de32fe 100644
 --- a/src/main/java/net/minecraft/server/TileEntity.java
@@ -3422,6 +4179,56 @@ index 730eb78..a68b748 100644
                      iinventory.update();
                  }
  
+diff --git a/src/main/java/net/minecraft/server/WatchableObject.java b/src/main/java/net/minecraft/server/WatchableObject.java
+new file mode 100644
+index 0000000..678aa91
+--- /dev/null
++++ b/src/main/java/net/minecraft/server/WatchableObject.java
+@@ -0,0 +1,44 @@
++package net.minecraft.server;
++
++public class WatchableObject {
++
++    private final int a;
++    private final int b;
++    private Object c;
++    private boolean d;
++
++    public WatchableObject(int i, int j, Object object) {
++        this.b = j;
++        this.c = object;
++        this.a = i;
++        this.d = true;
++    }
++
++    public int a() {
++        return this.b;
++    }
++
++    public void a(Object object) {
++        this.c = object;
++    }
++
++    public Object b() {
++        return this.c;
++    }
++
++    public int c() {
++        return this.a;
++    }
++
++    public boolean d() {
++        return this.d;
++    }
++
++    public void a(boolean flag) {
++        this.d = flag;
++    }
++
++    static boolean a(WatchableObject watchableobject, boolean flag) {
++        return watchableobject.d = flag;
++    }
++}
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
 index f850a0f..04f5ed1 100644
 --- a/src/main/java/net/minecraft/server/World.java
@@ -4223,7 +5030,7 @@ index b2c6ef4..55f5225 100644
          }
  
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-index 362b507..be43d4b 100644
+index 362b507..f369944 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 @@ -41,6 +41,8 @@ import net.minecraft.server.MinecraftServer;
@@ -4255,20 +5062,27 @@ index 362b507..be43d4b 100644
      }
  
      private File getConfigFile() {
-@@ -543,11 +547,7 @@ public final class CraftServer implements Server {
+@@ -542,12 +546,14 @@ public final class CraftServer implements Server {
+         if (commandMap.dispatch(sender, commandLine)) {
              return true;
          }
- 
+-
 -        if (sender instanceof Player) {
 -            sender.sendMessage("Unknown command. Type \"/help\" for help.");
 -        } else {
 -            sender.sendMessage("Unknown command. Type \"help\" for help.");
--        }
++        // Spigot Start - Try vanilla commands
++        if ( org.spigotmc.VanillaCommandWrapper.dispatch( sender, commandLine ) != -1 )
++        {
++            return true;
+         }
++        // Spigot End
++
 +        sender.sendMessage(org.spigotmc.SpigotConfig.unknownCommandMessage);
  
          return false;
      }
-@@ -581,6 +581,7 @@ public final class CraftServer implements Server {
+@@ -581,6 +587,7 @@ public final class CraftServer implements Server {
          playerList.getIPBans().load();
          playerList.getNameBans().load();
  
@@ -4276,7 +5090,7 @@ index 362b507..be43d4b 100644
          for (WorldServer world : console.worlds) {
              world.difficulty = difficulty;
              world.setSpawnFlags(monsters, animals);
-@@ -595,11 +596,13 @@ public final class CraftServer implements Server {
+@@ -595,11 +602,13 @@ public final class CraftServer implements Server {
              } else {
                  world.ticksPerMonsterSpawns = this.getTicksPerMonsterSpawns();
              }
@@ -4290,7 +5104,7 @@ index 362b507..be43d4b 100644
  
          int pollCount = 0;
  
-@@ -844,6 +847,30 @@ public final class CraftServer implements Server {
+@@ -844,6 +853,30 @@ public final class CraftServer implements Server {
          worlds.remove(world.getName().toLowerCase());
          console.worlds.remove(console.worlds.indexOf(handle));
  
@@ -4321,7 +5135,7 @@ index 362b507..be43d4b 100644
          return true;
      }
  
-@@ -1100,7 +1127,7 @@ public final class CraftServer implements Server {
+@@ -1100,7 +1133,7 @@ public final class CraftServer implements Server {
      }
  
      public OfflinePlayer getOfflinePlayer(String name) {
@@ -4330,17 +5144,42 @@ index 362b507..be43d4b 100644
      }
  
      public OfflinePlayer getOfflinePlayer(String name, boolean search) {
-@@ -1367,7 +1394,7 @@ public final class CraftServer implements Server {
+@@ -1365,15 +1398,30 @@ public final class CraftServer implements Server {
+     }
+ 
      public List<String> tabCompleteCommand(Player player, String message) {
-         List<String> completions = null;
+-        List<String> completions = null;
++        // Spigot Start
++        if ( !org.spigotmc.SpigotConfig.tabComplete )
++        {
++            return ImmutableList.of();
++        }
++        // Spigot End
++
++        // Spigot Start
++        List<String> completions = new ArrayList<String>();
          try {
 -            completions = getCommandMap().tabComplete(player, message.substring(1));
-+            completions = (org.spigotmc.SpigotConfig.tabComplete) ? getCommandMap().tabComplete(player, message.substring(1)) : null;
++            message = message.substring( 1 );
++            List<String> bukkitCompletions = getCommandMap().tabComplete( player, message );
++            if ( bukkitCompletions != null )
++            {
++                completions.addAll( bukkitCompletions );
++            }
++            completions.addAll( org.spigotmc.VanillaCommandWrapper.complete( player, message ) );
++            // Spigot End
          } catch (CommandException ex) {
              player.sendMessage(ChatColor.RED + "An internal error occurred while attempting to tab-complete this command");
              getLogger().log(Level.SEVERE, "Exception when " + player.getName() + " attempted to tab complete " + message, ex);
+         }
+ 
+-        return completions == null ? ImmutableList.<String>of() : completions;
++        return completions; // Spigot
+     }
+ 
+     public List<String> tabCompleteChat(Player player, String message) {
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
-index 5626e98..291c044 100644
+index 3d0383d..468a4e1 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
 @@ -159,6 +159,7 @@ public class CraftWorld implements World {
@@ -4367,16 +5206,7 @@ index 5626e98..291c044 100644
          chunkLoadCount++;
          if (generate) {
              // Use the default variant of loadChunk when generate == true.
-@@ -370,7 +373,7 @@ public class CraftWorld implements World {
-             gen = new WorldGenTaiga1();
-             break;
-         case JUNGLE:
--            gen = new WorldGenMegaTree(true, rand.nextBoolean());
-+            gen = new WorldGenJungleTree(true, 10, 20, 3, 3); // Magic values as in BlockSapling 
-             break;
-         case SMALL_JUNGLE:
-             gen = new WorldGenTrees(true, 4 + rand.nextInt(7), 3, 3, false);
-@@ -1274,4 +1277,14 @@ public class CraftWorld implements World {
+@@ -1280,4 +1283,14 @@ public class CraftWorld implements World {
              cps.queueUnload(chunk.locX, chunk.locZ);
          }
      }
@@ -4649,7 +5479,7 @@ index fe0f200..96d763b 100644
 +    // Spigot end
  }
 diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
-index 0153608..5635c35 100644
+index 33169e2..c9454b5 100644
 --- a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
 @@ -230,6 +230,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
@@ -4687,7 +5517,7 @@ index 0153608..5635c35 100644
  
          // Update the From Location
          from = event.getFrom();
-@@ -1001,7 +1009,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+@@ -1004,7 +1012,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
      public void setFlySpeed(float value) {
          validateSpeed(value);
          EntityPlayer player = getHandle();
@@ -4696,7 +5526,7 @@ index 0153608..5635c35 100644
          player.updateAbilities();
  
      }
-@@ -1009,7 +1017,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+@@ -1012,7 +1020,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
      public void setWalkSpeed(float value) {
          validateSpeed(value);
          EntityPlayer player = getHandle();
@@ -4705,7 +5535,7 @@ index 0153608..5635c35 100644
          player.updateAbilities();
      }
  
-@@ -1125,4 +1133,37 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+@@ -1128,4 +1136,37 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
          }
          collection.add(new AttributeModifiable(getHandle().bc(), (new AttributeRanged("generic.maxHealth", scaledHealth ? healthScale : getMaxHealth(), 0.0D, Float.MAX_VALUE)).a("Max Health").a(true)));
      }
@@ -4744,7 +5574,7 @@ index 0153608..5635c35 100644
 +    // Spigot end
  }
 diff --git a/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java b/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
-index 902aa88..a994264 100644
+index a654a3e..f100884 100644
 --- a/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
 +++ b/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
 @@ -35,6 +35,7 @@ import org.bukkit.Server;
@@ -4927,65 +5757,128 @@ index 55db3ff..7d294c0 100644
      }
  
 diff --git a/src/main/java/org/bukkit/craftbukkit/util/CraftChatMessage.java b/src/main/java/org/bukkit/craftbukkit/util/CraftChatMessage.java
-index cc8e715..22d1346 100644
+index 66368f4..5607df1 100644
 --- a/src/main/java/org/bukkit/craftbukkit/util/CraftChatMessage.java
 +++ b/src/main/java/org/bukkit/craftbukkit/util/CraftChatMessage.java
-@@ -3,11 +3,15 @@ package org.bukkit.craftbukkit.util;
- import java.util.ArrayList;
- import java.util.List;
- import java.util.Map;
-+import java.util.regex.Matcher;
-+import java.util.regex.Pattern;
+@@ -6,25 +6,24 @@ import java.util.Map;
+ import java.util.regex.Matcher;
+ import java.util.regex.Pattern;
  
+-import net.minecraft.server.ChatClickable;
  import net.minecraft.server.ChatComponentText;
  import net.minecraft.server.ChatModifier;
  import net.minecraft.server.EnumChatFormat;
+-import net.minecraft.server.EnumClickAction;
  import net.minecraft.server.IChatBaseComponent;
 +import net.minecraft.server.ChatClickable;
 +import net.minecraft.server.EnumClickAction;
  
  import com.google.common.collect.ImmutableMap;
  import com.google.common.collect.ImmutableMap.Builder;
-@@ -29,6 +33,8 @@ public final class CraftChatMessage {
+ 
+ public final class CraftChatMessage {
+-    private static class StringMessage {
++    private static class FromString {
+         private static final Map<Character, EnumChatFormat> formatMap;
+-        private static final Pattern INCREMENTAL_PATTERN = Pattern.compile("(" + String.valueOf(org.bukkit.ChatColor.COLOR_CHAR) + "[0-9a-fk-or])|(\\n)|(?:(https?://[^ ][^ ]*?)(?=[\\.\\?!,;:]?(?:[ \\n]|$)))", Pattern.CASE_INSENSITIVE);
+ 
+         static {
+             Builder<Character, EnumChatFormat> builder = ImmutableMap.builder();
+             for (EnumChatFormat format : EnumChatFormat.values()) {
+-                builder.put(Character.toLowerCase(format.getChar()), format);
++                builder.put(format.getChar(), format);
+             }
+             formatMap = builder.build();
+         }
+@@ -32,29 +31,31 @@ public final class CraftChatMessage {
+         private final List<IChatBaseComponent> list = new ArrayList<IChatBaseComponent>();
+         private IChatBaseComponent currentChatComponent = new ChatComponentText("");
          private ChatModifier modifier = new ChatModifier();
-         private StringBuilder builder = new StringBuilder();
++        private StringBuilder builder = new StringBuilder();
          private final IChatBaseComponent[] output;
+-        private int currentIndex;
+-        private final String message;
 +        private static final Pattern url = Pattern.compile("^(\u00A7.)*?((?:(https?)://)?([-\\w_\\.]{2,}\\.[a-z]{2,4})(/\\S*?)?)(\u00A7.)*?$");
 +        private int lastWord = 0;
  
-         private FromString(String message) {
+-        private StringMessage(String message) {
+-            this.message = message;
++        private FromString(String message) {
              if (message == null) {
-@@ -38,10 +44,14 @@ public final class CraftChatMessage {
+                 output = new IChatBaseComponent[] { currentChatComponent };
+                 return;
+             }
              list.add(currentChatComponent);
  
-             EnumChatFormat format = null;
+-            Matcher matcher = INCREMENTAL_PATTERN.matcher(message);
+-            String match = null;
+-            while (matcher.find()) {
+-                int groupId = 0;
+-                while ((match = matcher.group(++groupId)) == null) {
+-                    // NOOP
+-                }
+-                appendNewComponent(matcher.start(groupId));
+-                switch (groupId) {
+-                case 1:
+-                    EnumChatFormat format = formatMap.get(match.toLowerCase().charAt(1));
++            EnumChatFormat format = null;
 +            Matcher matcher = url.matcher(message);
 +            lastWord = 0;
- 
-             for (int i = 0; i < message.length(); i++) {
-                 char currentChar = message.charAt(i);
-                 if (currentChar == '\u00A7' && (i < (message.length() - 1)) && (format = formatMap.get(message.charAt(i + 1))) != null) {
++
++            for (int i = 0; i < message.length(); i++) {
++                char currentChar = message.charAt(i);
++                if (currentChar == '\u00A7' && (i < (message.length() - 1)) && (format = formatMap.get(message.charAt(i + 1))) != null) {
 +                    checkUrl(matcher, message, i);
 +                    lastWord++;
-                     if (builder.length() > 0) {
-                         appendNewComponent();
++                    if (builder.length() > 0) {
++                        appendNewComponent();
++                    }
++
+                     if (format == EnumChatFormat.RESET) {
+                         modifier = new ChatModifier();
+                     } else if (format.isFormat()) {
+@@ -80,31 +81,59 @@ public final class CraftChatMessage {
+                     } else { // Color resets formatting
+                         modifier = new ChatModifier().setColor(format);
                      }
-@@ -78,6 +88,11 @@ public final class CraftChatMessage {
-                     }
+-                    break;
+-                case 2:
++                    i++;
++                } else if (currentChar == '\n') {
++                    checkUrl(matcher, message, i);
++                    lastWord = i + 1;
++                    if (builder.length() > 0) {
++                        appendNewComponent();
++                    }
                      currentChatComponent = null;
-                 } else {
+-                    break;
+-                case 3:
+-                    modifier.a(new ChatClickable(EnumClickAction.OPEN_URL, match)); // Should be setChatClickable
+-                    appendNewComponent(matcher.end(groupId));
+-                    modifier.a((ChatClickable) null);
++                } else {
 +                    if (currentChar == ' ' || i == message.length() - 1) {
 +                        if (checkUrl(matcher, message, i)) {
 +                            break;
 +                        }
 +                    }
-                     builder.append(currentChar);
++                    builder.append(currentChar);
                  }
+-                currentIndex = matcher.end(groupId);
              }
-@@ -89,6 +104,31 @@ public final class CraftChatMessage {
+ 
+-            if (currentIndex < message.length()) {
+-                appendNewComponent(message.length());
++            if (builder.length() > 0) {
++                appendNewComponent();
+             }
+ 
              output = list.toArray(new IChatBaseComponent[0]);
          }
  
+-        private void appendNewComponent(int index) {
+-            if (index <= currentIndex) {
+-                return;
 +        private boolean checkUrl(Matcher matcher, String message, int i) {
 +            Matcher urlMatcher = matcher.region(lastWord, i == message.length() - 1 ? message.length() : i);
 +            lastWord = i + 1;
@@ -5007,13 +5900,27 @@ index cc8e715..22d1346 100644
 +                if (i == message.length() - 1) {
 +                    return true;
 +                }
-+            }
+             }
+-            IChatBaseComponent addition = new ChatComponentText(message.substring(currentIndex, index)).setChatModifier(modifier);
+-            currentIndex = index;
 +            return false;
 +        }
 +
-         private void appendNewComponent() {
-             IChatBaseComponent addition = new ChatComponentText(builder.toString()).setChatModifier(modifier);
-             builder = new StringBuilder();
++        private void appendNewComponent() {
++            IChatBaseComponent addition = new ChatComponentText(builder.toString()).setChatModifier(modifier);
++            builder = new StringBuilder();
+             modifier = modifier.clone();
+             if (currentChatComponent == null) {
+                 currentChatComponent = new ChatComponentText("");
+@@ -119,7 +148,7 @@ public final class CraftChatMessage {
+     }
+ 
+     public static IChatBaseComponent[] fromString(String message) {
+-        return new StringMessage(message).getOutput();
++        return new FromString(message).getOutput();
+     }
+ 
+     private CraftChatMessage() {
 diff --git a/src/main/java/org/bukkit/craftbukkit/util/LongHash.java b/src/main/java/org/bukkit/craftbukkit/util/LongHash.java
 index 691cafd..9d54472 100644
 --- a/src/main/java/org/bukkit/craftbukkit/util/LongHash.java
@@ -5476,10 +6383,10 @@ index 0000000..db4c927
 +}
 diff --git a/src/main/java/org/spigotmc/AntiXray.java b/src/main/java/org/spigotmc/AntiXray.java
 new file mode 100644
-index 0000000..6413ac0
+index 0000000..297fae8
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/AntiXray.java
-@@ -0,0 +1,204 @@
+@@ -0,0 +1,200 @@
 +package org.spigotmc;
 +
 +import gnu.trove.set.TByteSet;
@@ -5496,30 +6403,26 @@ index 0000000..6413ac0
 +    // Used to keep track of which blocks to obfuscate
 +    private final boolean[] obfuscateBlocks = new boolean[ Short.MAX_VALUE ];
 +    // Used to select a random replacement ore
-+    private byte[] replacementOres;
++    private final byte[] replacementOres;
 +
 +    public AntiXray(SpigotWorldConfig config)
 +    {
 +        // Set all listed blocks as true to be obfuscated
-+        for ( int id : config.blocks )
++        for ( int id : ( config.engineMode == 1 ) ? config.hiddenBlocks : config.replaceBlocks )
 +        {
 +            obfuscateBlocks[id] = true;
 +        }
 +
 +        // For every block
 +        TByteSet blocks = new TByteHashSet();
-+        for ( int i = 0; i < obfuscateBlocks.length; i++ )
++        for ( Integer i : config.hiddenBlocks )
 +        {
-+            // If we are obfuscating it
-+            if ( obfuscateBlocks[i] )
++            Block block = Block.e( i );
++            // Check it exists and is not a tile entity
++            if ( block != null && !block.isTileEntity() )
 +            {
-+                Block block = Block.e(i);
-+                // Check it exists and is not a tile entity
-+                if ( block != null && !block.isTileEntity() )
-+                {
-+                    // Add it to the set of replacement blocks
-+                    blocks.add( (byte) i );
-+                }
++                // Add it to the set of replacement blocks
++                blocks.add( (byte) (int) i );
 +            }
 +        }
 +        // Bake it to a flat array of replacements
@@ -6527,10 +7430,10 @@ index 0000000..a8840c9
 +}
 diff --git a/src/main/java/org/spigotmc/SpigotConfig.java b/src/main/java/org/spigotmc/SpigotConfig.java
 new file mode 100644
-index 0000000..ca393d0
+index 0000000..628533e
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/SpigotConfig.java
-@@ -0,0 +1,195 @@
+@@ -0,0 +1,218 @@
 +package org.spigotmc;
 +
 +import com.google.common.base.Throwables;
@@ -6539,6 +7442,7 @@ index 0000000..ca393d0
 +import java.lang.reflect.InvocationTargetException;
 +import java.lang.reflect.Method;
 +import java.lang.reflect.Modifier;
++import java.util.Arrays;
 +import java.util.HashMap;
 +import java.util.List;
 +import java.util.Map;
@@ -6547,6 +7451,7 @@ index 0000000..ca393d0
 +import org.bukkit.Bukkit;
 +import org.bukkit.ChatColor;
 +import org.bukkit.command.Command;
++import org.bukkit.command.SimpleCommandMap;
 +import org.bukkit.configuration.file.YamlConfiguration;
 +import org.bukkit.craftbukkit.command.TicksPerSecondCommand;
 +
@@ -6580,8 +7485,8 @@ index 0000000..ca393d0
 +
 +        commands = new HashMap<String, Command>();
 +
-+        version = getInt( "config-version", 3 );
-+        set( "config-version", 3 );
++        version = getInt( "config-version", 5 );
++        set( "config-version", 5 );
 +        readConfig( SpigotConfig.class, null );
 +    }
 +
@@ -6721,17 +7626,38 @@ index 0000000..ca393d0
 +        WatchdogThread.doStart( timeoutTime, restartOnCrash );
 +    }
 +
-+    public static boolean bungee = true;
++    public static boolean bungee;
 +    private static void bungee() {
-+        bungee = getBoolean("settings.bungeecord", true);
++        if ( version < 4 )
++        {
++            set( "settings.bungeecord", false );
++            System.out.println( "Oudated config, disabling BungeeCord support!" );
++        }
++        bungee = getBoolean( "settings.bungeecord", false );
++    }
++
++    private static void nettyThreads()
++    {
++        int count = getInt( "settings.netty-threads", 4 );
++        System.setProperty( "io.netty.eventLoopThreads", Integer.toString( count ) );
++        Bukkit.getLogger().log( Level.INFO, "Using {0} threads for Netty based IO", count );
++    }
++
++    private static void replaceCommands()
++    {
++        for ( String command : (List<String>) getList( "replace-commands", Arrays.asList( "setblock", "summon", "testforblock" ) ) )
++        {
++            SimpleCommandMap.removeFallback( command );
++            VanillaCommandWrapper.allowedCommands.add( command );
++        }
 +    }
 +}
 diff --git a/src/main/java/org/spigotmc/SpigotWorldConfig.java b/src/main/java/org/spigotmc/SpigotWorldConfig.java
 new file mode 100644
-index 0000000..4f406b0
+index 0000000..ea447f9
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/SpigotWorldConfig.java
-@@ -0,0 +1,235 @@
+@@ -0,0 +1,249 @@
 +package org.spigotmc;
 +
 +import java.util.Arrays;
@@ -6863,31 +7789,6 @@ index 0000000..4f406b0
 +        log( "View Distance: " + viewDistance );
 +    }
 +
-+    public boolean antiXray = true;
-+    public int engineMode = 1;
-+    public List<Integer> blocks = Arrays.asList( new Integer[]
-+    {
-+        1, 5, 14, 15, 16, 21, 48, 49, 54, 56, 73, 74, 82, 129, 130
-+    } );
-+    public AntiXray antiXrayInstance;
-+    private void antiXray()
-+    {
-+        antiXray = getBoolean( "anti-xray.enabled", antiXray );
-+        log( "Anti X-Ray: " + antiXray );
-+
-+        engineMode = getInt( "anti-xray.engine-mode", engineMode );
-+        log( "\tEngine Mode: " + engineMode );
-+
-+        if ( SpigotConfig.version < 3 )
-+        {
-+            set( "anti-xray.blocks", blocks );
-+        }
-+        blocks = getList( "anti-xray.blocks", blocks );
-+        log( "\tBlocks: " + blocks );
-+
-+        antiXrayInstance = new AntiXray( this );
-+    }
-+
 +    public byte mobSpawnRange;
 +    private void mobSpawnRange()
 +    {
@@ -6966,6 +7867,45 @@ index 0000000..4f406b0
 +        arrowDespawnRate = getInt( "arrow-despawn-rate", 1200  );
 +        log( "Arrow Despawn Rate: " + arrowDespawnRate );
 +    }
++    
++    public boolean antiXray;
++    public int engineMode;
++    public List<Integer> hiddenBlocks;
++    public List<Integer> replaceBlocks;
++    public AntiXray antiXrayInstance;
++    private void antiXray()
++    {
++        antiXray = getBoolean( "anti-xray.enabled", true );
++        log( "Anti X-Ray: " + antiXray );
++
++        engineMode = getInt( "anti-xray.engine-mode", 1 );
++        log( "\tEngine Mode: " + engineMode );
++
++        if ( SpigotConfig.version < 5 )
++        {
++            set( "anti-xray.blocks", null );
++        }
++        hiddenBlocks = getList( "anti-xray.hide-blocks", Arrays.asList( new Integer[]
++        {
++            14, 15, 16, 21, 48, 49, 54, 56, 73, 74, 82, 129, 130
++        } ) );
++        log( "\tHidden Blocks: " + hiddenBlocks );
++
++        replaceBlocks = getList( "anti-xray.replace-blocks", Arrays.asList( new Integer[]
++        {
++            1, 5
++        } ) );
++        log( "\tReplace Blocks: " + hiddenBlocks );
++
++        antiXrayInstance = new AntiXray( this );
++    }
++
++    public boolean zombieAggressiveTowardsVillager;
++    private void zombieAggressiveTowardsVillager()
++    {
++        zombieAggressiveTowardsVillager = getBoolean( "zombie-aggressive-towards-villager", true );
++        log( "Zombie Aggressive Towards Villager: " + zombieAggressiveTowardsVillager );
++    }
 +}
 diff --git a/src/main/java/org/spigotmc/TrackingRange.java b/src/main/java/org/spigotmc/TrackingRange.java
 new file mode 100644
@@ -7016,6 +7956,206 @@ index 0000000..bc6438d
 +        }
 +
 +        return Math.min( config.maxTrackingRange, range );
++    }
++}
+diff --git a/src/main/java/org/spigotmc/VanillaCommandWrapper.java b/src/main/java/org/spigotmc/VanillaCommandWrapper.java
+new file mode 100644
+index 0000000..a6c76cc
+--- /dev/null
++++ b/src/main/java/org/spigotmc/VanillaCommandWrapper.java
+@@ -0,0 +1,194 @@
++package org.spigotmc;
++
++import com.google.common.collect.ImmutableList;
++import net.minecraft.server.ChatComponentText;
++import net.minecraft.server.ChunkCoordinates;
++import net.minecraft.server.EntityMinecartCommandBlock;
++import net.minecraft.server.IChatBaseComponent;
++import net.minecraft.server.ICommandListener;
++import net.minecraft.server.MinecraftServer;
++import net.minecraft.server.TileEntityCommand;
++import net.minecraft.server.World;
++import org.bukkit.Bukkit;
++import org.bukkit.ChatColor;
++import org.bukkit.block.Block;
++import org.bukkit.command.CommandSender;
++import org.bukkit.craftbukkit.CraftWorld;
++import org.bukkit.craftbukkit.command.CraftBlockCommandSender;
++import org.bukkit.craftbukkit.entity.CraftMinecartCommand;
++import org.bukkit.craftbukkit.entity.CraftPlayer;
++import java.util.ArrayList;
++import java.util.HashSet;
++import java.util.List;
++
++public class VanillaCommandWrapper
++{
++
++    public static final HashSet<String> allowedCommands = new HashSet<String>();
++
++    public static int dispatch(CommandSender sender, String commandLine)
++    {
++        int pos = commandLine.indexOf( ' ' );
++        if ( pos == -1 )
++        {
++            pos = commandLine.length();
++        }
++        String name = commandLine.substring( 0, pos );
++        if ( !allowedCommands.contains( name ) )
++        {
++            return -1;
++        }
++        if ( !sender.hasPermission( "bukkit.command." + name ) )
++        {
++            sender.sendMessage( ChatColor.RED + "You do not have permission for this command" );
++            return 0;
++        }
++        ICommandListener listener = getListener( sender );
++        if ( listener == null )
++        {
++            return -1;
++        }
++        return MinecraftServer.getServer().getCommandHandler().a( listener, commandLine );
++    }
++
++    public static List<String> complete(CommandSender sender, String commandLine)
++    {
++        int pos = commandLine.indexOf( ' ' );
++        if ( pos == -1 )
++        {
++            List<String> completions = new ArrayList<String>();
++            commandLine = commandLine.toLowerCase();
++            for ( String command : allowedCommands )
++            {
++                if ( command.startsWith( commandLine ) && sender.hasPermission( "bukkit.command." + command ) )
++                {
++                    completions.add( "/" + command );
++                }
++            }
++            return completions;
++        }
++        String name = commandLine.substring( 0, pos );
++        if ( !allowedCommands.contains( name ) || !sender.hasPermission( "bukkit.command." + name ) )
++        {
++            return ImmutableList.<String>of();
++        }
++        ICommandListener listener = getListener( sender );
++        if ( listener == null )
++        {
++            return ImmutableList.<String>of();
++        }
++        return MinecraftServer.getServer().getCommandHandler().b( listener, commandLine );
++    }
++
++    private static ICommandListener getListener(CommandSender sender)
++    {
++        if ( sender instanceof CraftPlayer )
++        {
++            return new PlayerListener( ( (CraftPlayer) sender ).getHandle() );
++        }
++        if ( sender instanceof CraftBlockCommandSender )
++        {
++            CraftBlockCommandSender commandBlock = (CraftBlockCommandSender) sender;
++            Block block = commandBlock.getBlock();
++            return ( (TileEntityCommand) ( (CraftWorld) block.getWorld() ).getTileEntityAt( block.getX(), block.getY(), block.getZ() ) ).a();
++        }
++        if ( sender instanceof CraftMinecartCommand )
++        {
++            return ( (EntityMinecartCommandBlock) ( (CraftMinecartCommand) sender ).getHandle() ).e();
++        }
++        return new ConsoleListener(sender); // Assume console/rcon
++    }
++
++    private static class PlayerListener implements ICommandListener
++    {
++
++        private final ICommandListener handle;
++
++        public PlayerListener(ICommandListener handle)
++        {
++            this.handle = handle;
++        }
++
++        @Override
++        public String getName()
++        {
++            return handle.getName();
++        }
++
++        @Override
++        public IChatBaseComponent getScoreboardDisplayName()
++        {
++            return handle.getScoreboardDisplayName();
++        }
++
++        @Override
++        public void sendMessage(IChatBaseComponent iChatBaseComponent)
++        {
++            handle.sendMessage( iChatBaseComponent );
++        }
++
++        @Override
++        public boolean a(int i, String s)
++        {
++            return true;
++        }
++
++        @Override
++        public ChunkCoordinates getChunkCoordinates()
++        {
++            return handle.getChunkCoordinates();
++        }
++
++        @Override
++        public World getWorld()
++        {
++            return handle.getWorld();
++        }
++    }
++
++    private static class ConsoleListener implements ICommandListener {
++
++        private final CommandSender sender;
++
++        public ConsoleListener( CommandSender sender )
++        {
++            this.sender = sender;
++        }
++
++        @Override
++        public String getName()
++        {
++            return sender.getName();
++        }
++
++        @Override
++        public IChatBaseComponent getScoreboardDisplayName()
++        {
++            return new ChatComponentText( getName() );
++        }
++
++        @Override
++        public void sendMessage( IChatBaseComponent iChatBaseComponent )
++        {
++            sender.sendMessage( iChatBaseComponent.e() );
++        }
++
++        @Override
++        public boolean a( int i, String s )
++        {
++            return true;
++        }
++
++        @Override
++        public ChunkCoordinates getChunkCoordinates()
++        {
++            return new ChunkCoordinates( 0, 0, 0 );
++        }
++
++        @Override
++        public World getWorld()
++        {
++            return MinecraftServer.getServer().getWorld();
++        }
 +    }
 +}
 diff --git a/src/main/java/org/spigotmc/WatchdogThread.java b/src/main/java/org/spigotmc/WatchdogThread.java
