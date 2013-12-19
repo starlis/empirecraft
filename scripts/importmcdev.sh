@@ -30,6 +30,7 @@ function import {
 
 #import EntityItemFrame
 import ServerStatisticManager
+import RemoteControlListener
 
 cd $basedir
 git add mc-dev-master --all
