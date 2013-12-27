@@ -1,0 +1,133 @@
+From 85e87dab6c3ad788d9d81281c8d0b8817c50f046 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Mon, 9 Dec 2013 23:21:21 -0500
+Subject: [PATCH] Improved BungeeCord support
+
+Secure BungeeCord with IP Whitelist for IP/UUID forwarding
+Allow online-mode to be set to true, and skip online-mode for bungee IP's
+---
+ .../java/net/minecraft/server/HandshakeListener.java     |  5 ++++-
+ src/main/java/net/minecraft/server/LoginListener.java    |  6 ++++++
+ src/main/java/net/minecraft/server/NetworkManager.java   |  1 +
+ .../net/minecraft/server/ThreadPlayerLookupUUID.java     | 16 +++++++++-------
+ src/main/java/org/spigotmc/SpigotConfig.java             |  3 +++
+ 5 files changed, 23 insertions(+), 8 deletions(-)
+
+diff --git a/src/main/java/net/minecraft/server/HandshakeListener.java b/src/main/java/net/minecraft/server/HandshakeListener.java
+index fe2098e..4141a2e 100644
+--- a/src/main/java/net/minecraft/server/HandshakeListener.java
++++ b/src/main/java/net/minecraft/server/HandshakeListener.java
+@@ -29,7 +29,10 @@ public class HandshakeListener implements PacketHandshakingInListener {
+             } else {
+                 this.b.a((PacketListener) (new LoginListener(this.a, this.b)));
+                 // Spigot Start
+-                if (org.spigotmc.SpigotConfig.bungee) {
++                String ip = ((java.net.InetSocketAddress) this.b.getSocketAddress()).getAddress().getHostAddress();
++                if (org.spigotmc.SpigotConfig.bungee &&
++                    org.spigotmc.SpigotConfig.bungeeAddresses.contains(ip)) {
++                    b.isProxied = true;
+                     String[] split = packethandshakinginsetprotocol.b.split("\00");
+                     if (split.length == 2 || split.length == 3) {
+                         packethandshakinginsetprotocol.b = split[0];
+diff --git a/src/main/java/net/minecraft/server/LoginListener.java b/src/main/java/net/minecraft/server/LoginListener.java
+index fa80b74..066cca8 100644
+--- a/src/main/java/net/minecraft/server/LoginListener.java
++++ b/src/main/java/net/minecraft/server/LoginListener.java
+@@ -104,6 +104,12 @@ public class LoginListener implements PacketLoginInListener {
+     public void a(PacketLoginInStart packetlogininstart) {
+         Validate.validState(this.g == EnumProtocolState.HELLO, "Unexpected hello packet", new Object[0]);
+         this.i = packetlogininstart.c();
++        // Spigot start - handle Bungee
++        if (this.networkManager.isProxied && !this.networkManager.c()) {
++            new ThreadPlayerLookupUUID(this, "User Authenticator #" + b.incrementAndGet()).start();
++            return;
++        }
++        // Spigot end
+         if (this.server.getOnlineMode() && !this.networkManager.c()) {
+             this.g = EnumProtocolState.KEY;
+             this.networkManager.handle(new PacketLoginOutEncryptionBegin(this.j, this.server.I().getPublic(), this.e), new GenericFutureListener[0]);
+diff --git a/src/main/java/net/minecraft/server/NetworkManager.java b/src/main/java/net/minecraft/server/NetworkManager.java
+index 4907a62..7295ae4 100644
+--- a/src/main/java/net/minecraft/server/NetworkManager.java
++++ b/src/main/java/net/minecraft/server/NetworkManager.java
+@@ -36,6 +36,7 @@ public class NetworkManager extends SimpleChannelInboundHandler {
+     private Channel k;
+     public SocketAddress l; // Spigot
+     public String spoofedUUID; // Spigot
++    public boolean isProxied = false; // Spigot
+     private PacketListener m;
+     private EnumProtocol n;
+     private IChatBaseComponent o;
+diff --git a/src/main/java/net/minecraft/server/ThreadPlayerLookupUUID.java b/src/main/java/net/minecraft/server/ThreadPlayerLookupUUID.java
+index ea8c269..52c5b81 100644
+--- a/src/main/java/net/minecraft/server/ThreadPlayerLookupUUID.java
++++ b/src/main/java/net/minecraft/server/ThreadPlayerLookupUUID.java
+@@ -23,10 +23,14 @@ class ThreadPlayerLookupUUID extends Thread {
+     public void run() {
+         try {
+             // Spigot Start
+-            if ( !LoginListener.b( this.a ).getOnlineMode() )
++            if ( a.networkManager.isProxied || !LoginListener.b( this.a ).getOnlineMode() )
+             {
++                if (a.networkManager.spoofedUUID != null) {
++                    String name = LoginListener.d(this.a).getName();
++                    final GameProfile profile = new GameProfile(a.networkManager.spoofedUUID, name);
++                    LoginListener.a(this.a, profile);
++                }
+                 fireLoginEvents();
+-                LoginListener.a(this.a, EnumProtocolState.READY_TO_ACCEPT);
+                 return;
+             }
+             // Spigot End            
+@@ -34,11 +38,7 @@ class ThreadPlayerLookupUUID extends Thread {
+ 
+             LoginListener.a(this.a, LoginListener.b(this.a).as().hasJoinedServer(new GameProfile((String) null, LoginListener.d(this.a).getName()), s));
+             if (LoginListener.d(this.a) != null) {
+-                // Spigot Start
+-                fireLoginEvents();
+-                // Spigot End
+-                LoginListener.e().info("UUID of player " + LoginListener.d(this.a).getName() + " is " + LoginListener.d(this.a).getId());
+-                LoginListener.a(this.a, EnumProtocolState.READY_TO_ACCEPT);
++                fireLoginEvents(); // Spigot - Move code to own method
+             } else {
+                 this.a.disconnect("Failed to verify username!");
+                 LoginListener.e().error("Username \'" + LoginListener.d(this.a).getName() + "\' tried to join with an invalid session");
+@@ -92,5 +92,7 @@ class ThreadPlayerLookupUUID extends Thread {
+             }
+         }
+         // CraftBukkit end
++        LoginListener.e().info("UUID of player " + LoginListener.d(this.a).getName() + " is " + LoginListener.d(this.a).getId());
++        LoginListener.a(this.a, EnumProtocolState.READY_TO_ACCEPT);
+     }
+ }
+diff --git a/src/main/java/org/spigotmc/SpigotConfig.java b/src/main/java/org/spigotmc/SpigotConfig.java
+index 628533e..0fe9046 100644
+--- a/src/main/java/org/spigotmc/SpigotConfig.java
++++ b/src/main/java/org/spigotmc/SpigotConfig.java
+@@ -7,6 +7,7 @@ import java.lang.reflect.InvocationTargetException;
+ import java.lang.reflect.Method;
+ import java.lang.reflect.Modifier;
+ import java.util.Arrays;
++import java.util.Collections;
+ import java.util.HashMap;
+ import java.util.List;
+ import java.util.Map;
+@@ -191,6 +192,7 @@ public class SpigotConfig
+     }
+ 
+     public static boolean bungee;
++    public static List<String> bungeeAddresses = Collections.singletonList("127.0.0.1");
+     private static void bungee() {
+         if ( version < 4 )
+         {
+@@ -198,6 +200,7 @@ public class SpigotConfig
+             System.out.println( "Oudated config, disabling BungeeCord support!" );
+         }
+         bungee = getBoolean( "settings.bungeecord", false );
++        bungeeAddresses = getList("settings.bungeecord-addresses", bungeeAddresses);
+     }
+ 
+     private static void nettyThreads()
+-- 
+1.8.3.2
+
