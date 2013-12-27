@@ -1,4 +1,4 @@
-From 8763ba99649ae8dae6aeeb5b6bb70a5f73eee738 Mon Sep 17 00:00:00 2001
+From 0fe09fc6fabfb7b4aa9aa798018cd2e39482a2e9 Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
 Date: Sat, 21 Dec 2013 18:04:39 -0500
 Subject: [PATCH] Spigot
@@ -46,6 +46,7 @@ Subject: [PATCH] Spigot
  .../java/net/minecraft/server/LoginListener.java   |  17 +-
  .../java/net/minecraft/server/MinecraftServer.java |  91 +--
  .../net/minecraft/server/MobSpawnerAbstract.java   |  25 +-
+ src/main/java/net/minecraft/server/NBTTagList.java | 166 ++++++
  .../java/net/minecraft/server/NetworkManager.java  |   3 +-
  .../net/minecraft/server/NextTickListEntry.java    |  60 ++
  .../java/net/minecraft/server/NibbleArray.java     | 158 +++++
@@ -104,13 +105,14 @@ Subject: [PATCH] Spigot
  src/main/java/org/spigotmc/TrackingRange.java      |  45 ++
  .../java/org/spigotmc/VanillaCommandWrapper.java   | 194 +++++++
  src/main/java/org/spigotmc/WatchdogThread.java     | 121 ++++
- 100 files changed, 5973 insertions(+), 385 deletions(-)
+ 101 files changed, 6139 insertions(+), 385 deletions(-)
  create mode 100644 src/main/java/net/minecraft/server/BiomeDecorator.java
  create mode 100644 src/main/java/net/minecraft/server/BlockBrewingStand.java
  create mode 100644 src/main/java/net/minecraft/server/BlockFlowerPot.java
  create mode 100644 src/main/java/net/minecraft/server/BlockTNT.java
  create mode 100644 src/main/java/net/minecraft/server/CommandDispatcher.java
  create mode 100644 src/main/java/net/minecraft/server/DataWatcher.java
+ create mode 100644 src/main/java/net/minecraft/server/NBTTagList.java
  create mode 100644 src/main/java/net/minecraft/server/NextTickListEntry.java
  create mode 100644 src/main/java/net/minecraft/server/NibbleArray.java
  create mode 100644 src/main/java/net/minecraft/server/OldChunkLoader.java
@@ -2690,6 +2692,178 @@ index 67c3397..bb6b3d5 100644
          }
  
          return entity;
+diff --git a/src/main/java/net/minecraft/server/NBTTagList.java b/src/main/java/net/minecraft/server/NBTTagList.java
+new file mode 100644
+index 0000000..ad8c3ab
+--- /dev/null
++++ b/src/main/java/net/minecraft/server/NBTTagList.java
+@@ -0,0 +1,166 @@
++package net.minecraft.server;
++
++import java.io.DataInput;
++import java.io.DataOutput;
++import java.util.ArrayList;
++import java.util.Iterator;
++import java.util.List;
++
++public class NBTTagList extends NBTBase {
++
++    private List list = new ArrayList();
++    private byte type = 0;
++
++    public NBTTagList() {}
++
++    void write(DataOutput dataoutput) {
++        if (!this.list.isEmpty()) {
++            this.type = ((NBTBase) this.list.get(0)).getTypeId();
++        } else {
++            this.type = 0;
++        }
++
++        dataoutput.writeByte(this.type);
++        dataoutput.writeInt(this.list.size());
++
++        for (int i = 0; i < this.list.size(); ++i) {
++            ((NBTBase) this.list.get(i)).write(dataoutput);
++        }
++    }
++
++    void load(DataInput datainput, int i) {
++        if (i > 512) {
++            throw new RuntimeException("Tried to read NBT tag with too high complexity, depth > 512");
++        } else {
++            this.type = datainput.readByte();
++            int j = datainput.readInt();
++
++            this.list = new ArrayList();
++
++            for (int k = 0; k < j; ++k) {
++                NBTBase nbtbase = NBTBase.createTag(this.type);
++
++                nbtbase.load(datainput, i + 1);
++                this.list.add(nbtbase);
++            }
++        }
++    }
++
++    public byte getTypeId() {
++        return (byte) 9;
++    }
++
++    public String toString() {
++        String s = "[";
++        int i = 0;
++
++        for (Iterator iterator = this.list.iterator(); iterator.hasNext(); ++i) {
++            NBTBase nbtbase = (NBTBase) iterator.next();
++
++            s = s + "" + i + ':' + nbtbase + ',';
++        }
++
++        return s + "]";
++    }
++
++    public void add(NBTBase nbtbase) {
++        if (this.type == 0) {
++            this.type = nbtbase.getTypeId();
++        } else if (this.type != nbtbase.getTypeId()) {
++            System.err.println("WARNING: Adding mismatching tag types to tag list");
++            return;
++        }
++
++        this.list.add(nbtbase);
++    }
++
++    public NBTTagCompound get(int i) {
++        if (i >= 0 && i < this.list.size()) {
++            NBTBase nbtbase = (NBTBase) this.list.get(i);
++
++            return nbtbase.getTypeId() == 10 ? (NBTTagCompound) nbtbase : new NBTTagCompound();
++        } else {
++            return new NBTTagCompound();
++        }
++    }
++
++    public int[] c(int i) {
++        if (i >= 0 && i < this.list.size()) {
++            NBTBase nbtbase = (NBTBase) this.list.get(i);
++
++            return nbtbase.getTypeId() == 11 ? ((NBTTagIntArray) nbtbase).c() : new int[0];
++        } else {
++            return new int[0];
++        }
++    }
++
++    public double d(int i) {
++        if (i >= 0 && i < this.list.size()) {
++            NBTBase nbtbase = (NBTBase) this.list.get(i);
++
++            return nbtbase.getTypeId() == 6 ? ((NBTTagDouble) nbtbase).g() : 0.0D;
++        } else {
++            return 0.0D;
++        }
++    }
++
++    public float e(int i) {
++        if (i >= 0 && i < this.list.size()) {
++            NBTBase nbtbase = (NBTBase) this.list.get(i);
++
++            return nbtbase.getTypeId() == 5 ? ((NBTTagFloat) nbtbase).h() : 0.0F;
++        } else {
++            return 0.0F;
++        }
++    }
++
++    public String f(int i) {
++        if (i >= 0 && i < this.list.size()) {
++            NBTBase nbtbase = (NBTBase) this.list.get(i);
++
++            return nbtbase.getTypeId() == 8 ? nbtbase.a_() : nbtbase.toString();
++        } else {
++            return "";
++        }
++    }
++
++    public int size() {
++        return this.list.size();
++    }
++
++    public NBTBase clone() {
++        NBTTagList nbttaglist = new NBTTagList();
++
++        nbttaglist.type = this.type;
++        Iterator iterator = this.list.iterator();
++
++        while (iterator.hasNext()) {
++            NBTBase nbtbase = (NBTBase) iterator.next();
++            NBTBase nbtbase1 = nbtbase.clone();
++
++            nbttaglist.list.add(nbtbase1);
++        }
++
++        return nbttaglist;
++    }
++
++    public boolean equals(Object object) {
++        if (super.equals(object)) {
++            NBTTagList nbttaglist = (NBTTagList) object;
++
++            if (this.type == nbttaglist.type) {
++                return this.list.equals(nbttaglist.list);
++            }
++        }
++
++        return false;
++    }
++
++    public int hashCode() {
++        return super.hashCode() ^ this.list.hashCode();
++    }
++
++    public int d() {
++        return this.type;
++    }
++}
 diff --git a/src/main/java/net/minecraft/server/NetworkManager.java b/src/main/java/net/minecraft/server/NetworkManager.java
 index 8f829bb..4907a62 100644
 --- a/src/main/java/net/minecraft/server/NetworkManager.java
@@ -8688,5 +8862,5 @@ index 0000000..8d6e1b4
 +    }
 +}
 -- 
-1.8.5.2
+1.8.3.2
 

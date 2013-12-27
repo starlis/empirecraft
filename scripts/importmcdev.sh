@@ -31,6 +31,7 @@ function import {
 #import EntityItemFrame
 import ServerStatisticManager
 import RemoteControlListener
+import NBTTagList
 
 cd $basedir
 git add mc-dev-master --all
