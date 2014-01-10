@@ -1,6 +1,6 @@
-From d79e45c00636d964326d519bc0777e3a626b9715 Mon Sep 17 00:00:00 2001
+From cc2bbc13e3f593351ad7bf94619ac04b4c8a2f68 Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Sat, 21 Dec 2013 18:04:33 -0500
+Date: Thu, 9 Jan 2014 20:58:09 -0500
 Subject: [PATCH] Spigot
 
 ---
@@ -8,7 +8,11 @@ Subject: [PATCH] Spigot
  src/main/java/org/bukkit/Effect.java               | 196 ++++++++++++++++++++-
  src/main/java/org/bukkit/World.java                |  50 ++++++
  .../java/org/bukkit/command/SimpleCommandMap.java  |  14 ++
- .../org/bukkit/command/defaults/ReloadCommand.java |   1 +
+ .../bukkit/command/defaults/PluginsCommand.java    |   8 +
+ .../org/bukkit/command/defaults/ReloadCommand.java |   9 +
+ .../org/bukkit/command/defaults/SayCommand.java    |   2 +-
+ .../org/bukkit/command/defaults/TellCommand.java   |  12 ++
+ .../bukkit/command/defaults/TestForCommand.java    |  12 ++
  .../bukkit/command/defaults/TimingsCommand.java    | 111 +++++++++++-
  .../org/bukkit/conversations/BooleanPrompt.java    |   3 +-
  .../org/bukkit/conversations/Conversation.java     |   7 +
@@ -23,22 +27,31 @@ Subject: [PATCH] Spigot
  .../event/inventory/InventoryClickEvent.java       |  16 ++
  .../bukkit/event/player/PlayerItemDamageEvent.java |  54 ++++++
  .../org/bukkit/event/player/PlayerLoginEvent.java  |  27 ++-
+ .../org/bukkit/plugin/PluginDescriptionFile.java   |   4 -
  .../org/bukkit/plugin/SimplePluginManager.java     |   1 +
  .../org/bukkit/plugin/TimedRegisteredListener.java |  21 ++-
- .../org/bukkit/plugin/java/JavaPluginLoader.java   |   2 +-
+ .../java/org/bukkit/plugin/java/JavaPlugin.java    | 176 +++++-------------
+ .../org/bukkit/plugin/java/JavaPluginLoader.java   | 175 ++++++++++++++----
+ .../org/bukkit/plugin/java/PluginClassLoader.java  | 116 ++++++------
+ .../messaging/ChannelNotRegisteredException.java   |   2 +-
  .../bukkit/plugin/messaging/StandardMessenger.java |  10 +-
+ src/main/java/org/bukkit/util/StringUtil.java      |   6 +-
  .../java/org/spigotmc/CustomTimingsHandler.java    | 175 ++++++++++++++++++
  .../spigotmc/event/entity/EntityDismountEvent.java |  39 ++++
  .../spigotmc/event/entity/EntityMountEvent.java    |  52 ++++++
  src/test/java/org/bukkit/EffectTest.java           |   6 +-
  .../bukkit/plugin/TimedRegisteredListenerTest.java |   1 -
- 28 files changed, 948 insertions(+), 128 deletions(-)
+ .../org/bukkit/util/StringUtilStartsWithTest.java  |  86 ---------
+ src/test/java/org/bukkit/util/StringUtilTest.java  |  61 -------
+ 39 files changed, 1241 insertions(+), 501 deletions(-)
  create mode 100644 src/main/java/org/bukkit/event/entity/EntitySpawnEvent.java
  create mode 100644 src/main/java/org/bukkit/event/entity/SpawnerSpawnEvent.java
  create mode 100644 src/main/java/org/bukkit/event/player/PlayerItemDamageEvent.java
  create mode 100644 src/main/java/org/spigotmc/CustomTimingsHandler.java
  create mode 100644 src/main/java/org/spigotmc/event/entity/EntityDismountEvent.java
  create mode 100644 src/main/java/org/spigotmc/event/entity/EntityMountEvent.java
+ delete mode 100644 src/test/java/org/bukkit/util/StringUtilStartsWithTest.java
+ delete mode 100644 src/test/java/org/bukkit/util/StringUtilTest.java
 
 diff --git a/pom.xml b/pom.xml
 index 6c07c03..f6ee82d 100644
@@ -135,7 +148,7 @@ index 6c07c03..f6ee82d 100644
  
          <!-- testing -->
 diff --git a/src/main/java/org/bukkit/Effect.java b/src/main/java/org/bukkit/Effect.java
-index 2474a2d..4a4a12d 100644
+index 2474a2d..3b71c11 100644
 --- a/src/main/java/org/bukkit/Effect.java
 +++ b/src/main/java/org/bukkit/Effect.java
 @@ -5,6 +5,7 @@ import java.util.Map;
@@ -285,7 +298,7 @@ index 2474a2d..4a4a12d 100644
 +     * The particles generated while breaking a block.
 +     * This particle requires a Material and data value so that the client can select the correct texture.
 +     */
-+    TILE_BREAK("tilecrack", Type.PARTICLE, MaterialData.class);
++    TILE_BREAK("blockcrack", Type.PARTICLE, MaterialData.class);
  
      private final int id;
      private final Type type;
@@ -474,11 +487,28 @@ index c2f488a..9283b23 100644
 +    }
 +    // Spigot End
  }
+diff --git a/src/main/java/org/bukkit/command/defaults/PluginsCommand.java b/src/main/java/org/bukkit/command/defaults/PluginsCommand.java
+index b888da1..e21d167 100644
+--- a/src/main/java/org/bukkit/command/defaults/PluginsCommand.java
++++ b/src/main/java/org/bukkit/command/defaults/PluginsCommand.java
+@@ -40,4 +40,12 @@ public class PluginsCommand extends BukkitCommand {
+ 
+         return "(" + plugins.length + "): " + pluginList.toString();
+     }
++
++    // Spigot Start
++    @Override
++    public java.util.List<String> tabComplete(CommandSender sender, String alias, String[] args) throws IllegalArgumentException
++    {
++        return java.util.Collections.emptyList();
++    }
++    // Spigot End
+ }
 diff --git a/src/main/java/org/bukkit/command/defaults/ReloadCommand.java b/src/main/java/org/bukkit/command/defaults/ReloadCommand.java
-index fb3c90f..ffbcac1 100644
+index fb3c90f..16dfdbd 100644
 --- a/src/main/java/org/bukkit/command/defaults/ReloadCommand.java
 +++ b/src/main/java/org/bukkit/command/defaults/ReloadCommand.java
-@@ -20,6 +20,7 @@ public class ReloadCommand extends BukkitCommand {
+@@ -20,9 +20,18 @@ public class ReloadCommand extends BukkitCommand {
      public boolean execute(CommandSender sender, String currentAlias, String[] args) {
          if (!testPermission(sender)) return true;
  
@@ -486,6 +516,72 @@ index fb3c90f..ffbcac1 100644
          Bukkit.reload();
          Command.broadcastCommandMessage(sender, ChatColor.GREEN + "Reload complete.");
  
+         return true;
+     }
++
++    // Spigot Start
++    @Override
++    public java.util.List<String> tabComplete(CommandSender sender, String alias, String[] args) throws IllegalArgumentException
++    {
++        return java.util.Collections.emptyList();
++    }
++    // Spigot End
+ }
+diff --git a/src/main/java/org/bukkit/command/defaults/SayCommand.java b/src/main/java/org/bukkit/command/defaults/SayCommand.java
+index 658fe21..c48c5c3 100644
+--- a/src/main/java/org/bukkit/command/defaults/SayCommand.java
++++ b/src/main/java/org/bukkit/command/defaults/SayCommand.java
+@@ -14,7 +14,7 @@ import com.google.common.collect.ImmutableList;
+ public class SayCommand extends VanillaCommand {
+     public SayCommand() {
+         super("say");
+-        this.description = "Broadcasts the given message as the sender";
++        this.description = "Broadcasts the given message as the console";
+         this.usageMessage = "/say <message ...>";
+         this.setPermission("bukkit.command.say");
+     }
+diff --git a/src/main/java/org/bukkit/command/defaults/TellCommand.java b/src/main/java/org/bukkit/command/defaults/TellCommand.java
+index d0aa102..0c2c9a1 100644
+--- a/src/main/java/org/bukkit/command/defaults/TellCommand.java
++++ b/src/main/java/org/bukkit/command/defaults/TellCommand.java
+@@ -48,4 +48,16 @@ public class TellCommand extends VanillaCommand {
+     public boolean matches(String input) {
+         return input.equalsIgnoreCase("tell") || input.equalsIgnoreCase("w") || input.equalsIgnoreCase("msg");
+     }
++
++    // Spigot Start
++    @Override
++    public java.util.List<String> tabComplete(CommandSender sender, String alias, String[] args) throws IllegalArgumentException
++    {
++        if ( args.length == 0 )
++        {
++            return super.tabComplete( sender, alias, args );
++        }
++        return java.util.Collections.emptyList();
++    }
++    // Spigot End
+ }
+diff --git a/src/main/java/org/bukkit/command/defaults/TestForCommand.java b/src/main/java/org/bukkit/command/defaults/TestForCommand.java
+index c9ac1ce..a687fef 100644
+--- a/src/main/java/org/bukkit/command/defaults/TestForCommand.java
++++ b/src/main/java/org/bukkit/command/defaults/TestForCommand.java
+@@ -23,4 +23,16 @@ public class TestForCommand extends VanillaCommand {
+         sender.sendMessage(ChatColor.RED + "/testfor is only usable by commandblocks with analog output.");
+         return true;
+     }
++
++    // Spigot Start
++    @Override
++    public java.util.List<String> tabComplete(CommandSender sender, String alias, String[] args) throws IllegalArgumentException
++    {
++        if ( args.length == 0 )
++        {
++            return super.tabComplete( sender, alias, args );
++        }
++        return java.util.Collections.emptyList();
++    }
++    // Spigot End
+ }
 diff --git a/src/main/java/org/bukkit/command/defaults/TimingsCommand.java b/src/main/java/org/bukkit/command/defaults/TimingsCommand.java
 index 05cfcb0..ec1320f 100644
 --- a/src/main/java/org/bukkit/command/defaults/TimingsCommand.java
@@ -1221,6 +1317,21 @@ index b74b7b8..8fb1c98 100644
      /**
       * Gets the current result of the login, as an enum
       *
+diff --git a/src/main/java/org/bukkit/plugin/PluginDescriptionFile.java b/src/main/java/org/bukkit/plugin/PluginDescriptionFile.java
+index 1d79e63..d2a59e4 100644
+--- a/src/main/java/org/bukkit/plugin/PluginDescriptionFile.java
++++ b/src/main/java/org/bukkit/plugin/PluginDescriptionFile.java
+@@ -773,10 +773,6 @@ public final class PluginDescriptionFile {
+         return name + " v" + version;
+     }
+ 
+-    /**
+-     * @deprecated unused
+-     */
+-    @Deprecated
+     public String getClassLoaderOf() {
+         return classLoaderOf;
+     }
 diff --git a/src/main/java/org/bukkit/plugin/SimplePluginManager.java b/src/main/java/org/bukkit/plugin/SimplePluginManager.java
 index 3c9611b..2c4b03b 100644
 --- a/src/main/java/org/bukkit/plugin/SimplePluginManager.java
@@ -1286,11 +1397,484 @@ index e09234c..ab2c65e 100644
      }
  
      /**
+diff --git a/src/main/java/org/bukkit/plugin/java/JavaPlugin.java b/src/main/java/org/bukkit/plugin/java/JavaPlugin.java
+index 8fd726b..3815da2 100644
+--- a/src/main/java/org/bukkit/plugin/java/JavaPlugin.java
++++ b/src/main/java/org/bukkit/plugin/java/JavaPlugin.java
+@@ -12,16 +12,13 @@ import java.util.List;
+ import java.util.logging.Level;
+ import java.util.logging.Logger;
+ 
+-import org.apache.commons.lang.Validate;
+ import org.bukkit.Server;
+-import org.bukkit.Warning.WarningState;
+ import org.bukkit.command.Command;
+ import org.bukkit.command.CommandSender;
+ import org.bukkit.command.PluginCommand;
+ import org.bukkit.configuration.file.FileConfiguration;
+ import org.bukkit.configuration.file.YamlConfiguration;
+ import org.bukkit.generator.ChunkGenerator;
+-import org.bukkit.plugin.AuthorNagException;
+ import org.bukkit.plugin.PluginBase;
+ import org.bukkit.plugin.PluginDescriptionFile;
+ import org.bukkit.plugin.PluginLoader;
+@@ -39,6 +36,7 @@ import com.avaje.ebeaninternal.server.ddl.DdlGenerator;
+  */
+ public abstract class JavaPlugin extends PluginBase {
+     private boolean isEnabled = false;
++    private boolean initialized = false;
+     private PluginLoader loader = null;
+     private Server server = null;
+     private File file = null;
+@@ -51,37 +49,7 @@ public abstract class JavaPlugin extends PluginBase {
+     private File configFile = null;
+     private PluginLogger logger = null;
+ 
+-    public JavaPlugin() {
+-        final ClassLoader classLoader = this.getClass().getClassLoader();
+-        if (!(classLoader instanceof PluginClassLoader)) {
+-            throw new IllegalStateException("JavaPlugin requires " + PluginClassLoader.class.getName());
+-        }
+-        ((PluginClassLoader) classLoader).initialize(this);
+-    }
+-
+-    /**
+-     * @deprecated This method is intended for unit testing purposes when the
+-     *     other {@linkplain #JavaPlugin(JavaPluginLoader,
+-     *     PluginDescriptionFile, File, File) constructor} cannot be used.
+-     *     <p>
+-     *     Its existence may be temporary.
+-     */
+-    @Deprecated
+-    protected JavaPlugin(final PluginLoader loader, final Server server, final PluginDescriptionFile description, final File dataFolder, final File file) {
+-        final ClassLoader classLoader = this.getClass().getClassLoader();
+-        if (classLoader instanceof PluginClassLoader) {
+-            throw new IllegalStateException("Cannot use initialization constructor at runtime");
+-        }
+-        init(loader, server, description, dataFolder, file, classLoader);
+-    }
+-
+-    protected JavaPlugin(final JavaPluginLoader loader, final PluginDescriptionFile description, final File dataFolder, final File file) {
+-        final ClassLoader classLoader = this.getClass().getClassLoader();
+-        if (classLoader instanceof PluginClassLoader) {
+-            throw new IllegalStateException("Cannot use initialization constructor at runtime");
+-        }
+-        init(loader, loader.server, description, dataFolder, file, classLoader);
+-    }
++    public JavaPlugin() {}
+ 
+     /**
+      * Returns the folder that the plugin data's files are located in. The
+@@ -255,46 +223,50 @@ public abstract class JavaPlugin extends PluginBase {
+     }
+ 
+     /**
+-     * @deprecated This method is legacy and will be removed - it must be
+-     *     replaced by the specially provided constructor(s).
++     * Initializes this plugin with the given variables.
++     * <p>
++     * This method should never be called manually.
++     *
++     * @param loader PluginLoader that is responsible for this plugin
++     * @param server Server instance that is running this plugin
++     * @param description PluginDescriptionFile containing metadata on this
++     *     plugin
++     * @param dataFolder Folder containing the plugin's data
++     * @param file File containing this plugin
++     * @param classLoader ClassLoader which holds this plugin
+      */
+-    @Deprecated
+     protected final void initialize(PluginLoader loader, Server server, PluginDescriptionFile description, File dataFolder, File file, ClassLoader classLoader) {
+-        if (server.getWarningState() == WarningState.OFF) {
+-            return;
+-        }
+-        getLogger().log(Level.WARNING, getClass().getName() + " is already initialized", server.getWarningState() == WarningState.DEFAULT ? null : new AuthorNagException("Explicit initialization"));
+-    }
+-
+-    final void init(PluginLoader loader, Server server, PluginDescriptionFile description, File dataFolder, File file, ClassLoader classLoader) {
+-        this.loader = loader;
+-        this.server = server;
+-        this.file = file;
+-        this.description = description;
+-        this.dataFolder = dataFolder;
+-        this.classLoader = classLoader;
+-        this.configFile = new File(dataFolder, "config.yml");
+-        this.logger = new PluginLogger(this);
+-
+-        if (description.isDatabaseEnabled()) {
+-            ServerConfig db = new ServerConfig();
+-
+-            db.setDefaultServer(false);
+-            db.setRegister(false);
+-            db.setClasses(getDatabaseClasses());
+-            db.setName(description.getName());
+-            server.configureDbConfig(db);
+-
+-            DataSourceConfig ds = db.getDataSourceConfig();
+-
+-            ds.setUrl(replaceDatabaseString(ds.getUrl()));
+-            dataFolder.mkdirs();
+-
+-            ClassLoader previous = Thread.currentThread().getContextClassLoader();
+-
+-            Thread.currentThread().setContextClassLoader(classLoader);
+-            ebean = EbeanServerFactory.create(db);
+-            Thread.currentThread().setContextClassLoader(previous);
++        if (!initialized) {
++            this.initialized = true;
++            this.loader = loader;
++            this.server = server;
++            this.file = file;
++            this.description = description;
++            this.dataFolder = dataFolder;
++            this.classLoader = classLoader;
++            this.configFile = new File(dataFolder, "config.yml");
++            this.logger = new PluginLogger(this);
++
++            if (description.isDatabaseEnabled()) {
++                ServerConfig db = new ServerConfig();
++
++                db.setDefaultServer(false);
++                db.setRegister(false);
++                db.setClasses(getDatabaseClasses());
++                db.setName(description.getName());
++                server.configureDbConfig(db);
++
++                DataSourceConfig ds = db.getDataSourceConfig();
++
++                ds.setUrl(replaceDatabaseString(ds.getUrl()));
++                dataFolder.mkdirs();
++
++                ClassLoader previous = Thread.currentThread().getContextClassLoader();
++
++                Thread.currentThread().setContextClassLoader(classLoader);
++                ebean = EbeanServerFactory.create(db);
++                Thread.currentThread().setContextClassLoader(previous);
++            }
+         }
+     }
+ 
+@@ -317,12 +289,9 @@ public abstract class JavaPlugin extends PluginBase {
+      * Gets the initialization status of this plugin
+      *
+      * @return true if this plugin is initialized, otherwise false
+-     * @deprecated This method cannot return false, as {@link
+-     *     JavaPlugin} is now initialized in the constructor.
+      */
+-    @Deprecated
+     public final boolean isInitialized() {
+-        return true;
++        return initialized;
+     }
+ 
+     /**
+@@ -406,59 +375,4 @@ public abstract class JavaPlugin extends PluginBase {
+     public String toString() {
+         return description.getFullName();
+     }
+-
+-    /**
+-     * This method provides fast access to the plugin that has {@link
+-     * #getProvidingPlugin(Class) provided} the given plugin class, which is
+-     * usually the plugin that implemented it.
+-     * <p>
+-     * An exception to this would be if plugin's jar that contained the class
+-     * does not extend the class, where the intended plugin would have
+-     * resided in a different jar / classloader.
+-     *
+-     * @param clazz the class desired
+-     * @return the plugin that provides and implements said class, or null
+-     *     if called from an inconsistent static initialization block
+-     * @throws IllegalArgumentException if clazz is null
+-     * @throws IllegalArgumentException if clazz does not extend {@link
+-     *     JavaPlugin}
+-     * @throws IllegalArgumentException if clazz was not provided by a
+-     *     plugin, for example, if called with
+-     *     <code>JavaPlugin.getPlugin(JavaPlugin.class)</code>
+-     * @throws ClassCastException if plugin that provided the class does not
+-     *     extend the class
+-     */
+-    public static <T extends JavaPlugin> T getPlugin(Class<T> clazz) {
+-        Validate.notNull(clazz, "Null class cannot have a plugin");
+-        if (!JavaPlugin.class.isAssignableFrom(clazz)) {
+-            throw new IllegalArgumentException(clazz + " does not extend " + JavaPlugin.class);
+-        }
+-        final ClassLoader cl = clazz.getClassLoader();
+-        if (!(cl instanceof PluginClassLoader)) {
+-            throw new IllegalArgumentException(clazz + " is not initialized by " + PluginClassLoader.class);
+-        }
+-        JavaPlugin plugin = ((PluginClassLoader) cl).plugin;
+-        if (plugin == null) {
+-            throw new IllegalStateException("Cannot get plugin for " + clazz + " from a static initializer");
+-        }
+-        return clazz.cast(plugin);
+-    }
+-
+-    /**
+-     * This method provides fast access to the plugin that has {@link
+-     * #getProvidingPlugin(Class) provided} the given plugin class, which is
+-     * usually the plugin that implemented it.
+-     */
+-    public static JavaPlugin getProvidingPlugin(Class<?> clazz) {
+-        Validate.notNull(clazz, "Null class cannot have a plugin");
+-        final ClassLoader cl = clazz.getClassLoader();
+-        if (!(cl instanceof PluginClassLoader)) {
+-            throw new IllegalArgumentException(clazz + " is not provided by " + PluginClassLoader.class);
+-        }
+-        JavaPlugin plugin = ((PluginClassLoader) cl).plugin;
+-        if (plugin == null) {
+-            throw new IllegalStateException("Cannot get plugin for " + clazz + " from a static initializer");
+-        }
+-        return plugin;
+-    }
+ }
 diff --git a/src/main/java/org/bukkit/plugin/java/JavaPluginLoader.java b/src/main/java/org/bukkit/plugin/java/JavaPluginLoader.java
-index ea30d83..d905435 100644
+index 57681dc..d905435 100644
 --- a/src/main/java/org/bukkit/plugin/java/JavaPluginLoader.java
 +++ b/src/main/java/org/bukkit/plugin/java/JavaPluginLoader.java
-@@ -430,7 +430,7 @@ public class JavaPluginLoader implements PluginLoader {
+@@ -4,8 +4,10 @@ import java.io.File;
+ import java.io.FileNotFoundException;
+ import java.io.IOException;
+ import java.io.InputStream;
++import java.lang.reflect.Constructor;
+ import java.lang.reflect.InvocationTargetException;
+ import java.lang.reflect.Method;
++import java.net.URL;
+ import java.util.Arrays;
+ import java.util.HashMap;
+ import java.util.HashSet;
+@@ -47,19 +49,44 @@ import com.google.common.collect.ImmutableList;
+ /**
+  * Represents a Java plugin loader, allowing plugins in the form of .jar
+  */
+-public final class JavaPluginLoader implements PluginLoader {
++public class JavaPluginLoader implements PluginLoader {
+     final Server server;
+-    private final Pattern[] fileFilters = new Pattern[] { Pattern.compile("\\.jar$"), };
+-    private final Map<String, Class<?>> classes = new HashMap<String, Class<?>>();
+-    private final Map<String, PluginClassLoader> loaders = new LinkedHashMap<String, PluginClassLoader>();
++    final boolean extended = this.getClass() != JavaPluginLoader.class;
++    boolean warn;
+ 
++    private final Pattern[] fileFilters0 = new Pattern[] { Pattern.compile("\\.jar$"), };
+     /**
+-     * This class was not meant to be constructed explicitly
++     * @deprecated Internal field that wasn't intended to be exposed
++     */
++    @Deprecated
++    protected final Pattern[] fileFilters = fileFilters0;
++
++    private final Map<String, Class<?>> classes0 = new HashMap<String, Class<?>>();
++    /**
++     * @deprecated Internal field that wasn't intended to be exposed
++     */
++    @Deprecated
++    protected final Map<String, Class<?>> classes = classes0;
++
++    private final Map<String, PluginClassLoader> loaders0 = new LinkedHashMap<String, PluginClassLoader>();
++    /**
++     * @deprecated Internal field that wasn't intended to be exposed
++     */
++    @Deprecated
++    protected final Map<String, PluginClassLoader> loaders = loaders0;
++
++    /**
++     * This class was not meant to be extended
+      */
+     @Deprecated
+     public JavaPluginLoader(Server instance) {
+         Validate.notNull(instance, "Server cannot be null");
+         server = instance;
++        warn = instance.getWarningState() != WarningState.OFF;
++        if (extended && warn) {
++            warn = false;
++            instance.getLogger().log(Level.WARNING, "JavaPluginLoader not intended to be extended by " + getClass() + ", and may be final in a future version of Bukkit");
++        }
+     }
+ 
+     public Plugin loadPlugin(File file) throws InvalidPluginException {
+@@ -77,7 +104,7 @@ public final class JavaPluginLoader implements PluginLoader {
+         }
+ 
+         File dataFolder = new File(file.getParentFile(), description.getName());
+-        File oldDataFolder = getDataFolder(file);
++        File oldDataFolder = extended ? getDataFolder(file) : getDataFolder0(file); // Don't warn on deprecation, but maintain overridability
+ 
+         // Found old data folder
+         if (dataFolder.equals(oldDataFolder)) {
+@@ -118,31 +145,75 @@ public final class JavaPluginLoader implements PluginLoader {
+         }
+ 
+         for (String pluginName : depend) {
+-            if (loaders == null) {
++            if (loaders0 == null) {
+                 throw new UnknownDependencyException(pluginName);
+             }
+-            PluginClassLoader current = loaders.get(pluginName);
++            PluginClassLoader current = loaders0.get(pluginName);
+ 
+             if (current == null) {
+                 throw new UnknownDependencyException(pluginName);
+             }
+         }
+ 
+-        PluginClassLoader loader;
++        PluginClassLoader loader = null;
++        JavaPlugin result = null;
++
+         try {
+-            loader = new PluginClassLoader(this, getClass().getClassLoader(), description, dataFolder, file);
+-        } catch (InvalidPluginException ex) {
+-            throw ex;
++            URL[] urls = new URL[1];
++
++            urls[0] = file.toURI().toURL();
++
++            if (description.getClassLoaderOf() != null) {
++                loader = loaders0.get(description.getClassLoaderOf());
++                loader.addURL(urls[0]);
++            } else {
++                loader = new PluginClassLoader(this, urls, getClass().getClassLoader(), null);
++            }
++
++            Class<?> jarClass = Class.forName(description.getMain(), true, loader);
++            Class<? extends JavaPlugin> plugin = jarClass.asSubclass(JavaPlugin.class);
++
++            Constructor<? extends JavaPlugin> constructor = plugin.getConstructor();
++
++            result = constructor.newInstance();
++
++            result.initialize(this, server, description, dataFolder, file, loader);
++        } catch (InvocationTargetException ex) {
++            throw new InvalidPluginException(ex.getCause());
+         } catch (Throwable ex) {
+             throw new InvalidPluginException(ex);
+         }
+ 
+-        loaders.put(description.getName(), loader);
++        loaders0.put(description.getName(), loader);
+ 
+-        return loader.plugin;
++        return result;
+     }
+ 
+-    private File getDataFolder(File file) {
++    /**
++     * @deprecated Relic method from PluginLoader that didn't get purged
++     */
++    @Deprecated
++    public Plugin loadPlugin(File file, boolean ignoreSoftDependencies) throws InvalidPluginException {
++        if (warn) {
++            server.getLogger().log(Level.WARNING, "Method \"public Plugin loadPlugin(File, boolean)\" is Deprecated, and may be removed in a future version of Bukkit", new AuthorNagException(""));
++            warn = false;
++        }
++        return loadPlugin(file);
++    }
++
++    /**
++     * @deprecated Internal method that wasn't intended to be exposed
++     */
++    @Deprecated
++    protected File getDataFolder(File file) {
++        if (warn) {
++            server.getLogger().log(Level.WARNING, "Method \"protected File getDataFolder(File)\" is Deprecated, and may be removed in a future version of Bukkit", new AuthorNagException(""));
++            warn = false;
++        }
++        return getDataFolder0(file);
++    }
++
++    private File getDataFolder0(File file) {
+         File dataFolder = null;
+ 
+         String filename = file.getName();
+@@ -201,20 +272,32 @@ public final class JavaPluginLoader implements PluginLoader {
+     }
+ 
+     public Pattern[] getPluginFileFilters() {
+-        return fileFilters.clone();
++        return fileFilters0.clone();
++    }
++
++    /**
++     * @deprecated Internal method that wasn't intended to be exposed
++     */
++    @Deprecated
++    public Class<?> getClassByName(final String name) {
++        if (warn) {
++            server.getLogger().log(Level.WARNING, "Method \"public Class<?> getClassByName(String)\" is Deprecated, and may be removed in a future version of Bukkit", new AuthorNagException(""));
++            warn = false;
++        }
++        return getClassByName0(name);
+     }
+ 
+-    Class<?> getClassByName(final String name) {
+-        Class<?> cachedClass = classes.get(name);
++    Class<?> getClassByName0(final String name) {
++        Class<?> cachedClass = classes0.get(name);
+ 
+         if (cachedClass != null) {
+             return cachedClass;
+         } else {
+-            for (String current : loaders.keySet()) {
+-                PluginClassLoader loader = loaders.get(current);
++            for (String current : loaders0.keySet()) {
++                PluginClassLoader loader = loaders0.get(current);
+ 
+                 try {
+-                    cachedClass = loader.findClass(name, false);
++                    cachedClass = loader.extended ? loader.findClass(name, false) : loader.findClass0(name, false); // Don't warn on deprecation, but maintain overridability
+                 } catch (ClassNotFoundException cnfe) {}
+                 if (cachedClass != null) {
+                     return cachedClass;
+@@ -224,9 +307,21 @@ public final class JavaPluginLoader implements PluginLoader {
+         return null;
+     }
+ 
+-    void setClass(final String name, final Class<?> clazz) {
+-        if (!classes.containsKey(name)) {
+-            classes.put(name, clazz);
++    /**
++     * @deprecated Internal method that wasn't intended to be exposed
++     */
++    @Deprecated
++    public void setClass(final String name, final Class<?> clazz) {
++        if (warn) {
++            server.getLogger().log(Level.WARNING, "Method \"public void setClass(String, Class<?>)\" is Deprecated, and may be removed in a future version of Bukkit", new AuthorNagException(""));
++            warn = false;
++        }
++        setClass0(name, clazz);
++    }
++
++    void setClass0(final String name, final Class<?> clazz) {
++        if (!classes0.containsKey(name)) {
++            classes0.put(name, clazz);
+ 
+             if (ConfigurationSerializable.class.isAssignableFrom(clazz)) {
+                 Class<? extends ConfigurationSerializable> serializable = clazz.asSubclass(ConfigurationSerializable.class);
+@@ -235,8 +330,20 @@ public final class JavaPluginLoader implements PluginLoader {
+         }
+     }
+ 
+-    private void removeClass(String name) {
+-        Class<?> clazz = classes.remove(name);
++    /**
++     * @deprecated Internal method that wasn't intended to be exposed
++     */
++    @Deprecated
++    public void removeClass(String name) {
++        if (warn) {
++            server.getLogger().log(Level.WARNING, "Method \"public void removeClass(String)\" is Deprecated, and may be removed in a future version of Bukkit", new AuthorNagException(""));
++            warn = false;
++        }
++        removeClass0(name);
++    }
++
++    private void removeClass0(String name) {
++        Class<?> clazz = classes0.remove(name);
+ 
+         try {
+             if ((clazz != null) && (ConfigurationSerializable.class.isAssignableFrom(clazz))) {
+@@ -323,7 +430,7 @@ public final class JavaPluginLoader implements PluginLoader {
                      }
                  }
              };
@@ -1299,6 +1883,221 @@ index ea30d83..d905435 100644
                  eventSet.add(new TimedRegisteredListener(listener, executor, eh.priority(), plugin, eh.ignoreCancelled()));
              } else {
                  eventSet.add(new RegisteredListener(listener, executor, eh.priority(), plugin, eh.ignoreCancelled()));
+@@ -342,8 +449,8 @@ public final class JavaPluginLoader implements PluginLoader {
+ 
+             String pluginName = jPlugin.getDescription().getName();
+ 
+-            if (!loaders.containsKey(pluginName)) {
+-                loaders.put(pluginName, (PluginClassLoader) jPlugin.getClassLoader());
++            if (!loaders0.containsKey(pluginName)) {
++                loaders0.put(pluginName, (PluginClassLoader) jPlugin.getClassLoader());
+             }
+ 
+             try {
+@@ -376,14 +483,18 @@ public final class JavaPluginLoader implements PluginLoader {
+                 server.getLogger().log(Level.SEVERE, "Error occurred while disabling " + plugin.getDescription().getFullName() + " (Is it up to date?)", ex);
+             }
+ 
+-            loaders.remove(jPlugin.getDescription().getName());
++            loaders0.remove(jPlugin.getDescription().getName());
+ 
+             if (cloader instanceof PluginClassLoader) {
+                 PluginClassLoader loader = (PluginClassLoader) cloader;
+-                Set<String> names = loader.getClasses();
++                Set<String> names = loader.extended ? loader.getClasses() : loader.getClasses0(); // Don't warn on deprecation, but maintain overridability
+ 
+                 for (String name : names) {
+-                    removeClass(name);
++                    if (extended) {
++                        removeClass(name);
++                    } else {
++                        removeClass0(name);
++                    }
+                 }
+             }
+         }
+diff --git a/src/main/java/org/bukkit/plugin/java/PluginClassLoader.java b/src/main/java/org/bukkit/plugin/java/PluginClassLoader.java
+index 13f8633..29ec3fc 100644
+--- a/src/main/java/org/bukkit/plugin/java/PluginClassLoader.java
++++ b/src/main/java/org/bukkit/plugin/java/PluginClassLoader.java
+@@ -1,68 +1,71 @@
+ package org.bukkit.plugin.java;
+ 
+-import java.io.File;
+-import java.net.MalformedURLException;
+ import java.net.URL;
+ import java.net.URLClassLoader;
+ import java.util.HashMap;
+ import java.util.Map;
+ import java.util.Set;
++import java.util.logging.Level;
+ 
+ import org.apache.commons.lang.Validate;
+-import org.bukkit.plugin.InvalidPluginException;
+-import org.bukkit.plugin.PluginDescriptionFile;
++import org.bukkit.plugin.AuthorNagException;
+ 
+ /**
+  * A ClassLoader for plugins, to allow shared classes across multiple plugins
+  */
+-final class PluginClassLoader extends URLClassLoader {
++public class PluginClassLoader extends URLClassLoader {
+     private final JavaPluginLoader loader;
+     private final Map<String, Class<?>> classes = new HashMap<String, Class<?>>();
+-    private final PluginDescriptionFile description;
+-    private final File dataFolder;
+-    private final File file;
+-    final JavaPlugin plugin;
+-    private JavaPlugin pluginInit;
+-    private IllegalStateException pluginState;
+-
+-    PluginClassLoader(final JavaPluginLoader loader, final ClassLoader parent, final PluginDescriptionFile description, final File dataFolder, final File file) throws InvalidPluginException, MalformedURLException {
+-        super(new URL[] {file.toURI().toURL()}, parent);
++    final boolean extended = this.getClass() != PluginClassLoader.class;
++
++    /**
++     * Internal class not intended to be exposed
++     */
++    @Deprecated
++    public PluginClassLoader(final JavaPluginLoader loader, final URL[] urls, final ClassLoader parent) {
++        this(loader, urls, parent, null);
++
++        if (loader.warn) {
++            if (extended) {
++                loader.server.getLogger().log(Level.WARNING, "PluginClassLoader not intended to be extended by " + getClass() + ", and may be final in a future version of Bukkit");
++            } else {
++                loader.server.getLogger().log(Level.WARNING, "Constructor \"public PluginClassLoader(JavaPluginLoader, URL[], ClassLoader)\" is Deprecated, and may be removed in a future version of Bukkit", new AuthorNagException(""));
++            }
++            loader.warn = false;
++        }
++    }
++
++
++    PluginClassLoader(final JavaPluginLoader loader, final URL[] urls, final ClassLoader parent, final Object methodSignature) {
++        super(urls, parent);
+         Validate.notNull(loader, "Loader cannot be null");
+ 
+         this.loader = loader;
+-        this.description = description;
+-        this.dataFolder = dataFolder;
+-        this.file = file;
+-
+-        try {
+-            Class<?> jarClass;
+-            try {
+-                jarClass = Class.forName(description.getMain(), true, this);
+-            } catch (ClassNotFoundException ex) {
+-                throw new InvalidPluginException("Cannot find main class `" + description.getMain() + "'", ex);
+-            }
+-
+-            Class<? extends JavaPlugin> pluginClass;
+-            try {
+-                pluginClass = jarClass.asSubclass(JavaPlugin.class);
+-            } catch (ClassCastException ex) {
+-                throw new InvalidPluginException("main class `" + description.getMain() + "' does not extend JavaPlugin", ex);
+-            }
++    }
+ 
+-            plugin = pluginClass.newInstance();
+-        } catch (IllegalAccessException ex) {
+-            throw new InvalidPluginException("No public constructor", ex);
+-        } catch (InstantiationException ex) {
+-            throw new InvalidPluginException("Abnormal plugin type", ex);
+-        }
++    @Override
++    public void addURL(URL url) { // Override for access level!
++        super.addURL(url);
+     }
+ 
+     @Override
+     protected Class<?> findClass(String name) throws ClassNotFoundException {
+-        return findClass(name, true);
++        return extended ? findClass(name, true) : findClass0(name, true); // Don't warn on deprecation, but maintain overridability
+     }
+ 
+-    Class<?> findClass(String name, boolean checkGlobal) throws ClassNotFoundException {
++    /**
++     * @deprecated Internal method that wasn't intended to be exposed
++     */
++    @Deprecated
++    protected Class<?> findClass(String name, boolean checkGlobal) throws ClassNotFoundException {
++        if (loader.warn) {
++            loader.server.getLogger().log(Level.WARNING, "Method \"protected Class<?> findClass(String, boolean)\" is Deprecated, and may be removed in a future version of Bukkit", new AuthorNagException(""));
++            loader.warn = false;
++        }
++        return findClass0(name, checkGlobal);
++    }
++
++    Class<?> findClass0(String name, boolean checkGlobal) throws ClassNotFoundException {
+         if (name.startsWith("org.bukkit.") || name.startsWith("net.minecraft.")) {
+             throw new ClassNotFoundException(name);
+         }
+@@ -70,14 +73,18 @@ final class PluginClassLoader extends URLClassLoader {
+ 
+         if (result == null) {
+             if (checkGlobal) {
+-                result = loader.getClassByName(name);
++                result = loader.extended ? loader.getClassByName(name) : loader.getClassByName0(name); // Don't warn on deprecation, but maintain overridability
+             }
+ 
+             if (result == null) {
+                 result = super.findClass(name);
+ 
+                 if (result != null) {
+-                    loader.setClass(name, result);
++                    if (loader.extended) { // Don't warn on deprecation, but maintain overridability
++                        loader.setClass(name, result);
++                    } else {
++                        loader.setClass0(name, result);
++                    }
+                 }
+             }
+ 
+@@ -87,20 +94,19 @@ final class PluginClassLoader extends URLClassLoader {
+         return result;
+     }
+ 
+-    Set<String> getClasses() {
+-        return classes.keySet();
+-    }
+-
+-    synchronized void initialize(JavaPlugin javaPlugin) {
+-        Validate.notNull(javaPlugin, "Initializing plugin cannot be null");
+-        Validate.isTrue(javaPlugin.getClass().getClassLoader() == this, "Cannot initialize plugin outside of this class loader");
+-        if (this.plugin != null || this.pluginInit != null) {
+-            throw new IllegalArgumentException("Plugin already initialized!", pluginState);
++    /**
++     * @deprecated Internal method that wasn't intended to be exposed
++     */
++    @Deprecated
++    public Set<String> getClasses() {
++        if (loader.warn) {
++            loader.server.getLogger().log(Level.WARNING, "Method \"public Set<String> getClasses()\" is Deprecated, and may be removed in a future version of Bukkit", new AuthorNagException(""));
++            loader.warn = false;
+         }
++        return getClasses0();
++    }
+ 
+-        pluginState = new IllegalStateException("Initial initialization");
+-        this.pluginInit = javaPlugin;
+-
+-        javaPlugin.init(loader, loader.server, description, dataFolder, file, this);
++    Set<String> getClasses0() {
++        return classes.keySet();
+     }
+ }
+diff --git a/src/main/java/org/bukkit/plugin/messaging/ChannelNotRegisteredException.java b/src/main/java/org/bukkit/plugin/messaging/ChannelNotRegisteredException.java
+index 2266f17..c3a797d 100644
+--- a/src/main/java/org/bukkit/plugin/messaging/ChannelNotRegisteredException.java
++++ b/src/main/java/org/bukkit/plugin/messaging/ChannelNotRegisteredException.java
+@@ -10,6 +10,6 @@ public class ChannelNotRegisteredException extends RuntimeException {
+     }
+ 
+     public ChannelNotRegisteredException(String channel) {
+-        super("Attempted to send a plugin message through the unregistered channel `" + channel + "'.");
++        super("Attempted to send a plugin message through an unregistered channel ('" + channel + "'.");
+     }
+ }
 diff --git a/src/main/java/org/bukkit/plugin/messaging/StandardMessenger.java b/src/main/java/org/bukkit/plugin/messaging/StandardMessenger.java
 index a906f8d..4c171e8 100644
 --- a/src/main/java/org/bukkit/plugin/messaging/StandardMessenger.java
@@ -1320,6 +2119,36 @@ index a906f8d..4c171e8 100644
          }
      }
  
+diff --git a/src/main/java/org/bukkit/util/StringUtil.java b/src/main/java/org/bukkit/util/StringUtil.java
+index 4a8753f..ed309cc 100644
+--- a/src/main/java/org/bukkit/util/StringUtil.java
++++ b/src/main/java/org/bukkit/util/StringUtil.java
+@@ -21,7 +21,7 @@ public class StringUtil {
+      * @throws IllegalArgumentException if originals contains a null element.
+      *     <b>Note: the collection may be modified before this is thrown</b>
+      */
+-    public static <T extends Collection<? super String>> T copyPartialMatches(final String token, final Iterable<String> originals, final T collection) throws UnsupportedOperationException, IllegalArgumentException {
++    public static <T extends Collection<String>> T copyPartialMatches(final String token, final Iterable<String> originals, final T collection) throws UnsupportedOperationException, IllegalArgumentException {
+         Validate.notNull(token, "Search token cannot be null");
+         Validate.notNull(collection, "Collection cannot be null");
+         Validate.notNull(originals, "Originals cannot be null");
+@@ -36,7 +36,7 @@ public class StringUtil {
+     }
+ 
+     /**
+-     * This method uses a region to check case-insensitive equality. This
++     * This method uses a substring to check case-insensitive equality. This
+      * means the internal array does not need to be copied like a
+      * toLowerCase() call would.
+      *
+@@ -52,6 +52,6 @@ public class StringUtil {
+         if (string.length() < prefix.length()) {
+             return false;
+         }
+-        return string.regionMatches(true, 0, prefix, 0, prefix.length());
++        return string.substring(0, prefix.length()).equalsIgnoreCase(prefix);
+     }
+ }
 diff --git a/src/main/java/org/spigotmc/CustomTimingsHandler.java b/src/main/java/org/spigotmc/CustomTimingsHandler.java
 new file mode 100644
 index 0000000..9fca481
@@ -1633,6 +2462,165 @@ index b206b1f..01b62fb 100644
      public void testEventClass() throws EventException {
          Listener listener = new Listener() {};
          EventExecutor executor = new EventExecutor() {
+diff --git a/src/test/java/org/bukkit/util/StringUtilStartsWithTest.java b/src/test/java/org/bukkit/util/StringUtilStartsWithTest.java
+deleted file mode 100644
+index b85a2b2..0000000
+--- a/src/test/java/org/bukkit/util/StringUtilStartsWithTest.java
++++ /dev/null
+@@ -1,86 +0,0 @@
+-package org.bukkit.util;
+-
+-import static org.hamcrest.Matchers.*;
+-import static org.junit.Assert.*;
+-
+-import java.util.List;
+-
+-import org.junit.Test;
+-import org.junit.runner.RunWith;
+-import org.junit.runners.Parameterized;
+-import org.junit.runners.Parameterized.Parameter;
+-import org.junit.runners.Parameterized.Parameters;
+-
+-import com.google.common.collect.ImmutableList;
+-
+-@RunWith(Parameterized.class)
+-public class StringUtilStartsWithTest {
+-
+-    @Parameters(name= "{index}: {0} startsWith {1} == {2}")
+-    public static List<Object[]> data() {
+-        return ImmutableList.<Object[]>of(
+-            new Object[] {
+-                "Apple",
+-                "Apples",
+-                false
+-            },
+-            new Object[] {
+-                "Apples",
+-                "Apple",
+-                true
+-            },
+-            new Object[] {
+-                "Apple",
+-                "Apple",
+-                true
+-            },
+-            new Object[] {
+-                "Apple",
+-                "apples",
+-                false
+-            },
+-            new Object[] {
+-                "apple",
+-                "Apples",
+-                false
+-            },
+-            new Object[] {
+-                "apple",
+-                "apples",
+-                false
+-            },
+-            new Object[] {
+-                "Apples",
+-                "apPL",
+-                true
+-            },
+-            new Object[] {
+-                "123456789",
+-                "1234567",
+-                true
+-            },
+-            new Object[] {
+-                "",
+-                "",
+-                true
+-            },
+-            new Object[] {
+-                "string",
+-                "",
+-                true
+-            }
+-        );
+-    }
+-
+-    @Parameter(0)
+-    public String base;
+-    @Parameter(1)
+-    public String prefix;
+-    @Parameter(2)
+-    public boolean result;
+-
+-    @Test
+-    public void testFor() {
+-        assertThat(base + " starts with " + prefix + ": " + result, StringUtil.startsWithIgnoreCase(base, prefix), is(result));
+-    }
+-}
+diff --git a/src/test/java/org/bukkit/util/StringUtilTest.java b/src/test/java/org/bukkit/util/StringUtilTest.java
+deleted file mode 100644
+index 9c8444c..0000000
+--- a/src/test/java/org/bukkit/util/StringUtilTest.java
++++ /dev/null
+@@ -1,61 +0,0 @@
+-package org.bukkit.util;
+-
+-import static org.hamcrest.Matchers.*;
+-import static org.junit.Assert.*;
+-
+-import java.util.ArrayList;
+-import java.util.Arrays;
+-import java.util.List;
+-
+-import org.junit.Test;
+-
+-import com.google.common.collect.ImmutableList;
+-
+-public class StringUtilTest {
+-
+-    @Test(expected=NullPointerException.class)
+-    public void nullPrefixTest() {
+-        StringUtil.startsWithIgnoreCase("String", null);
+-    }
+-
+-    @Test(expected=IllegalArgumentException.class)
+-    public void nullStringTest() {
+-        StringUtil.startsWithIgnoreCase(null, "String");
+-    }
+-
+-    @Test(expected=IllegalArgumentException.class)
+-    public void nullCollectionTest() {
+-        StringUtil.copyPartialMatches("Token", ImmutableList.<String>of(), null);
+-    }
+-
+-    @Test(expected=IllegalArgumentException.class)
+-    public void nullIterableTest() {
+-        StringUtil.copyPartialMatches("Token", null, new ArrayList<String>());
+-    }
+-
+-    @Test(expected=IllegalArgumentException.class)
+-    public void nullTokenTest() {
+-        StringUtil.copyPartialMatches(null, ImmutableList.<String>of(), new ArrayList<String>());
+-    }
+-
+-    @Test
+-    public void copyTokenTest() {
+-        String token = "ab";
+-        Iterable<String> original = ImmutableList.of("ab12", "aC561", "AB5195", "Ab76", "", "a");
+-        List<String> expected =     ImmutableList.of("ab12",          "AB5195", "Ab76"         );
+-        List<String> list = new ArrayList<String>();
+-        assertThat(StringUtil.copyPartialMatches(token, original, list), is(expected));
+-        assertThat(StringUtil.copyPartialMatches(token, original, list), is(sameInstance(list)));
+-        assertThat(list.size(), is(expected.size() * 2));
+-    }
+-
+-    @Test(expected=UnsupportedOperationException.class)
+-    public void copyUnsupportedTest() {
+-        StringUtil.copyPartialMatches("token", ImmutableList.of("token1", "token2"), ImmutableList.of());
+-    }
+-
+-    @Test(expected=IllegalArgumentException.class)
+-    public void copyNullTest() {
+-        StringUtil.copyPartialMatches("token", Arrays.asList("token1", "token2", null), new ArrayList<String>());
+-    }
+-}
 -- 
-1.8.5.2
+1.8.3.2
 
