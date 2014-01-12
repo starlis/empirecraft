@@ -1,13 +1,13 @@
-From 998037d812f46a7c686055bc2a56e1639c86d2ff Mon Sep 17 00:00:00 2001
+From af9c3eda387fd73d3c3cfcf68745ffe3617fdbed Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Sat, 11 Jan 2014 21:44:10 -0500
 Subject: [PATCH] More Timings
 
 ---
- src/main/java/net/minecraft/server/DedicatedServer.java |  3 +++
- src/main/java/net/minecraft/server/MinecraftServer.java | 16 ++++++++++++++--
- src/main/java/org/bukkit/craftbukkit/SpigotTimings.java | 12 ++++++++++++
- 3 files changed, 29 insertions(+), 2 deletions(-)
+ .../java/net/minecraft/server/DedicatedServer.java |  3 ++
+ .../java/net/minecraft/server/MinecraftServer.java | 16 ++++++++--
+ .../java/org/bukkit/craftbukkit/SpigotTimings.java | 37 +++++++++++++++-------
+ 3 files changed, 42 insertions(+), 14 deletions(-)
 
 diff --git a/src/main/java/net/minecraft/server/DedicatedServer.java b/src/main/java/net/minecraft/server/DedicatedServer.java
 index 8ec6474..29b8e03 100755
@@ -38,7 +38,7 @@ index 8ec6474..29b8e03 100755
  
      public boolean V() {
 diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
-index 0ce18eb..51cb6ee 100644
+index 0ce18eb..de51193 100644
 --- a/src/main/java/net/minecraft/server/MinecraftServer.java
 +++ b/src/main/java/net/minecraft/server/MinecraftServer.java
 @@ -556,10 +556,12 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
@@ -84,15 +84,18 @@ index 0ce18eb..51cb6ee 100644
  
          int i;
  
-@@ -610,6 +616,7 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
- 
-             // if (i == 0 || this.getAllowNether()) {
+@@ -612,8 +618,10 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
                  WorldServer worldserver = this.worlds.get(i);
-+                worldserver.timings.fullWorldTick.startTiming(); // Spigot
  
                  this.methodProfiler.a(worldserver.getWorldData().getName());
++                worldserver.timings.pools.startTiming(); // Spigot
                  this.methodProfiler.a("pools");
-@@ -628,7 +635,9 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+                 worldserver.getVec3DPool().a();
++                worldserver.timings.pools.stopTiming(); // Spigot
+                 this.methodProfiler.b();
+                 /* Drop global time updates
+                 if (this.ticks % 20 == 0) {
+@@ -628,7 +636,9 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
                  CrashReport crashreport;
  
                  try {
@@ -102,7 +105,7 @@ index 0ce18eb..51cb6ee 100644
                  } catch (Throwable throwable) {
                      crashreport = CrashReport.a(throwable, "Exception ticking world");
                      worldserver.a(crashreport);
-@@ -636,7 +645,9 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+@@ -636,7 +646,9 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
                  }
  
                  try {
@@ -112,14 +115,6 @@ index 0ce18eb..51cb6ee 100644
                  } catch (Throwable throwable1) {
                      crashreport = CrashReport.a(throwable1, "Exception ticking world entities");
                      worldserver.a(crashreport);
-@@ -650,6 +661,7 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
-                 worldserver.timings.tracker.stopTiming(); // Spigot
-                 this.methodProfiler.b();
-                 this.methodProfiler.b();
-+                worldserver.timings.fullWorldTick.stopTiming(); // Spigot
-             // } // CraftBukkit
- 
-             // this.g[i][this.ticks % 100] = System.nanoTime() - j; // CraftBukkit
 @@ -1136,7 +1148,7 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
      }
  
@@ -130,7 +125,7 @@ index 0ce18eb..51cb6ee 100644
  
      public abstract boolean V();
 diff --git a/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java b/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java
-index bf45168..10c83cc 100644
+index bf45168..0d59ebb 100644
 --- a/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java
 +++ b/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java
 @@ -16,6 +16,9 @@ public class SpigotTimings {
@@ -153,21 +148,44 @@ index bf45168..10c83cc 100644
      public static final HashMap<String, CustomTimingsHandler> entityTypeTimingMap = new HashMap<String, CustomTimingsHandler>();
      public static final HashMap<String, CustomTimingsHandler> tileEntityTypeTimingMap = new HashMap<String, CustomTimingsHandler>();
      public static final HashMap<String, CustomTimingsHandler> pluginTaskTimingMap = new HashMap<String, CustomTimingsHandler>();
-@@ -106,6 +112,9 @@ public class SpigotTimings {
+@@ -106,23 +112,30 @@ public class SpigotTimings {
          public final CustomTimingsHandler tileEntityTick;
          public final CustomTimingsHandler tileEntityPending;
          public final CustomTimingsHandler tracker;
-+        public final CustomTimingsHandler fullWorldTick;
++        public final CustomTimingsHandler pools;
 +        public final CustomTimingsHandler doTick;
 +        public final CustomTimingsHandler tickEntities;
  
          public WorldTimingsHandler(World server) {
              String name = server.worldData.getName() +" - ";
-@@ -123,6 +132,9 @@ public class SpigotTimings {
-             tileEntityTick = new CustomTimingsHandler(name + "tileEntityTick");
-             tileEntityPending = new CustomTimingsHandler(name + "tileEntityPending");
+ 
+-            mobSpawn = new CustomTimingsHandler(name + "mobSpawn");
+-            doChunkUnload = new CustomTimingsHandler(name + "doChunkUnload");
+-            doTickPending = new CustomTimingsHandler(name + "doTickPending");
+-            doTickTiles = new CustomTimingsHandler(name + "doTickTiles");
+-            doVillages = new CustomTimingsHandler(name + "doVillages");
+-            doChunkMap = new CustomTimingsHandler(name + "doChunkMap");
+-            doSounds = new CustomTimingsHandler(name + "doSounds");
+-            doChunkGC = new CustomTimingsHandler(name + "doChunkGC");
+-            doPortalForcer = new CustomTimingsHandler(name + "doPortalForcer");
+-            entityTick = new CustomTimingsHandler(name + "entityTick");
+-            tileEntityTick = new CustomTimingsHandler(name + "tileEntityTick");
+-            tileEntityPending = new CustomTimingsHandler(name + "tileEntityPending");
++            mobSpawn = new CustomTimingsHandler("** " + name + "mobSpawn");
++            doChunkUnload = new CustomTimingsHandler("** " + name + "doChunkUnload");
++            doTickPending = new CustomTimingsHandler("** " + name + "doTickPending");
++            doTickTiles = new CustomTimingsHandler("** " + name + "doTickTiles");
++            doVillages = new CustomTimingsHandler("** " + name + "doVillages");
++            doChunkMap = new CustomTimingsHandler("** " + name + "doChunkMap");
++            doSounds = new CustomTimingsHandler("** " + name + "doSounds");
++            doChunkGC = new CustomTimingsHandler("** " + name + "doChunkGC");
++            doPortalForcer = new CustomTimingsHandler("** " + name + "doPortalForcer");
++            entityTick = new CustomTimingsHandler("** " + name + "entityTick");
++            tileEntityTick = new CustomTimingsHandler("** " + name + "tileEntityTick");
++            tileEntityPending = new CustomTimingsHandler("** " + name + "tileEntityPending");
++
              tracker = new CustomTimingsHandler(name + "tracker");
-+            fullWorldTick = new CustomTimingsHandler(name + "World Tick");
++            pools = new CustomTimingsHandler(name + "pools");
 +            doTick = new CustomTimingsHandler(name + "doTick");
 +            tickEntities = new CustomTimingsHandler(name + "tickEntities");
          }
