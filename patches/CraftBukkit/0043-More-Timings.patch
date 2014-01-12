@@ -1,0 +1,178 @@
+From 998037d812f46a7c686055bc2a56e1639c86d2ff Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Sat, 11 Jan 2014 21:44:10 -0500
+Subject: [PATCH] More Timings
+
+---
+ src/main/java/net/minecraft/server/DedicatedServer.java |  3 +++
+ src/main/java/net/minecraft/server/MinecraftServer.java | 16 ++++++++++++++--
+ src/main/java/org/bukkit/craftbukkit/SpigotTimings.java | 12 ++++++++++++
+ 3 files changed, 29 insertions(+), 2 deletions(-)
+
+diff --git a/src/main/java/net/minecraft/server/DedicatedServer.java b/src/main/java/net/minecraft/server/DedicatedServer.java
+index 8ec6474..29b8e03 100755
+--- a/src/main/java/net/minecraft/server/DedicatedServer.java
++++ b/src/main/java/net/minecraft/server/DedicatedServer.java
+@@ -18,6 +18,7 @@ import java.io.PrintStream;
+ import org.apache.logging.log4j.Level;
+ 
+ import org.bukkit.craftbukkit.LoggerOutputStream;
++import org.bukkit.craftbukkit.SpigotTimings; // Spigot
+ import org.bukkit.event.server.ServerCommandEvent;
+ // CraftBukkit end
+ 
+@@ -297,6 +298,7 @@ public class DedicatedServer extends MinecraftServer implements IMinecraftServer
+     }
+ 
+     public void aw() {
++        SpigotTimings.serverCommandTimer.startTiming(); // Spigot
+         while (!this.i.isEmpty()) {
+             ServerCommand servercommand = (ServerCommand) this.i.remove(0);
+ 
+@@ -309,6 +311,7 @@ public class DedicatedServer extends MinecraftServer implements IMinecraftServer
+             this.server.dispatchServerCommand(this.console, servercommand);
+             // CraftBukkit end
+         }
++        SpigotTimings.serverCommandTimer.stopTiming(); // Spigot
+     }
+ 
+     public boolean V() {
+diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
+index 0ce18eb..51cb6ee 100644
+--- a/src/main/java/net/minecraft/server/MinecraftServer.java
++++ b/src/main/java/net/minecraft/server/MinecraftServer.java
+@@ -556,10 +556,12 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+         }
+ 
+         if ((this.autosavePeriod > 0) && ((this.ticks % this.autosavePeriod) == 0)) { // CraftBukkit
++            SpigotTimings.worldSaveTimer.startTiming(); // Spigot
+             this.methodProfiler.a("save");
+             this.t.savePlayers();
+             this.saveChunks(true);
+             this.methodProfiler.b();
++            SpigotTimings.worldSaveTimer.stopTiming(); // Spigot
+         }
+ 
+         this.methodProfiler.a("tallying");
+@@ -584,17 +586,20 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+         SpigotTimings.schedulerTimer.startTiming(); // Spigot
+         // CraftBukkit start
+         this.server.getScheduler().mainThreadHeartbeat(this.ticks);
++        SpigotTimings.schedulerTimer.stopTiming(); // Spigot
+ 
+         // Run tasks that are waiting on processing
++        SpigotTimings.processQueueTimer.startTiming(); // Spigot
+         while (!processQueue.isEmpty()) {
+             processQueue.remove().run();
+         }
++        SpigotTimings.processQueueTimer.stopTiming(); // Spigot
+ 
+-        SpigotTimings.schedulerTimer.stopTiming(); // Spigot
+         SpigotTimings.chunkIOTickTimer.startTiming(); // Spigot
+         org.bukkit.craftbukkit.chunkio.ChunkIOExecutor.tick();
+         SpigotTimings.chunkIOTickTimer.stopTiming(); // Spigot
+ 
++        SpigotTimings.timeUpdateTimer.startTiming(); // Spigot
+         // Send time updates to everyone, it will get the right time from the world the player is in.
+         if (this.ticks % 20 == 0) {
+             for (int i = 0; i < this.getPlayerList().players.size(); ++i) {
+@@ -602,6 +607,7 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+                 entityplayer.playerConnection.sendPacket(new PacketPlayOutUpdateTime(entityplayer.world.getTime(), entityplayer.getPlayerTime(), entityplayer.world.getGameRules().getBoolean("doDaylightCycle"))); // Add support for per player time
+             }
+         }
++        SpigotTimings.timeUpdateTimer.stopTiming(); // Spigot
+ 
+         int i;
+ 
+@@ -610,6 +616,7 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+ 
+             // if (i == 0 || this.getAllowNether()) {
+                 WorldServer worldserver = this.worlds.get(i);
++                worldserver.timings.fullWorldTick.startTiming(); // Spigot
+ 
+                 this.methodProfiler.a(worldserver.getWorldData().getName());
+                 this.methodProfiler.a("pools");
+@@ -628,7 +635,9 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+                 CrashReport crashreport;
+ 
+                 try {
++                    worldserver.timings.doTick.startTiming(); // Spigot
+                     worldserver.doTick();
++                    worldserver.timings.doTick.stopTiming(); // Spigot
+                 } catch (Throwable throwable) {
+                     crashreport = CrashReport.a(throwable, "Exception ticking world");
+                     worldserver.a(crashreport);
+@@ -636,7 +645,9 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+                 }
+ 
+                 try {
++                    worldserver.timings.tickEntities.startTiming(); // Spigot
+                     worldserver.tickEntities();
++                    worldserver.timings.tickEntities.stopTiming(); // Spigot
+                 } catch (Throwable throwable1) {
+                     crashreport = CrashReport.a(throwable1, "Exception ticking world entities");
+                     worldserver.a(crashreport);
+@@ -650,6 +661,7 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+                 worldserver.timings.tracker.stopTiming(); // Spigot
+                 this.methodProfiler.b();
+                 this.methodProfiler.b();
++                worldserver.timings.fullWorldTick.stopTiming(); // Spigot
+             // } // CraftBukkit
+ 
+             // this.g[i][this.ticks % 100] = System.nanoTime() - j; // CraftBukkit
+@@ -1136,7 +1148,7 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+     }
+ 
+     public boolean getSnooperEnabled() {
+-        return false; // EMC
++        return false;
+     }
+ 
+     public abstract boolean V();
+diff --git a/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java b/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java
+index bf45168..10c83cc 100644
+--- a/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java
++++ b/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java
+@@ -16,6 +16,9 @@ public class SpigotTimings {
+     public static final CustomTimingsHandler schedulerTimer = new CustomTimingsHandler("Scheduler");
+     public static final CustomTimingsHandler chunkIOTickTimer = new CustomTimingsHandler("ChunkIOTick");
+     public static final CustomTimingsHandler syncChunkLoadTimer = new CustomTimingsHandler("syncChunkLoad");
++    public static final CustomTimingsHandler timeUpdateTimer = new CustomTimingsHandler("Time Update");
++    public static final CustomTimingsHandler serverCommandTimer = new CustomTimingsHandler("Server Command");
++    public static final CustomTimingsHandler worldSaveTimer = new CustomTimingsHandler("World Save");
+ 
+     public static final CustomTimingsHandler entityMoveTimer = new CustomTimingsHandler("** entityMove");
+     public static final CustomTimingsHandler tickEntityTimer = new CustomTimingsHandler("** tickEntity");
+@@ -33,6 +36,9 @@ public class SpigotTimings {
+     public static final CustomTimingsHandler entityActivationCheckTimer = new CustomTimingsHandler("entityActivationCheck");
+     public static final CustomTimingsHandler checkIfActiveTimer = new CustomTimingsHandler("** checkIfActive");
+ 
++    public static final CustomTimingsHandler aabbCleanupTimer = new CustomTimingsHandler("AABBCleanup");
++    public static final CustomTimingsHandler processQueueTimer = new CustomTimingsHandler("processQueue");
++
+     public static final HashMap<String, CustomTimingsHandler> entityTypeTimingMap = new HashMap<String, CustomTimingsHandler>();
+     public static final HashMap<String, CustomTimingsHandler> tileEntityTypeTimingMap = new HashMap<String, CustomTimingsHandler>();
+     public static final HashMap<String, CustomTimingsHandler> pluginTaskTimingMap = new HashMap<String, CustomTimingsHandler>();
+@@ -106,6 +112,9 @@ public class SpigotTimings {
+         public final CustomTimingsHandler tileEntityTick;
+         public final CustomTimingsHandler tileEntityPending;
+         public final CustomTimingsHandler tracker;
++        public final CustomTimingsHandler fullWorldTick;
++        public final CustomTimingsHandler doTick;
++        public final CustomTimingsHandler tickEntities;
+ 
+         public WorldTimingsHandler(World server) {
+             String name = server.worldData.getName() +" - ";
+@@ -123,6 +132,9 @@ public class SpigotTimings {
+             tileEntityTick = new CustomTimingsHandler(name + "tileEntityTick");
+             tileEntityPending = new CustomTimingsHandler(name + "tileEntityPending");
+             tracker = new CustomTimingsHandler(name + "tracker");
++            fullWorldTick = new CustomTimingsHandler(name + "World Tick");
++            doTick = new CustomTimingsHandler(name + "doTick");
++            tickEntities = new CustomTimingsHandler(name + "tickEntities");
+         }
+     }
+ }
+-- 
+1.8.3.2
+
