@@ -1,13 +1,14 @@
-From af9c3eda387fd73d3c3cfcf68745ffe3617fdbed Mon Sep 17 00:00:00 2001
+From 63c395e1fbab391141600096f71465faeec41c92 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Sat, 11 Jan 2014 21:44:10 -0500
 Subject: [PATCH] More Timings
 
 ---
- .../java/net/minecraft/server/DedicatedServer.java |  3 ++
- .../java/net/minecraft/server/MinecraftServer.java | 16 ++++++++--
- .../java/org/bukkit/craftbukkit/SpigotTimings.java | 37 +++++++++++++++-------
- 3 files changed, 42 insertions(+), 14 deletions(-)
+ .../java/net/minecraft/server/DedicatedServer.java |   3 +
+ .../java/net/minecraft/server/MinecraftServer.java |  14 ++-
+ .../java/org/bukkit/craftbukkit/SpigotTimings.java |  37 ++++--
+ .../craftbukkit/scheduler/CraftScheduler.java      | 125 +++++++++++----------
+ 4 files changed, 106 insertions(+), 73 deletions(-)
 
 diff --git a/src/main/java/net/minecraft/server/DedicatedServer.java b/src/main/java/net/minecraft/server/DedicatedServer.java
 index 8ec6474..29b8e03 100755
@@ -38,7 +39,7 @@ index 8ec6474..29b8e03 100755
  
      public boolean V() {
 diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
-index 0ce18eb..de51193 100644
+index 0ce18eb..4bfa26b 100644
 --- a/src/main/java/net/minecraft/server/MinecraftServer.java
 +++ b/src/main/java/net/minecraft/server/MinecraftServer.java
 @@ -556,10 +556,12 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
@@ -84,18 +85,7 @@ index 0ce18eb..de51193 100644
  
          int i;
  
-@@ -612,8 +618,10 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
-                 WorldServer worldserver = this.worlds.get(i);
- 
-                 this.methodProfiler.a(worldserver.getWorldData().getName());
-+                worldserver.timings.pools.startTiming(); // Spigot
-                 this.methodProfiler.a("pools");
-                 worldserver.getVec3DPool().a();
-+                worldserver.timings.pools.stopTiming(); // Spigot
-                 this.methodProfiler.b();
-                 /* Drop global time updates
-                 if (this.ticks % 20 == 0) {
-@@ -628,7 +636,9 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+@@ -628,7 +634,9 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
                  CrashReport crashreport;
  
                  try {
@@ -105,7 +95,7 @@ index 0ce18eb..de51193 100644
                  } catch (Throwable throwable) {
                      crashreport = CrashReport.a(throwable, "Exception ticking world");
                      worldserver.a(crashreport);
-@@ -636,7 +646,9 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+@@ -636,7 +644,9 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
                  }
  
                  try {
@@ -115,7 +105,7 @@ index 0ce18eb..de51193 100644
                  } catch (Throwable throwable1) {
                      crashreport = CrashReport.a(throwable1, "Exception ticking world entities");
                      worldserver.a(crashreport);
-@@ -1136,7 +1148,7 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+@@ -1136,7 +1146,7 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
      }
  
      public boolean getSnooperEnabled() {
@@ -125,7 +115,7 @@ index 0ce18eb..de51193 100644
  
      public abstract boolean V();
 diff --git a/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java b/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java
-index bf45168..0d59ebb 100644
+index bf45168..559de1d 100644
 --- a/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java
 +++ b/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java
 @@ -16,6 +16,9 @@ public class SpigotTimings {
@@ -138,21 +128,22 @@ index bf45168..0d59ebb 100644
  
      public static final CustomTimingsHandler entityMoveTimer = new CustomTimingsHandler("** entityMove");
      public static final CustomTimingsHandler tickEntityTimer = new CustomTimingsHandler("** tickEntity");
-@@ -33,6 +36,9 @@ public class SpigotTimings {
+@@ -33,6 +36,11 @@ public class SpigotTimings {
      public static final CustomTimingsHandler entityActivationCheckTimer = new CustomTimingsHandler("entityActivationCheck");
      public static final CustomTimingsHandler checkIfActiveTimer = new CustomTimingsHandler("** checkIfActive");
  
-+    public static final CustomTimingsHandler aabbCleanupTimer = new CustomTimingsHandler("AABBCleanup");
 +    public static final CustomTimingsHandler processQueueTimer = new CustomTimingsHandler("processQueue");
++    public static final CustomTimingsHandler pendingTimer = new CustomTimingsHandler("** Scheduler - Pending Task");
++    public static final CustomTimingsHandler schedulerSyncTimer = new CustomTimingsHandler("** Scheduler - Sync Task");
++    public static final CustomTimingsHandler schedulerAsyncTimer = new CustomTimingsHandler("** Scheduler - Async Task");
 +
      public static final HashMap<String, CustomTimingsHandler> entityTypeTimingMap = new HashMap<String, CustomTimingsHandler>();
      public static final HashMap<String, CustomTimingsHandler> tileEntityTypeTimingMap = new HashMap<String, CustomTimingsHandler>();
      public static final HashMap<String, CustomTimingsHandler> pluginTaskTimingMap = new HashMap<String, CustomTimingsHandler>();
-@@ -106,23 +112,30 @@ public class SpigotTimings {
+@@ -106,23 +114,28 @@ public class SpigotTimings {
          public final CustomTimingsHandler tileEntityTick;
          public final CustomTimingsHandler tileEntityPending;
          public final CustomTimingsHandler tracker;
-+        public final CustomTimingsHandler pools;
 +        public final CustomTimingsHandler doTick;
 +        public final CustomTimingsHandler tickEntities;
  
@@ -185,12 +176,214 @@ index bf45168..0d59ebb 100644
 +            tileEntityPending = new CustomTimingsHandler("** " + name + "tileEntityPending");
 +
              tracker = new CustomTimingsHandler(name + "tracker");
-+            pools = new CustomTimingsHandler(name + "pools");
 +            doTick = new CustomTimingsHandler(name + "doTick");
 +            tickEntities = new CustomTimingsHandler(name + "tickEntities");
          }
      }
  }
+diff --git a/src/main/java/org/bukkit/craftbukkit/scheduler/CraftScheduler.java b/src/main/java/org/bukkit/craftbukkit/scheduler/CraftScheduler.java
+index a30f217..707a9a2 100644
+--- a/src/main/java/org/bukkit/craftbukkit/scheduler/CraftScheduler.java
++++ b/src/main/java/org/bukkit/craftbukkit/scheduler/CraftScheduler.java
+@@ -15,6 +15,7 @@ import java.util.concurrent.atomic.AtomicReference;
+ import java.util.logging.Level;
+ 
+ import org.apache.commons.lang.Validate;
++import org.bukkit.craftbukkit.SpigotTimings; // Spigot
+ import org.bukkit.plugin.IllegalPluginAccessException;
+ import org.bukkit.plugin.Plugin;
+ import org.bukkit.scheduler.BukkitScheduler;
+@@ -57,11 +58,11 @@ public class CraftScheduler implements BukkitScheduler {
+      * Main thread logic only
+      */
+     private final PriorityQueue<CraftTask> pending = new PriorityQueue<CraftTask>(10,
+-            new Comparator<CraftTask>() {
+-                public int compare(final CraftTask o1, final CraftTask o2) {
+-                    return (int) (o1.getNextRun() - o2.getNextRun());
+-                }
+-            });
++        new Comparator<CraftTask>() {
++            public int compare(final CraftTask o1, final CraftTask o2) {
++                return (int) (o1.getNextRun() - o2.getNextRun());
++            }
++        });
+     /**
+      * Main thread logic only
+      */
+@@ -162,27 +163,27 @@ public class CraftScheduler implements BukkitScheduler {
+             task.cancel0();
+         }
+         task = new CraftTask(
+-                new Runnable() {
+-                    public void run() {
+-                        if (!check(CraftScheduler.this.temp)) {
+-                            check(CraftScheduler.this.pending);
+-                        }
++            new Runnable() {
++                public void run() {
++                    if (!check(CraftScheduler.this.temp)) {
++                        check(CraftScheduler.this.pending);
+                     }
+-                    private boolean check(final Iterable<CraftTask> collection) {
+-                        final Iterator<CraftTask> tasks = collection.iterator();
+-                        while (tasks.hasNext()) {
+-                            final CraftTask task = tasks.next();
+-                            if (task.getTaskId() == taskId) {
+-                                task.cancel0();
+-                                tasks.remove();
+-                                if (task.isSync()) {
+-                                    runners.remove(taskId);
+-                                }
+-                                return true;
++                }
++                private boolean check(final Iterable<CraftTask> collection) {
++                    final Iterator<CraftTask> tasks = collection.iterator();
++                    while (tasks.hasNext()) {
++                        final CraftTask task = tasks.next();
++                        if (task.getTaskId() == taskId) {
++                            task.cancel0();
++                            tasks.remove();
++                            if (task.isSync()) {
++                                runners.remove(taskId);
+                             }
++                            return true;
+                         }
+-                        return false;
+-                    }});
++                    }
++                    return false;
++                }});
+         handle(task, 0l);
+         for (CraftTask taskPending = head.getNext(); taskPending != null; taskPending = taskPending.getNext()) {
+             if (taskPending == task) {
+@@ -197,25 +198,25 @@ public class CraftScheduler implements BukkitScheduler {
+     public void cancelTasks(final Plugin plugin) {
+         Validate.notNull(plugin, "Cannot cancel tasks of null plugin");
+         final CraftTask task = new CraftTask(
+-                new Runnable() {
+-                    public void run() {
+-                        check(CraftScheduler.this.pending);
+-                        check(CraftScheduler.this.temp);
+-                    }
+-                    void check(final Iterable<CraftTask> collection) {
+-                        final Iterator<CraftTask> tasks = collection.iterator();
+-                        while (tasks.hasNext()) {
+-                            final CraftTask task = tasks.next();
+-                            if (task.getOwner().equals(plugin)) {
+-                                task.cancel0();
+-                                tasks.remove();
+-                                if (task.isSync()) {
+-                                    runners.remove(task.getTaskId());
+-                                }
++            new Runnable() {
++                public void run() {
++                    check(CraftScheduler.this.pending);
++                    check(CraftScheduler.this.temp);
++                }
++                void check(final Iterable<CraftTask> collection) {
++                    final Iterator<CraftTask> tasks = collection.iterator();
++                    while (tasks.hasNext()) {
++                        final CraftTask task = tasks.next();
++                        if (task.getOwner().equals(plugin)) {
++                            task.cancel0();
++                            tasks.remove();
++                            if (task.isSync()) {
++                                runners.remove(task.getTaskId());
+                             }
+                         }
+                     }
+-                });
++                }
++            });
+         handle(task, 0l);
+         for (CraftTask taskPending = head.getNext(); taskPending != null; taskPending = taskPending.getNext()) {
+             if (taskPending == task) {
+@@ -234,20 +235,20 @@ public class CraftScheduler implements BukkitScheduler {
+ 
+     public void cancelAllTasks() {
+         final CraftTask task = new CraftTask(
+-                new Runnable() {
+-                    public void run() {
+-                        Iterator<CraftTask> it = CraftScheduler.this.runners.values().iterator();
+-                        while (it.hasNext()) {
+-                            CraftTask task = it.next();
+-                            task.cancel0();
+-                            if (task.isSync()) {
+-                                it.remove();
+-                            }
++            new Runnable() {
++                public void run() {
++                    Iterator<CraftTask> it = CraftScheduler.this.runners.values().iterator();
++                    while (it.hasNext()) {
++                        CraftTask task = it.next();
++                        task.cancel0();
++                        if (task.isSync()) {
++                            it.remove();
+                         }
+-                        CraftScheduler.this.pending.clear();
+-                        CraftScheduler.this.temp.clear();
+                     }
+-                });
++                    CraftScheduler.this.pending.clear();
++                    CraftScheduler.this.temp.clear();
++                }
++            });
+         handle(task, 0l);
+         for (CraftTask taskPending = head.getNext(); taskPending != null; taskPending = taskPending.getNext()) {
+             if (taskPending == task) {
+@@ -342,20 +343,24 @@ public class CraftScheduler implements BukkitScheduler {
+             }
+             if (task.isSync()) {
+                 try {
++                    SpigotTimings.schedulerSyncTimer.startTiming(); // Spigot
+                     task.run();
++                    SpigotTimings.schedulerSyncTimer.stopTiming(); // Spigot
+                 } catch (final Throwable throwable) {
+                     task.getOwner().getLogger().log(
+-                            Level.WARNING,
+-                            String.format(
+-                                "Task #%s for %s generated an exception",
+-                                task.getTaskId(),
+-                                task.getOwner().getDescription().getFullName()),
+-                            throwable);
++                        Level.WARNING,
++                        String.format(
++                            "Task #%s for %s generated an exception",
++                            task.getTaskId(),
++                            task.getOwner().getDescription().getFullName()),
++                        throwable);
+                 }
+                 parsePending();
+             } else {
++                SpigotTimings.schedulerAsyncTimer.startTiming(); // Spigot
+                 debugTail = debugTail.setNext(new CraftAsyncDebugger(currentTick + RECENT_TICKS, task.getOwner(), task.getTaskClass()));
+                 executor.execute(task);
++                SpigotTimings.schedulerAsyncTimer.stopTiming(); // Spigot
+                 // We don't need to parse pending
+                 // (async tasks must live with race-conditions if they attempt to cancel between these few lines of code)
+             }
+@@ -400,6 +405,7 @@ public class CraftScheduler implements BukkitScheduler {
+     }
+ 
+     private void parsePending() {
++        SpigotTimings.pendingTimer.startTiming(); // Spigot
+         CraftTask head = this.head;
+         CraftTask task = head.getNext();
+         CraftTask lastTask = head;
+@@ -414,10 +420,11 @@ public class CraftScheduler implements BukkitScheduler {
+         // We split this because of the way things are ordered for all of the async calls in CraftScheduler
+         // (it prevents race-conditions)
+         for (task = head; task != lastTask; task = head) {
+-           head = task.getNext();
+-           task.setNext(null);
++            head = task.getNext();
++            task.setNext(null);
+         }
+         this.head = lastTask;
++        SpigotTimings.pendingTimer.stopTiming(); // Spigot
+     }
+ 
+     private boolean isReady(final int currentTick) {
 -- 
 1.8.3.2
 
