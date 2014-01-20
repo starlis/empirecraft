@@ -29,10 +29,11 @@ function import {
 }
 
 #import EntityItemFrame
+import NBTCompressedStreamTools
 import ServerStatisticManager
 import RemoteControlListener
 import NBTTagList
 
 cd $basedir
 git add mc-dev-master --all
-git commit mc-dev-master -m "Updating mc-dev\n\n$MODLOG"
+echo -e "Updating mc-dev\n\n$MODLOG" | git commit mc-dev-master -F -
