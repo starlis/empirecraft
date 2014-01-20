@@ -1,6 +1,6 @@
-From 1cf3f4b6ebacdda169b3c0049ebde8eb3bdf9d5f Mon Sep 17 00:00:00 2001
+From 87cc8983a54b5d58bf5205d4c15b1df3e2db3699 Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Thu, 9 Jan 2014 20:58:16 -0500
+Date: Sun, 19 Jan 2014 19:19:59 -0500
 Subject: [PATCH] Spigot
 
 ---
@@ -20,7 +20,7 @@ Subject: [PATCH] Spigot
  .../java/net/minecraft/server/BlockSapling.java    |   2 +-
  src/main/java/net/minecraft/server/BlockStem.java  |   2 +-
  src/main/java/net/minecraft/server/BlockTNT.java   |  85 +++
- src/main/java/net/minecraft/server/Chunk.java      |  76 ++-
+ src/main/java/net/minecraft/server/Chunk.java      |  83 ++-
  .../net/minecraft/server/ChunkProviderServer.java  |   2 +
  .../net/minecraft/server/ChunkRegionLoader.java    |  57 +-
  .../java/net/minecraft/server/ChunkSection.java    |  26 +-
@@ -32,6 +32,7 @@ Subject: [PATCH] Spigot
  .../java/net/minecraft/server/EntityAgeable.java   |  25 +
  .../java/net/minecraft/server/EntityArrow.java     |   4 +-
  .../net/minecraft/server/EntityFallingBlock.java   |   2 +
+ .../java/net/minecraft/server/EntityFireball.java  |   9 +
  .../java/net/minecraft/server/EntityHuman.java     |   7 +-
  .../net/minecraft/server/EntityInsentient.java     |   6 +
  src/main/java/net/minecraft/server/EntityItem.java |  19 +-
@@ -44,41 +45,48 @@ Subject: [PATCH] Spigot
  src/main/java/net/minecraft/server/Explosion.java  |   1 +
  .../net/minecraft/server/HandshakeListener.java    |  17 +-
  src/main/java/net/minecraft/server/IRecipe.java    |   2 +
- src/main/java/net/minecraft/server/ItemStack.java  |  19 +-
+ src/main/java/net/minecraft/server/ItemStack.java  |  27 +-
  .../java/net/minecraft/server/LoginListener.java   |  17 +-
- .../java/net/minecraft/server/MinecraftServer.java |  91 +--
+ .../java/net/minecraft/server/MinecraftServer.java | 114 ++--
  .../net/minecraft/server/MobSpawnerAbstract.java   |  31 +-
+ .../minecraft/server/NBTCompressedStreamTools.java | 113 ++++
  src/main/java/net/minecraft/server/NBTTagList.java | 166 ++++++
- .../java/net/minecraft/server/NetworkManager.java  |   3 +-
+ .../java/net/minecraft/server/NetworkManager.java  |  10 +-
  .../net/minecraft/server/NextTickListEntry.java    |  60 ++
  .../java/net/minecraft/server/NibbleArray.java     | 158 +++++
  .../java/net/minecraft/server/OldChunkLoader.java  | 122 ++++
  .../net/minecraft/server/PacketPlayInChat.java     |  20 +-
  .../minecraft/server/PacketPlayOutMapChunk.java    | 191 ++++++
  .../server/PacketPlayOutMapChunkBulk.java          |  24 +-
+ .../net/minecraft/server/PacketStatusListener.java |  72 +--
+ .../minecraft/server/PathfinderGoalBreakDoor.java  |   2 +-
  .../java/net/minecraft/server/PlayerChunkMap.java  |   2 +-
  .../net/minecraft/server/PlayerConnection.java     |  51 +-
  .../minecraft/server/PlayerInteractManager.java    |   1 +
  src/main/java/net/minecraft/server/PlayerList.java |  39 +-
  .../java/net/minecraft/server/PropertyManager.java |   2 +-
+ .../java/net/minecraft/server/RecipesFurnace.java  |   2 +-
  .../java/net/minecraft/server/RegionFileCache.java |  67 +++
  .../minecraft/server/RemoteControlListener.java    | 107 ++++
  .../minecraft/server/ServerStatisticManager.java   | 211 +++++++
  .../java/net/minecraft/server/ShapedRecipes.java   |   9 +-
  .../net/minecraft/server/ShapelessRecipes.java     |   9 +-
  .../java/net/minecraft/server/SpawnerCreature.java |  35 +-
+ .../net/minecraft/server/StatisticManager.java     |  67 ---
  .../net/minecraft/server/StructureGenerator.java   | 225 +++++++
  .../minecraft/server/ThreadPlayerLookupUUID.java   |  88 +--
  src/main/java/net/minecraft/server/TileEntity.java |   2 +
  .../net/minecraft/server/TileEntityHopper.java     |  17 +-
  .../java/net/minecraft/server/WatchableObject.java |  44 ++
- src/main/java/net/minecraft/server/World.java      | 233 ++++++--
+ src/main/java/net/minecraft/server/World.java      | 250 ++++++--
  .../net/minecraft/server/WorldGenPackedIce2.java   | 101 ++++
  .../net/minecraft/server/WorldMapHumanTracker.java |  24 +-
- .../java/net/minecraft/server/WorldServer.java     |  41 +-
+ .../java/net/minecraft/server/WorldServer.java     | 235 +++++---
+ .../org/bukkit/craftbukkit/CraftAchievement.java   |  44 ++
  .../java/org/bukkit/craftbukkit/CraftChunk.java    |  44 +-
  .../java/org/bukkit/craftbukkit/CraftEffect.java   |   2 +
  .../java/org/bukkit/craftbukkit/CraftServer.java   |  72 ++-
+ .../org/bukkit/craftbukkit/CraftStatistic.java     | 142 -----
  .../java/org/bukkit/craftbukkit/CraftWorld.java    |  91 ++-
  src/main/java/org/bukkit/craftbukkit/Main.java     |  15 +
  .../java/org/bukkit/craftbukkit/SpigotTimings.java | 128 ++++
@@ -86,14 +94,16 @@ Subject: [PATCH] Spigot
  .../craftbukkit/command/TicksPerSecondCommand.java |  35 ++
  .../org/bukkit/craftbukkit/entity/CraftArrow.java  |  22 +
  .../org/bukkit/craftbukkit/entity/CraftEntity.java |  16 +
- .../org/bukkit/craftbukkit/entity/CraftPlayer.java |  53 +-
- .../craftbukkit/event/CraftEventFactory.java       |  17 +
+ .../org/bukkit/craftbukkit/entity/CraftPlayer.java | 197 ++-----
+ .../craftbukkit/event/CraftEventFactory.java       |  65 +--
  .../craftbukkit/inventory/CraftInventoryAnvil.java |  22 +
  .../craftbukkit/inventory/CraftMetaFirework.java   |   4 +-
+ .../craftbukkit/inventory/RecipeIterator.java      |  23 +-
  .../org/bukkit/craftbukkit/map/CraftMapView.java   |   2 +-
  .../craftbukkit/scheduler/CraftScheduler.java      |   2 +-
  .../bukkit/craftbukkit/scheduler/CraftTask.java    |  22 +-
- .../bukkit/craftbukkit/util/CraftChatMessage.java  | 101 ++--
+ .../bukkit/craftbukkit/util/CraftChatMessage.java  |   7 +-
+ .../bukkit/craftbukkit/util/CraftMagicNumbers.java |  29 -
  .../java/org/bukkit/craftbukkit/util/LongHash.java |   2 +-
  .../org/bukkit/craftbukkit/util/LongHashSet.java   |  33 +-
  .../bukkit/craftbukkit/util/LongObjectHashMap.java |  15 +
@@ -103,12 +113,15 @@ Subject: [PATCH] Spigot
  src/main/java/org/spigotmc/FlatMap.java            |  64 ++
  src/main/java/org/spigotmc/Metrics.java            | 645 +++++++++++++++++++++
  src/main/java/org/spigotmc/RestartCommand.java     | 113 ++++
- src/main/java/org/spigotmc/SpigotConfig.java       | 253 ++++++++
- src/main/java/org/spigotmc/SpigotWorldConfig.java  | 256 ++++++++
+ src/main/java/org/spigotmc/SpigotConfig.java       | 257 ++++++++
+ src/main/java/org/spigotmc/SpigotWorldConfig.java  | 260 +++++++++
  src/main/java/org/spigotmc/TrackingRange.java      |  45 ++
  .../java/org/spigotmc/VanillaCommandWrapper.java   | 194 +++++++
  src/main/java/org/spigotmc/WatchdogThread.java     | 117 ++++
- 104 files changed, 6380 insertions(+), 415 deletions(-)
+ src/test/java/org/bukkit/AchievementTest.java      |  37 ++
+ src/test/java/org/bukkit/ArtTest.java              |   2 +-
+ .../org/bukkit/StatisticsAndAchievementsTest.java  |  61 --
+ 117 files changed, 6738 insertions(+), 1022 deletions(-)
  create mode 100644 src/main/java/net/minecraft/server/BiomeDecorator.java
  create mode 100644 src/main/java/net/minecraft/server/BlockAnvil.java
  create mode 100644 src/main/java/net/minecraft/server/BlockBrewingStand.java
@@ -117,6 +130,7 @@ Subject: [PATCH] Spigot
  create mode 100644 src/main/java/net/minecraft/server/CommandDispatcher.java
  create mode 100644 src/main/java/net/minecraft/server/DataWatcher.java
  mode change 100644 => 100755 src/main/java/net/minecraft/server/DedicatedServer.java
+ create mode 100644 src/main/java/net/minecraft/server/NBTCompressedStreamTools.java
  create mode 100644 src/main/java/net/minecraft/server/NBTTagList.java
  create mode 100644 src/main/java/net/minecraft/server/NextTickListEntry.java
  create mode 100644 src/main/java/net/minecraft/server/NibbleArray.java
@@ -125,9 +139,12 @@ Subject: [PATCH] Spigot
  create mode 100644 src/main/java/net/minecraft/server/RegionFileCache.java
  create mode 100644 src/main/java/net/minecraft/server/RemoteControlListener.java
  create mode 100644 src/main/java/net/minecraft/server/ServerStatisticManager.java
+ delete mode 100644 src/main/java/net/minecraft/server/StatisticManager.java
  create mode 100644 src/main/java/net/minecraft/server/StructureGenerator.java
  create mode 100644 src/main/java/net/minecraft/server/WatchableObject.java
  create mode 100644 src/main/java/net/minecraft/server/WorldGenPackedIce2.java
+ create mode 100644 src/main/java/org/bukkit/craftbukkit/CraftAchievement.java
+ delete mode 100644 src/main/java/org/bukkit/craftbukkit/CraftStatistic.java
  create mode 100644 src/main/java/org/bukkit/craftbukkit/SpigotTimings.java
  create mode 100644 src/main/java/org/bukkit/craftbukkit/command/TicksPerSecondCommand.java
  create mode 100644 src/main/java/org/spigotmc/ActivationRange.java
@@ -140,6 +157,8 @@ Subject: [PATCH] Spigot
  create mode 100644 src/main/java/org/spigotmc/TrackingRange.java
  create mode 100644 src/main/java/org/spigotmc/VanillaCommandWrapper.java
  create mode 100644 src/main/java/org/spigotmc/WatchdogThread.java
+ create mode 100644 src/test/java/org/bukkit/AchievementTest.java
+ delete mode 100644 src/test/java/org/bukkit/StatisticsAndAchievementsTest.java
 
 diff --git a/pom.xml b/pom.xml
 index 2f06c8e..bec994f 100644
@@ -1239,7 +1258,7 @@ index 0000000..50e2fa0
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/Chunk.java b/src/main/java/net/minecraft/server/Chunk.java
-index bc3dd41..d458dbb 100644
+index bc3dd41..944170b 100644
 --- a/src/main/java/net/minecraft/server/Chunk.java
 +++ b/src/main/java/net/minecraft/server/Chunk.java
 @@ -40,6 +40,7 @@ public class Chunk {
@@ -1250,33 +1269,55 @@ index bc3dd41..d458dbb 100644
  
      public Chunk(World world, int i, int j) {
          this.sections = new ChunkSection[16];
-@@ -430,24 +431,13 @@ public class Chunk {
-                 block1.f(this.world, l1, j, i2, k1);
-             }
+@@ -114,7 +115,7 @@ public class Chunk {
+                         }
  
--            // CraftBukkit start - Delay removing containers until after they're cleaned up
--            if (!(block1 instanceof IContainer)) {
--                chunksection.setTypeId(i, j & 15, k, block);
--            }
--            // CraftBukkit end
--
-+            chunksection.setTypeId(i, j & 15, k, block);
-             if (!this.world.isStatic) {
-                 block1.remove(this.world, l1, j, i2, block1, k1);
-             } else if (block1 instanceof IContainer && block1 != block) {
-                 this.world.p(l1, j, i2);
+                         this.sections[l1].setTypeId(l, j1 & 15, i1, block);
+-                        this.sections[l1].setData(l, j1 & 15, i1, abyte[k1]);
++                        this.sections[l1].setData(l, j1 & 15, i1, checkData( block, abyte[k1] ) );
+                     }
+                 }
              }
+@@ -397,6 +398,17 @@ public class Chunk {
+         }
+     }
  
--            // CraftBukkit start - Remove containers now after cleanup
--            if (block1 instanceof IContainer) {
--                chunksection.setTypeId(i, j & 15, k, block);
--            }
--            // CraftBukkit end
--
++    // Spigot start - prevent invalid data values
++    private static int checkData( Block block, int l )
++    {
++        if (block == Block.b( "minecraft:double_plant" ) )
++        {
++            return l == 7 ? 0 : l;
++        }
++        return l;
++    }
++    // Spigot end
++
+     public boolean a(int i, int j, int k, Block block, int l) {
+         int i1 = k << 4 | i;
+ 
+@@ -451,7 +463,7 @@ public class Chunk {
              if (chunksection.getTypeId(i, j & 15, k) != block) {
                  return false;
              } else {
-@@ -612,6 +602,22 @@ public class Chunk {
+-                chunksection.setData(i, j & 15, k, l);
++                chunksection.setData(i, j & 15, k, checkData( block, l ) );
+                 if (flag) {
+                     this.initLighting();
+                 } else {
+@@ -521,8 +533,9 @@ public class Chunk {
+                 return false;
+             } else {
+                 this.n = true;
+-                chunksection.setData(i, j & 15, k, l);
+-                if (chunksection.getTypeId(i, j & 15, k) instanceof IContainer) {
++                Block block = chunksection.getTypeId( i, j & 15, k );
++                chunksection.setData(i, j & 15, k, checkData( block, l ) );
++                if (block instanceof IContainer) {
+                     TileEntity tileentity = this.e(i, j, k);
+ 
+                     if (tileentity != null) {
+@@ -612,6 +625,22 @@ public class Chunk {
          entity.aj = k;
          entity.ak = this.locZ;
          this.entitySlices[k].add(entity);
@@ -1299,7 +1340,7 @@ index bc3dd41..d458dbb 100644
      }
  
      public void b(Entity entity) {
-@@ -628,6 +634,22 @@ public class Chunk {
+@@ -628,6 +657,22 @@ public class Chunk {
          }
  
          this.entitySlices[i].remove(entity);
@@ -1322,7 +1363,7 @@ index bc3dd41..d458dbb 100644
      }
  
      public boolean d(int i, int j, int k) {
-@@ -727,6 +749,15 @@ public class Chunk {
+@@ -727,6 +772,15 @@ public class Chunk {
  
          while (iterator.hasNext()) {
              TileEntity tileentity = (TileEntity) iterator.next();
@@ -1338,7 +1379,7 @@ index bc3dd41..d458dbb 100644
  
              this.world.a(tileentity);
          }
-@@ -736,6 +767,15 @@ public class Chunk {
+@@ -736,6 +790,15 @@ public class Chunk {
              java.util.Iterator<Object> iter = this.entitySlices[i].iterator();
              while (iter.hasNext()) {
                  Entity entity = (Entity) iter.next();
@@ -1354,7 +1395,7 @@ index bc3dd41..d458dbb 100644
  
                  // Do not pass along players, as doing so can get them stuck outside of time.
                  // (which for example disables inventory icon updates and prevents block breaking)
-@@ -873,13 +913,21 @@ public class Chunk {
+@@ -873,13 +936,21 @@ public class Chunk {
          }
  
          this.m = true;
@@ -2255,6 +2296,33 @@ index 991a765..e15840b 100644
  
                              if (this.id instanceof BlockFalling) {
                                  ((BlockFalling) this.id).a(this.world, i, j, k, this.data);
+diff --git a/src/main/java/net/minecraft/server/EntityFireball.java b/src/main/java/net/minecraft/server/EntityFireball.java
+index 82da554..d23d178 100644
+--- a/src/main/java/net/minecraft/server/EntityFireball.java
++++ b/src/main/java/net/minecraft/server/EntityFireball.java
+@@ -198,6 +198,8 @@ public abstract class EntityFireball extends Entity {
+         nbttagcompound.setByte("inGround", (byte) (this.i ? 1 : 0));
+         // CraftBukkit - Fix direction being mismapped to invalid variables
+         nbttagcompound.set("power", this.a(new double[] { this.dirX, this.dirY, this.dirZ}));
++        // Spigot - Support vanilla's direction tag
++        nbttagcompound.set("direction", this.a(new double[] { this.motX, this.motY, this.motZ}));
+     }
+ 
+     public void a(NBTTagCompound nbttagcompound) {
+@@ -214,6 +216,13 @@ public abstract class EntityFireball extends Entity {
+             this.dirY = nbttaglist.d(1);
+             this.dirZ = nbttaglist.d(2);
+             // CraftBukkit end
++        } else if (nbttagcompound.hasKeyOfType("direction", 9)) { // Spigot - Support vanilla's direction tag
++            NBTTagList nbttaglist = nbttagcompound.getList("direction", 6);
++
++            this.motX = nbttaglist.d(0);
++            this.motY = nbttaglist.d(1);
++            this.motZ = nbttaglist.d(2);
++
+         } else {
+             this.die();
+         }
 diff --git a/src/main/java/net/minecraft/server/EntityHuman.java b/src/main/java/net/minecraft/server/EntityHuman.java
 index c12a08f..c58b21b 100644
 --- a/src/main/java/net/minecraft/server/EntityHuman.java
@@ -2638,10 +2706,25 @@ index bb28c12..c0836e4 100644
 +    java.util.List<ItemStack> getIngredients(); // Spigot
  }
 diff --git a/src/main/java/net/minecraft/server/ItemStack.java b/src/main/java/net/minecraft/server/ItemStack.java
-index b308e03..f32322e 100644
+index b308e03..37ceade 100644
 --- a/src/main/java/net/minecraft/server/ItemStack.java
 +++ b/src/main/java/net/minecraft/server/ItemStack.java
-@@ -176,7 +176,13 @@ public final class ItemStack {
+@@ -130,7 +130,13 @@ public final class ItemStack {
+     }
+ 
+     public boolean g() {
+-        return this.item.getMaxDurability() <= 0 ? false : !this.hasTag() || !this.getTag().getBoolean("Unbreakable");
++        // Spigot Start
++        if ( this.item.getMaxDurability() <= 0 )
++        {
++            return false;
++        }
++        return ( !hasTag() ) || ( !getTag().getBoolean( "Unbreakable" ) );
++        // Spigot End
+     }
+ 
+     public boolean usesData() {
+@@ -176,7 +182,13 @@ public final class ItemStack {
          return this.item.getMaxDurability();
      }
  
@@ -2655,7 +2738,7 @@ index b308e03..f32322e 100644
          if (!this.g()) {
              return false;
          } else {
-@@ -191,7 +197,16 @@ public final class ItemStack {
+@@ -191,7 +203,16 @@ public final class ItemStack {
                  }
  
                  i -= k;
@@ -2673,7 +2756,7 @@ index b308e03..f32322e 100644
                      return false;
                  }
              }
-@@ -204,7 +219,7 @@ public final class ItemStack {
+@@ -204,7 +225,7 @@ public final class ItemStack {
      public void damage(int i, EntityLiving entityliving) {
          if (!(entityliving instanceof EntityHuman) || !((EntityHuman) entityliving).abilities.canInstantlyBuild) {
              if (this.g()) {
@@ -2718,7 +2801,7 @@ index 6beac82..fa80b74 100644
      }
  
 diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
-index 6a01982..868061b 100644
+index 6a01982..c158e8a 100644
 --- a/src/main/java/net/minecraft/server/MinecraftServer.java
 +++ b/src/main/java/net/minecraft/server/MinecraftServer.java
 @@ -10,7 +10,6 @@ import java.util.ArrayList;
@@ -2849,7 +2932,25 @@ index 6a01982..868061b 100644
                  this.stop();
                  this.isStopped = true;
              } catch (Throwable throwable1) {
-@@ -568,11 +563,11 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+@@ -560,7 +555,16 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+         if ((this.autosavePeriod > 0) && ((this.ticks % this.autosavePeriod) == 0)) { // CraftBukkit
+             this.methodProfiler.a("save");
+             this.t.savePlayers();
+-            this.saveChunks(true);
++            // Spigot Start
++            // We replace this with saving each individual world as this.saveChunks(...) is broken,
++            // and causes the main thread to sleep for random amounts of time depending on chunk activity
++            server.playerCommandState = true;
++            for (World world : worlds) {
++                world.getWorld().save();
++            }
++            server.playerCommandState = false;
++            // this.saveChunks(true);
++            // Spigot End
+             this.methodProfiler.b();
+         }
+ 
+@@ -568,11 +572,11 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
          this.f[this.ticks % 100] = System.nanoTime() - i;
          this.methodProfiler.b();
          this.methodProfiler.a("snooper");
@@ -2863,7 +2964,7 @@ index 6a01982..868061b 100644
              this.k.b();
          }
  
-@@ -583,6 +578,7 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+@@ -583,6 +587,7 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
      public void u() {
          this.methodProfiler.a("levels");
  
@@ -2871,7 +2972,7 @@ index 6a01982..868061b 100644
          // CraftBukkit start
          this.server.getScheduler().mainThreadHeartbeat(this.ticks);
  
-@@ -591,7 +587,10 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+@@ -591,7 +596,10 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
              processQueue.remove().run();
          }
  
@@ -2882,7 +2983,34 @@ index 6a01982..868061b 100644
  
          // Send time updates to everyone, it will get the right time from the world the player is in.
          if (this.ticks % 20 == 0) {
-@@ -643,7 +642,9 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+@@ -628,7 +636,13 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+                 try {
+                     worldserver.doTick();
+                 } catch (Throwable throwable) {
++                    // Spigot Start
++                    try {
+                     crashreport = CrashReport.a(throwable, "Exception ticking world");
++                    } catch (Throwable t){
++                        throw new RuntimeException("Error generating crash report", t);
++                    }
++                    // Spigot End
+                     worldserver.a(crashreport);
+                     throw new ReportedException(crashreport);
+                 }
+@@ -636,14 +650,22 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+                 try {
+                     worldserver.tickEntities();
+                 } catch (Throwable throwable1) {
++                    // Spigot Start
++                    try {
+                     crashreport = CrashReport.a(throwable1, "Exception ticking world entities");
++                    } catch (Throwable t){
++                        throw new RuntimeException("Error generating crash report", t);
++                    }
++                    // Spigot End
+                     worldserver.a(crashreport);
+                     throw new ReportedException(crashreport);
+                 }
  
                  this.methodProfiler.b();
                  this.methodProfiler.a("tracker");
@@ -2892,7 +3020,7 @@ index 6a01982..868061b 100644
                  this.methodProfiler.b();
                  this.methodProfiler.b();
              // } // CraftBukkit
-@@ -652,14 +653,20 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+@@ -652,14 +674,20 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
          }
  
          this.methodProfiler.c("connection");
@@ -2913,7 +3041,7 @@ index 6a01982..868061b 100644
  
          this.methodProfiler.b();
      }
-@@ -1210,7 +1217,7 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+@@ -1210,7 +1238,7 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
      }
  
      public ServerConnection ag() {
@@ -2985,6 +3113,125 @@ index 67c3397..1eb8818 100644
          }
  
          return entity;
+diff --git a/src/main/java/net/minecraft/server/NBTCompressedStreamTools.java b/src/main/java/net/minecraft/server/NBTCompressedStreamTools.java
+new file mode 100644
+index 0000000..c9a8ed5
+--- /dev/null
++++ b/src/main/java/net/minecraft/server/NBTCompressedStreamTools.java
+@@ -0,0 +1,113 @@
++package net.minecraft.server;
++
++import java.io.BufferedInputStream;
++import java.io.ByteArrayInputStream;
++import java.io.ByteArrayOutputStream;
++import java.io.DataInput;
++import java.io.DataInputStream;
++import java.io.DataOutput;
++import java.io.DataOutputStream;
++import java.io.IOException;
++import java.io.InputStream;
++import java.io.OutputStream;
++import java.util.zip.GZIPInputStream;
++import java.util.zip.GZIPOutputStream;
++
++public class NBTCompressedStreamTools {
++
++    public static NBTTagCompound a(InputStream inputstream) {
++        DataInputStream datainputstream = new DataInputStream(new BufferedInputStream(new GZIPInputStream(inputstream)));
++
++        NBTTagCompound nbttagcompound;
++
++        try {
++            nbttagcompound = a((DataInput) datainputstream);
++        } finally {
++            datainputstream.close();
++        }
++
++        return nbttagcompound;
++    }
++
++    public static void a(NBTTagCompound nbttagcompound, OutputStream outputstream) {
++        DataOutputStream dataoutputstream = new DataOutputStream(new GZIPOutputStream(outputstream));
++
++        try {
++            a(nbttagcompound, (DataOutput) dataoutputstream);
++        } finally {
++            dataoutputstream.close();
++        }
++    }
++
++    public static NBTTagCompound a(byte[] abyte) {
++        DataInputStream datainputstream = new DataInputStream(new BufferedInputStream(new GZIPInputStream(new ByteArrayInputStream(abyte))));
++
++        NBTTagCompound nbttagcompound;
++
++        try {
++            nbttagcompound = a((DataInput) datainputstream);
++        } finally {
++            datainputstream.close();
++        }
++
++        return nbttagcompound;
++    }
++
++    public static byte[] a(NBTTagCompound nbttagcompound) {
++        ByteArrayOutputStream bytearrayoutputstream = new ByteArrayOutputStream();
++        DataOutputStream dataoutputstream = new DataOutputStream(new GZIPOutputStream(bytearrayoutputstream));
++
++        try {
++            a(nbttagcompound, (DataOutput) dataoutputstream);
++        } finally {
++            dataoutputstream.close();
++        }
++
++        return bytearrayoutputstream.toByteArray();
++    }
++
++    public static NBTTagCompound a(DataInput datainput) {
++        NBTBase nbtbase = a(datainput, 0);
++
++        if (nbtbase instanceof NBTTagCompound) {
++            return (NBTTagCompound) nbtbase;
++        } else {
++            throw new IOException("Root tag must be a named compound tag");
++        }
++    }
++
++    public static void a(NBTTagCompound nbttagcompound, DataOutput dataoutput) {
++        a((NBTBase) nbttagcompound, dataoutput);
++    }
++
++    private static void a(NBTBase nbtbase, DataOutput dataoutput) {
++        dataoutput.writeByte(nbtbase.getTypeId());
++        if (nbtbase.getTypeId() != 0) {
++            dataoutput.writeUTF("");
++            nbtbase.write(dataoutput);
++        }
++    }
++
++    private static NBTBase a(DataInput datainput, int i) {
++        byte b0 = datainput.readByte();
++
++        if (b0 == 0) {
++            return new NBTTagEnd();
++        } else {
++            datainput.readUTF();
++            NBTBase nbtbase = NBTBase.createTag(b0);
++
++            try {
++                nbtbase.load(datainput, i);
++                return nbtbase;
++            } catch (IOException ioexception) {
++                CrashReport crashreport = CrashReport.a(ioexception, "Loading NBT data");
++                CrashReportSystemDetails crashreportsystemdetails = crashreport.a("NBT Tag");
++
++                crashreportsystemdetails.a("Tag name", "[UNNAMED TAG]");
++                crashreportsystemdetails.a("Tag type", Byte.valueOf(b0));
++                throw new ReportedException(crashreport);
++            }
++        }
++    }
++}
 diff --git a/src/main/java/net/minecraft/server/NBTTagList.java b/src/main/java/net/minecraft/server/NBTTagList.java
 new file mode 100644
 index 0000000..ad8c3ab
@@ -3158,7 +3405,7 @@ index 0000000..ad8c3ab
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/NetworkManager.java b/src/main/java/net/minecraft/server/NetworkManager.java
-index 8f829bb..4907a62 100644
+index 8f829bb..6b2fbb9 100644
 --- a/src/main/java/net/minecraft/server/NetworkManager.java
 +++ b/src/main/java/net/minecraft/server/NetworkManager.java
 @@ -34,7 +34,8 @@ public class NetworkManager extends SimpleChannelInboundHandler {
@@ -3171,9 +3418,21 @@ index 8f829bb..4907a62 100644
      private PacketListener m;
      private EnumProtocol n;
      private IChatBaseComponent o;
+@@ -195,4 +196,11 @@ public class NetworkManager extends SimpleChannelInboundHandler {
+     static Channel a(NetworkManager networkmanager) {
+         return networkmanager.k;
+     }
++
++    // Spigot Start
++    public SocketAddress getRawAddress()
++    {
++        return this.k.remoteAddress();
++    }
++    // Spigot End
+ }
 diff --git a/src/main/java/net/minecraft/server/NextTickListEntry.java b/src/main/java/net/minecraft/server/NextTickListEntry.java
 new file mode 100644
-index 0000000..06934a1
+index 0000000..d90acfc
 --- /dev/null
 +++ b/src/main/java/net/minecraft/server/NextTickListEntry.java
 @@ -0,0 +1,60 @@
@@ -3209,7 +3468,7 @@ index 0000000..06934a1
 +    }
 +
 +    public int hashCode() {
-+        return (this.a * 1024 * 1024 + this.c * 1024 + this.b) * 256;
++        return (this.a * 257) ^ this.b ^ (this.c * 60217); // Spigot - better hash
 +    }
 +
 +    public NextTickListEntry a(long i) {
@@ -3816,6 +4075,127 @@ index 3eac231..30bf8a7 100644
  
          Deflater deflater = localDeflater.get();
          deflater.reset();
+diff --git a/src/main/java/net/minecraft/server/PacketStatusListener.java b/src/main/java/net/minecraft/server/PacketStatusListener.java
+index 7903c43..ebb9d53 100644
+--- a/src/main/java/net/minecraft/server/PacketStatusListener.java
++++ b/src/main/java/net/minecraft/server/PacketStatusListener.java
+@@ -2,14 +2,7 @@ package net.minecraft.server;
+ 
+ import java.net.InetSocketAddress;
+ 
+-// CraftBukkit start
+-import java.util.Iterator;
+-
+-import org.bukkit.craftbukkit.util.CraftIconCache;
+-import org.bukkit.entity.Player;
+-
+-import net.minecraft.util.com.mojang.authlib.GameProfile;
+-// CraftBukkit end
++import org.bukkit.craftbukkit.util.CraftIconCache; // CraftBukkit
+ 
+ import net.minecraft.util.io.netty.util.concurrent.GenericFutureListener;
+ 
+@@ -35,12 +28,11 @@ public class PacketStatusListener implements PacketStatusInListener {
+ 
+     public void a(PacketStatusInStart packetstatusinstart) {
+         // CraftBukkit start - fire ping event
+-        final Object[] players = minecraftServer.getPlayerList().players.toArray();
+         class ServerListPingEvent extends org.bukkit.event.server.ServerListPingEvent {
+             CraftIconCache icon = minecraftServer.server.getServerIcon();
+ 
+             ServerListPingEvent() {
+-                super(((InetSocketAddress) networkManager.getSocketAddress()).getAddress(), minecraftServer.getMotd(), minecraftServer.getPlayerList().getMaxPlayers());
++                super(((InetSocketAddress) networkManager.getSocketAddress()).getAddress(), minecraftServer.getMotd(), minecraftServer.getPlayerList().getPlayerCount(), minecraftServer.getPlayerList().getMaxPlayers());
+             }
+ 
+             @Override
+@@ -50,72 +42,14 @@ public class PacketStatusListener implements PacketStatusInListener {
+                 }
+                 this.icon = (CraftIconCache) icon;
+             }
+-
+-            @Override
+-            public Iterator<Player> iterator() throws UnsupportedOperationException {
+-                return new Iterator<Player>() {
+-                    int i;
+-                    int ret = Integer.MIN_VALUE;
+-                    EntityPlayer player;
+-
+-                    @Override
+-                    public boolean hasNext() {
+-                        if (player != null) {
+-                            return true;
+-                        }
+-                        final Object[] currentPlayers = players;
+-                        for (int length = currentPlayers.length, i = this.i; i < length; i++) {
+-                            final EntityPlayer player = (EntityPlayer) currentPlayers[i];
+-                            if (player != null) {
+-                                this.i = i + 1;
+-                                this.player = player;
+-                                return true;
+-                            }
+-                        }
+-                        return false;
+-                    }
+-
+-                    @Override
+-                    public Player next() {
+-                        if (!hasNext()) {
+-                            throw new java.util.NoSuchElementException();
+-                        }
+-                        final EntityPlayer player = this.player;
+-                        this.player = null;
+-                        this.ret = this.i - 1;
+-                        return player.getBukkitEntity();
+-                    }
+-
+-                    @Override
+-                    public void remove() {
+-                        final Object[] currentPlayers = players;
+-                        final int i = this.ret;
+-                        if (i < 0 || currentPlayers[i] == null) {
+-                            throw new IllegalStateException();
+-                        }
+-                        currentPlayers[i] = null;
+-                    }
+-                };
+-            }
+         }
+ 
+         ServerListPingEvent event = new ServerListPingEvent();
+         this.minecraftServer.server.getPluginManager().callEvent(event);
+-
+-        java.util.List<GameProfile> profiles = new java.util.ArrayList<GameProfile>(players.length);
+-        for (Object player : players) {
+-            if (player != null) {
+-                profiles.add(((EntityPlayer) player).getProfile());
+-            }
+-        }
+-
+-        ServerPingPlayerSample playerSample = new ServerPingPlayerSample(event.getMaxPlayers(), profiles.size());
+-        playerSample.a(profiles.toArray(new GameProfile[profiles.size()]));
+-
+         ServerPing ping = new ServerPing();
+         ping.setFavicon(event.icon.value);
+         ping.setMOTD(new ChatComponentText(event.getMotd()));
+-        ping.setPlayerSample(playerSample);
++        ping.setPlayerSample(new ServerPingPlayerSample(event.getMaxPlayers(), minecraftServer.getPlayerList().getPlayerCount()));
+         ping.setServerInfo(new ServerPingServerData(minecraftServer.getServerModName() + " " + minecraftServer.getVersion(), 4)); // TODO: Update when protocol changes
+ 
+         this.networkManager.handle(new PacketStatusOutServerInfo(ping), new GenericFutureListener[0]);
+diff --git a/src/main/java/net/minecraft/server/PathfinderGoalBreakDoor.java b/src/main/java/net/minecraft/server/PathfinderGoalBreakDoor.java
+index 60be62b..5390ef1 100644
+--- a/src/main/java/net/minecraft/server/PathfinderGoalBreakDoor.java
++++ b/src/main/java/net/minecraft/server/PathfinderGoalBreakDoor.java
+@@ -46,7 +46,7 @@ public class PathfinderGoalBreakDoor extends PathfinderGoalDoorInteract {
+         if (this.i == 240 && this.a.world.difficulty == EnumDifficulty.HARD) {
+             // CraftBukkit start
+             if (org.bukkit.craftbukkit.event.CraftEventFactory.callEntityBreakDoorEvent(this.a, this.b, this.c, this.d).isCancelled()) {
+-                this.c();
++                this.e();
+                 return;
+             }
+             // CraftBukkit end
 diff --git a/src/main/java/net/minecraft/server/PlayerChunkMap.java b/src/main/java/net/minecraft/server/PlayerChunkMap.java
 index 4e0398c..ae4ca63 100644
 --- a/src/main/java/net/minecraft/server/PlayerChunkMap.java
@@ -4062,6 +4442,19 @@ index bb535c2..93968bd 100644
              return (T) this.options.valueOf(name);
          }
  
+diff --git a/src/main/java/net/minecraft/server/RecipesFurnace.java b/src/main/java/net/minecraft/server/RecipesFurnace.java
+index bf6ddb4..44a621d 100644
+--- a/src/main/java/net/minecraft/server/RecipesFurnace.java
++++ b/src/main/java/net/minecraft/server/RecipesFurnace.java
+@@ -80,7 +80,7 @@ public class RecipesFurnace {
+         do {
+             if (!iterator.hasNext()) {
+                 // CraftBukkit start
+-                if (!vanilla && recipes.size() != 0) {
++                if (!vanilla) {
+                     iterator = this.recipes.entrySet().iterator();
+                     vanilla = true;
+                 } else {
 diff --git a/src/main/java/net/minecraft/server/RegionFileCache.java b/src/main/java/net/minecraft/server/RegionFileCache.java
 new file mode 100644
 index 0000000..829f4a3
@@ -4587,6 +4980,79 @@ index f514b78..3f0dd70 100644
                                                                  if (j2 >= entityinsentient.bz()) {
                                                                      continue label110;
                                                                  }
+diff --git a/src/main/java/net/minecraft/server/StatisticManager.java b/src/main/java/net/minecraft/server/StatisticManager.java
+deleted file mode 100644
+index 86d186a..0000000
+--- a/src/main/java/net/minecraft/server/StatisticManager.java
++++ /dev/null
+@@ -1,67 +0,0 @@
+-package net.minecraft.server;
+- 
+-import java.util.HashMap;
+-import java.util.Map;
+- 
+-public class StatisticManager {
+-
+-    protected final Map a = new HashMap();
+-
+-    public StatisticManager() {
+-    }
+-
+-    public boolean a(Achievement achievement) {
+-        return this.a((Statistic) achievement) > 0;
+-    }
+-
+-    public boolean b(Achievement achievement) {
+-        return achievement.c == null || this.a(achievement.c);
+-    }
+-
+-    public void b(EntityHuman entityhuman, Statistic statistic, int i) {
+-        if (!statistic.d() || this.b((Achievement) statistic)) {
+-            // CraftBukkit start
+-            org.bukkit.event.Cancellable cancellable = org.bukkit.craftbukkit.event.CraftEventFactory.handleStatisticsIncrease(entityhuman, statistic, a(statistic), i);
+-            if (cancellable != null && cancellable.isCancelled()) {
+-                return;
+-            }
+-            // CraftBukkit end
+-            this.a(entityhuman, statistic, this.a(statistic) + i);
+-        }
+-    }
+-
+-    public void a(EntityHuman entityhuman, Statistic statistic, int i) {
+-        StatisticWrapper statisticwrapper = (StatisticWrapper) this.a.get(statistic);
+-
+-        if (statisticwrapper == null) {
+-            statisticwrapper = new StatisticWrapper();
+-            this.a.put(statistic, statisticwrapper);
+-        }
+-
+-        statisticwrapper.a(i);
+-    }
+-
+-    public int a(Statistic statistic) {
+-        StatisticWrapper statisticwrapper = (StatisticWrapper) this.a.get(statistic);
+-
+-        return statisticwrapper == null ? 0 : statisticwrapper.a();
+-    }
+-
+-    public IJsonStatistic b(Statistic statistic) {
+-        StatisticWrapper statisticwrapper = (StatisticWrapper) this.a.get(statistic);
+-
+-        return statisticwrapper != null ? statisticwrapper.b() : null;
+-    }
+-
+-    public IJsonStatistic a(Statistic statistic, IJsonStatistic ijsonstatistic) {
+-        StatisticWrapper statisticwrapper = (StatisticWrapper) this.a.get(statistic);
+-
+-        if (statisticwrapper == null) {
+-            statisticwrapper = new StatisticWrapper();
+-            this.a.put(statistic, statisticwrapper);
+-        }
+-
+-        statisticwrapper.a(ijsonstatistic);
+-        return ijsonstatistic;
+-    }
+-}
 diff --git a/src/main/java/net/minecraft/server/StructureGenerator.java b/src/main/java/net/minecraft/server/StructureGenerator.java
 new file mode 100644
 index 0000000..2a6a571
@@ -5048,7 +5514,7 @@ index 0000000..678aa91
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index f850a0f..04f5ed1 100644
+index f850a0f..ac9b669 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
 @@ -14,6 +14,7 @@ import java.util.concurrent.Callable;
@@ -5232,7 +5698,7 @@ index f850a0f..04f5ed1 100644
  
          if (event != null && (event.isCancelled() || entity.dead)) {
              entity.dead = true;
-@@ -961,6 +1032,7 @@ public abstract class World implements IBlockAccess {
+@@ -961,21 +1032,25 @@ public abstract class World implements IBlockAccess {
      }
  
      public void removeEntity(Entity entity) {
@@ -5240,7 +5706,32 @@ index f850a0f..04f5ed1 100644
          entity.die();
          if (entity instanceof EntityHuman) {
              this.players.remove(entity);
-@@ -991,23 +1063,42 @@ public abstract class World implements IBlockAccess {
+             this.everyoneSleeping();
+         }
++        // Spigot start
++        if (!guardEntityList) { // It will get removed after the tick if we are ticking
++            int i = entity.ai;
++            int j = entity.ak;
+ 
+-        int i = entity.ai;
+-        int j = entity.ak;
++            if (entity.ah && this.isChunkLoaded(i, j)) {
++                this.getChunkAt(i, j).b(entity);
++            }
+ 
+-        if (entity.ah && this.isChunkLoaded(i, j)) {
+-            this.getChunkAt(i, j).b(entity);
++            this.entityList.remove(entity);
++            this.b(entity);
+         }
+-
+-        this.entityList.remove(entity);
+-        this.b(entity);
++        // Spigot end
+     }
+ 
+     public void addIWorldAccess(IWorldAccess iworldaccess) {
+@@ -991,23 +1066,42 @@ public abstract class World implements IBlockAccess {
          int i1 = MathHelper.floor(axisalignedbb.c);
          int j1 = MathHelper.floor(axisalignedbb.f + 1.0D);
  
@@ -5295,7 +5786,7 @@ index f850a0f..04f5ed1 100644
  
          double d0 = 0.25D;
          List list = this.getEntities(entity, axisalignedbb.grow(d0, d0, d0));
-@@ -1127,6 +1218,7 @@ public abstract class World implements IBlockAccess {
+@@ -1127,6 +1221,7 @@ public abstract class World implements IBlockAccess {
          CrashReport crashreport;
          CrashReportSystemDetails crashreportsystemdetails;
  
@@ -5303,7 +5794,7 @@ index f850a0f..04f5ed1 100644
          for (i = 0; i < this.i.size(); ++i) {
              entity = (Entity) this.i.get(i);
              // CraftBukkit start - Fixed an NPE, don't process entities in chunks queued for unload
-@@ -1135,10 +1227,15 @@ public abstract class World implements IBlockAccess {
+@@ -1135,10 +1230,15 @@ public abstract class World implements IBlockAccess {
              }
  
              ChunkProviderServer chunkProviderServer = ((WorldServer) this).chunkProviderServer;
@@ -5321,7 +5812,7 @@ index f850a0f..04f5ed1 100644
  
              try {
                  ++entity.ticksLived;
-@@ -1159,6 +1256,7 @@ public abstract class World implements IBlockAccess {
+@@ -1159,6 +1259,7 @@ public abstract class World implements IBlockAccess {
                  this.i.remove(i--);
              }
          }
@@ -5329,7 +5820,7 @@ index f850a0f..04f5ed1 100644
  
          this.methodProfiler.c("remove");
          this.entityList.removeAll(this.f);
-@@ -1182,15 +1280,23 @@ public abstract class World implements IBlockAccess {
+@@ -1182,15 +1283,23 @@ public abstract class World implements IBlockAccess {
          this.f.clear();
          this.methodProfiler.c("regular");
  
@@ -5355,7 +5846,7 @@ index f850a0f..04f5ed1 100644
  
              if (entity.vehicle != null) {
                  if (!entity.vehicle.dead && entity.vehicle.passenger == entity) {
-@@ -1204,7 +1310,9 @@ public abstract class World implements IBlockAccess {
+@@ -1204,7 +1313,9 @@ public abstract class World implements IBlockAccess {
              this.methodProfiler.a("tick");
              if (!entity.dead) {
                  try {
@@ -5365,7 +5856,7 @@ index f850a0f..04f5ed1 100644
                  } catch (Throwable throwable1) {
                      crashreport = CrashReport.a(throwable1, "Ticking entity");
                      crashreportsystemdetails = crashreport.a("Entity being ticked");
-@@ -1222,19 +1330,31 @@ public abstract class World implements IBlockAccess {
+@@ -1222,19 +1333,31 @@ public abstract class World implements IBlockAccess {
                      this.getChunkAt(j, k).b(entity);
                  }
  
@@ -5397,7 +5888,7 @@ index f850a0f..04f5ed1 100644
              // CraftBukkit start - Don't tick entities in chunks queued for unload
              ChunkProviderServer chunkProviderServer = ((WorldServer) this).chunkProviderServer;
              if (chunkProviderServer.unloadQueue.contains(tileentity.x >> 4, tileentity.z >> 4)) {
-@@ -1244,8 +1364,11 @@ public abstract class World implements IBlockAccess {
+@@ -1244,8 +1367,11 @@ public abstract class World implements IBlockAccess {
  
              if (!tileentity.r() && tileentity.o() && this.isLoaded(tileentity.x, tileentity.y, tileentity.z)) {
                  try {
@@ -5409,7 +5900,7 @@ index f850a0f..04f5ed1 100644
                      crashreport = CrashReport.a(throwable2, "Ticking block entity");
                      crashreportsystemdetails = crashreport.a("Block entity being ticked");
                      tileentity.a(crashreportsystemdetails);
-@@ -1265,6 +1388,8 @@ public abstract class World implements IBlockAccess {
+@@ -1265,6 +1391,8 @@ public abstract class World implements IBlockAccess {
              }
          }
  
@@ -5418,7 +5909,7 @@ index f850a0f..04f5ed1 100644
          this.N = false;
          if (!this.b.isEmpty()) {
              this.tileEntityList.removeAll(this.b);
-@@ -1303,6 +1428,7 @@ public abstract class World implements IBlockAccess {
+@@ -1303,6 +1431,7 @@ public abstract class World implements IBlockAccess {
              this.a.clear();
          }
  
@@ -5426,7 +5917,7 @@ index f850a0f..04f5ed1 100644
          this.methodProfiler.b();
          this.methodProfiler.b();
      }
-@@ -1324,7 +1450,12 @@ public abstract class World implements IBlockAccess {
+@@ -1324,7 +1453,12 @@ public abstract class World implements IBlockAccess {
          int j = MathHelper.floor(entity.locZ);
          byte b0 = 32;
  
@@ -5440,7 +5931,7 @@ index f850a0f..04f5ed1 100644
              entity.T = entity.locX;
              entity.U = entity.locY;
              entity.V = entity.locZ;
-@@ -1386,6 +1517,7 @@ public abstract class World implements IBlockAccess {
+@@ -1386,6 +1520,7 @@ public abstract class World implements IBlockAccess {
                      entity.passenger = null;
                  }
              }
@@ -5448,7 +5939,7 @@ index f850a0f..04f5ed1 100644
          }
      }
  
-@@ -1901,24 +2033,44 @@ public abstract class World implements IBlockAccess {
+@@ -1901,24 +2036,44 @@ public abstract class World implements IBlockAccess {
          int j;
          int k;
  
@@ -5503,7 +5994,7 @@ index f850a0f..04f5ed1 100644
          }
  
          this.methodProfiler.b();
-@@ -1927,7 +2079,7 @@ public abstract class World implements IBlockAccess {
+@@ -1927,7 +2082,7 @@ public abstract class World implements IBlockAccess {
          }
  
          this.methodProfiler.a("playerCheckLight");
@@ -5512,7 +6003,7 @@ index f850a0f..04f5ed1 100644
              i = this.random.nextInt(this.players.size());
              entityhuman = (EntityHuman) this.players.get(i);
              j = MathHelper.floor(entityhuman.locX) + this.random.nextInt(11) - 5;
-@@ -2310,6 +2462,7 @@ public abstract class World implements IBlockAccess {
+@@ -2310,6 +2465,7 @@ public abstract class World implements IBlockAccess {
      }
  
      public void a(List list) {
@@ -5679,10 +6170,31 @@ index ec708d1..ef56386 100644
  
                      this.c[i] = -1;
 diff --git a/src/main/java/net/minecraft/server/WorldServer.java b/src/main/java/net/minecraft/server/WorldServer.java
-index b9b967f..b0c4a2d 100644
+index b9b967f..74a3294 100644
 --- a/src/main/java/net/minecraft/server/WorldServer.java
 +++ b/src/main/java/net/minecraft/server/WorldServer.java
-@@ -54,7 +54,7 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
+@@ -29,8 +29,8 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
+     private final MinecraftServer server;
+     public EntityTracker tracker; // CraftBukkit - private final -> public
+     private final PlayerChunkMap manager;
+-    private Set M;
+-    private TreeSet N;
++    private org.bukkit.craftbukkit.util.LongObjectHashMap<Set<NextTickListEntry>> tickEntriesByChunk; // Spigot - switch to something better for chunk-wise access
++    private TreeSet<NextTickListEntry> tickEntryQueue; // Spigot    public ChunkProviderServer chunkProviderServer;
+     public ChunkProviderServer chunkProviderServer;
+     public boolean savingDisabled;
+     private boolean O;
+@@ -40,7 +40,8 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
+     private NoteDataList[] S = new NoteDataList[] { new NoteDataList((EmptyClass2) null), new NoteDataList((EmptyClass2) null)};
+     private int T;
+     private static final StructurePieceTreasure[] U = new StructurePieceTreasure[] { new StructurePieceTreasure(Items.STICK, 0, 1, 3, 10), new StructurePieceTreasure(Item.getItemOf(Blocks.WOOD), 0, 1, 3, 10), new StructurePieceTreasure(Item.getItemOf(Blocks.LOG), 0, 1, 3, 10), new StructurePieceTreasure(Items.STONE_AXE, 0, 1, 1, 3), new StructurePieceTreasure(Items.WOOD_AXE, 0, 1, 1, 5), new StructurePieceTreasure(Items.STONE_PICKAXE, 0, 1, 1, 3), new StructurePieceTreasure(Items.WOOD_PICKAXE, 0, 1, 1, 5), new StructurePieceTreasure(Items.APPLE, 0, 2, 3, 5), new StructurePieceTreasure(Items.BREAD, 0, 2, 3, 3), new StructurePieceTreasure(Item.getItemOf(Blocks.LOG2), 0, 1, 3, 10)};
+-    private List V = new ArrayList();
++    private ArrayList<NextTickListEntry> pendingTickEntries = new ArrayList<NextTickListEntry>(); // Spigot
++    private int nextPendingTickEntry; // Spigot
+     private IntHashMap entitiesById;
+ 
+     // CraftBukkit start
+@@ -54,18 +55,20 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
          // CraftBukkit end
          this.server = minecraftserver;
          this.tracker = new EntityTracker(this);
@@ -5691,7 +6203,24 @@ index b9b967f..b0c4a2d 100644
          if (this.entitiesById == null) {
              this.entitiesById = new IntHashMap();
          }
-@@ -184,10 +184,12 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
+ 
+-        if (this.M == null) {
+-            this.M = new HashSet();
++        // Spigot start
++        if (this.tickEntriesByChunk == null) {
++            this.tickEntriesByChunk = new org.bukkit.craftbukkit.util.LongObjectHashMap<Set<NextTickListEntry>>();
+         }
+ 
+-        if (this.N == null) {
+-            this.N = new TreeSet();
++        if (this.tickEntryQueue == null) {
++            this.tickEntryQueue = new TreeSet<NextTickListEntry>();
+         }
++        // Spigot end
+ 
+         this.Q = new org.bukkit.craftbukkit.CraftTravelAgent(this); // CraftBukkit
+         this.scoreboard = new ScoreboardServer(minecraftserver);
+@@ -184,10 +187,12 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
          // CraftBukkit start - Only call spawner if we have players online and the world allows for mobs or animals
          long time = this.worldData.getTime();
          if (this.getGameRules().getBoolean("doMobSpawning") && (this.allowMonsters || this.allowAnimals) && (this instanceof WorldServer && this.players.size() > 0)) {
@@ -5706,7 +6235,7 @@ index b9b967f..b0c4a2d 100644
          this.methodProfiler.c("chunkSource");
          this.chunkProvider.unloadChunks();
          int j = this.a(1.0F);
-@@ -201,21 +203,36 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
+@@ -201,21 +206,36 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
              this.worldData.setDayTime(this.worldData.getDayTime() + 1L);
          }
  
@@ -5743,7 +6272,7 @@ index b9b967f..b0c4a2d 100644
      }
  
      public BiomeMeta a(EnumCreatureType enumcreaturetype, int i, int j, int k) {
-@@ -306,10 +323,20 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
+@@ -306,10 +326,20 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
          // CraftBukkit start
          // Iterator iterator = this.chunkTickList.iterator();
  
@@ -5767,7 +6296,7 @@ index b9b967f..b0c4a2d 100644
              int k = chunkX * 16;
              int l = chunkZ * 16;
  
-@@ -400,6 +427,7 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
+@@ -400,6 +430,7 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
  
                          if (block.isTicking()) {
                              ++i;
@@ -5775,14 +6304,306 @@ index b9b967f..b0c4a2d 100644
                              block.a(this, k2 + k, i3 + chunksection.getYPosition(), l2 + l, this.random);
                          }
                      }
-@@ -408,6 +436,7 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
+@@ -408,12 +439,25 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
  
              this.methodProfiler.b();
          }
-+        this.chunkTickList.clear(); // Spigot
++        // Spigot Start
++        if ( spigotConfig.clearChunksOnTick )
++        {
++            chunkTickList.clear();
++        }
++        // Spigot End
      }
  
      public boolean a(int i, int j, int k, Block block) {
+-        NextTickListEntry nextticklistentry = new NextTickListEntry(i, j, k, block);
+-
+-        return this.V.contains(nextticklistentry);
++        // Spigot start
++        int te_cnt = this.pendingTickEntries.size();
++        for (int idx = this.nextPendingTickEntry; idx < te_cnt; idx++) {
++            NextTickListEntry ent = this.pendingTickEntries.get(idx);
++            if ((ent.a == i) && (ent.b == j) && (ent.c == k) && Block.a(ent.a(), block)) {
++                return true;
++            }
++        }
++        return false;
++        // Spigot end        
+     }
+ 
+     public void a(int i, int j, int k, Block block, int l) {
+@@ -447,10 +491,9 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
+                 nextticklistentry.a(i1);
+             }
+ 
+-            if (!this.M.contains(nextticklistentry)) {
+-                this.M.add(nextticklistentry);
+-                this.N.add(nextticklistentry);
+-            }
++            // Spigot start
++            addNextTickIfNeeded(nextticklistentry);
++            // Spigot end
+         }
+     }
+ 
+@@ -462,10 +505,9 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
+             nextticklistentry.a((long) l + this.worldData.getTime());
+         }
+ 
+-        if (!this.M.contains(nextticklistentry)) {
+-            this.M.add(nextticklistentry);
+-            this.N.add(nextticklistentry);
+-        }
++        // Spigot start
++        addNextTickIfNeeded(nextticklistentry);
++        // Spigot end
+     }
+ 
+     public void tickEntities() {
+@@ -485,11 +527,11 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
+     }
+ 
+     public boolean a(boolean flag) {
+-        int i = this.N.size();
+-
+-        if (i != this.M.size()) {
+-            throw new IllegalStateException("TickNextTick list out of synch");
+-        } else {
++        // Spigot start
++        int i = this.tickEntryQueue.size(); 
++        this.nextPendingTickEntry = 0;
++        {
++        // Spigot end
+             if (i > 1000) {
+                 // CraftBukkit start - If the server has too much to process over time, try to alleviate that
+                 if (i > 20 * 1000) {
+@@ -505,23 +547,24 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
+             NextTickListEntry nextticklistentry;
+ 
+             for (int j = 0; j < i; ++j) {
+-                nextticklistentry = (NextTickListEntry) this.N.first();
++                nextticklistentry = (NextTickListEntry) this.tickEntryQueue.first(); // Spigot
+                 if (!flag && nextticklistentry.d > this.worldData.getTime()) {
+                     break;
+                 }
+ 
+-                this.N.remove(nextticklistentry);
+-                this.M.remove(nextticklistentry);
+-                this.V.add(nextticklistentry);
++                // Spigot start
++                this.removeNextTickIfNeeded(nextticklistentry);
++                this.pendingTickEntries.add(nextticklistentry);
++                // Spigot end
+             }
+ 
+             this.methodProfiler.b();
+             this.methodProfiler.a("ticking");
+-            Iterator iterator = this.V.iterator();
+-
+-            while (iterator.hasNext()) {
+-                nextticklistentry = (NextTickListEntry) iterator.next();
+-                iterator.remove();
++            // Spigot start
++            for (int j = 0, te_cnt = this.pendingTickEntries.size(); j < te_cnt; j++) {
++                nextticklistentry = pendingTickEntries.get(j);
++                this.nextPendingTickEntry = j + 1; // treat this as dequeued
++                // Spigot end
+                 byte b0 = 0;
+ 
+                 if (this.b(nextticklistentry.a - b0, nextticklistentry.b - b0, nextticklistentry.c - b0, nextticklistentry.a + b0, nextticklistentry.b + b0, nextticklistentry.c + b0)) {
+@@ -552,50 +595,18 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
+             }
+ 
+             this.methodProfiler.b();
+-            this.V.clear();
+-            return !this.N.isEmpty();
++            // Spigot start
++            this.pendingTickEntries.clear();
++            this.nextPendingTickEntry = 0;
++            return !this.tickEntryQueue.isEmpty();
++            // Spigot end
+         }
+     }
+ 
+     public List a(Chunk chunk, boolean flag) {
+-        ArrayList arraylist = null;
+-        ChunkCoordIntPair chunkcoordintpair = chunk.l();
+-        int i = (chunkcoordintpair.x << 4) - 2;
+-        int j = i + 16 + 2;
+-        int k = (chunkcoordintpair.z << 4) - 2;
+-        int l = k + 16 + 2;
+-
+-        for (int i1 = 0; i1 < 2; ++i1) {
+-            Iterator iterator;
+-
+-            if (i1 == 0) {
+-                iterator = this.N.iterator();
+-            } else {
+-                iterator = this.V.iterator();
+-                if (!this.V.isEmpty()) {
+-                    a.debug("toBeTicked = " + this.V.size());
+-                }
+-            }
+-
+-            while (iterator.hasNext()) {
+-                NextTickListEntry nextticklistentry = (NextTickListEntry) iterator.next();
+-
+-                if (nextticklistentry.a >= i && nextticklistentry.a < j && nextticklistentry.c >= k && nextticklistentry.c < l) {
+-                    if (flag) {
+-                        this.M.remove(nextticklistentry);
+-                        iterator.remove();
+-                    }
+-
+-                    if (arraylist == null) {
+-                        arraylist = new ArrayList();
+-                    }
+-
+-                    arraylist.add(nextticklistentry);
+-                }
+-            }
+-        }
+-
+-        return arraylist;
++        // Spigot start
++        return this.getNextTickEntriesForChunk(chunk, flag);
++        // Spigot end
+     }
+ 
+     /* CraftBukkit start - We prevent spawning in general, so this butchering is not needed
+@@ -667,13 +678,15 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
+             this.entitiesById = new IntHashMap();
+         }
+ 
+-        if (this.M == null) {
+-            this.M = new HashSet();
++        // Spigot start
++        if (this.tickEntriesByChunk == null) {
++            this.tickEntriesByChunk = new org.bukkit.craftbukkit.util.LongObjectHashMap<Set<NextTickListEntry>>();
+         }
+ 
+-        if (this.N == null) {
+-            this.N = new TreeSet();
++        if (this.tickEntryQueue == null) {
++            this.tickEntryQueue = new TreeSet<NextTickListEntry>();
+         }
++        // Spigot end
+ 
+         this.b(worldsettings);
+         super.a(worldsettings);
+@@ -1003,4 +1016,62 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
+         return Block.b(getType(x, y, z));
+     }
+     // CraftBukkit end
++    // Spigot start
++    private void addNextTickIfNeeded(NextTickListEntry ent) {
++        long coord = LongHash.toLong(ent.a >> 4, ent.c >> 4);
++        Set<NextTickListEntry> chunkset = this.tickEntriesByChunk.get(coord);
++        if (chunkset == null) {
++            chunkset = new HashSet<NextTickListEntry>();
++            this.tickEntriesByChunk.put(coord, chunkset);
++        } else if (chunkset.contains(ent)) {
++            return;
++        }
++        chunkset.add(ent);
++        this.tickEntryQueue.add(ent);
++    }
++    
++    private void removeNextTickIfNeeded(NextTickListEntry ent) {
++        long coord = LongHash.toLong(ent.a >> 4, ent.c >> 4);
++        Set<NextTickListEntry> chunkset = this.tickEntriesByChunk.get(coord);
++        if (chunkset != null) {
++            chunkset.remove(ent);
++            if (chunkset.isEmpty()) {
++                this.tickEntriesByChunk.remove(coord);
++            }
++        }
++        this.tickEntryQueue.remove(ent);
++    }
++    
++    private List<NextTickListEntry> getNextTickEntriesForChunk(Chunk chunk, boolean remove) {
++        long coord = LongHash.toLong(chunk.locX, chunk.locZ);
++        Set<NextTickListEntry> chunkset = this.tickEntriesByChunk.get(coord);
++        List<NextTickListEntry> list = null;
++        if (chunkset != null) {
++            list = new ArrayList<NextTickListEntry>(chunkset);
++            if (remove) {
++                this.tickEntriesByChunk.remove(coord);
++                this.tickEntryQueue.removeAll(list);
++                chunkset.clear();
++            }
++        }
++        // See if any on list of ticks being processed now
++        if (this.nextPendingTickEntry < this.pendingTickEntries.size()) {
++            int xmin = (chunk.locX << 4);
++            int xmax = xmin + 16;
++            int zmin = (chunk.locZ << 4);
++            int zmax = zmin + 16;
++            int te_cnt = this.pendingTickEntries.size();
++            for (int i = this.nextPendingTickEntry; i < te_cnt; i++) {
++                NextTickListEntry ent = this.pendingTickEntries.get(i);
++                if ((ent.a >= xmin) && (ent.a < xmax) && (ent.c >= zmin) && (ent.c < zmax)) {
++                    if (list == null) {
++                        list = new ArrayList<NextTickListEntry>();
++                    }
++                    list.add(ent);
++                }
++            }
++        }
++        return list;
++    }
++    // Spigot end 
+ }
+diff --git a/src/main/java/org/bukkit/craftbukkit/CraftAchievement.java b/src/main/java/org/bukkit/craftbukkit/CraftAchievement.java
+new file mode 100644
+index 0000000..f5897e5
+--- /dev/null
++++ b/src/main/java/org/bukkit/craftbukkit/CraftAchievement.java
+@@ -0,0 +1,44 @@
++package org.bukkit.craftbukkit;
++
++import org.bukkit.Achievement;
++
++import com.google.common.base.CaseFormat;
++import com.google.common.collect.BiMap;
++import com.google.common.collect.ImmutableBiMap;
++import com.google.common.collect.ImmutableMap;
++
++public class CraftAchievement {
++    private static final BiMap<String, Achievement> achievements;
++    static {
++        ImmutableMap<String, Achievement> specialCases = ImmutableMap.<String, Achievement>builder()
++                .put("achievement.buildWorkBench", Achievement.BUILD_WORKBENCH)
++                .put("achievement.diamonds", Achievement.GET_DIAMONDS)
++                .put("achievement.portal", Achievement.NETHER_PORTAL)
++                .put("achievement.ghast", Achievement.GHAST_RETURN)
++                .put("achievement.theEnd", Achievement.END_PORTAL)
++                .put("achievement.theEnd2", Achievement.THE_END)
++                .put("achievement.blazeRod", Achievement.GET_BLAZE_ROD)
++                .put("achievement.potion", Achievement.BREW_POTION)
++                .build();
++
++        ImmutableBiMap.Builder<String, Achievement> builder = ImmutableBiMap.<String, Achievement>builder();
++        for (Achievement achievement : Achievement.values()) {
++            if (specialCases.values().contains(achievement)) {
++                continue;
++            }
++            builder.put("achievement."+CaseFormat.UPPER_UNDERSCORE.to(CaseFormat.LOWER_CAMEL, achievement.name()), achievement);
++        }
++
++        builder.putAll(specialCases);
++
++        achievements = builder.build();
++    }
++
++    public static String getAchievementName(Achievement material) {
++        return achievements.inverse().get(material);
++    }
++
++    public static Achievement getAchievement(String name) {
++        return achievements.get(name);
++    }
++}
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftChunk.java b/src/main/java/org/bukkit/craftbukkit/CraftChunk.java
 index b2c6ef4..55f5225 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftChunk.java
@@ -5869,7 +6690,7 @@ index 7de0de5..7eca388 100644
              datavalue = 0;
          }
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-index 2653710..232a604 100644
+index f3e5200..fb346f6 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 @@ -41,6 +41,8 @@ import net.minecraft.server.MinecraftServer;
@@ -5881,7 +6702,7 @@ index 2653710..232a604 100644
  import net.minecraft.server.ServerNBTManager;
  import net.minecraft.server.WorldLoaderServer;
  import net.minecraft.server.WorldManager;
-@@ -224,14 +226,16 @@ public final class CraftServer implements Server {
+@@ -226,14 +228,16 @@ public final class CraftServer implements Server {
          loadIcon();
  
          updater = new AutoUpdater(new BukkitDLUpdaterService(configuration.getString("auto-updater.host")), getLogger(), configuration.getString("auto-updater.preferred-channel"));
@@ -5901,7 +6722,7 @@ index 2653710..232a604 100644
      }
  
      private File getConfigFile() {
-@@ -542,12 +546,14 @@ public final class CraftServer implements Server {
+@@ -544,12 +548,14 @@ public final class CraftServer implements Server {
          if (commandMap.dispatch(sender, commandLine)) {
              return true;
          }
@@ -5921,7 +6742,7 @@ index 2653710..232a604 100644
  
          return false;
      }
-@@ -581,6 +587,7 @@ public final class CraftServer implements Server {
+@@ -583,6 +589,7 @@ public final class CraftServer implements Server {
          playerList.getIPBans().load();
          playerList.getNameBans().load();
  
@@ -5929,7 +6750,7 @@ index 2653710..232a604 100644
          for (WorldServer world : console.worlds) {
              world.difficulty = difficulty;
              world.setSpawnFlags(monsters, animals);
-@@ -595,11 +602,13 @@ public final class CraftServer implements Server {
+@@ -597,11 +604,13 @@ public final class CraftServer implements Server {
              } else {
                  world.ticksPerMonsterSpawns = this.getTicksPerMonsterSpawns();
              }
@@ -5943,7 +6764,7 @@ index 2653710..232a604 100644
  
          int pollCount = 0;
  
-@@ -844,6 +853,30 @@ public final class CraftServer implements Server {
+@@ -846,6 +855,30 @@ public final class CraftServer implements Server {
          worlds.remove(world.getName().toLowerCase());
          console.worlds.remove(console.worlds.indexOf(handle));
  
@@ -5974,7 +6795,7 @@ index 2653710..232a604 100644
          return true;
      }
  
-@@ -1102,7 +1135,7 @@ public final class CraftServer implements Server {
+@@ -1104,7 +1137,7 @@ public final class CraftServer implements Server {
      }
  
      public OfflinePlayer getOfflinePlayer(String name) {
@@ -5983,13 +6804,13 @@ index 2653710..232a604 100644
      }
  
      public OfflinePlayer getOfflinePlayer(String name, boolean search) {
-@@ -1367,15 +1400,30 @@ public final class CraftServer implements Server {
+@@ -1369,15 +1402,30 @@ public final class CraftServer implements Server {
      }
  
      public List<String> tabCompleteCommand(Player player, String message) {
 -        List<String> completions = null;
 +        // Spigot Start
-+        if ( !org.spigotmc.SpigotConfig.tabComplete )
++        if ( !org.spigotmc.SpigotConfig.tabComplete && !message.contains( " " ) )
 +        {
 +            return ImmutableList.of();
 +        }
@@ -6017,6 +6838,154 @@ index 2653710..232a604 100644
      }
  
      public List<String> tabCompleteChat(Player player, String message) {
+diff --git a/src/main/java/org/bukkit/craftbukkit/CraftStatistic.java b/src/main/java/org/bukkit/craftbukkit/CraftStatistic.java
+deleted file mode 100644
+index 7190c57..0000000
+--- a/src/main/java/org/bukkit/craftbukkit/CraftStatistic.java
++++ /dev/null
+@@ -1,142 +0,0 @@
+-package org.bukkit.craftbukkit;
+-
+-import net.minecraft.server.EntityTypes;
+-import net.minecraft.server.MonsterEggInfo;
+-import net.minecraft.server.StatisticList;
+-
+-import org.bukkit.Achievement;
+-import org.bukkit.Statistic;
+-import org.bukkit.Material;
+-import org.bukkit.entity.EntityType;
+-
+-import com.google.common.base.CaseFormat;
+-import com.google.common.collect.BiMap;
+-import com.google.common.collect.ImmutableBiMap;
+-import com.google.common.collect.ImmutableMap;
+-
+-public class CraftStatistic {
+-    private static final BiMap<String, org.bukkit.Statistic> statistics;
+-    private static final BiMap<String, org.bukkit.Achievement> achievements;
+-
+-    static {
+-        ImmutableMap<String, org.bukkit.Achievement> specialCases = ImmutableMap.<String, org.bukkit.Achievement> builder()
+-                .put("achievement.buildWorkBench", Achievement.BUILD_WORKBENCH)
+-                .put("achievement.diamonds", Achievement.GET_DIAMONDS)
+-                .put("achievement.portal", Achievement.NETHER_PORTAL)
+-                .put("achievement.ghast", Achievement.GHAST_RETURN)
+-                .put("achievement.theEnd", Achievement.END_PORTAL)
+-                .put("achievement.theEnd2", Achievement.THE_END)
+-                .put("achievement.blazeRod", Achievement.GET_BLAZE_ROD)
+-                .put("achievement.potion", Achievement.BREW_POTION)
+-                .build();
+-        ImmutableBiMap.Builder<String, org.bukkit.Statistic> statisticBuilder = ImmutableBiMap.<String, org.bukkit.Statistic>builder();
+-        ImmutableBiMap.Builder<String, org.bukkit.Achievement> achievementBuilder = ImmutableBiMap.<String, org.bukkit.Achievement>builder();
+-        for (Statistic statistic : Statistic.values()) {
+-            if (statistic == Statistic.PLAY_ONE_TICK) {
+-                statisticBuilder.put("stat.playOneMinute", statistic);
+-            } else {
+-                statisticBuilder.put("stat." + CaseFormat.UPPER_UNDERSCORE.to(CaseFormat.LOWER_CAMEL, statistic.name()), statistic);
+-            }
+-        }
+-        for (Achievement achievement : Achievement.values()) {
+-            if (specialCases.values().contains(achievement)) {
+-                continue;
+-            }
+-            achievementBuilder.put("achievement." + CaseFormat.UPPER_UNDERSCORE.to(CaseFormat.LOWER_CAMEL, achievement.name()), achievement);
+-        }
+-
+-        achievementBuilder.putAll(specialCases);
+-
+-        statistics = statisticBuilder.build();
+-        achievements = achievementBuilder.build();
+-    }
+-
+-    private CraftStatistic() {}
+-
+-    public static org.bukkit.Achievement getBukkitAchievement(net.minecraft.server.Achievement achievement) {
+-        return getBukkitAchievementByName(achievement.e);
+-    }
+-
+-    public static org.bukkit.Achievement getBukkitAchievementByName(String name) {
+-        return achievements.get(name);
+-    }
+-
+-    public static org.bukkit.Statistic getBukkitStatistic(net.minecraft.server.Statistic statistic) {
+-        return getBukkitStatisticByName(statistic.e);
+-    }
+-
+-    public static org.bukkit.Statistic getBukkitStatisticByName(String name) {
+-        if (name.startsWith("stat.killEntity")) {
+-            name = "stat.killEntity";
+-        }
+-        if (name.startsWith("stat.entityKilledBy")) {
+-            name = "stat.entityKilledBy";
+-        }
+-        if (name.startsWith("stat.breakItem")) {
+-            name = "stat.breakItem";
+-        }
+-        if (name.startsWith("stat.useItem")) {
+-            name = "stat.useItem";
+-        }
+-        if (name.startsWith("stat.mineBlock")) {
+-            name = "stat.mineBlock";
+-        }
+-        if (name.startsWith("stat.craftItem")) {
+-            name = "stat.craftItem";
+-        }
+-        return statistics.get(name);
+-    }
+-
+-    public static net.minecraft.server.Statistic getNMSStatistic(org.bukkit.Statistic statistic) {
+-        return StatisticList.a(statistics.inverse().get(statistic));
+-    }
+-
+-    public static net.minecraft.server.Achievement getNMSAchievement(org.bukkit.Achievement achievement) {
+-        return (net.minecraft.server.Achievement) StatisticList.a(achievements.inverse().get(achievement));
+-    }
+-
+-    public static net.minecraft.server.Statistic getMaterialStatistic(org.bukkit.Statistic stat, Material material) {
+-        try {
+-            if (stat == Statistic.MINE_BLOCK) {
+-                return StatisticList.C[material.getId()];
+-            }
+-            if (stat == Statistic.CRAFT_ITEM) {
+-                return StatisticList.D[material.getId()];
+-            }
+-            if (stat == Statistic.USE_ITEM) {
+-                return StatisticList.E[material.getId()];
+-            }
+-            if (stat == Statistic.BREAK_ITEM) {
+-                return StatisticList.F[material.getId()];
+-            }
+-        } catch (ArrayIndexOutOfBoundsException e) {
+-            return null;
+-        }
+-        return null;
+-    }
+-
+-    public static net.minecraft.server.Statistic getEntityStatistic(org.bukkit.Statistic stat, EntityType entity) {
+-        MonsterEggInfo monsteregginfo = (MonsterEggInfo) EntityTypes.a.get(Integer.valueOf(entity.getTypeId()));
+-
+-        if (monsteregginfo != null) {
+-            return monsteregginfo.d;
+-        }
+-        return null;
+-    }
+-
+-    public static EntityType getEntityTypeFromStatistic(net.minecraft.server.Statistic statistic) {
+-        String statisticString = statistic.e;
+-        return EntityType.fromName(statisticString.substring(statisticString.lastIndexOf(".") + 1));
+-    }
+-
+-    public static Material getMaterialFromStatistic(net.minecraft.server.Statistic statistic) {
+-        String statisticString = statistic.e;
+-        int id;
+-        try {
+-            id = Integer.valueOf(statisticString.substring(statisticString.lastIndexOf(".") + 1));
+-        } catch (NumberFormatException e) {
+-            return null;
+-        }
+-        return Material.getMaterial(id);
+-    }
+-}
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
 index 3d0383d..c90dd54 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
@@ -6432,9 +7401,39 @@ index fe0f200..96d763b 100644
 +    // Spigot end
  }
 diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
-index 33169e2..1f29821 100644
+index 9935e7a..331ff29 100644
 --- a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
+@@ -20,11 +20,11 @@ import net.minecraft.server.*;
+ 
+ import org.apache.commons.lang.Validate;
+ import org.apache.commons.lang.NotImplementedException;
++
+ import org.bukkit.*;
+ import org.bukkit.Achievement;
+-import org.bukkit.Statistic;
+ import org.bukkit.Material;
+-import org.bukkit.Statistic.Type;
++import org.bukkit.Statistic;
+ import org.bukkit.World;
+ import org.bukkit.configuration.serialization.DelegateDeserialization;
+ import org.bukkit.conversations.Conversation;
+@@ -35,7 +35,6 @@ import org.bukkit.craftbukkit.CraftEffect;
+ import org.bukkit.craftbukkit.CraftOfflinePlayer;
+ import org.bukkit.craftbukkit.CraftServer;
+ import org.bukkit.craftbukkit.CraftSound;
+-import org.bukkit.craftbukkit.CraftStatistic;
+ import org.bukkit.craftbukkit.CraftWorld;
+ import org.bukkit.craftbukkit.map.CraftMapView;
+ import org.bukkit.craftbukkit.map.RenderData;
+@@ -52,6 +51,7 @@ import org.bukkit.inventory.InventoryView.Property;
+ import org.bukkit.map.MapView;
+ import org.bukkit.metadata.MetadataValue;
+ import org.bukkit.plugin.Plugin;
++import org.bukkit.plugin.messaging.Messenger;
+ import org.bukkit.plugin.messaging.StandardMessenger;
+ import org.bukkit.scoreboard.Scoreboard;
+ 
 @@ -230,6 +230,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
  
      @Override
@@ -6470,7 +7469,162 @@ index 33169e2..1f29821 100644
  
          // Update the From Location
          from = event.getFrom();
-@@ -1004,7 +1012,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+@@ -517,29 +525,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+ 
+     @Override
+     public void awardAchievement(Achievement achievement) {
+-        Validate.notNull(achievement, "Achievement cannot be null");
+-        if (achievement.hasParent() && !hasAchievement(achievement.getParent())) {
+-            awardAchievement(achievement.getParent());
+-        }
+-        getHandle().x().a(getHandle(), CraftStatistic.getNMSAchievement(achievement), 1);
+-        getHandle().x().b(getHandle());
+-    }
+-
+-    @Override
+-    public void removeAchievement(Achievement achievement) {
+-        Validate.notNull(achievement, "Achievement cannot be null");
+-        for (Achievement achieve : Achievement.values()) {
+-            if (achieve.getParent() == achievement && hasAchievement(achieve)) {
+-                removeAchievement(achieve);
+-            }
+-        }
+-        getHandle().x().a(getHandle(), CraftStatistic.getNMSAchievement(achievement), 0);
+-    }
+-
+-    @Override
+-    public boolean hasAchievement(Achievement achievement) {
+-        Validate.notNull(achievement, "Achievement cannot be null");
+-        return getHandle().x().a(CraftStatistic.getNMSAchievement(achievement));
++        // TODO - non-functional as of ID purge
+     }
+ 
+     @Override
+@@ -548,36 +534,8 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+     }
+ 
+     @Override
+-    public void decrementStatistic(Statistic statistic) {
+-        decrementStatistic(statistic, 1);
+-    }
+-
+-    @Override
+-    public int getStatistic(Statistic statistic) {
+-        Validate.notNull(statistic, "Statistic cannot be null");
+-        Validate.isTrue(statistic.getType() == Type.UNTYPED, "Must supply additional paramater for this statistic");
+-        return getHandle().x().a(CraftStatistic.getNMSStatistic(statistic));
+-    }
+-
+-    @Override
+     public void incrementStatistic(Statistic statistic, int amount) {
+-        Validate.isTrue(amount > 0, "Amount must be greater than 0");
+-        setStatistic(statistic, getStatistic(statistic) + amount);
+-    }
+-
+-    @Override
+-    public void decrementStatistic(Statistic statistic, int amount) {
+-        Validate.isTrue(amount > 0, "Amount must be greater than 0");
+-        setStatistic(statistic, getStatistic(statistic) - amount);
+-    }
+-
+-    @Override
+-    public void setStatistic(Statistic statistic, int newValue) {
+-        Validate.notNull(statistic, "Statistic cannot be null");
+-        Validate.isTrue(statistic.getType() == Type.UNTYPED, "Must supply additional paramater for this statistic");
+-        Validate.isTrue(newValue >= 0, "Value must be greater than or equal to 0");
+-        net.minecraft.server.Statistic nmsStatistic = CraftStatistic.getNMSStatistic(statistic);
+-        getHandle().x().a(getHandle(), nmsStatistic, newValue);
++        // TODO - non-functional as of ID purge
+     }
+ 
+     @Override
+@@ -586,84 +544,8 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+     }
+ 
+     @Override
+-    public void decrementStatistic(Statistic statistic, Material material) {
+-        decrementStatistic(statistic, material, 1);
+-    }
+-
+-    @Override
+-    public int getStatistic(Statistic statistic, Material material) {
+-        Validate.notNull(statistic, "Statistic cannot be null");
+-        Validate.notNull(material, "Material cannot be null");
+-        Validate.isTrue(statistic.getType() == Type.BLOCK || statistic.getType() == Type.ITEM, "This statistic does not take a Material parameter");
+-        net.minecraft.server.Statistic nmsStatistic = CraftStatistic.getMaterialStatistic(statistic, material);
+-        Validate.notNull(nmsStatistic, "The supplied Material does not have a corresponding statistic");
+-        return getHandle().x().a(nmsStatistic);
+-    }
+-
+-    @Override
+     public void incrementStatistic(Statistic statistic, Material material, int amount) {
+-        Validate.isTrue(amount > 0, "Amount must be greater than 0");
+-        setStatistic(statistic, material, getStatistic(statistic, material) + amount);
+-    }
+-
+-    @Override
+-    public void decrementStatistic(Statistic statistic, Material material, int amount) {
+-        Validate.isTrue(amount > 0, "Amount must be greater than 0");
+-        setStatistic(statistic, material, getStatistic(statistic, material) - amount);
+-    }
+-
+-    @Override
+-    public void setStatistic(Statistic statistic, Material material, int newValue) {
+-        Validate.notNull(statistic, "Statistic cannot be null");
+-        Validate.notNull(material, "Material cannot be null");
+-        Validate.isTrue(newValue >= 0, "Value must be greater than or equal to 0");
+-        Validate.isTrue(statistic.getType() == Type.BLOCK || statistic.getType() == Type.ITEM, "This statistic does not take a Material parameter");
+-        net.minecraft.server.Statistic nmsStatistic = CraftStatistic.getMaterialStatistic(statistic, material);
+-        Validate.notNull(nmsStatistic, "The supplied Material does not have a corresponding statistic");
+-        getHandle().x().a(getHandle(), nmsStatistic, newValue);
+-    }
+-
+-    @Override
+-    public void incrementStatistic(Statistic statistic, EntityType entityType) {
+-        incrementStatistic(statistic, entityType, 1);
+-    }
+-
+-    @Override
+-    public void decrementStatistic(Statistic statistic, EntityType entityType) {
+-        decrementStatistic(statistic, entityType, 1);
+-    }
+-
+-    @Override
+-    public int getStatistic(Statistic statistic, EntityType entityType) {
+-        Validate.notNull(statistic, "Statistic cannot be null");
+-        Validate.notNull(entityType, "EntityType cannot be null");
+-        Validate.isTrue(statistic.getType() == Type.ENTITY, "This statistic does not take an EntityType parameter");
+-        net.minecraft.server.Statistic nmsStatistic = CraftStatistic.getEntityStatistic(statistic, entityType);
+-        Validate.notNull(nmsStatistic, "The supplied EntityType does not have a corresponding statistic");
+-        return getHandle().x().a(nmsStatistic);
+-    }
+-
+-    @Override
+-    public void incrementStatistic(Statistic statistic, EntityType entityType, int amount) {
+-        Validate.isTrue(amount > 0, "Amount must be greater than 0");
+-        setStatistic(statistic, entityType, getStatistic(statistic, entityType) + amount);
+-    }
+-
+-    @Override
+-    public void decrementStatistic(Statistic statistic, EntityType entityType, int amount) {
+-        Validate.isTrue(amount > 0, "Amount must be greater than 0");
+-        setStatistic(statistic, entityType, getStatistic(statistic, entityType) - amount);
+-    }
+-
+-    @Override
+-    public void setStatistic(Statistic statistic, EntityType entityType, int newValue) {
+-        Validate.notNull(statistic, "Statistic cannot be null");
+-        Validate.notNull(entityType, "EntityType cannot be null");
+-        Validate.isTrue(newValue >= 0, "Value must be greater than or equal to 0");
+-        Validate.isTrue(statistic.getType() == Type.ENTITY, "This statistic does not take an EntityType parameter");
+-        net.minecraft.server.Statistic nmsStatistic = CraftStatistic.getEntityStatistic(statistic, entityType);
+-        Validate.notNull(nmsStatistic, "The supplied EntityType does not have a corresponding statistic");
+-        getHandle().x().a(getHandle(), nmsStatistic, newValue);
++        // TODO - non-functional as of ID purge
+     }
+ 
+     @Override
+@@ -1130,7 +1012,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
      public void setFlySpeed(float value) {
          validateSpeed(value);
          EntityPlayer player = getHandle();
@@ -6479,7 +7633,7 @@ index 33169e2..1f29821 100644
          player.updateAbilities();
  
      }
-@@ -1012,7 +1020,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+@@ -1138,7 +1020,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
      public void setWalkSpeed(float value) {
          validateSpeed(value);
          EntityPlayer player = getHandle();
@@ -6488,7 +7642,7 @@ index 33169e2..1f29821 100644
          player.updateAbilities();
      }
  
-@@ -1060,7 +1068,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+@@ -1186,7 +1068,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
              throw new IllegalStateException("Cannot set scoreboard yet");
          }
          if (playerConnection.isDisconnected()) {
@@ -6497,7 +7651,7 @@ index 33169e2..1f29821 100644
          }
  
          this.server.getScoreboardManager().setPlayerBoard(this, scoreboard);
-@@ -1128,4 +1136,37 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+@@ -1254,4 +1136,43 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
          }
          collection.add(new AttributeModifiable(getHandle().bc(), (new AttributeRanged("generic.maxHealth", scaledHealth ? healthScale : getMaxHealth(), 0.0D, Float.MAX_VALUE)).a("Max Health").a(true)));
      }
@@ -6505,6 +7659,12 @@ index 33169e2..1f29821 100644
 +    // Spigot start
 +    private final Player.Spigot spigot = new Player.Spigot()
 +    {
++
++        @Override
++        public InetSocketAddress getRawAddress()
++        {
++            return (InetSocketAddress) getHandle().playerConnection.networkManager.getRawAddress();
++        }
 +
 +        @Override
 +        public boolean getCollidesWithEntities()
@@ -6536,18 +7696,40 @@ index 33169e2..1f29821 100644
 +    // Spigot end
  }
 diff --git a/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java b/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
-index a654a3e..f100884 100644
+index a91ffb1..f100884 100644
 --- a/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
 +++ b/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
-@@ -35,6 +35,7 @@ import org.bukkit.Server;
+@@ -32,12 +32,11 @@ import net.minecraft.server.WorldServer;
+ import org.bukkit.Bukkit;
+ import org.bukkit.Material;
+ import org.bukkit.Server;
+-import org.bukkit.Statistic.Type;
  import org.bukkit.block.Block;
  import org.bukkit.block.BlockFace;
  import org.bukkit.block.BlockState;
 +import org.bukkit.block.CreatureSpawner;
  import org.bukkit.craftbukkit.CraftServer;
+-import org.bukkit.craftbukkit.CraftStatistic;
  import org.bukkit.craftbukkit.CraftWorld;
  import org.bukkit.craftbukkit.block.CraftBlock;
-@@ -116,6 +117,22 @@ public class CraftEventFactory {
+ import org.bukkit.craftbukkit.block.CraftBlockState;
+@@ -49,7 +48,6 @@ import org.bukkit.craftbukkit.util.CraftDamageSource;
+ import org.bukkit.craftbukkit.util.CraftMagicNumbers;
+ import org.bukkit.entity.Arrow;
+ import org.bukkit.entity.Creeper;
+-import org.bukkit.entity.EntityType;
+ import org.bukkit.entity.Horse;
+ import org.bukkit.entity.LightningStrike;
+ import org.bukkit.entity.LivingEntity;
+@@ -59,7 +57,6 @@ import org.bukkit.entity.Player;
+ import org.bukkit.entity.Projectile;
+ import org.bukkit.entity.ThrownExpBottle;
+ import org.bukkit.entity.ThrownPotion;
+-import org.bukkit.event.Cancellable;
+ import org.bukkit.event.Event;
+ import org.bukkit.event.block.*;
+ import org.bukkit.event.block.BlockIgniteEvent.IgniteCause;
+@@ -120,6 +117,22 @@ public class CraftEventFactory {
      }
  
      /**
@@ -6570,6 +7752,63 @@ index a654a3e..f100884 100644
       * Bucket methods
       */
      public static PlayerBucketEmptyEvent callPlayerBucketEmptyEvent(EntityHuman who, int clickedX, int clickedY, int clickedZ, int clickedFace, ItemStack itemInHand) {
+@@ -455,10 +468,8 @@ public class CraftEventFactory {
+         if (!(source instanceof EntityDamageSource)) {
+             return false;
+         }
++        // We don't need to check for null, since EntityDamageSource will always return an event
+         EntityDamageEvent event = handleEntityDamageEvent(entity, source, damage);
+-        if (event == null) {
+-            return false;
+-        }
+         return event.isCancelled() || event.getDamage() == 0;
+     }
+ 
+@@ -735,44 +746,4 @@ public class CraftEventFactory {
+         entity.world.getServer().getPluginManager().callEvent(event);
+         return event;
+     }
+-
+-    public static Cancellable handleStatisticsIncrease(EntityHuman entityHuman, net.minecraft.server.Statistic statistic, int current, int incrementation) {
+-        Player player = ((EntityPlayer) entityHuman).getBukkitEntity();
+-        Event event;
+-        if (statistic instanceof net.minecraft.server.Achievement) {
+-            if (current != 0) {
+-                return null;
+-            }
+-            event = new PlayerAchievementAwardedEvent(player, CraftStatistic.getBukkitAchievement((net.minecraft.server.Achievement) statistic));
+-        } else {
+-            org.bukkit.Statistic stat = CraftStatistic.getBukkitStatistic(statistic);
+-            switch (stat) {
+-                case FALL_ONE_CM:
+-                case BOAT_ONE_CM:
+-                case CLIMB_ONE_CM:
+-                case DIVE_ONE_CM:
+-                case FLY_ONE_CM:
+-                case HORSE_ONE_CM:
+-                case MINECART_ONE_CM:
+-                case PIG_ONE_CM:
+-                case PLAY_ONE_TICK:
+-                case SWIM_ONE_CM:
+-                case WALK_ONE_CM:
+-                    // Do not process event for these - too spammy
+-                    return null;
+-                default:
+-            }
+-            if (stat.getType() == Type.UNTYPED) {
+-                event = new PlayerStatisticIncrementEvent(player, stat, current, current + incrementation);
+-            } else if (stat.getType() == Type.ENTITY) {
+-                EntityType entityType = CraftStatistic.getEntityTypeFromStatistic(statistic);
+-                event = new PlayerStatisticIncrementEvent(player, stat, current, current + incrementation, entityType);
+-            } else {
+-                Material material = CraftStatistic.getMaterialFromStatistic(statistic);
+-                event = new PlayerStatisticIncrementEvent(player, stat, current, current + incrementation, material);
+-            }
+-        }
+-        entityHuman.world.getServer().getPluginManager().callEvent(event);
+-        return (Cancellable) event;
+-    }
+ }
 diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftInventoryAnvil.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftInventoryAnvil.java
 index a91d81a..46a1d38 100644
 --- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftInventoryAnvil.java
@@ -6633,6 +7872,54 @@ index 0f7da6b..5a409ae 100644
          }
      }
  
+diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/RecipeIterator.java b/src/main/java/org/bukkit/craftbukkit/inventory/RecipeIterator.java
+index 53b53b7..568b2d0 100644
+--- a/src/main/java/org/bukkit/craftbukkit/inventory/RecipeIterator.java
++++ b/src/main/java/org/bukkit/craftbukkit/inventory/RecipeIterator.java
+@@ -10,18 +10,20 @@ import net.minecraft.server.RecipesFurnace;
+ 
+ public class RecipeIterator implements Iterator<Recipe> {
+     private final Iterator<IRecipe> recipes;
+-    private final Iterator<net.minecraft.server.ItemStack> smeltingCustom;
+-    private final Iterator<net.minecraft.server.ItemStack> smeltingVanilla;
++    private final Iterator<net.minecraft.server.ItemStack> smelting;
+     private Iterator<?> removeFrom = null;
+ 
+     public RecipeIterator() {
+         this.recipes = CraftingManager.getInstance().getRecipes().iterator();
+-        this.smeltingCustom = RecipesFurnace.getInstance().customRecipes.keySet().iterator();
+-        this.smeltingVanilla = RecipesFurnace.getInstance().recipes.keySet().iterator();
++        this.smelting = RecipesFurnace.getInstance().getRecipes().keySet().iterator();
+     }
+ 
+     public boolean hasNext() {
+-        return recipes.hasNext() || smeltingCustom.hasNext() || smeltingVanilla.hasNext();
++        if (recipes.hasNext()) {
++            return true;
++        } else {
++            return smelting.hasNext();
++        }
+     }
+ 
+     public Recipe next() {
+@@ -29,15 +31,8 @@ public class RecipeIterator implements Iterator<Recipe> {
+             removeFrom = recipes;
+             return recipes.next().toBukkitRecipe();
+         } else {
+-            net.minecraft.server.ItemStack item;
+-            if (smeltingCustom.hasNext()) {
+-                removeFrom = smeltingCustom;
+-                item = smeltingCustom.next();
+-            } else {
+-                removeFrom = smeltingVanilla;
+-                item = smeltingVanilla.next();
+-            }
+-
++            removeFrom = smelting;
++            net.minecraft.server.ItemStack item = smelting.next();
+             CraftItemStack stack = CraftItemStack.asCraftMirror(RecipesFurnace.getInstance().getResult(item));
+ 
+             return new CraftFurnaceRecipe(stack, CraftItemStack.asCraftMirror(item));
 diff --git a/src/main/java/org/bukkit/craftbukkit/map/CraftMapView.java b/src/main/java/org/bukkit/craftbukkit/map/CraftMapView.java
 index 1a150d9..c9f0027 100644
 --- a/src/main/java/org/bukkit/craftbukkit/map/CraftMapView.java
@@ -6719,170 +8006,91 @@ index 55db3ff..7d294c0 100644
      }
  
 diff --git a/src/main/java/org/bukkit/craftbukkit/util/CraftChatMessage.java b/src/main/java/org/bukkit/craftbukkit/util/CraftChatMessage.java
-index 66368f4..5607df1 100644
+index 66368f4..f4de71c 100644
 --- a/src/main/java/org/bukkit/craftbukkit/util/CraftChatMessage.java
 +++ b/src/main/java/org/bukkit/craftbukkit/util/CraftChatMessage.java
-@@ -6,25 +6,24 @@ import java.util.Map;
- import java.util.regex.Matcher;
- import java.util.regex.Pattern;
- 
--import net.minecraft.server.ChatClickable;
- import net.minecraft.server.ChatComponentText;
- import net.minecraft.server.ChatModifier;
- import net.minecraft.server.EnumChatFormat;
--import net.minecraft.server.EnumClickAction;
- import net.minecraft.server.IChatBaseComponent;
-+import net.minecraft.server.ChatClickable;
-+import net.minecraft.server.EnumClickAction;
- 
- import com.google.common.collect.ImmutableMap;
- import com.google.common.collect.ImmutableMap.Builder;
- 
+@@ -19,7 +19,7 @@ import com.google.common.collect.ImmutableMap.Builder;
  public final class CraftChatMessage {
--    private static class StringMessage {
-+    private static class FromString {
+     private static class StringMessage {
          private static final Map<Character, EnumChatFormat> formatMap;
 -        private static final Pattern INCREMENTAL_PATTERN = Pattern.compile("(" + String.valueOf(org.bukkit.ChatColor.COLOR_CHAR) + "[0-9a-fk-or])|(\\n)|(?:(https?://[^ ][^ ]*?)(?=[\\.\\?!,;:]?(?:[ \\n]|$)))", Pattern.CASE_INSENSITIVE);
++        private static final Pattern INCREMENTAL_PATTERN = Pattern.compile("(" + String.valueOf(org.bukkit.ChatColor.COLOR_CHAR) + "[0-9a-fk-or])|(\\n)|((?:(?:https?)://)?(?:[-\\w_\\.]{2,}\\.[a-z]{2,4}.*?(?=[\\.\\?!,;:]?(?:[ \\n]|$))))", Pattern.CASE_INSENSITIVE);
  
          static {
              Builder<Character, EnumChatFormat> builder = ImmutableMap.builder();
-             for (EnumChatFormat format : EnumChatFormat.values()) {
--                builder.put(Character.toLowerCase(format.getChar()), format);
-+                builder.put(format.getChar(), format);
-             }
-             formatMap = builder.build();
-         }
-@@ -32,29 +31,31 @@ public final class CraftChatMessage {
-         private final List<IChatBaseComponent> list = new ArrayList<IChatBaseComponent>();
-         private IChatBaseComponent currentChatComponent = new ChatComponentText("");
-         private ChatModifier modifier = new ChatModifier();
-+        private StringBuilder builder = new StringBuilder();
-         private final IChatBaseComponent[] output;
--        private int currentIndex;
--        private final String message;
-+        private static final Pattern url = Pattern.compile("^(\u00A7.)*?((?:(https?)://)?([-\\w_\\.]{2,}\\.[a-z]{2,4})(/\\S*?)?)(\u00A7.)*?$");
-+        private int lastWord = 0;
- 
--        private StringMessage(String message) {
--            this.message = message;
-+        private FromString(String message) {
-             if (message == null) {
-                 output = new IChatBaseComponent[] { currentChatComponent };
-                 return;
-             }
-             list.add(currentChatComponent);
- 
--            Matcher matcher = INCREMENTAL_PATTERN.matcher(message);
--            String match = null;
--            while (matcher.find()) {
--                int groupId = 0;
--                while ((match = matcher.group(++groupId)) == null) {
--                    // NOOP
--                }
--                appendNewComponent(matcher.start(groupId));
--                switch (groupId) {
--                case 1:
--                    EnumChatFormat format = formatMap.get(match.toLowerCase().charAt(1));
-+            EnumChatFormat format = null;
-+            Matcher matcher = url.matcher(message);
-+            lastWord = 0;
-+
-+            for (int i = 0; i < message.length(); i++) {
-+                char currentChar = message.charAt(i);
-+                if (currentChar == '\u00A7' && (i < (message.length() - 1)) && (format = formatMap.get(message.charAt(i + 1))) != null) {
-+                    checkUrl(matcher, message, i);
-+                    lastWord++;
-+                    if (builder.length() > 0) {
-+                        appendNewComponent();
-+                    }
-+
-                     if (format == EnumChatFormat.RESET) {
-                         modifier = new ChatModifier();
-                     } else if (format.isFormat()) {
-@@ -80,31 +81,59 @@ public final class CraftChatMessage {
-                     } else { // Color resets formatting
-                         modifier = new ChatModifier().setColor(format);
-                     }
--                    break;
--                case 2:
-+                    i++;
-+                } else if (currentChar == '\n') {
-+                    checkUrl(matcher, message, i);
-+                    lastWord = i + 1;
-+                    if (builder.length() > 0) {
-+                        appendNewComponent();
-+                    }
+@@ -85,6 +85,9 @@ public final class CraftChatMessage {
                      currentChatComponent = null;
--                    break;
--                case 3:
--                    modifier.a(new ChatClickable(EnumClickAction.OPEN_URL, match)); // Should be setChatClickable
--                    appendNewComponent(matcher.end(groupId));
--                    modifier.a((ChatClickable) null);
-+                } else {
-+                    if (currentChar == ' ' || i == message.length() - 1) {
-+                        if (checkUrl(matcher, message, i)) {
-+                            break;
-+                        }
+                     break;
+                 case 3:
++                    if ( !( match.startsWith( "http://" ) || match.startsWith( "https://" ) ) ) {
++                        match = "http://" + match;
 +                    }
-+                    builder.append(currentChar);
-                 }
--                currentIndex = matcher.end(groupId);
+                     modifier.a(new ChatClickable(EnumClickAction.OPEN_URL, match)); // Should be setChatClickable
+                     appendNewComponent(matcher.end(groupId));
+                     modifier.a((ChatClickable) null);
+@@ -96,7 +99,7 @@ public final class CraftChatMessage {
+                 appendNewComponent(message.length());
              }
  
--            if (currentIndex < message.length()) {
--                appendNewComponent(message.length());
-+            if (builder.length() > 0) {
-+                appendNewComponent();
-             }
- 
-             output = list.toArray(new IChatBaseComponent[0]);
+-            output = list.toArray(new IChatBaseComponent[0]);
++            output = list.toArray(new IChatBaseComponent[list.size()]);
          }
  
--        private void appendNewComponent(int index) {
--            if (index <= currentIndex) {
--                return;
-+        private boolean checkUrl(Matcher matcher, String message, int i) {
-+            Matcher urlMatcher = matcher.region(lastWord, i == message.length() - 1 ? message.length() : i);
-+            lastWord = i + 1;
-+            if (urlMatcher.find()) {
-+                String fullUrl = urlMatcher.group(2);
-+                String protocol = urlMatcher.group(3);
-+                String url = urlMatcher.group(4);
-+                String path = urlMatcher.group(5);
-+                builder.delete(builder.length() - fullUrl.length() + (i == message.length() - 1 ? 1 : 0), builder.length());
-+                if (builder.length() > 0) {
-+                    appendNewComponent();
-+                }
-+                builder.append(fullUrl);
-+                ChatClickable link = new ChatClickable(EnumClickAction.OPEN_URL,
-+                        (protocol!=null?protocol:"http") + "://" + url + (path!=null?path:""));
-+                modifier.a(link);
-+                appendNewComponent();
-+                modifier.a((ChatClickable) null);
-+                if (i == message.length() - 1) {
-+                    return true;
-+                }
-             }
--            IChatBaseComponent addition = new ChatComponentText(message.substring(currentIndex, index)).setChatModifier(modifier);
--            currentIndex = index;
-+            return false;
-+        }
-+
-+        private void appendNewComponent() {
-+            IChatBaseComponent addition = new ChatComponentText(builder.toString()).setChatModifier(modifier);
-+            builder = new StringBuilder();
-             modifier = modifier.clone();
-             if (currentChatComponent == null) {
-                 currentChatComponent = new ChatComponentText("");
-@@ -119,7 +148,7 @@ public final class CraftChatMessage {
-     }
+         private void appendNewComponent(int index) {
+diff --git a/src/main/java/org/bukkit/craftbukkit/util/CraftMagicNumbers.java b/src/main/java/org/bukkit/craftbukkit/util/CraftMagicNumbers.java
+index 43adac1..89c599e 100644
+--- a/src/main/java/org/bukkit/craftbukkit/util/CraftMagicNumbers.java
++++ b/src/main/java/org/bukkit/craftbukkit/util/CraftMagicNumbers.java
+@@ -1,7 +1,5 @@
+ package org.bukkit.craftbukkit.util;
  
-     public static IChatBaseComponent[] fromString(String message) {
--        return new StringMessage(message).getOutput();
-+        return new FromString(message).getOutput();
-     }
+-import java.util.ArrayList;
+-import java.util.Iterator;
+ import java.util.List;
  
-     private CraftChatMessage() {
+ import net.minecraft.server.Block;
+@@ -9,13 +7,9 @@ import net.minecraft.server.Blocks;
+ import net.minecraft.server.Item;
+ import net.minecraft.server.MojangsonParser;
+ import net.minecraft.server.NBTTagCompound;
+-import net.minecraft.server.StatisticList;
+ 
+-import org.bukkit.Achievement;
+ import org.bukkit.Material;
+-import org.bukkit.Statistic;
+ import org.bukkit.UnsafeValues;
+-import org.bukkit.craftbukkit.CraftStatistic;
+ import org.bukkit.craftbukkit.inventory.CraftItemStack;
+ import org.bukkit.inventory.ItemStack;
+ import org.bukkit.util.StringUtil;
+@@ -106,27 +100,4 @@ public final class CraftMagicNumbers implements UnsafeValues {
+ 
+         return stack;
+     }
+-
+-    @Override
+-    public Statistic getStatisticFromInternalName(String name) {
+-        return CraftStatistic.getBukkitStatisticByName(name);
+-    }
+-
+-    @Override
+-    public Achievement getAchievementFromInternalName(String name) {
+-        return CraftStatistic.getBukkitAchievementByName(name);
+-    }
+-
+-    @Override
+-    public List<String> tabCompleteInternalStatisticOrAchievementName(String token, List<String> completions) {
+-        List<String> matches = new ArrayList<String>();
+-        Iterator iterator = StatisticList.b.iterator();
+-        while (iterator.hasNext()) {
+-            String statistic = ((net.minecraft.server.Statistic) iterator.next()).e;
+-            if (statistic.startsWith(token)) {
+-                matches.add(statistic);
+-            }
+-        }
+-        return matches;
+-    }
+ }
 diff --git a/src/main/java/org/bukkit/craftbukkit/util/LongHash.java b/src/main/java/org/bukkit/craftbukkit/util/LongHash.java
 index 691cafd..9d54472 100644
 --- a/src/main/java/org/bukkit/craftbukkit/util/LongHash.java
@@ -8392,10 +9600,10 @@ index 0000000..a8840c9
 +}
 diff --git a/src/main/java/org/spigotmc/SpigotConfig.java b/src/main/java/org/spigotmc/SpigotConfig.java
 new file mode 100755
-index 0000000..17e1d21
+index 0000000..8e53b55
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/SpigotConfig.java
-@@ -0,0 +1,253 @@
+@@ -0,0 +1,257 @@
 +package org.spigotmc;
 +
 +import com.google.common.base.Throwables;
@@ -8610,7 +9818,11 @@ index 0000000..17e1d21
 +
 +    private static void replaceCommands()
 +    {
-+        for ( String command : (List<String>) getList( "replace-commands", Arrays.asList( "setblock", "summon", "testforblock" ) ) )
++        if ( config.contains( "replace-commands" ) ) {
++            set( "commands.replace-commands", config.getStringList( "replace-commands" ) );
++            config.set( "replace-commands", null );
++        }
++        for ( String command : (List<String>) getList( "commands.replace-commands", Arrays.asList( "setblock", "summon", "testforblock", "tellraw" ) ) )
 +        {
 +            SimpleCommandMap.removeFallback( command );
 +            VanillaCommandWrapper.allowedCommands.add( command );
@@ -8651,10 +9863,10 @@ index 0000000..17e1d21
 +}
 diff --git a/src/main/java/org/spigotmc/SpigotWorldConfig.java b/src/main/java/org/spigotmc/SpigotWorldConfig.java
 new file mode 100644
-index 0000000..1e66302
+index 0000000..50d3069
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/SpigotWorldConfig.java
-@@ -0,0 +1,256 @@
+@@ -0,0 +1,260 @@
 +package org.spigotmc;
 +
 +import java.util.Arrays;
@@ -8728,10 +9940,14 @@ index 0000000..1e66302
 +    }
 +
 +    public int chunksPerTick;
++    public boolean clearChunksOnTick;
 +    private void chunksPerTick()
 +    {
 +        chunksPerTick = getInt( "chunks-per-tick", 650 );
 +        log( "Chunks to Grow per Tick: " + chunksPerTick );
++
++        clearChunksOnTick = getBoolean( "clear-tick-list", false );
++        log( "Clear tick list: " + false );
 +    }
 +
 +    // Crop growth rates
@@ -9285,6 +10501,129 @@ index 0000000..de08ad6
 +        }
 +    }
 +}
+diff --git a/src/test/java/org/bukkit/AchievementTest.java b/src/test/java/org/bukkit/AchievementTest.java
+new file mode 100644
+index 0000000..813568e
+--- /dev/null
++++ b/src/test/java/org/bukkit/AchievementTest.java
+@@ -0,0 +1,37 @@
++package org.bukkit;
++
++import static org.junit.Assert.*;
++import static org.hamcrest.Matchers.*;
++
++import java.util.Collections;
++import java.util.List;
++
++import net.minecraft.server.AchievementList;
++
++import org.bukkit.craftbukkit.CraftAchievement;
++import org.bukkit.support.AbstractTestingBase;
++import org.bukkit.support.Util;
++import org.junit.Test;
++
++import com.google.common.collect.Lists;
++
++public class AchievementTest extends AbstractTestingBase {
++    @Test
++    @SuppressWarnings("unchecked")
++    public void verifyMapping() throws Throwable {
++        List<Achievement> achievements = Lists.newArrayList(Achievement.values());
++
++        for (net.minecraft.server.Achievement statistic : (List<net.minecraft.server.Achievement>) AchievementList.e) {
++            String name = statistic.e;
++
++            String message = String.format("org.bukkit.Achievement is missing: '%s'", name);
++
++            Achievement subject = CraftAchievement.getAchievement(name);
++            assertNotNull(message, subject);
++
++            assertTrue(name, achievements.remove(subject));
++        }
++
++        assertThat("org.bukkit.Achievement has too many achievements", achievements, is(Collections.EMPTY_LIST));
++    }
++}
+diff --git a/src/test/java/org/bukkit/ArtTest.java b/src/test/java/org/bukkit/ArtTest.java
+index c8e11d8..46804f7 100644
+--- a/src/test/java/org/bukkit/ArtTest.java
++++ b/src/test/java/org/bukkit/ArtTest.java
+@@ -30,7 +30,7 @@ public class ArtTest {
+ 
+             Art subject = Art.getById(id);
+ 
+-            String message = String.format("org.bukkit.Art is missing id: %d named: '%s'", id, name);
++            String message = String.format("org.bukkit.Art is missing id: %d named: '%s'", id - Achievement.STATISTIC_OFFSET, name);
+             assertNotNull(message, subject);
+ 
+             assertThat(Art.getByName(name), is(subject));
+diff --git a/src/test/java/org/bukkit/StatisticsAndAchievementsTest.java b/src/test/java/org/bukkit/StatisticsAndAchievementsTest.java
+deleted file mode 100644
+index 306c2a4..0000000
+--- a/src/test/java/org/bukkit/StatisticsAndAchievementsTest.java
++++ /dev/null
+@@ -1,61 +0,0 @@
+-package org.bukkit;
+-
+-import static org.junit.Assert.*;
+-import static org.hamcrest.Matchers.*;
+-
+-import java.util.Collections;
+-import java.util.List;
+-
+-import net.minecraft.server.AchievementList;
+-import net.minecraft.server.StatisticList;
+-
+-import org.bukkit.craftbukkit.CraftStatistic;
+-import org.bukkit.support.AbstractTestingBase;
+-import org.junit.Test;
+-
+-import com.google.common.collect.HashMultiset;
+-import com.google.common.collect.Lists;
+-
+-public class StatisticsAndAchievementsTest extends AbstractTestingBase {
+-    @Test
+-    @SuppressWarnings("unchecked")
+-    public void verifyAchievementMapping() throws Throwable {
+-        List<Achievement> achievements = Lists.newArrayList(Achievement.values());
+-        for (net.minecraft.server.Achievement achievement : (List<net.minecraft.server.Achievement>) AchievementList.e) {
+-            String name = achievement.e;
+-
+-            String message = String.format("org.bukkit.Achievement is missing: '%s'", name);
+-
+-            Achievement subject = CraftStatistic.getBukkitAchievement(achievement);
+-            assertThat(message, subject, is(not(nullValue())));
+-
+-            assertThat(name, achievements.remove(subject), is(true));
+-        }
+-
+-        assertThat("org.bukkit.Achievement has too many achievements", achievements, is(empty()));
+-    }
+-
+-    @Test
+-    @SuppressWarnings("unchecked")
+-    public void verifyStatisticMapping() throws Throwable {
+-        HashMultiset<Statistic> statistics = HashMultiset.create();
+-        for (net.minecraft.server.Statistic statistic : (List<net.minecraft.server.Statistic>) StatisticList.b) {
+-            if (statistic instanceof net.minecraft.server.Achievement) {
+-                continue;
+-            }
+-            String name = statistic.e;
+-
+-            String message = String.format("org.bukkit.Statistic is missing: '%s'", name);
+-
+-            Statistic subject = CraftStatistic.getBukkitStatistic(statistic);
+-            assertThat(message, subject, is(not(nullValue())));
+-
+-            statistics.add(subject);
+-        }
+-
+-        for (Statistic statistic : Statistic.values()) {
+-            String message = String.format("org.bukkit.Statistic.%s does not have a corresponding minecraft statistic", statistic.name());
+-            assertThat(message, statistics.remove(statistic, statistics.count(statistic)), is(greaterThan(0)));
+-        }
+-    }
+-}
 -- 
 1.8.3.2
 
