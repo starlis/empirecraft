@@ -1,14 +1,16 @@
-From 63c287485c02ed80ca22af0d872d1cb6743ff558 Mon Sep 17 00:00:00 2001
+From 4947f6485e1e7a7d10f3a9728c24a62025ff58fe Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Sat, 11 Jan 2014 21:44:10 -0500
 Subject: [PATCH] More Timings
 
 ---
  .../java/net/minecraft/server/DedicatedServer.java |   3 +
+ .../java/net/minecraft/server/EntityLiving.java    |  11 ++
  .../java/net/minecraft/server/MinecraftServer.java |  14 ++-
- .../java/org/bukkit/craftbukkit/SpigotTimings.java |  37 ++++--
+ .../java/org/bukkit/craftbukkit/SpigotTimings.java |  53 ++++-----
  .../craftbukkit/scheduler/CraftScheduler.java      | 125 +++++++++++----------
- 4 files changed, 106 insertions(+), 73 deletions(-)
+ .../bukkit/craftbukkit/scheduler/CraftTask.java    |  19 +---
+ 6 files changed, 123 insertions(+), 102 deletions(-)
 
 diff --git a/src/main/java/net/minecraft/server/DedicatedServer.java b/src/main/java/net/minecraft/server/DedicatedServer.java
 index 8ec6474..29b8e03 100755
@@ -38,6 +40,76 @@ index 8ec6474..29b8e03 100755
      }
  
      public boolean V() {
+diff --git a/src/main/java/net/minecraft/server/EntityLiving.java b/src/main/java/net/minecraft/server/EntityLiving.java
+index b4dab47..01a88f3 100644
+--- a/src/main/java/net/minecraft/server/EntityLiving.java
++++ b/src/main/java/net/minecraft/server/EntityLiving.java
+@@ -8,6 +8,7 @@ import java.util.Random;
+ import java.util.UUID;
+ 
+ // CraftBukkit start
++import org.bukkit.craftbukkit.SpigotTimings;
+ import org.bukkit.craftbukkit.event.CraftEventFactory;
+ import org.bukkit.event.entity.EntityDamageEvent;
+ import org.bukkit.event.entity.EntityRegainHealthEvent;
+@@ -1271,6 +1272,7 @@ public abstract class EntityLiving extends Entity {
+     }
+ 
+     public void h() {
++        SpigotTimings.timerEntityBaseTick.startTiming(); // Spigot
+         super.h();
+         if (!this.world.isStatic) {
+             int i = this.aZ();
+@@ -1305,7 +1307,9 @@ public abstract class EntityLiving extends Entity {
+             }
+         }
+ 
++        SpigotTimings.timerEntityBaseTick.stopTiming(); // Spigot
+         this.e();
++        SpigotTimings.timerEntityTickRest.startTiming(); // Spigot
+         double d0 = this.locX - this.lastX;
+         double d1 = this.locZ - this.lastZ;
+         float f = (float) (d0 * d0 + d1 * d1);
+@@ -1370,6 +1374,7 @@ public abstract class EntityLiving extends Entity {
+ 
+         this.world.methodProfiler.b();
+         this.aY += f2;
++        SpigotTimings.timerEntityTickRest.stopTiming(); // Spigot
+     }
+ 
+     protected float f(float f, float f1) {
+@@ -1434,6 +1439,7 @@ public abstract class EntityLiving extends Entity {
+         }
+ 
+         this.world.methodProfiler.a("ai");
++        SpigotTimings.timerEntityAI.startTiming(); // Spigot
+         if (this.bh()) {
+             this.bd = false;
+             this.be = 0.0F;
+@@ -1451,6 +1457,7 @@ public abstract class EntityLiving extends Entity {
+                 this.aP = this.yaw;
+             }
+         }
++        SpigotTimings.timerEntityAI.stopTiming(); // Spigot
+ 
+         this.world.methodProfiler.b();
+         this.world.methodProfiler.a("jump");
+@@ -1472,11 +1479,15 @@ public abstract class EntityLiving extends Entity {
+         this.be *= 0.98F;
+         this.bf *= 0.98F;
+         this.bg *= 0.9F;
++        SpigotTimings.timerEntityAIMove.startTiming(); // Spigot
+         this.e(this.be, this.bf);
++        SpigotTimings.timerEntityAIMove.stopTiming(); // Spigot
+         this.world.methodProfiler.b();
+         this.world.methodProfiler.a("push");
+         if (!this.world.isStatic) {
++            SpigotTimings.timerEntityAICollision.startTiming(); // Spigot
+             this.bo();
++            SpigotTimings.timerEntityAICollision.stopTiming(); // Spigot
+         }
+ 
+         this.world.methodProfiler.b();
 diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
 index 81cefcf..b78ff00 100644
 --- a/src/main/java/net/minecraft/server/MinecraftServer.java
@@ -118,7 +190,7 @@ index 81cefcf..b78ff00 100644
  
      public abstract boolean V();
 diff --git a/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java b/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java
-index bf45168..559de1d 100644
+index bf45168..c22eb08 100644
 --- a/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java
 +++ b/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java
 @@ -16,6 +16,9 @@ public class SpigotTimings {
@@ -131,19 +203,49 @@ index bf45168..559de1d 100644
  
      public static final CustomTimingsHandler entityMoveTimer = new CustomTimingsHandler("** entityMove");
      public static final CustomTimingsHandler tickEntityTimer = new CustomTimingsHandler("** tickEntity");
-@@ -33,6 +36,11 @@ public class SpigotTimings {
+@@ -33,8 +36,11 @@ public class SpigotTimings {
      public static final CustomTimingsHandler entityActivationCheckTimer = new CustomTimingsHandler("entityActivationCheck");
      public static final CustomTimingsHandler checkIfActiveTimer = new CustomTimingsHandler("** checkIfActive");
  
+-    public static final HashMap<String, CustomTimingsHandler> entityTypeTimingMap = new HashMap<String, CustomTimingsHandler>();
+-    public static final HashMap<String, CustomTimingsHandler> tileEntityTypeTimingMap = new HashMap<String, CustomTimingsHandler>();
 +    public static final CustomTimingsHandler processQueueTimer = new CustomTimingsHandler("processQueue");
 +    public static final CustomTimingsHandler pendingTimer = new CustomTimingsHandler("** Scheduler - Pending Task");
 +    public static final CustomTimingsHandler schedulerSyncTimer = new CustomTimingsHandler("** Scheduler - Sync Task");
 +    public static final CustomTimingsHandler schedulerAsyncTimer = new CustomTimingsHandler("** Scheduler - Async Task");
 +
-     public static final HashMap<String, CustomTimingsHandler> entityTypeTimingMap = new HashMap<String, CustomTimingsHandler>();
-     public static final HashMap<String, CustomTimingsHandler> tileEntityTypeTimingMap = new HashMap<String, CustomTimingsHandler>();
      public static final HashMap<String, CustomTimingsHandler> pluginTaskTimingMap = new HashMap<String, CustomTimingsHandler>();
-@@ -106,23 +114,28 @@ public class SpigotTimings {
+ 
+     /**
+@@ -66,12 +72,7 @@ public class SpigotTimings {
+      */
+     public static CustomTimingsHandler getEntityTimings(Entity entity) {
+         String entityType = entity.getClass().getSimpleName();
+-        CustomTimingsHandler result = entityTypeTimingMap.get(entityType);
+-        if (result == null) {
+-            result = new CustomTimingsHandler("** tickEntity - " + entityType, activatedEntityTimer, true);
+-            entityTypeTimingMap.put(entityType, result);
+-        }
+-        return result;
++        return  new CustomTimingsHandler("** tickEntity - " + entityType, activatedEntityTimer, true);
+     }
+ 
+     /**
+@@ -81,12 +82,7 @@ public class SpigotTimings {
+      */
+     public static CustomTimingsHandler getTileEntityTimings(TileEntity entity) {
+         String entityType = entity.getClass().getSimpleName();
+-        CustomTimingsHandler result = tileEntityTypeTimingMap.get(entityType);
+-        if (result == null) {
+-            result = new CustomTimingsHandler("** tickTileEntity - " + entityType, tickTileEntityTimer, true);
+-            tileEntityTypeTimingMap.put(entityType, result);
+-        }
+-        return result;
++        return new CustomTimingsHandler("** tickTileEntity - " + entityType, tickTileEntityTimer, true);
+     }
+ 
+     /**
+@@ -106,23 +102,28 @@ public class SpigotTimings {
          public final CustomTimingsHandler tileEntityTick;
          public final CustomTimingsHandler tileEntityPending;
          public final CustomTimingsHandler tracker;
@@ -387,6 +489,51 @@ index a30f217..707a9a2 100644
      }
  
      private boolean isReady(final int currentTick) {
+diff --git a/src/main/java/org/bukkit/craftbukkit/scheduler/CraftTask.java b/src/main/java/org/bukkit/craftbukkit/scheduler/CraftTask.java
+index 7d294c0..9a87699 100644
+--- a/src/main/java/org/bukkit/craftbukkit/scheduler/CraftTask.java
++++ b/src/main/java/org/bukkit/craftbukkit/scheduler/CraftTask.java
+@@ -24,7 +24,7 @@ public class CraftTask implements BukkitTask, Runnable { // Spigot
+     private final Plugin plugin;
+     private final int id;
+ 
+-    CustomTimingsHandler timings = null; // Spigot
++    final CustomTimingsHandler timings; // Spigot
+     CraftTask() {
+         this(null, null, -1, -1);
+     }
+@@ -38,6 +38,7 @@ public class CraftTask implements BukkitTask, Runnable { // Spigot
+         this.task = task;
+         this.id = id;
+         this.period = period;
++        timings = SpigotTimings.getPluginTaskTimings(this, period); // Spigot
+     }
+ 
+     public final int getTaskId() {
+@@ -53,21 +54,9 @@ public class CraftTask implements BukkitTask, Runnable { // Spigot
+     }
+ 
+     public void run() {
+-        // Spigot start - Wrap custom timings on Tasks
+-        if (!Bukkit.getServer().getPluginManager().useTimings()) {
+-            task.run();
+-            return;
+-        }
+-        if (timings == null && this.getOwner() != null && this.isSync()) {
+-            timings = SpigotTimings.getPluginTaskTimings(this, period);
+-        }
+-        if (timings != null) {
+-            timings.startTiming();
+-        }
++        timings.startTiming(); // Spigot
+         task.run();
+-        if (timings != null) {
+-            timings.stopTiming();
+-        }
++        timings.stopTiming(); // Spigot
+         // Spigot end
+     }
+ 
 -- 
 1.8.3.2
 
