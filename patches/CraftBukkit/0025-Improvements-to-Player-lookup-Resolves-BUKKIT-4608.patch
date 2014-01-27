@@ -1,0 +1,175 @@
+From d0000548945ee94a410ac0ca0ec40fff7586935f Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Thu, 25 Jul 2013 23:08:50 -0400
+Subject: [PATCH] Improvements to Player lookup - Resolves BUKKIT-4608
+
+Many sections of code does player lookups by iterating every online player
+and doing name comparisons. This is very ineffecient and can reduce performance
+on servers with high player count.
+
+By using a map based approach for most player lookups, player lookup
+performance should scale better with increased amount of players.
+
+This commit also corrects a loose lookup on adding and removing ops by
+using getPlayerExact instead, as adding and removing ops is not a loose
+match operation.
+
+This also improves Server.getPlayer() by trying an exact match first and also
+by not creating a copy of the player list.
+---
+ src/main/java/net/minecraft/server/PlayerList.java | 12 ++++++++++++
+ .../org/bukkit/craftbukkit/CraftOfflinePlayer.java | 10 ++--------
+ .../java/org/bukkit/craftbukkit/CraftServer.java   | 22 ++++++++--------------
+ .../org/bukkit/craftbukkit/entity/CraftPlayer.java |  8 +-------
+ 4 files changed, 23 insertions(+), 29 deletions(-)
+
+diff --git a/src/main/java/net/minecraft/server/PlayerList.java b/src/main/java/net/minecraft/server/PlayerList.java
+index 9a6e997..c6719c6 100644
+--- a/src/main/java/net/minecraft/server/PlayerList.java
++++ b/src/main/java/net/minecraft/server/PlayerList.java
+@@ -43,6 +43,7 @@ public abstract class PlayerList {
+     private static final SimpleDateFormat e = new SimpleDateFormat("yyyy-MM-dd \'at\' HH:mm:ss z");
+     private final MinecraftServer server;
+     public final List players = new java.util.concurrent.CopyOnWriteArrayList(); // CraftBukkit - ArrayList -> CopyOnWriteArrayList: Iterator safety
++    public final Map<String, EntityPlayer> playerMap = new java.util.HashMap<String, EntityPlayer>(); // CraftBukkit
+     private final BanList banByName = new BanList(new File("banned-players.txt"));
+     private final BanList banByIP = new BanList(new File("banned-ips.txt"));
+     private final Set operators = new HashSet();
+@@ -218,6 +219,7 @@ public abstract class PlayerList {
+         cserver.detectListNameConflict(entityplayer); // CraftBukkit
+         // this.sendAll(new PacketPlayOutPlayerInfo(entityplayer.getName(), true, 1000)); // CraftBukkit - replaced with loop below
+         this.players.add(entityplayer);
++        this.playerMap.put(entityplayer.getName().toLowerCase(), entityplayer); // CraftBukkit
+         WorldServer worldserver = this.server.getWorldServer(entityplayer.dimension);
+ 
+         // CraftBukkit start
+@@ -293,6 +295,7 @@ public abstract class PlayerList {
+         worldserver.getPlayerChunkMap().removePlayer(entityplayer);
+         this.players.remove(entityplayer);
+         this.k.remove(entityplayer.getName());
++        this.playerMap.remove(entityplayer.getName().toLowerCase()); // CraftBukkit
+         ChunkIOExecutor.adjustPoolSize(this.getPlayerCount()); // CraftBukkit
+ 
+         // CraftBukkit start - .name -> .listName, replace sendAll with loop
+@@ -374,6 +377,7 @@ public abstract class PlayerList {
+ 
+         EntityPlayer entityplayer;
+ 
++        /* CraftBukkit start
+         for (int i = 0; i < this.players.size(); ++i) {
+             entityplayer = (EntityPlayer) this.players.get(i);
+             if (entityplayer.getName().equalsIgnoreCase(gameprofile.getName())) {
+@@ -385,6 +389,9 @@ public abstract class PlayerList {
+ 
+         while (iterator.hasNext()) {
+             entityplayer = (EntityPlayer) iterator.next();
++        */
++        if ((entityplayer = playerMap.get(gameprofile.getName().toLowerCase())) != null) {
++        // CraftBukkit end
+             entityplayer.playerConnection.disconnect("You logged in from another location");
+         }
+ 
+@@ -872,6 +879,9 @@ public abstract class PlayerList {
+     }
+ 
+     public EntityPlayer getPlayer(String s) {
++        // CraftBukkit start
++        return playerMap.get(s.toLowerCase());
++        /*
+         Iterator iterator = this.players.iterator();
+ 
+         EntityPlayer entityplayer;
+@@ -885,6 +895,8 @@ public abstract class PlayerList {
+         } while (!entityplayer.getName().equalsIgnoreCase(s));
+ 
+         return entityplayer;
++        */
++        // CraftBukkit end
+     }
+ 
+     public List a(ChunkCoordinates chunkcoordinates, int i, int j, int k, int l, int i1, int j1, Map map, String s, String s1, World world) {
+diff --git a/src/main/java/org/bukkit/craftbukkit/CraftOfflinePlayer.java b/src/main/java/org/bukkit/craftbukkit/CraftOfflinePlayer.java
+index 2d730a7..7c07766 100644
+--- a/src/main/java/org/bukkit/craftbukkit/CraftOfflinePlayer.java
++++ b/src/main/java/org/bukkit/craftbukkit/CraftOfflinePlayer.java
+@@ -103,14 +103,8 @@ public class CraftOfflinePlayer implements OfflinePlayer, ConfigurationSerializa
+     }
+ 
+     public Player getPlayer() {
+-        for (Object obj : server.getHandle().players) {
+-            EntityPlayer player = (EntityPlayer) obj;
+-            if (player.getName().equalsIgnoreCase(getName())) {
+-                return (player.playerConnection != null) ? player.playerConnection.getPlayer() : null;
+-            }
+-        }
+-
+-        return null;
++        final EntityPlayer player = server.getHandle().playerMap.get(name.toLowerCase());
++        return (player != null && player.playerConnection != null) ? player.playerConnection.getPlayer() : null;
+     }
+ 
+     @Override
+diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
+index 1f7fc45..632b64c 100644
+--- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
++++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
+@@ -345,12 +345,14 @@ public final class CraftServer implements Server {
+     public Player getPlayer(final String name) {
+         Validate.notNull(name, "Name cannot be null");
+ 
+-        Player[] players = getOnlinePlayers();
+-
+-        Player found = null;
++        Player found = getPlayerExact(name);
++        if (found != null) {
++            return found;
++        }
+         String lowerName = name.toLowerCase();
+         int delta = Integer.MAX_VALUE;
+-        for (Player player : players) {
++        for (EntityPlayer entityPlayer : (List<EntityPlayer>)playerList.players) {
++            Player player = entityPlayer.playerConnection.getPlayer();
+             if (player.getName().toLowerCase().startsWith(lowerName)) {
+                 int curDelta = player.getName().length() - lowerName.length();
+                 if (curDelta < delta) {
+@@ -365,16 +367,8 @@ public final class CraftServer implements Server {
+ 
+     public Player getPlayerExact(String name) {
+         Validate.notNull(name, "Name cannot be null");
+-
+-        String lname = name.toLowerCase();
+-
+-        for (Player player : getOnlinePlayers()) {
+-            if (player.getName().equalsIgnoreCase(lname)) {
+-                return player;
+-            }
+-        }
+-
+-        return null;
++        final EntityPlayer entityPlayer = playerList.playerMap.get(name.toLowerCase());
++        return entityPlayer != null ? entityPlayer.getBukkitEntity() : null;
+     }
+ 
+     public int broadcastMessage(String message) {
+diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
+index c544870..709f6d0 100644
+--- a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
++++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
+@@ -93,13 +93,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+     }
+ 
+     public boolean isOnline() {
+-        for (Object obj : server.getHandle().players) {
+-            EntityPlayer player = (EntityPlayer) obj;
+-            if (player.getName().equalsIgnoreCase(getName())) {
+-                return true;
+-            }
+-        }
+-        return false;
++        return server.getHandle().playerMap.containsKey(getName().toLowerCase());
+     }
+ 
+     public InetSocketAddress getAddress() {
+-- 
+1.8.3.2
+

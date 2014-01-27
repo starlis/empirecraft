@@ -1,0 +1,97 @@
+From fbdb4d4186cd1491c67885ec6c7757f72df58ff5 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Fri, 6 Dec 2013 20:54:23 -0500
+Subject: [PATCH] AchievementBroadcastEvent
+
+Used to control who sees achievement message
+---
+ .../customevents/AchievementBroadcastEvent.java    | 37 ++++++++++++++++++++++
+ .../minecraft/server/ServerStatisticManager.java   | 14 +++++++-
+ 2 files changed, 50 insertions(+), 1 deletion(-)
+ create mode 100644 src/main/java/com/empireminecraft/customevents/AchievementBroadcastEvent.java
+
+diff --git a/src/main/java/com/empireminecraft/customevents/AchievementBroadcastEvent.java b/src/main/java/com/empireminecraft/customevents/AchievementBroadcastEvent.java
+new file mode 100644
+index 0000000..d3170b6
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/customevents/AchievementBroadcastEvent.java
+@@ -0,0 +1,37 @@
++package com.empireminecraft.customevents;
++
++import org.bukkit.entity.Player;
++import org.bukkit.event.Event;
++import org.bukkit.event.HandlerList;
++
++import java.util.ArrayList;
++import java.util.List;
++
++public class AchievementBroadcastEvent extends Event {
++    final Player player;
++    List<Player> receivers = new ArrayList<Player>();
++
++    public Player getPlayer() {
++        return player;
++    }
++
++    public List<Player> getReceivers() {
++        return receivers;
++    }
++
++    public void setReceivers(List<Player> receivers) {
++        this.receivers = receivers;
++    }
++
++    private static final HandlerList handlers = new HandlerList();
++
++    public AchievementBroadcastEvent(Player player) {this.player = player;}
++
++    public HandlerList getHandlers() {
++        return handlers;
++    }
++
++    public static HandlerList getHandlerList() {
++        return handlers;
++    }
++}
+diff --git a/src/main/java/net/minecraft/server/ServerStatisticManager.java b/src/main/java/net/minecraft/server/ServerStatisticManager.java
+index 3f78728..1dad1a1 100644
+--- a/src/main/java/net/minecraft/server/ServerStatisticManager.java
++++ b/src/main/java/net/minecraft/server/ServerStatisticManager.java
+@@ -10,6 +10,7 @@ import java.util.Map;
+ import java.util.Set;
+ import java.util.Map.Entry;
+ 
++import com.empireminecraft.customevents.AchievementBroadcastEvent;
+ import net.minecraft.util.com.google.common.collect.Maps;
+ import net.minecraft.util.com.google.common.collect.Sets;
+ import net.minecraft.util.com.google.gson.JsonElement;
+@@ -19,6 +20,8 @@ import net.minecraft.util.com.google.gson.JsonParser;
+ import net.minecraft.util.org.apache.commons.io.FileUtils;
+ import org.apache.logging.log4j.LogManager;
+ import org.apache.logging.log4j.Logger;
++import org.bukkit.craftbukkit.entity.CraftPlayer;
++import org.bukkit.entity.Player;
+ 
+ public class ServerStatisticManager extends StatisticManager {
+ 
+@@ -73,7 +76,16 @@ public class ServerStatisticManager extends StatisticManager {
+         if (statistic.d() && j == 0 && i > 0) {
+             this.g = true;
+             if (this.c.ar()) {
+-                this.c.getPlayerList().sendMessage(new ChatMessage("chat.type.achievement", new Object[] { entityhuman.getScoreboardDisplayName(), statistic.j()}));
++                // EMC start
++                ChatMessage achv = new ChatMessage("chat.type.achievement", new Object[] { entityhuman.getScoreboardDisplayName(), statistic.j()});
++                com.empireminecraft.customevents.AchievementBroadcastEvent event = new AchievementBroadcastEvent(
++                    (Player) entityhuman.getBukkitEntity());
++                event.callEvent();
++                for (Player player : event.getReceivers()) {
++                    ((CraftPlayer) player).getHandle().sendMessage(achv);
++                }
++                //this.c.getPlayerList().sendMessage(new ChatMessage("chat.type.achievement", new Object[] { entityhuman.getScoreboardDisplayName(), statistic.j()}));
++                // EMC end
+             }
+         }
+     }
+-- 
+1.8.3.2
+

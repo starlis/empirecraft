@@ -1,0 +1,569 @@
+From 840d1969db66264af7c1e9796a36453b961560fb Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Sat, 11 Jan 2014 21:44:10 -0500
+Subject: [PATCH] More Timings
+
+---
+ .../java/net/minecraft/server/DedicatedServer.java |   3 +
+ .../java/net/minecraft/server/EntityLiving.java    |  11 ++
+ .../java/net/minecraft/server/MinecraftServer.java |  14 ++-
+ .../java/org/bukkit/craftbukkit/SpigotTimings.java |  54 ++++++---
+ .../craftbukkit/scheduler/CraftScheduler.java      | 131 +++++++++++----------
+ .../bukkit/craftbukkit/scheduler/CraftTask.java    |  38 +++---
+ 6 files changed, 155 insertions(+), 96 deletions(-)
+
+diff --git a/src/main/java/net/minecraft/server/DedicatedServer.java b/src/main/java/net/minecraft/server/DedicatedServer.java
+index 8ec6474..29b8e03 100755
+--- a/src/main/java/net/minecraft/server/DedicatedServer.java
++++ b/src/main/java/net/minecraft/server/DedicatedServer.java
+@@ -18,6 +18,7 @@ import java.io.PrintStream;
+ import org.apache.logging.log4j.Level;
+ 
+ import org.bukkit.craftbukkit.LoggerOutputStream;
++import org.bukkit.craftbukkit.SpigotTimings; // Spigot
+ import org.bukkit.event.server.ServerCommandEvent;
+ // CraftBukkit end
+ 
+@@ -297,6 +298,7 @@ public class DedicatedServer extends MinecraftServer implements IMinecraftServer
+     }
+ 
+     public void aw() {
++        SpigotTimings.serverCommandTimer.startTiming(); // Spigot
+         while (!this.i.isEmpty()) {
+             ServerCommand servercommand = (ServerCommand) this.i.remove(0);
+ 
+@@ -309,6 +311,7 @@ public class DedicatedServer extends MinecraftServer implements IMinecraftServer
+             this.server.dispatchServerCommand(this.console, servercommand);
+             // CraftBukkit end
+         }
++        SpigotTimings.serverCommandTimer.stopTiming(); // Spigot
+     }
+ 
+     public boolean V() {
+diff --git a/src/main/java/net/minecraft/server/EntityLiving.java b/src/main/java/net/minecraft/server/EntityLiving.java
+index b4dab47..01a88f3 100644
+--- a/src/main/java/net/minecraft/server/EntityLiving.java
++++ b/src/main/java/net/minecraft/server/EntityLiving.java
+@@ -8,6 +8,7 @@ import java.util.Random;
+ import java.util.UUID;
+ 
+ // CraftBukkit start
++import org.bukkit.craftbukkit.SpigotTimings;
+ import org.bukkit.craftbukkit.event.CraftEventFactory;
+ import org.bukkit.event.entity.EntityDamageEvent;
+ import org.bukkit.event.entity.EntityRegainHealthEvent;
+@@ -1271,6 +1272,7 @@ public abstract class EntityLiving extends Entity {
+     }
+ 
+     public void h() {
++        SpigotTimings.timerEntityBaseTick.startTiming(); // Spigot
+         super.h();
+         if (!this.world.isStatic) {
+             int i = this.aZ();
+@@ -1305,7 +1307,9 @@ public abstract class EntityLiving extends Entity {
+             }
+         }
+ 
++        SpigotTimings.timerEntityBaseTick.stopTiming(); // Spigot
+         this.e();
++        SpigotTimings.timerEntityTickRest.startTiming(); // Spigot
+         double d0 = this.locX - this.lastX;
+         double d1 = this.locZ - this.lastZ;
+         float f = (float) (d0 * d0 + d1 * d1);
+@@ -1370,6 +1374,7 @@ public abstract class EntityLiving extends Entity {
+ 
+         this.world.methodProfiler.b();
+         this.aY += f2;
++        SpigotTimings.timerEntityTickRest.stopTiming(); // Spigot
+     }
+ 
+     protected float f(float f, float f1) {
+@@ -1434,6 +1439,7 @@ public abstract class EntityLiving extends Entity {
+         }
+ 
+         this.world.methodProfiler.a("ai");
++        SpigotTimings.timerEntityAI.startTiming(); // Spigot
+         if (this.bh()) {
+             this.bd = false;
+             this.be = 0.0F;
+@@ -1451,6 +1457,7 @@ public abstract class EntityLiving extends Entity {
+                 this.aP = this.yaw;
+             }
+         }
++        SpigotTimings.timerEntityAI.stopTiming(); // Spigot
+ 
+         this.world.methodProfiler.b();
+         this.world.methodProfiler.a("jump");
+@@ -1472,11 +1479,15 @@ public abstract class EntityLiving extends Entity {
+         this.be *= 0.98F;
+         this.bf *= 0.98F;
+         this.bg *= 0.9F;
++        SpigotTimings.timerEntityAIMove.startTiming(); // Spigot
+         this.e(this.be, this.bf);
++        SpigotTimings.timerEntityAIMove.stopTiming(); // Spigot
+         this.world.methodProfiler.b();
+         this.world.methodProfiler.a("push");
+         if (!this.world.isStatic) {
++            SpigotTimings.timerEntityAICollision.startTiming(); // Spigot
+             this.bo();
++            SpigotTimings.timerEntityAICollision.stopTiming(); // Spigot
+         }
+ 
+         this.world.methodProfiler.b();
+diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
+index e9cf1df..b2c1b10 100644
+--- a/src/main/java/net/minecraft/server/MinecraftServer.java
++++ b/src/main/java/net/minecraft/server/MinecraftServer.java
+@@ -574,6 +574,7 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+         }
+ 
+         if ((this.autosavePeriod > 0) && ((this.ticks % this.autosavePeriod) == 0)) { // CraftBukkit
++            SpigotTimings.worldSaveTimer.startTiming(); // Spigot
+             this.methodProfiler.a("save");
+             this.t.savePlayers();
+             // Spigot Start
+@@ -587,6 +588,7 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+             // this.saveChunks(true);
+             // Spigot End
+             this.methodProfiler.b();
++            SpigotTimings.worldSaveTimer.stopTiming(); // Spigot
+         }
+ 
+         this.methodProfiler.a("tallying");
+@@ -611,17 +613,20 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+         SpigotTimings.schedulerTimer.startTiming(); // Spigot
+         // CraftBukkit start
+         this.server.getScheduler().mainThreadHeartbeat(this.ticks);
++        SpigotTimings.schedulerTimer.stopTiming(); // Spigot
+ 
+         // Run tasks that are waiting on processing
++        SpigotTimings.processQueueTimer.startTiming(); // Spigot
+         while (!processQueue.isEmpty()) {
+             processQueue.remove().run();
+         }
++        SpigotTimings.processQueueTimer.stopTiming(); // Spigot
+ 
+-        SpigotTimings.schedulerTimer.stopTiming(); // Spigot
+         SpigotTimings.chunkIOTickTimer.startTiming(); // Spigot
+         org.bukkit.craftbukkit.chunkio.ChunkIOExecutor.tick();
+         SpigotTimings.chunkIOTickTimer.stopTiming(); // Spigot
+ 
++        SpigotTimings.timeUpdateTimer.startTiming(); // Spigot
+         // Send time updates to everyone, it will get the right time from the world the player is in.
+         if (this.ticks % 20 == 0) {
+             for (int i = 0; i < this.getPlayerList().players.size(); ++i) {
+@@ -629,6 +634,7 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+                 entityplayer.playerConnection.sendPacket(new PacketPlayOutUpdateTime(entityplayer.world.getTime(), entityplayer.getPlayerTime(), entityplayer.world.getGameRules().getBoolean("doDaylightCycle"))); // Add support for per player time
+             }
+         }
++        SpigotTimings.timeUpdateTimer.stopTiming(); // Spigot
+ 
+         int i;
+ 
+@@ -655,7 +661,9 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+                 CrashReport crashreport;
+ 
+                 try {
++                    worldserver.timings.doTick.startTiming(); // Spigot
+                     worldserver.doTick();
++                    worldserver.timings.doTick.stopTiming(); // Spigot
+                 } catch (Throwable throwable) {
+                     // Spigot Start
+                     try {
+@@ -669,7 +677,9 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+                 }
+ 
+                 try {
++                    worldserver.timings.tickEntities.startTiming(); // Spigot
+                     worldserver.tickEntities();
++                    worldserver.timings.tickEntities.stopTiming(); // Spigot
+                 } catch (Throwable throwable1) {
+                     // Spigot Start
+                     try {
+@@ -1178,7 +1188,7 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+     }
+ 
+     public boolean getSnooperEnabled() {
+-        return false; // EMC
++        return false;
+     }
+ 
+     public abstract boolean V();
+diff --git a/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java b/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java
+index 541dfe4..99681c0 100644
+--- a/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java
++++ b/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java
+@@ -16,6 +16,9 @@ public class SpigotTimings {
+     public static final CustomTimingsHandler schedulerTimer = new CustomTimingsHandler("Scheduler");
+     public static final CustomTimingsHandler chunkIOTickTimer = new CustomTimingsHandler("ChunkIOTick");
+     public static final CustomTimingsHandler syncChunkLoadTimer = new CustomTimingsHandler("syncChunkLoad");
++    public static final CustomTimingsHandler timeUpdateTimer = new CustomTimingsHandler("Time Update");
++    public static final CustomTimingsHandler serverCommandTimer = new CustomTimingsHandler("Server Command");
++    public static final CustomTimingsHandler worldSaveTimer = new CustomTimingsHandler("World Save");
+ 
+     public static final CustomTimingsHandler entityMoveTimer = new CustomTimingsHandler("** entityMove");
+     public static final CustomTimingsHandler tickEntityTimer = new CustomTimingsHandler("** tickEntity");
+@@ -33,6 +36,11 @@ public class SpigotTimings {
+     public static final CustomTimingsHandler entityActivationCheckTimer = new CustomTimingsHandler("entityActivationCheck");
+     public static final CustomTimingsHandler checkIfActiveTimer = new CustomTimingsHandler("** checkIfActive");
+ 
++    public static final CustomTimingsHandler processQueueTimer = new CustomTimingsHandler("processQueue");
++    public static final CustomTimingsHandler pendingTimer = new CustomTimingsHandler("** Scheduler - Pending Task");
++    public static final CustomTimingsHandler schedulerSyncTimer = new CustomTimingsHandler("** Scheduler - Sync Task");
++    public static final CustomTimingsHandler schedulerAsyncTimer = new CustomTimingsHandler("** Scheduler - Async Task");
++
+     public static final HashMap<String, CustomTimingsHandler> entityTypeTimingMap = new HashMap<String, CustomTimingsHandler>();
+     public static final HashMap<String, CustomTimingsHandler> tileEntityTypeTimingMap = new HashMap<String, CustomTimingsHandler>();
+     public static final HashMap<String, CustomTimingsHandler> pluginTaskTimingMap = new HashMap<String, CustomTimingsHandler>();
+@@ -44,8 +52,21 @@ public class SpigotTimings {
+      * @return
+      */
+     public static CustomTimingsHandler getPluginTaskTimings(BukkitTask task, long period) {
+-        String plugin = task.getOwner().getDescription().getFullName();
+-        String name = "Task: " + plugin + " Runnable: " + ( (CraftTask) task ).getTaskClass().getSimpleName();
++        String plugin;
++        final CraftTask ctask = (CraftTask) task;
++        if (ctask.timingName != null) {
++            plugin = "*" + ctask;
++        } else if (task.getOwner() != null) {
++            plugin = task.getOwner().getDescription().getFullName();
++        } else {
++            plugin = "Unknown";
++        }
++        String taskname = (ctask.getTaskClass() != null ? ctask.getTaskClass().getSimpleName() : "Unknown");
++        if (!task.isSync()) {
++            taskname = "[ASYNC] " + taskname;
++        }
++
++        String name = "Task: " + plugin + " Runnable: " + taskname;
+         if (period > 0) {
+             name += "(interval:" + period +")";
+         } else {
+@@ -106,23 +127,28 @@ public class SpigotTimings {
+         public final CustomTimingsHandler tileEntityTick;
+         public final CustomTimingsHandler tileEntityPending;
+         public final CustomTimingsHandler tracker;
++        public final CustomTimingsHandler doTick;
++        public final CustomTimingsHandler tickEntities;
+ 
+         public WorldTimingsHandler(World server) {
+             String name = server.worldData.getName() +" - ";
+ 
+-            mobSpawn = new CustomTimingsHandler(name + "mobSpawn");
+-            doChunkUnload = new CustomTimingsHandler(name + "doChunkUnload");
+-            doTickPending = new CustomTimingsHandler(name + "doTickPending");
+-            doTickTiles = new CustomTimingsHandler(name + "doTickTiles");
+-            doVillages = new CustomTimingsHandler(name + "doVillages");
+-            doChunkMap = new CustomTimingsHandler(name + "doChunkMap");
+-            doSounds = new CustomTimingsHandler(name + "doSounds");
+-            doChunkGC = new CustomTimingsHandler(name + "doChunkGC");
+-            doPortalForcer = new CustomTimingsHandler(name + "doPortalForcer");
+-            entityTick = new CustomTimingsHandler(name + "entityTick");
+-            tileEntityTick = new CustomTimingsHandler(name + "tileEntityTick");
+-            tileEntityPending = new CustomTimingsHandler(name + "tileEntityPending");
++            mobSpawn = new CustomTimingsHandler("** " + name + "mobSpawn");
++            doChunkUnload = new CustomTimingsHandler("** " + name + "doChunkUnload");
++            doTickPending = new CustomTimingsHandler("** " + name + "doTickPending");
++            doTickTiles = new CustomTimingsHandler("** " + name + "doTickTiles");
++            doVillages = new CustomTimingsHandler("** " + name + "doVillages");
++            doChunkMap = new CustomTimingsHandler("** " + name + "doChunkMap");
++            doSounds = new CustomTimingsHandler("** " + name + "doSounds");
++            doChunkGC = new CustomTimingsHandler("** " + name + "doChunkGC");
++            doPortalForcer = new CustomTimingsHandler("** " + name + "doPortalForcer");
++            entityTick = new CustomTimingsHandler("** " + name + "entityTick");
++            tileEntityTick = new CustomTimingsHandler("** " + name + "tileEntityTick");
++            tileEntityPending = new CustomTimingsHandler("** " + name + "tileEntityPending");
++
+             tracker = new CustomTimingsHandler(name + "tracker");
++            doTick = new CustomTimingsHandler(name + "doTick");
++            tickEntities = new CustomTimingsHandler(name + "tickEntities");
+         }
+     }
+ }
+diff --git a/src/main/java/org/bukkit/craftbukkit/scheduler/CraftScheduler.java b/src/main/java/org/bukkit/craftbukkit/scheduler/CraftScheduler.java
+index a30f217..9a1172c 100644
+--- a/src/main/java/org/bukkit/craftbukkit/scheduler/CraftScheduler.java
++++ b/src/main/java/org/bukkit/craftbukkit/scheduler/CraftScheduler.java
+@@ -15,6 +15,7 @@ import java.util.concurrent.atomic.AtomicReference;
+ import java.util.logging.Level;
+ 
+ import org.apache.commons.lang.Validate;
++import org.bukkit.craftbukkit.SpigotTimings; // Spigot
+ import org.bukkit.plugin.IllegalPluginAccessException;
+ import org.bukkit.plugin.Plugin;
+ import org.bukkit.scheduler.BukkitScheduler;
+@@ -57,11 +58,11 @@ public class CraftScheduler implements BukkitScheduler {
+      * Main thread logic only
+      */
+     private final PriorityQueue<CraftTask> pending = new PriorityQueue<CraftTask>(10,
+-            new Comparator<CraftTask>() {
+-                public int compare(final CraftTask o1, final CraftTask o2) {
+-                    return (int) (o1.getNextRun() - o2.getNextRun());
+-                }
+-            });
++        new Comparator<CraftTask>() {
++            public int compare(final CraftTask o1, final CraftTask o2) {
++                return (int) (o1.getNextRun() - o2.getNextRun());
++            }
++        });
+     /**
+      * Main thread logic only
+      */
+@@ -161,28 +162,28 @@ public class CraftScheduler implements BukkitScheduler {
+         if (task != null) {
+             task.cancel0();
+         }
+-        task = new CraftTask(
+-                new Runnable() {
+-                    public void run() {
+-                        if (!check(CraftScheduler.this.temp)) {
+-                            check(CraftScheduler.this.pending);
+-                        }
++        task = new CraftTask("CancelTask", // Spigot
++            new Runnable() {
++                public void run() {
++                    if (!check(CraftScheduler.this.temp)) {
++                        check(CraftScheduler.this.pending);
+                     }
+-                    private boolean check(final Iterable<CraftTask> collection) {
+-                        final Iterator<CraftTask> tasks = collection.iterator();
+-                        while (tasks.hasNext()) {
+-                            final CraftTask task = tasks.next();
+-                            if (task.getTaskId() == taskId) {
+-                                task.cancel0();
+-                                tasks.remove();
+-                                if (task.isSync()) {
+-                                    runners.remove(taskId);
+-                                }
+-                                return true;
++                }
++                private boolean check(final Iterable<CraftTask> collection) {
++                    final Iterator<CraftTask> tasks = collection.iterator();
++                    while (tasks.hasNext()) {
++                        final CraftTask task = tasks.next();
++                        if (task.getTaskId() == taskId) {
++                            task.cancel0();
++                            tasks.remove();
++                            if (task.isSync()) {
++                                runners.remove(taskId);
+                             }
++                            return true;
+                         }
+-                        return false;
+-                    }});
++                    }
++                    return false;
++                }});
+         handle(task, 0l);
+         for (CraftTask taskPending = head.getNext(); taskPending != null; taskPending = taskPending.getNext()) {
+             if (taskPending == task) {
+@@ -196,26 +197,26 @@ public class CraftScheduler implements BukkitScheduler {
+ 
+     public void cancelTasks(final Plugin plugin) {
+         Validate.notNull(plugin, "Cannot cancel tasks of null plugin");
+-        final CraftTask task = new CraftTask(
+-                new Runnable() {
+-                    public void run() {
+-                        check(CraftScheduler.this.pending);
+-                        check(CraftScheduler.this.temp);
+-                    }
+-                    void check(final Iterable<CraftTask> collection) {
+-                        final Iterator<CraftTask> tasks = collection.iterator();
+-                        while (tasks.hasNext()) {
+-                            final CraftTask task = tasks.next();
+-                            if (task.getOwner().equals(plugin)) {
+-                                task.cancel0();
+-                                tasks.remove();
+-                                if (task.isSync()) {
+-                                    runners.remove(task.getTaskId());
+-                                }
++        final CraftTask task = new CraftTask("CancelPluginTask", // Spigot
++            new Runnable() {
++                public void run() {
++                    check(CraftScheduler.this.pending);
++                    check(CraftScheduler.this.temp);
++                }
++                void check(final Iterable<CraftTask> collection) {
++                    final Iterator<CraftTask> tasks = collection.iterator();
++                    while (tasks.hasNext()) {
++                        final CraftTask task = tasks.next();
++                        if (task.getOwner().equals(plugin)) {
++                            task.cancel0();
++                            tasks.remove();
++                            if (task.isSync()) {
++                                runners.remove(task.getTaskId());
+                             }
+                         }
+                     }
+-                });
++                }
++            });
+         handle(task, 0l);
+         for (CraftTask taskPending = head.getNext(); taskPending != null; taskPending = taskPending.getNext()) {
+             if (taskPending == task) {
+@@ -233,21 +234,21 @@ public class CraftScheduler implements BukkitScheduler {
+     }
+ 
+     public void cancelAllTasks() {
+-        final CraftTask task = new CraftTask(
+-                new Runnable() {
+-                    public void run() {
+-                        Iterator<CraftTask> it = CraftScheduler.this.runners.values().iterator();
+-                        while (it.hasNext()) {
+-                            CraftTask task = it.next();
+-                            task.cancel0();
+-                            if (task.isSync()) {
+-                                it.remove();
+-                            }
++        final CraftTask task = new CraftTask("CancelAllTask", // Spigot
++            new Runnable() {
++                public void run() {
++                    Iterator<CraftTask> it = CraftScheduler.this.runners.values().iterator();
++                    while (it.hasNext()) {
++                        CraftTask task = it.next();
++                        task.cancel0();
++                        if (task.isSync()) {
++                            it.remove();
+                         }
+-                        CraftScheduler.this.pending.clear();
+-                        CraftScheduler.this.temp.clear();
+                     }
+-                });
++                    CraftScheduler.this.pending.clear();
++                    CraftScheduler.this.temp.clear();
++                }
++            });
+         handle(task, 0l);
+         for (CraftTask taskPending = head.getNext(); taskPending != null; taskPending = taskPending.getNext()) {
+             if (taskPending == task) {
+@@ -342,20 +343,24 @@ public class CraftScheduler implements BukkitScheduler {
+             }
+             if (task.isSync()) {
+                 try {
++                    SpigotTimings.schedulerSyncTimer.startTiming(); // Spigot
+                     task.run();
++                    SpigotTimings.schedulerSyncTimer.stopTiming(); // Spigot
+                 } catch (final Throwable throwable) {
+                     task.getOwner().getLogger().log(
+-                            Level.WARNING,
+-                            String.format(
+-                                "Task #%s for %s generated an exception",
+-                                task.getTaskId(),
+-                                task.getOwner().getDescription().getFullName()),
+-                            throwable);
++                        Level.WARNING,
++                        String.format(
++                            "Task #%s for %s generated an exception",
++                            task.getTaskId(),
++                            task.getOwner().getDescription().getFullName()),
++                        throwable);
+                 }
+                 parsePending();
+             } else {
++                SpigotTimings.schedulerAsyncTimer.startTiming(); // Spigot
+                 debugTail = debugTail.setNext(new CraftAsyncDebugger(currentTick + RECENT_TICKS, task.getOwner(), task.getTaskClass()));
+                 executor.execute(task);
++                SpigotTimings.schedulerAsyncTimer.stopTiming(); // Spigot
+                 // We don't need to parse pending
+                 // (async tasks must live with race-conditions if they attempt to cancel between these few lines of code)
+             }
+@@ -400,6 +405,7 @@ public class CraftScheduler implements BukkitScheduler {
+     }
+ 
+     private void parsePending() {
++        SpigotTimings.pendingTimer.startTiming(); // Spigot
+         CraftTask head = this.head;
+         CraftTask task = head.getNext();
+         CraftTask lastTask = head;
+@@ -414,10 +420,11 @@ public class CraftScheduler implements BukkitScheduler {
+         // We split this because of the way things are ordered for all of the async calls in CraftScheduler
+         // (it prevents race-conditions)
+         for (task = head; task != lastTask; task = head) {
+-           head = task.getNext();
+-           task.setNext(null);
++            head = task.getNext();
++            task.setNext(null);
+         }
+         this.head = lastTask;
++        SpigotTimings.pendingTimer.stopTiming(); // Spigot
+     }
+ 
+     private boolean isReady(final int currentTick) {
+diff --git a/src/main/java/org/bukkit/craftbukkit/scheduler/CraftTask.java b/src/main/java/org/bukkit/craftbukkit/scheduler/CraftTask.java
+index 7d294c0..cdc4db9 100644
+--- a/src/main/java/org/bukkit/craftbukkit/scheduler/CraftTask.java
++++ b/src/main/java/org/bukkit/craftbukkit/scheduler/CraftTask.java
+@@ -24,7 +24,7 @@ public class CraftTask implements BukkitTask, Runnable { // Spigot
+     private final Plugin plugin;
+     private final int id;
+ 
+-    CustomTimingsHandler timings = null; // Spigot
++    final CustomTimingsHandler timings; // Spigot
+     CraftTask() {
+         this(null, null, -1, -1);
+     }
+@@ -33,11 +33,26 @@ public class CraftTask implements BukkitTask, Runnable { // Spigot
+         this(null, task, -1, -1);
+     }
+ 
+-    CraftTask(final Plugin plugin, final Runnable task, final int id, final long period) {
++    // Spigot start
++    public String timingName = null;
++    CraftTask(String timingName) {
++        this(timingName, null, null, -1, -1);
++    }
++    CraftTask(String timingName, final Runnable task) {
++        this(timingName, null, task, -1, -1);
++    }
++    CraftTask(String timingName, final Plugin plugin, final Runnable task, final int id, final long period) {
+         this.plugin = plugin;
+         this.task = task;
+         this.id = id;
+         this.period = period;
++        this.timingName = timingName;
++        timings = SpigotTimings.getPluginTaskTimings(this, period);
++    }
++
++    CraftTask(final Plugin plugin, final Runnable task, final int id, final long period) {
++        this(null, plugin, task, id, period);
++    // Spigot end
+     }
+ 
+     public final int getTaskId() {
+@@ -53,22 +68,9 @@ public class CraftTask implements BukkitTask, Runnable { // Spigot
+     }
+ 
+     public void run() {
+-        // Spigot start - Wrap custom timings on Tasks
+-        if (!Bukkit.getServer().getPluginManager().useTimings()) {
+-            task.run();
+-            return;
+-        }
+-        if (timings == null && this.getOwner() != null && this.isSync()) {
+-            timings = SpigotTimings.getPluginTaskTimings(this, period);
+-        }
+-        if (timings != null) {
+-            timings.startTiming();
+-        }
++        timings.startTiming(); // Spigot
+         task.run();
+-        if (timings != null) {
+-            timings.stopTiming();
+-        }
+-        // Spigot end
++        timings.stopTiming(); // Spigot
+     }
+ 
+     long getPeriod() {
+@@ -96,7 +98,7 @@ public class CraftTask implements BukkitTask, Runnable { // Spigot
+     }
+ 
+     public Class<? extends Runnable> getTaskClass() { // Spigot
+-        return task.getClass();
++        return task != null ? task.getClass() : null;
+     }
+ 
+     public void cancel() {
+-- 
+1.8.3.2
+

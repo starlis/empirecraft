@@ -1,6 +1,6 @@
-From c747007e513f15464d6aecc96cef00fb41c9b7d4 Mon Sep 17 00:00:00 2001
+From c7efc5b4ed174811390f826bad23592d3013d39e Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Thu, 23 Jan 2014 22:14:11 -0500
+Date: Sun, 26 Jan 2014 19:47:59 -0500
 Subject: [PATCH] Spigot
 
 ---
@@ -27,6 +27,7 @@ Subject: [PATCH] Spigot
  .../event/inventory/InventoryClickEvent.java       |  16 ++
  .../bukkit/event/player/PlayerItemDamageEvent.java |  54 ++++++
  .../org/bukkit/event/player/PlayerLoginEvent.java  |  27 ++-
+ .../java/org/bukkit/inventory/InventoryView.java   |   4 -
  .../org/bukkit/plugin/SimplePluginManager.java     |   1 +
  .../org/bukkit/plugin/TimedRegisteredListener.java |  21 ++-
  .../org/bukkit/plugin/java/JavaPluginLoader.java   |   2 +-
@@ -36,7 +37,7 @@ Subject: [PATCH] Spigot
  .../spigotmc/event/entity/EntityMountEvent.java    |  52 ++++++
  src/test/java/org/bukkit/EffectTest.java           |   6 +-
  .../bukkit/plugin/TimedRegisteredListenerTest.java |   1 -
- 32 files changed, 997 insertions(+), 132 deletions(-)
+ 33 files changed, 997 insertions(+), 136 deletions(-)
  create mode 100644 src/main/java/org/bukkit/event/entity/EntitySpawnEvent.java
  create mode 100644 src/main/java/org/bukkit/event/entity/SpawnerSpawnEvent.java
  create mode 100644 src/main/java/org/bukkit/event/player/PlayerItemDamageEvent.java
@@ -586,7 +587,7 @@ index c9ac1ce..a687fef 100644
 +    // Spigot End
  }
 diff --git a/src/main/java/org/bukkit/command/defaults/TimingsCommand.java b/src/main/java/org/bukkit/command/defaults/TimingsCommand.java
-index 05cfcb0..ec1320f 100644
+index 05cfcb0..1bc26c6 100644
 --- a/src/main/java/org/bukkit/command/defaults/TimingsCommand.java
 +++ b/src/main/java/org/bukkit/command/defaults/TimingsCommand.java
 @@ -19,30 +19,60 @@ import org.bukkit.util.StringUtil;
@@ -631,8 +632,8 @@ index 05cfcb0..ec1320f 100644
 +        // Spigot start - dynamic enable
 +        if ( "on".equals( args[0] ) )
 +        {
-+            ( (org.bukkit.plugin.SimplePluginManager) Bukkit.getPluginManager() ).useTimings( true );
-+            sender.sendMessage( "Enabled Timings" );
++            // ( (org.bukkit.plugin.SimplePluginManager) Bukkit.getPluginManager() ).useTimings( true );
++            sender.sendMessage( ChatColor.RED + "This command disabled as it does not produce accurate results. Please enable plugin-profiling in bukkit.yml and restart." );
 +        } else if ( "off".equals( args[0] ) )
 +        {
 +            ( (org.bukkit.plugin.SimplePluginManager) Bukkit.getPluginManager() ).useTimings( false );
@@ -1320,6 +1321,27 @@ index b74b7b8..8fb1c98 100644
      /**
       * Gets the current result of the login, as an enum
       *
+diff --git a/src/main/java/org/bukkit/inventory/InventoryView.java b/src/main/java/org/bukkit/inventory/InventoryView.java
+index 7e98d52..0427c56 100644
+--- a/src/main/java/org/bukkit/inventory/InventoryView.java
++++ b/src/main/java/org/bukkit/inventory/InventoryView.java
+@@ -1,6 +1,5 @@
+ package org.bukkit.inventory;
+ 
+-import org.bukkit.GameMode;
+ import org.bukkit.entity.HumanEntity;
+ import org.bukkit.event.inventory.InventoryType;
+ 
+@@ -175,9 +174,6 @@ public abstract class InventoryView {
+             return rawSlot;
+         }
+         int slot = rawSlot - numInTop;
+-        if (getPlayer().getGameMode() == GameMode.CREATIVE && getType() == InventoryType.PLAYER) {
+-            return slot;
+-        }
+         if (getType() == InventoryType.CRAFTING) {
+             if(slot < 4) return 39 - slot;
+             else slot -= 4;
 diff --git a/src/main/java/org/bukkit/plugin/SimplePluginManager.java b/src/main/java/org/bukkit/plugin/SimplePluginManager.java
 index 3c9611b..2c4b03b 100644
 --- a/src/main/java/org/bukkit/plugin/SimplePluginManager.java

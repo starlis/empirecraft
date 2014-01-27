@@ -1,0 +1,88 @@
+From f597fde1c939e7af2e72385fc7946346a503970b Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Sat, 28 Sep 2013 22:01:47 -0400
+Subject: [PATCH] MovedTooQuickly event
+
+also make creative immune to this event
+---
+ .../customevents/MovedTooQuicklyEvent.java         | 49 ++++++++++++++++++++++
+ .../net/minecraft/server/PlayerConnection.java     |  4 +-
+ 2 files changed, 52 insertions(+), 1 deletion(-)
+ create mode 100644 src/main/java/com/empireminecraft/customevents/MovedTooQuicklyEvent.java
+
+diff --git a/src/main/java/com/empireminecraft/customevents/MovedTooQuicklyEvent.java b/src/main/java/com/empireminecraft/customevents/MovedTooQuicklyEvent.java
+new file mode 100644
+index 0000000..9c69b6d
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/customevents/MovedTooQuicklyEvent.java
+@@ -0,0 +1,49 @@
++package com.empireminecraft.customevents;
++
++import org.bukkit.entity.Player;
++import org.bukkit.event.Cancellable;
++import org.bukkit.event.Event;
++import org.bukkit.event.HandlerList;
++
++public class MovedTooQuicklyEvent extends Event implements Cancellable {
++
++
++    private static final HandlerList handlers = new HandlerList();
++    private final double speed;
++    private final Player player;
++    private boolean cancelled = false;
++
++    public MovedTooQuicklyEvent(double speed,
++                                Player player) {
++
++
++        this.speed = speed;
++        this.player = player;
++    }
++
++    public HandlerList getHandlers() {
++        return handlers;
++    }
++
++    public static HandlerList getHandlerList() {
++        return handlers;
++    }
++
++    public Player getPlayer() {
++        return player;
++    }
++
++    public double getSpeed() {
++        return speed;
++    }
++
++    @Override
++    public boolean isCancelled() {
++        return cancelled;
++    }
++
++    @Override
++    public void setCancelled(boolean cancel) {
++        cancelled = cancel;
++    }
++}
+diff --git a/src/main/java/net/minecraft/server/PlayerConnection.java b/src/main/java/net/minecraft/server/PlayerConnection.java
+index e1bc778..f69b220 100644
+--- a/src/main/java/net/minecraft/server/PlayerConnection.java
++++ b/src/main/java/net/minecraft/server/PlayerConnection.java
+@@ -357,10 +357,12 @@ public class PlayerConnection implements PacketPlayInListener {
+                 // CraftBukkit end
+                 double d10 = d7 * d7 + d8 * d8 + d9 * d9;
+ 
+-                if (d10 > 100.0D && this.checkMovement && (!this.minecraftServer.L() || !this.minecraftServer.K().equals(this.player.getName()))) { // CraftBukkit - Added this.checkMovement condition to solve this check being triggered by teleports
++                if (d10 > 100.0D && this.getPlayer().getGameMode() != org.bukkit.GameMode.CREATIVE && this.checkMovement) { // CraftBukkit - Added this.checkMovement condition to solve this check being triggered by teleports // EMC - remove dumb checks
++                    if (new com.empireminecraft.customevents.MovedTooQuicklyEvent(d10, getPlayer()).callEvent()) { // EMC
+                     c.warn(this.player.getName() + " moved too quickly! " + d4 + "," + d5 + "," + d6 + " (" + d7 + ", " + d8 + ", " + d9 + ")");
+                     this.a(this.y, this.z, this.q, this.player.yaw, this.player.pitch);
+                     return;
++                    } // EMC
+                 }
+ 
+                 float f4 = 0.0625F;
+-- 
+1.8.3.2
+
