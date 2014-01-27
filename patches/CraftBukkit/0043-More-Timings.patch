@@ -1,4 +1,4 @@
-From 2011cc454b049f7e08d4d43b2651e1fb5e3d05e8 Mon Sep 17 00:00:00 2001
+From 3ab60a5c8fc6b1306f6cb526e508e179d6657e7d Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Sat, 11 Jan 2014 21:44:10 -0500
 Subject: [PATCH] More Timings
@@ -7,10 +7,10 @@ Subject: [PATCH] More Timings
  .../java/net/minecraft/server/DedicatedServer.java |   3 +
  .../java/net/minecraft/server/EntityLiving.java    |  11 ++
  .../java/net/minecraft/server/MinecraftServer.java |  14 ++-
- .../java/org/bukkit/craftbukkit/SpigotTimings.java |  50 +++++---
+ .../java/org/bukkit/craftbukkit/SpigotTimings.java |  54 ++++++---
  .../craftbukkit/scheduler/CraftScheduler.java      | 131 +++++++++++----------
  .../bukkit/craftbukkit/scheduler/CraftTask.java    |  38 +++---
- 6 files changed, 151 insertions(+), 96 deletions(-)
+ 6 files changed, 155 insertions(+), 96 deletions(-)
 
 diff --git a/src/main/java/net/minecraft/server/DedicatedServer.java b/src/main/java/net/minecraft/server/DedicatedServer.java
 index 8ec6474..29b8e03 100755
@@ -190,7 +190,7 @@ index f230cb6..9b7b028 100644
  
      public abstract boolean V();
 diff --git a/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java b/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java
-index bf45168..efa1df3 100644
+index bf45168..afb4b00 100644
 --- a/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java
 +++ b/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java
 @@ -16,6 +16,9 @@ public class SpigotTimings {
@@ -215,7 +215,7 @@ index bf45168..efa1df3 100644
      public static final HashMap<String, CustomTimingsHandler> entityTypeTimingMap = new HashMap<String, CustomTimingsHandler>();
      public static final HashMap<String, CustomTimingsHandler> tileEntityTypeTimingMap = new HashMap<String, CustomTimingsHandler>();
      public static final HashMap<String, CustomTimingsHandler> pluginTaskTimingMap = new HashMap<String, CustomTimingsHandler>();
-@@ -44,8 +52,17 @@ public class SpigotTimings {
+@@ -44,8 +52,21 @@ public class SpigotTimings {
       * @return
       */
      public static CustomTimingsHandler getPluginTaskTimings(BukkitTask task, long period) {
@@ -230,12 +230,16 @@ index bf45168..efa1df3 100644
 +        } else {
 +            plugin = "Unknown";
 +        }
++        String taskname = (ctask.getTaskClass() != null ? ctask.getTaskClass().getSimpleName() : "Unknown");
++        if (!task.isSync()) {
++            taskname = "[ASYNC] " + taskname;
++        }
 +
-+        String name = "Task: " + plugin + " Runnable: " + (ctask.getTaskClass() != null ? ctask.getTaskClass().getSimpleName() : "Unknown");
++        String name = "Task: " + plugin + " Runnable: " + taskname;
          if (period > 0) {
              name += "(interval:" + period +")";
          } else {
-@@ -106,23 +123,28 @@ public class SpigotTimings {
+@@ -106,23 +127,28 @@ public class SpigotTimings {
          public final CustomTimingsHandler tileEntityTick;
          public final CustomTimingsHandler tileEntityPending;
          public final CustomTimingsHandler tracker;
@@ -486,7 +490,7 @@ index a30f217..9a1172c 100644
  
      private boolean isReady(final int currentTick) {
 diff --git a/src/main/java/org/bukkit/craftbukkit/scheduler/CraftTask.java b/src/main/java/org/bukkit/craftbukkit/scheduler/CraftTask.java
-index 7d294c0..fc10876 100644
+index 7d294c0..cdc4db9 100644
 --- a/src/main/java/org/bukkit/craftbukkit/scheduler/CraftTask.java
 +++ b/src/main/java/org/bukkit/craftbukkit/scheduler/CraftTask.java
 @@ -24,7 +24,7 @@ public class CraftTask implements BukkitTask, Runnable { // Spigot
@@ -541,13 +545,13 @@ index 7d294c0..fc10876 100644
 -        if (timings != null) {
 -            timings.startTiming();
 -        }
-+        if (this.isSync()) timings.startTiming(); // Spigot
++        timings.startTiming(); // Spigot
          task.run();
 -        if (timings != null) {
 -            timings.stopTiming();
 -        }
 -        // Spigot end
-+        if (this.isSync()) timings.stopTiming(); // Spigot
++        timings.stopTiming(); // Spigot
      }
  
      long getPeriod() {
