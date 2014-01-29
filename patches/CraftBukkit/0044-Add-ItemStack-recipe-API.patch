@@ -1,14 +1,83 @@
-From d0bac1cd53720255f7ceca803c18436d2dbef3ba Mon Sep 17 00:00:00 2001
+From 051829763366d08c9c9ed76b0bf107c44417c6da Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Tue, 28 Jan 2014 21:04:24 -0500
 Subject: [PATCH] Add ItemStack recipe API
 
 Allows using custom items in Crafting Recipes
 ---
- .../java/org/bukkit/craftbukkit/inventory/CraftShapedRecipe.java     | 5 +++--
- .../java/org/bukkit/craftbukkit/inventory/CraftShapelessRecipe.java  | 5 +++--
- 2 files changed, 6 insertions(+), 4 deletions(-)
+ src/main/java/net/minecraft/server/ItemStack.java                | 2 +-
+ src/main/java/net/minecraft/server/ShapedRecipes.java            | 8 +++++++-
+ src/main/java/net/minecraft/server/ShapelessRecipes.java         | 9 ++++++---
+ .../java/org/bukkit/craftbukkit/inventory/CraftShapedRecipe.java | 5 +++--
+ .../org/bukkit/craftbukkit/inventory/CraftShapelessRecipe.java   | 5 +++--
+ 5 files changed, 20 insertions(+), 9 deletions(-)
 
+diff --git a/src/main/java/net/minecraft/server/ItemStack.java b/src/main/java/net/minecraft/server/ItemStack.java
+index 534f177..3dfe73f 100644
+--- a/src/main/java/net/minecraft/server/ItemStack.java
++++ b/src/main/java/net/minecraft/server/ItemStack.java
+@@ -9,7 +9,7 @@ import net.minecraft.util.com.google.common.collect.Multimap;
+ import org.bukkit.craftbukkit.util.CraftMagicNumbers; // CraftBukkit
+ 
+ public final class ItemStack {
+-
++    public org.bukkit.inventory.ItemStack getBukkitItemStack() { return org.bukkit.craftbukkit.inventory.CraftItemStack.asBukkitCopy(this); } // EMC
+     public static final DecimalFormat a = new DecimalFormat("#.###");
+     public int count;
+     public int c;
+diff --git a/src/main/java/net/minecraft/server/ShapedRecipes.java b/src/main/java/net/minecraft/server/ShapedRecipes.java
+index 867dd07..a974d3c 100644
+--- a/src/main/java/net/minecraft/server/ShapedRecipes.java
++++ b/src/main/java/net/minecraft/server/ShapedRecipes.java
+@@ -117,7 +117,11 @@ public class ShapedRecipes implements IRecipe {
+                     if (itemstack1 == null && itemstack != null || itemstack1 != null && itemstack == null) {
+                         return false;
+                     }
+-
++                    // EMC start
++                    if (!itemstack.getBukkitItemStack().isSimilar(itemstack1.getBukkitItemStack())) {
++                        return false;
++                    }
++                    /*
+                     if (itemstack.getItem() != itemstack1.getItem()) {
+                         return false;
+                     }
+@@ -125,6 +129,8 @@ public class ShapedRecipes implements IRecipe {
+                     if (itemstack.getData() != 32767 && itemstack.getData() != itemstack1.getData()) {
+                         return false;
+                     }
++                    */
++                    // EMC end
+                 }
+             }
+         }
+diff --git a/src/main/java/net/minecraft/server/ShapelessRecipes.java b/src/main/java/net/minecraft/server/ShapelessRecipes.java
+index 21181fb..ad8030a 100644
+--- a/src/main/java/net/minecraft/server/ShapelessRecipes.java
++++ b/src/main/java/net/minecraft/server/ShapelessRecipes.java
+@@ -26,7 +26,8 @@ public class ShapelessRecipes implements IRecipe {
+         CraftShapelessRecipe recipe = new CraftShapelessRecipe(result, this);
+         for (ItemStack stack : (List<ItemStack>) this.ingredients) {
+             if (stack != null) {
+-                recipe.addIngredient(org.bukkit.craftbukkit.util.CraftMagicNumbers.getMaterial(stack.getItem()), stack.getData());
++                //recipe.addIngredient(org.bukkit.craftbukkit.util.CraftMagicNumbers.getMaterial(stack.getItem()), stack.getData()); // EMC
++                recipe.addIngredient(stack.getBukkitItemStack()); // EMC
+             }
+         }
+         return recipe;
+@@ -50,8 +51,10 @@ public class ShapelessRecipes implements IRecipe {
+ 
+                     while (iterator.hasNext()) {
+                         ItemStack itemstack1 = (ItemStack) iterator.next();
+-
+-                        if (itemstack.getItem() == itemstack1.getItem() && (itemstack1.getData() == 32767 || itemstack.getData() == itemstack1.getData())) {
++                        // EMC start
++                        if (itemstack.getBukkitItemStack().isSimilar(itemstack1.getBukkitItemStack())
++                        /*itemstack.getItem() == itemstack1.getItem() && (itemstack1.getData() == 32767 || itemstack.getData() == itemstack1.getData())*/) {
++                        // EMC end
+                             flag = true;
+                             arraylist.remove(itemstack1);
+                             break;
 diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftShapedRecipe.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftShapedRecipe.java
 index baea759..c09678e 100644
 --- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftShapedRecipe.java
