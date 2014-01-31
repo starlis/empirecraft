@@ -8,6 +8,11 @@ while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symli
 done
 . $(dirname $SOURCE)/init.sh
 
+if [[ "x$1" != "x" ]]; then
+	spigotpoint="$1"
+else
+	spigotpoint="spigot/master"
+fi
 function update {
     target=$1
     cd $basedir/$target
@@ -15,7 +20,7 @@ function update {
     cd $basedir/EMC-$target
     git co spigot
     git fetch spigot
-    git reset --hard spigot/master
+    git reset --hard ${spigotpoint}
     #git fetch origin
     #git reset --hard origin/spigot
     git fetch upstream
