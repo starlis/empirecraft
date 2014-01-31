@@ -1,6 +1,6 @@
-From 955bfd10e60b5df70e48056b2c21ca6bee7e2b06 Mon Sep 17 00:00:00 2001
+From ab0e6b5f3a5efc1bc1bd1a9181391245b80b1bca Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Tue, 28 Jan 2014 21:05:09 -0500
+Date: Fri, 31 Jan 2014 01:33:17 -0500
 Subject: [PATCH] Spigot
 
 ---
@@ -8,6 +8,7 @@ Subject: [PATCH] Spigot
  pom.xml                                            |  52 ++----
  src/main/java/org/bukkit/Effect.java               | 201 ++++++++++++++++++++-
  src/main/java/org/bukkit/World.java                |  50 +++++
+ src/main/java/org/bukkit/block/Dispenser.java      |  15 +-
  .../java/org/bukkit/command/SimpleCommandMap.java  |  14 ++
  .../bukkit/command/defaults/PluginsCommand.java    |   8 +
  .../org/bukkit/command/defaults/ReloadCommand.java |   9 +
@@ -17,9 +18,12 @@ Subject: [PATCH] Spigot
  .../org/bukkit/conversations/BooleanPrompt.java    |   3 +-
  .../org/bukkit/conversations/Conversation.java     |   7 +
  .../bukkit/conversations/ConversationContext.java  |   8 +
- src/main/java/org/bukkit/entity/Arrow.java         |  20 +-
+ src/main/java/org/bukkit/entity/Arrow.java         |  46 ++---
  src/main/java/org/bukkit/entity/Entity.java        |  18 ++
+ src/main/java/org/bukkit/entity/LivingEntity.java  |  11 +-
  src/main/java/org/bukkit/entity/Player.java        |  53 ++++++
+ src/main/java/org/bukkit/entity/Projectile.java    |  33 +---
+ src/main/java/org/bukkit/entity/WitherSkull.java   |  15 +-
  .../bukkit/event/entity/CreatureSpawnEvent.java    |  32 +---
  .../org/bukkit/event/entity/EntitySpawnEvent.java  |  45 +++++
  .../org/bukkit/event/entity/ItemSpawnEvent.java    |  40 +---
@@ -32,18 +36,24 @@ Subject: [PATCH] Spigot
  .../org/bukkit/plugin/TimedRegisteredListener.java |  21 ++-
  .../org/bukkit/plugin/java/JavaPluginLoader.java   |   2 +-
  .../bukkit/plugin/messaging/StandardMessenger.java |  10 +-
+ .../bukkit/projectiles/BlockProjectileSource.java  |  13 --
+ .../org/bukkit/projectiles/ProjectileSource.java   |  28 ---
  .../java/org/spigotmc/CustomTimingsHandler.java    | 175 ++++++++++++++++++
  .../spigotmc/event/entity/EntityDismountEvent.java |  39 ++++
  .../spigotmc/event/entity/EntityMountEvent.java    |  52 ++++++
+ .../org/bukkit/projectiles/package-info.java       |   6 -
  src/test/java/org/bukkit/EffectTest.java           |   6 +-
  .../bukkit/plugin/TimedRegisteredListenerTest.java |   1 -
- 33 files changed, 997 insertions(+), 136 deletions(-)
+ 40 files changed, 1013 insertions(+), 267 deletions(-)
  create mode 100644 src/main/java/org/bukkit/event/entity/EntitySpawnEvent.java
  create mode 100644 src/main/java/org/bukkit/event/entity/SpawnerSpawnEvent.java
  create mode 100644 src/main/java/org/bukkit/event/player/PlayerItemDamageEvent.java
+ delete mode 100644 src/main/java/org/bukkit/projectiles/BlockProjectileSource.java
+ delete mode 100644 src/main/java/org/bukkit/projectiles/ProjectileSource.java
  create mode 100644 src/main/java/org/spigotmc/CustomTimingsHandler.java
  create mode 100644 src/main/java/org/spigotmc/event/entity/EntityDismountEvent.java
  create mode 100644 src/main/java/org/spigotmc/event/entity/EntityMountEvent.java
+ delete mode 100644 src/main/javadoc/org/bukkit/projectiles/package-info.java
 
 diff --git a/README.md b/README.md
 index a51766e..1905b8d 100644
@@ -481,6 +491,38 @@ index f02bfb7..a58eb05 100644
      /**
       * Represents various map environment types that a world may be
       */
+diff --git a/src/main/java/org/bukkit/block/Dispenser.java b/src/main/java/org/bukkit/block/Dispenser.java
+index bba753e..7091794 100644
+--- a/src/main/java/org/bukkit/block/Dispenser.java
++++ b/src/main/java/org/bukkit/block/Dispenser.java
+@@ -1,25 +1,14 @@
+ package org.bukkit.block;
+ 
+-import org.bukkit.projectiles.BlockProjectileSource;
+-
+ /**
+  * Represents a dispenser.
+  */
+ public interface Dispenser extends BlockState, ContainerBlock {
+ 
+     /**
+-     * Gets the BlockProjectileSource object for this dispenser.
+-     * <p>
+-     * If the block is no longer a dispenser, this will return null.
+-     *
+-     * @return a BlockProjectileSource if valid, otherwise null
+-     */
+-    public BlockProjectileSource getBlockProjectileSource();
+-
+-    /**
+-     * Attempts to dispense the contents of this block.
++     * Attempts to dispense the contents of this block
+      * <p>
+-     * If the block is no longer a dispenser, this will return false.
++     * If the block is no longer a dispenser, this will return false
+      *
+      * @return true if successful, otherwise false
+      */
 diff --git a/src/main/java/org/bukkit/command/SimpleCommandMap.java b/src/main/java/org/bukkit/command/SimpleCommandMap.java
 index 9ae0bce..53c9207 100644
 --- a/src/main/java/org/bukkit/command/SimpleCommandMap.java
@@ -828,33 +870,64 @@ index 4f33ff4..7390a77 100644
       * this as a way to pass data through each Prompt as the conversation
       * develops.
 diff --git a/src/main/java/org/bukkit/entity/Arrow.java b/src/main/java/org/bukkit/entity/Arrow.java
-index 26d3473..676fe2b 100644
+index e49eef0..676fe2b 100644
 --- a/src/main/java/org/bukkit/entity/Arrow.java
 +++ b/src/main/java/org/bukkit/entity/Arrow.java
-@@ -3,4 +3,22 @@ package org.bukkit.entity;
+@@ -3,40 +3,22 @@ package org.bukkit.entity;
  /**
   * Represents an arrow.
   */
--public interface Arrow extends Projectile {}
+-public interface Arrow extends Projectile {
 +public interface Arrow extends Projectile
 +{
-+
+ 
+-    /**
+-     * Gets the knockback strength for an arrow, which is the
+-     * {@link org.bukkit.enchantments.Enchantment#KNOCKBACK KnockBack} level
+-     * of the bow that shot it.
+-     *
+-     * @return the knockback strength value
+-     */
+-    public int getKnockbackStrength();
 +    public class Spigot extends Entity.Spigot
 +    {
-+
+ 
+-    /**
+-     * Sets the knockback strength for an arrow.
+-     *
+-     * @param knockbackStrength the knockback strength value
+-     */
+-    public void setKnockbackStrength(int knockbackStrength);
 +        public double getDamage()
 +        {
 +            throw new UnsupportedOperationException( "Not supported yet." );
 +        }
-+
+ 
+-    /**
+-     * Gets whether this arrow is critical.
+-     * <p>
+-     * Critical arrows have increased damage and cause particle effects.
+-     * <p>
+-     * Critical arrows generally occur when a player fully draws a bow before
+-     * firing.
+-     *
+-     * @return true if it is critical
+-     */
+-    public boolean isCritical();
 +        public void setDamage(double damage)
 +        {
 +            throw new UnsupportedOperationException( "Not supported yet." );
 +        }
 +    }
-+
+ 
+-    /**
+-     * Sets whether or not this arrow should be critical.
+-     *
+-     * @param critical whether or not it should be critical
+-     */
+-    public void setCritical(boolean critical);
 +    Spigot spigot();
-+}
+ }
 diff --git a/src/main/java/org/bukkit/entity/Entity.java b/src/main/java/org/bukkit/entity/Entity.java
 index 396ea20..294e80b 100644
 --- a/src/main/java/org/bukkit/entity/Entity.java
@@ -882,6 +955,39 @@ index 396ea20..294e80b 100644
 +    Spigot spigot();
 +    // Spigot End
  }
+diff --git a/src/main/java/org/bukkit/entity/LivingEntity.java b/src/main/java/org/bukkit/entity/LivingEntity.java
+index 6c8b4f8..89926b2 100644
+--- a/src/main/java/org/bukkit/entity/LivingEntity.java
++++ b/src/main/java/org/bukkit/entity/LivingEntity.java
+@@ -9,12 +9,11 @@ import org.bukkit.block.Block;
+ import org.bukkit.inventory.EntityEquipment;
+ import org.bukkit.potion.PotionEffect;
+ import org.bukkit.potion.PotionEffectType;
+-import org.bukkit.projectiles.ProjectileSource;
+ 
+ /**
+  * Represents a living entity, such as a monster or player
+  */
+-public interface LivingEntity extends Entity, Damageable, ProjectileSource {
++public interface LivingEntity extends Entity, Damageable {
+ 
+     /**
+      * Gets the height of the living entity's eyes above its Location.
+@@ -113,6 +112,14 @@ public interface LivingEntity extends Entity, Damageable, ProjectileSource {
+     public Arrow shootArrow();
+ 
+     /**
++     * Launches a {@link Projectile} from the living entity.
++     *
++     * @param projectile class of the projectile to launch
++     * @return the launched projectile
++     */
++    public <T extends Projectile> T launchProjectile(Class<? extends T> projectile);
++
++    /**
+      * Returns the amount of air that the living entity has remaining, in
+      * ticks.
+      *
 diff --git a/src/main/java/org/bukkit/entity/Player.java b/src/main/java/org/bukkit/entity/Player.java
 index 3c096f5..adef230 100644
 --- a/src/main/java/org/bukkit/entity/Player.java
@@ -943,6 +1049,88 @@ index 3c096f5..adef230 100644
 +
 +    Spigot spigot();
 +    // Spigot end
+ }
+diff --git a/src/main/java/org/bukkit/entity/Projectile.java b/src/main/java/org/bukkit/entity/Projectile.java
+index 02c840c..9d5e92d 100644
+--- a/src/main/java/org/bukkit/entity/Projectile.java
++++ b/src/main/java/org/bukkit/entity/Projectile.java
+@@ -1,41 +1,26 @@
+ package org.bukkit.entity;
+ 
+-import org.bukkit.projectiles.ProjectileSource;
++import org.bukkit.block.Dispenser;
+ 
+ /**
+- * Represents a shootable entity.
++ * Represents a shootable entity
+  */
+ public interface Projectile extends Entity {
+ 
+     /**
+-     * This method exists for legacy reasons to provide backwards
+-     * compatibility. It will not exist at runtime and should not be used
+-     * under any circumstances.
+-     */
+-    @Deprecated
+-    public LivingEntity _INVALID_getShooter();
+-
+-    /**
+-     * Retrieve the shooter of this projectile.
++     * Retrieve the shooter of this projectile. The returned value can be null
++     * for projectiles shot from a {@link Dispenser} for example.
+      *
+-     * @return the {@link ProjectileSource} that shot this projectile
+-     */
+-    public ProjectileSource getShooter();
+-
+-    /**
+-     * This method exists for legacy reasons to provide backwards
+-     * compatibility. It will not exist at runtime and should not be used
+-     * under any circumstances.
++     * @return the {@link LivingEntity} that shot this projectile
+      */
+-    @Deprecated
+-    public void _INVALID_setShooter(LivingEntity shooter);
++    public LivingEntity getShooter();
+ 
+     /**
+-     * Set the shooter of this projectile.
++     * Set the shooter of this projectile
+      *
+-     * @param shooter the {@link ProjectileSource} that shot this projectile
++     * @param shooter the {@link LivingEntity} that shot this projectile
+      */
+-    public void setShooter(ProjectileSource source);
++    public void setShooter(LivingEntity shooter);
+ 
+     /**
+      * Determine if this projectile should bounce or not when it hits.
+diff --git a/src/main/java/org/bukkit/entity/WitherSkull.java b/src/main/java/org/bukkit/entity/WitherSkull.java
+index 33d20ab..8c71a9b 100644
+--- a/src/main/java/org/bukkit/entity/WitherSkull.java
++++ b/src/main/java/org/bukkit/entity/WitherSkull.java
+@@ -1,21 +1,8 @@
+ package org.bukkit.entity;
+ 
+ /**
+- * Represents a wither skull {@link Fireball}.
++ * Represents a wither skull {@link Fireball}
+  */
+ public interface WitherSkull extends Fireball {
+ 
+-    /**
+-     * Sets the charged status of the wither skull.
+-     *
+-     * @param charged whether it should be charged
+-     */
+-    public void setCharged(boolean charged);
+-
+-    /**
+-     * Gets whether or not the wither skull is charged.
+-     *
+-     * @return whether the wither skull is charged
+-     */
+-    public boolean isCharged();
  }
 diff --git a/src/main/java/org/bukkit/event/entity/CreatureSpawnEvent.java b/src/main/java/org/bukkit/event/entity/CreatureSpawnEvent.java
 index 3055ea7..6bde0fe 100644
@@ -1441,6 +1629,59 @@ index a906f8d..4c171e8 100644
          }
      }
  
+diff --git a/src/main/java/org/bukkit/projectiles/BlockProjectileSource.java b/src/main/java/org/bukkit/projectiles/BlockProjectileSource.java
+deleted file mode 100644
+index e713c0d..0000000
+--- a/src/main/java/org/bukkit/projectiles/BlockProjectileSource.java
++++ /dev/null
+@@ -1,13 +0,0 @@
+-package org.bukkit.projectiles;
+-
+-import org.bukkit.block.Block;
+-
+-public interface BlockProjectileSource extends ProjectileSource {
+-
+-    /**
+-     * Gets the block this projectile source belongs to.
+-     *
+-     * @return Block for the projectile source
+-     */
+-    public Block getBlock();
+-}
+diff --git a/src/main/java/org/bukkit/projectiles/ProjectileSource.java b/src/main/java/org/bukkit/projectiles/ProjectileSource.java
+deleted file mode 100644
+index afad8d7..0000000
+--- a/src/main/java/org/bukkit/projectiles/ProjectileSource.java
++++ /dev/null
+@@ -1,28 +0,0 @@
+-package org.bukkit.projectiles;
+-
+-import org.bukkit.entity.Projectile;
+-import org.bukkit.util.Vector;
+-
+-/**
+- * Represents a valid source of a projectile.
+- */
+-public interface ProjectileSource {
+-
+-    /**
+-     * Launches a {@link Projectile} from the ProjectileSource.
+-     *
+-     * @param projectile class of the projectile to launch
+-     * @return the launched projectile
+-     */
+-    public <T extends Projectile> T launchProjectile(Class<? extends T> projectile);
+-
+-    /**
+-     * Launches a {@link Projectile} from the ProjectileSource with an
+-     * initial velocity.
+-     *
+-     * @param projectile class of the projectile to launch
+-     * @param velocity the velocity with which to launch
+-     * @return the launched projectile
+-     */
+-    public <T extends Projectile> T launchProjectile(Class<? extends T> projectile, Vector velocity);
+-}
 diff --git a/src/main/java/org/spigotmc/CustomTimingsHandler.java b/src/main/java/org/spigotmc/CustomTimingsHandler.java
 new file mode 100644
 index 0000000..9fca481
@@ -1725,6 +1966,18 @@ index 0000000..16aa2a7
 +        return handlers;
 +    }
 +}
+diff --git a/src/main/javadoc/org/bukkit/projectiles/package-info.java b/src/main/javadoc/org/bukkit/projectiles/package-info.java
+deleted file mode 100644
+index 0e39662..0000000
+--- a/src/main/javadoc/org/bukkit/projectiles/package-info.java
++++ /dev/null
+@@ -1,6 +0,0 @@
+-/**
+- * Classes to represent the source of a projectile
+- * <p>
+- */
+-package org.bukkit.projectiles;
+-
 diff --git a/src/test/java/org/bukkit/EffectTest.java b/src/test/java/org/bukkit/EffectTest.java
 index 08aa71d..5217aec 100644
 --- a/src/test/java/org/bukkit/EffectTest.java
