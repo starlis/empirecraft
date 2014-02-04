@@ -17,7 +17,6 @@ function update {
     git fetch spigot
 
     git reset --hard spigot/master
-    echo "revert" | git revert 87a9532d949e9d1cb268515615793ad8b38dbecc
 
     #git fetch origin
     #git reset --hard origin/spigot
