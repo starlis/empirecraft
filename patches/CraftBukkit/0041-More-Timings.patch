@@ -1,4 +1,4 @@
-From 840d1969db66264af7c1e9796a36453b961560fb Mon Sep 17 00:00:00 2001
+From 65366bb512453e54c9bf9077e09623b870710260 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Sat, 11 Jan 2014 21:44:10 -0500
 Subject: [PATCH] More Timings
@@ -7,10 +7,10 @@ Subject: [PATCH] More Timings
  .../java/net/minecraft/server/DedicatedServer.java |   3 +
  .../java/net/minecraft/server/EntityLiving.java    |  11 ++
  .../java/net/minecraft/server/MinecraftServer.java |  14 ++-
- .../java/org/bukkit/craftbukkit/SpigotTimings.java |  54 ++++++---
+ .../java/org/bukkit/craftbukkit/SpigotTimings.java |  56 ++++++---
  .../craftbukkit/scheduler/CraftScheduler.java      | 131 +++++++++++----------
- .../bukkit/craftbukkit/scheduler/CraftTask.java    |  38 +++---
- 6 files changed, 155 insertions(+), 96 deletions(-)
+ .../bukkit/craftbukkit/scheduler/CraftTask.java    |  36 +++---
+ 6 files changed, 154 insertions(+), 97 deletions(-)
 
 diff --git a/src/main/java/net/minecraft/server/DedicatedServer.java b/src/main/java/net/minecraft/server/DedicatedServer.java
 index 8ec6474..29b8e03 100755
@@ -190,7 +190,7 @@ index e9cf1df..b2c1b10 100644
  
      public abstract boolean V();
 diff --git a/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java b/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java
-index 541dfe4..99681c0 100644
+index 541dfe4..85cc16a 100644
 --- a/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java
 +++ b/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java
 @@ -16,6 +16,9 @@ public class SpigotTimings {
@@ -221,6 +221,9 @@ index 541dfe4..99681c0 100644
      public static CustomTimingsHandler getPluginTaskTimings(BukkitTask task, long period) {
 -        String plugin = task.getOwner().getDescription().getFullName();
 -        String name = "Task: " + plugin + " Runnable: " + ( (CraftTask) task ).getTaskClass().getSimpleName();
++        if (!task.isSync()) {
++            return null;
++        }
 +        String plugin;
 +        final CraftTask ctask = (CraftTask) task;
 +        if (ctask.timingName != null) {
@@ -230,15 +233,21 @@ index 541dfe4..99681c0 100644
 +        } else {
 +            plugin = "Unknown";
 +        }
-+        String taskname = (ctask.getTaskClass() != null ? ctask.getTaskClass().getSimpleName() : "Unknown");
-+        if (!task.isSync()) {
-+            taskname = "[ASYNC] " + taskname;
-+        }
++        String taskname = (ctask.getTaskClass() != null ? ctask.getTaskClass().getName() : "Unknown");
 +
 +        String name = "Task: " + plugin + " Runnable: " + taskname;
          if (period > 0) {
              name += "(interval:" + period +")";
          } else {
+@@ -53,7 +74,7 @@ public class SpigotTimings {
+         }
+         CustomTimingsHandler result = pluginTaskTimingMap.get(name);
+         if (result == null) {
+-            result = new CustomTimingsHandler(name);
++            result = new CustomTimingsHandler(name, SpigotTimings.schedulerSyncTimer);
+             pluginTaskTimingMap.put(name, result);
+         }
+         return result;
 @@ -106,23 +127,28 @@ public class SpigotTimings {
          public final CustomTimingsHandler tileEntityTick;
          public final CustomTimingsHandler tileEntityPending;
@@ -281,7 +290,7 @@ index 541dfe4..99681c0 100644
      }
  }
 diff --git a/src/main/java/org/bukkit/craftbukkit/scheduler/CraftScheduler.java b/src/main/java/org/bukkit/craftbukkit/scheduler/CraftScheduler.java
-index a30f217..9a1172c 100644
+index a30f217..f9080ba 100644
 --- a/src/main/java/org/bukkit/craftbukkit/scheduler/CraftScheduler.java
 +++ b/src/main/java/org/bukkit/craftbukkit/scheduler/CraftScheduler.java
 @@ -15,6 +15,7 @@ import java.util.concurrent.atomic.AtomicReference;
@@ -440,9 +449,9 @@ index a30f217..9a1172c 100644
              }
              if (task.isSync()) {
                  try {
-+                    SpigotTimings.schedulerSyncTimer.startTiming(); // Spigot
++                    task.timings.startTiming(); // Spigot
                      task.run();
-+                    SpigotTimings.schedulerSyncTimer.stopTiming(); // Spigot
++                    task.timings.stopTiming(); // Spigot
                  } catch (final Throwable throwable) {
                      task.getOwner().getLogger().log(
 -                            Level.WARNING,
@@ -490,7 +499,7 @@ index a30f217..9a1172c 100644
  
      private boolean isReady(final int currentTick) {
 diff --git a/src/main/java/org/bukkit/craftbukkit/scheduler/CraftTask.java b/src/main/java/org/bukkit/craftbukkit/scheduler/CraftTask.java
-index 7d294c0..cdc4db9 100644
+index 7d294c0..c16b546 100644
 --- a/src/main/java/org/bukkit/craftbukkit/scheduler/CraftTask.java
 +++ b/src/main/java/org/bukkit/craftbukkit/scheduler/CraftTask.java
 @@ -24,7 +24,7 @@ public class CraftTask implements BukkitTask, Runnable { // Spigot
@@ -521,7 +530,7 @@ index 7d294c0..cdc4db9 100644
          this.id = id;
          this.period = period;
 +        this.timingName = timingName;
-+        timings = SpigotTimings.getPluginTaskTimings(this, period);
++        timings = this.isSync() ? SpigotTimings.getPluginTaskTimings(this, period) : null;
 +    }
 +
 +    CraftTask(final Plugin plugin, final Runnable task, final int id, final long period) {
@@ -530,7 +539,7 @@ index 7d294c0..cdc4db9 100644
      }
  
      public final int getTaskId() {
-@@ -53,22 +68,9 @@ public class CraftTask implements BukkitTask, Runnable { // Spigot
+@@ -53,22 +68,7 @@ public class CraftTask implements BukkitTask, Runnable { // Spigot
      }
  
      public void run() {
@@ -545,17 +554,15 @@ index 7d294c0..cdc4db9 100644
 -        if (timings != null) {
 -            timings.startTiming();
 -        }
-+        timings.startTiming(); // Spigot
          task.run();
 -        if (timings != null) {
 -            timings.stopTiming();
 -        }
 -        // Spigot end
-+        timings.stopTiming(); // Spigot
      }
  
      long getPeriod() {
-@@ -96,7 +98,7 @@ public class CraftTask implements BukkitTask, Runnable { // Spigot
+@@ -96,7 +96,7 @@ public class CraftTask implements BukkitTask, Runnable { // Spigot
      }
  
      public Class<? extends Runnable> getTaskClass() { // Spigot
