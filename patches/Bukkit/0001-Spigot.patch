@@ -1,6 +1,6 @@
-From af243cccd8a7b32f700e66758c91b8196341779b Mon Sep 17 00:00:00 2001
+From 7f4e7a955ca3cab827e15f5234f248cb3616f07f Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Mon, 3 Feb 2014 19:43:14 -0500
+Date: Thu, 13 Feb 2014 22:24:29 -0500
 Subject: [PATCH] Spigot
 
 ---
@@ -8,7 +8,6 @@ Subject: [PATCH] Spigot
  pom.xml                                            |  52 ++----
  src/main/java/org/bukkit/Effect.java               | 201 ++++++++++++++++++++-
  src/main/java/org/bukkit/World.java                |  50 +++++
- .../java/org/bukkit/command/SimpleCommandMap.java  |  14 ++
  .../bukkit/command/defaults/PluginsCommand.java    |   8 +
  .../org/bukkit/command/defaults/ReloadCommand.java |   9 +
  .../org/bukkit/command/defaults/TellCommand.java   |  12 ++
@@ -19,8 +18,8 @@ Subject: [PATCH] Spigot
  .../bukkit/conversations/ConversationContext.java  |   8 +
  src/main/java/org/bukkit/entity/Arrow.java         |  16 ++
  src/main/java/org/bukkit/entity/Entity.java        |  18 ++
- src/main/java/org/bukkit/entity/Player.java        |  63 +++++++
- .../bukkit/event/entity/CreatureSpawnEvent.java    |  40 +---
+ src/main/java/org/bukkit/entity/Player.java        |  73 ++++++++
+ .../bukkit/event/entity/CreatureSpawnEvent.java    |  32 +---
  .../org/bukkit/event/entity/EntitySpawnEvent.java  |  45 +++++
  .../org/bukkit/event/entity/ItemSpawnEvent.java    |  40 +---
  .../org/bukkit/event/entity/SpawnerSpawnEvent.java |  22 +++
@@ -36,7 +35,7 @@ Subject: [PATCH] Spigot
  .../spigotmc/event/entity/EntityMountEvent.java    |  52 ++++++
  src/test/java/org/bukkit/EffectTest.java           |   6 +-
  .../bukkit/plugin/TimedRegisteredListenerTest.java |   1 -
- 32 files changed, 1005 insertions(+), 139 deletions(-)
+ 31 files changed, 1001 insertions(+), 131 deletions(-)
  create mode 100644 src/main/java/org/bukkit/event/entity/EntitySpawnEvent.java
  create mode 100644 src/main/java/org/bukkit/event/entity/SpawnerSpawnEvent.java
  create mode 100644 src/main/java/org/bukkit/event/player/PlayerItemDamageEvent.java
@@ -65,7 +64,7 @@ index a51766e..1905b8d 100644
  Compilation
  -----------
 diff --git a/pom.xml b/pom.xml
-index 6c07c03..f6ee82d 100644
+index 50f9bae..5187a99 100644
 --- a/pom.xml
 +++ b/pom.xml
 @@ -1,43 +1,23 @@
@@ -83,7 +82,7 @@ index 6c07c03..f6ee82d 100644
 +
 +    <groupId>org.spigotmc</groupId>
 +    <artifactId>spigot-api</artifactId>
-     <version>1.7.2-R0.3-SNAPSHOT</version>
+     <version>1.7.2-R0.4-SNAPSHOT</version>
 -    <name>Bukkit</name>
 -    <url>http://www.bukkit.org</url>
 +    <name>Spigot-API</name>
@@ -480,29 +479,6 @@ index f02bfb7..a58eb05 100644
      /**
       * Represents various map environment types that a world may be
       */
-diff --git a/src/main/java/org/bukkit/command/SimpleCommandMap.java b/src/main/java/org/bukkit/command/SimpleCommandMap.java
-index 9ae0bce..53c9207 100644
---- a/src/main/java/org/bukkit/command/SimpleCommandMap.java
-+++ b/src/main/java/org/bukkit/command/SimpleCommandMap.java
-@@ -333,4 +333,18 @@ public class SimpleCommandMap implements CommandMap {
-             }
-         }
-     }
-+
-+    // Spigot Start
-+    public static void removeFallback(String name)
-+    {
-+        Iterator<VanillaCommand> it = fallbackCommands.iterator();
-+        while ( it.hasNext() )
-+        {
-+            if ( it.next().getName().equals( name ) )
-+            {
-+                it.remove();
-+            }
-+        }
-+    }
-+    // Spigot End
- }
 diff --git a/src/main/java/org/bukkit/command/defaults/PluginsCommand.java b/src/main/java/org/bukkit/command/defaults/PluginsCommand.java
 index b888da1..e21d167 100644
 --- a/src/main/java/org/bukkit/command/defaults/PluginsCommand.java
@@ -544,12 +520,12 @@ index fb3c90f..16dfdbd 100644
 +    // Spigot End
  }
 diff --git a/src/main/java/org/bukkit/command/defaults/TellCommand.java b/src/main/java/org/bukkit/command/defaults/TellCommand.java
-index d0aa102..0c2c9a1 100644
+index 287f49f..fc49207 100644
 --- a/src/main/java/org/bukkit/command/defaults/TellCommand.java
 +++ b/src/main/java/org/bukkit/command/defaults/TellCommand.java
-@@ -48,4 +48,16 @@ public class TellCommand extends VanillaCommand {
-     public boolean matches(String input) {
-         return input.equalsIgnoreCase("tell") || input.equalsIgnoreCase("w") || input.equalsIgnoreCase("msg");
+@@ -45,4 +45,16 @@ public class TellCommand extends VanillaCommand {
+ 
+         return true;
      }
 +
 +    // Spigot Start
@@ -586,7 +562,7 @@ index c9ac1ce..a687fef 100644
 +    // Spigot End
  }
 diff --git a/src/main/java/org/bukkit/command/defaults/TimingsCommand.java b/src/main/java/org/bukkit/command/defaults/TimingsCommand.java
-index 05cfcb0..e2fdf22 100644
+index 05cfcb0..69d629c 100644
 --- a/src/main/java/org/bukkit/command/defaults/TimingsCommand.java
 +++ b/src/main/java/org/bukkit/command/defaults/TimingsCommand.java
 @@ -19,30 +19,61 @@ import org.bukkit.util.StringUtil;
@@ -636,8 +612,8 @@ index 05cfcb0..e2fdf22 100644
 +            sender.sendMessage( ChatColor.RED + "Please see http://www.spigotmc.org/wiki/disabled-timings-on-command/ for further information." );
 +        } else if ( "off".equals( args[0] ) )
 +        {
-+            ( (org.bukkit.plugin.SimplePluginManager) Bukkit.getPluginManager() ).useTimings( false );
-+            sender.sendMessage( "Disabled Timings" );
++            sender.sendMessage( ChatColor.RED + "This command is disabled as it does not produce accurate results. Please disable plugin-profiling in bukkit.yml and restart." );
++            sender.sendMessage( ChatColor.RED + "Please see http://www.spigotmc.org/wiki/disabled-timings-on-command/ for further information." );
          }
 +        // Spigot end
  
@@ -880,10 +856,10 @@ index 396ea20..294e80b 100644
 +    // Spigot End
  }
 diff --git a/src/main/java/org/bukkit/entity/Player.java b/src/main/java/org/bukkit/entity/Player.java
-index 3c096f5..8489bc9 100644
+index 44c9b5a..6237663 100644
 --- a/src/main/java/org/bukkit/entity/Player.java
 +++ b/src/main/java/org/bukkit/entity/Player.java
-@@ -1018,4 +1018,67 @@ public interface Player extends HumanEntity, Conversable, CommandSender, Offline
+@@ -1018,4 +1018,77 @@ public interface Player extends HumanEntity, Conversable, CommandSender, Offline
       * @see Player#setHealthScaled(boolean)
       */
      public double getHealthScale();
@@ -946,13 +922,23 @@ index 3c096f5..8489bc9 100644
 +        {
 +            throw new UnsupportedOperationException( "Not supported yet." );
 +        }
++
++        /**
++         * Gets all players hidden with {@link hidePlayer(org.bukkit.entity.Player)}.
++         *
++         * @return a Set with all hidden players
++         */
++        public java.util.Set<Player> getHiddenPlayers()
++        {
++            throw new UnsupportedOperationException( "Not supported yet." );
++        }
 +    }
 +
 +    Spigot spigot();
 +    // Spigot end
  }
 diff --git a/src/main/java/org/bukkit/event/entity/CreatureSpawnEvent.java b/src/main/java/org/bukkit/event/entity/CreatureSpawnEvent.java
-index 46b8262..6bde0fe 100644
+index 46b8262..182f634 100644
 --- a/src/main/java/org/bukkit/event/entity/CreatureSpawnEvent.java
 +++ b/src/main/java/org/bukkit/event/entity/CreatureSpawnEvent.java
 @@ -4,17 +4,13 @@ import org.bukkit.Location;
@@ -1020,21 +1006,6 @@ index 46b8262..6bde0fe 100644
      /**
       * An enum to specify the type of spawning
       */
-@@ -155,14 +125,6 @@ public class CreatureSpawnEvent extends EntityEvent implements Cancellable {
-          */
-         REINFORCEMENTS,
-         /**
--         * When a creature is spawned by nether portal
--         */
--        NETHER_PORTAL,
--        /**
--         * When a creature is spawned by a dispenser dispensing an egg
--         */
--        DISPENSE_EGG,
--        /**
-          * When a creature is spawned by plugins
-          */
-         CUSTOM,
 diff --git a/src/main/java/org/bukkit/event/entity/EntitySpawnEvent.java b/src/main/java/org/bukkit/event/entity/EntitySpawnEvent.java
 new file mode 100644
 index 0000000..5dcf98f
@@ -1344,10 +1315,10 @@ index b74b7b8..8fb1c98 100644
       * Gets the current result of the login, as an enum
       *
 diff --git a/src/main/java/org/bukkit/plugin/SimplePluginManager.java b/src/main/java/org/bukkit/plugin/SimplePluginManager.java
-index 3c9611b..2c4b03b 100644
+index 787dcfe..b870ecd 100644
 --- a/src/main/java/org/bukkit/plugin/SimplePluginManager.java
 +++ b/src/main/java/org/bukkit/plugin/SimplePluginManager.java
-@@ -275,6 +275,7 @@ public final class SimplePluginManager implements PluginManager {
+@@ -280,6 +280,7 @@ public final class SimplePluginManager implements PluginManager {
              }
          }
  

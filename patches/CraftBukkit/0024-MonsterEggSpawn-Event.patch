@@ -1,4 +1,4 @@
-From 6cf2d2dfd1f2790974ad3047c8c705ea4d501056 Mon Sep 17 00:00:00 2001
+From 2402bae7249d92f8424b6a66a9ccb69430ef3ee0 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Sat, 20 Jul 2013 22:40:56 -0400
 Subject: [PATCH] MonsterEggSpawn Event
@@ -6,8 +6,8 @@ Subject: [PATCH] MonsterEggSpawn Event
 Get the itemstack used to spawn an entity
 ---
  .../customevents/MonsterEggSpawnEvent.java         | 63 ++++++++++++++++++++++
- .../java/net/minecraft/server/ItemMonsterEgg.java  | 32 +++++++++--
- 2 files changed, 92 insertions(+), 3 deletions(-)
+ .../java/net/minecraft/server/ItemMonsterEgg.java  | 38 +++++++++++--
+ 2 files changed, 97 insertions(+), 4 deletions(-)
  create mode 100644 src/main/java/com/empireminecraft/customevents/MonsterEggSpawnEvent.java
 
 diff --git a/src/main/java/com/empireminecraft/customevents/MonsterEggSpawnEvent.java b/src/main/java/com/empireminecraft/customevents/MonsterEggSpawnEvent.java
@@ -80,7 +80,7 @@ index 0000000..013c381
 +
 +}
 diff --git a/src/main/java/net/minecraft/server/ItemMonsterEgg.java b/src/main/java/net/minecraft/server/ItemMonsterEgg.java
-index 34c21ef..742e2da 100644
+index a41184e..68afe5f 100644
 --- a/src/main/java/net/minecraft/server/ItemMonsterEgg.java
 +++ b/src/main/java/net/minecraft/server/ItemMonsterEgg.java
 @@ -1,4 +1,9 @@
@@ -98,7 +98,7 @@ index 34c21ef..742e2da 100644
              }
  
 -            Entity entity = a(world, itemstack.getData(), (double) i + 0.5D, (double) j + d0, (double) k + 0.5D);
-+            Entity entity = a(world, entityhuman, itemstack, itemstack.getData(), (double) i + 0.5D, (double) j + d0, (double) k + 0.5D); // EMC
++            Entity entity = spawnCreature(world, entityhuman, itemstack, itemstack.getData(), (double) i + 0.5D, (double) j + d0, (double) k + 0.5D); // EMC
  
              if (entity != null) {
                  if (entity instanceof EntityLiving && itemstack.hasName()) {
@@ -107,30 +107,35 @@ index 34c21ef..742e2da 100644
  
                      if (world.getType(i, j, k) instanceof BlockFluids) {
 -                        Entity entity = a(world, itemstack.getData(), (double) i, (double) j, (double) k);
-+                        Entity entity = a(world, entityhuman, itemstack, itemstack.getData(), (double) i, (double) j, (double) k); // EMC
++                        Entity entity = spawnCreature(world, entityhuman, itemstack, itemstack.getData(), (double) i, (double) j, (double) k); // EMC
  
                          if (entity != null) {
                              if (entity instanceof EntityLiving && itemstack.hasName()) {
-@@ -91,7 +96,12 @@ public class ItemMonsterEgg extends Item {
-         }
+@@ -96,7 +101,15 @@ public class ItemMonsterEgg extends Item {
+         return spawnCreature(world, i, d0, d1, d2, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.SPAWNER_EGG);
      }
  
-+    // EMC start -- add itemstack parameter
-     public static Entity a(World world, int i, double d0, double d1, double d2) {
-+        return a(world, null, null, i, d0, d1, d2);
+-    public static Entity spawnCreature(World world, int i, double d0, double d1, double d2, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason spawnReason) {
++    // EMC start
++    public static Entity spawnCreature(World world, int i, double d0, double d1, double d2, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason spawnReason) { // EMC
++        return spawnCreature(world, null, null, i, d0, d1, d2, spawnReason);
 +    }
-+    public static Entity a(World world, EntityHuman player, ItemStack item, int i, double d0, double d1, double d2) {
++    public static Entity spawnCreature(World world, EntityHuman player, ItemStack item, int i, double d0, double d1, double d2) {
++        return spawnCreature(world, player, item, i, d0, d1, d2, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.SPAWNER_EGG);
++    }
++    public static Entity spawnCreature(World world, EntityHuman player, ItemStack item, int i, double d0, double d1, double d2, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason spawnReason) {
 +    // EMC end
+         // CraftBukkit end
          if (!EntityTypes.a.containsKey(Integer.valueOf(i))) {
              return null;
-         } else {
-@@ -106,7 +116,23 @@ public class ItemMonsterEgg extends Item {
+@@ -112,7 +125,24 @@ public class ItemMonsterEgg extends Item {
                      entityinsentient.aP = entityinsentient.yaw;
                      entityinsentient.aN = entityinsentient.yaw;
                      entityinsentient.a((GroupDataEntity) null);
--                    world.addEntity(entity, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.SPAWNER_EGG); // CraftBukkit
+-                    world.addEntity(entity, spawnReason); // CraftBukkit
++
 +                    // EMC start - if false the spawn was cancelled, add new event
-+                    if (!world.addEntity(entity, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.SPAWNER_EGG)) { // CraftBukkit
++                    if (!world.addEntity(entity, spawnReason)) { // CraftBukkit
 +                        return null;
 +                    }
 +                    if (item != null) {
