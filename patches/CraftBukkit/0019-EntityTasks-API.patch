@@ -1,4 +1,4 @@
-From e74ec1b48706969d3b959309329e641fd14796b6 Mon Sep 17 00:00:00 2001
+From be4ac81814227611f8f51d7c227ec45306c8fc2d Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Tue, 11 Jun 2013 23:15:00 -0400
 Subject: [PATCH] EntityTasks API
@@ -6,21 +6,21 @@ Subject: [PATCH] EntityTasks API
 Allows scheduling repeating task timers on an entity level.
 Avoids Bukkit system so that tasks will simply maintain themselves on entity removal.
 ---
- .../empireminecraft/entityai/EntityTasksApi.java   | 28 +++++++++++++
+ .../empireminecraft/entityai/EntityTasksApi.java   | 36 +++++++++++++++
  src/main/java/net/minecraft/server/Entity.java     |  1 +
- .../net/minecraft/server/EntityTasksHandler.java   | 46 ++++++++++++++++++++++
+ .../net/minecraft/server/EntityTasksHandler.java   | 53 ++++++++++++++++++++++
  src/main/java/net/minecraft/server/World.java      |  1 +
  .../java/org/bukkit/craftbukkit/CraftServer.java   |  1 +
- 5 files changed, 77 insertions(+)
+ 5 files changed, 92 insertions(+)
  create mode 100644 src/main/java/com/empireminecraft/entityai/EntityTasksApi.java
  create mode 100644 src/main/java/net/minecraft/server/EntityTasksHandler.java
 
 diff --git a/src/main/java/com/empireminecraft/entityai/EntityTasksApi.java b/src/main/java/com/empireminecraft/entityai/EntityTasksApi.java
 new file mode 100644
-index 0000000..c9c7950
+index 0000000..d0f2ae8
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/entityai/EntityTasksApi.java
-@@ -0,0 +1,28 @@
+@@ -0,0 +1,36 @@
 +package com.empireminecraft.entityai;
 +
 +import net.minecraft.server.EntityTasksHandler;
@@ -46,6 +46,14 @@ index 0000000..c9c7950
 +    }
 +
 +    public abstract static class EntityTask {
++        public int limit = -1;
++        public int count = 0;
++
++        public EntityTask() {}
++        public EntityTask(int limit) {
++            this.limit = limit;
++        }
++
 +        public abstract void run(Entity entity);
 +    }
 +}
@@ -63,10 +71,10 @@ index fbe58bb..7054a4b 100644
          return tag.hasKey("Bukkit.updateLevel") && tag.getInt("Bukkit.updateLevel") >= level;
 diff --git a/src/main/java/net/minecraft/server/EntityTasksHandler.java b/src/main/java/net/minecraft/server/EntityTasksHandler.java
 new file mode 100644
-index 0000000..168db6d
+index 0000000..b16e1b7
 --- /dev/null
 +++ b/src/main/java/net/minecraft/server/EntityTasksHandler.java
-@@ -0,0 +1,46 @@
+@@ -0,0 +1,53 @@
 +package net.minecraft.server;
 +
 +import com.empireminecraft.entityai.EntityTasksApi;
@@ -76,6 +84,7 @@ index 0000000..168db6d
 +import org.spigotmc.CustomTimingsHandler;
 +
 +import java.util.HashMap;
++import java.util.Iterator;
 +import java.util.List;
 +
 +import static com.empireminecraft.entityai.EntityTasksApi.EntityTask;
@@ -94,8 +103,14 @@ index 0000000..168db6d
 +            if (entityKey % runEvery != 0 || entry.getValue().isEmpty()) {
 +                continue;
 +            }
-+            for (EntityTask runnable : entry.getValue()) {
-+                runnable.run(entity.getBukkitEntity());
++            final Iterator<EntityTask> it = entry.getValue().iterator();
++            while (it.hasNext()) {
++                EntityTask task = it.next();
++                if (task.limit > 0 && task.count++ > task.limit) {
++                    it.remove();
++                    break;
++                }
++                task.run(entity.getBukkitEntity());
 +            }
 +        }
 +        entityTasksTimer.stopTiming();

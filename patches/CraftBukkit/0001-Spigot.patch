@@ -1,6 +1,6 @@
-From 6cfbfb0804423355a161894606373bcf7c2c198e Mon Sep 17 00:00:00 2001
+From 133ef89d7664fae586178931eb95d614a91c26f8 Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Thu, 13 Feb 2014 22:24:42 -0500
+Date: Thu, 13 Feb 2014 23:20:17 -0500
 Subject: [PATCH] Spigot
 
 ---
@@ -32,6 +32,7 @@ Subject: [PATCH] Spigot
  .../minecraft/server/DispenseBehaviorBonemeal.java |   2 +-
  src/main/java/net/minecraft/server/Entity.java     |  38 +-
  .../java/net/minecraft/server/EntityAgeable.java   |  25 +
+ .../java/net/minecraft/server/EntityAnimal.java    | 271 +++++++++
  .../java/net/minecraft/server/EntityArrow.java     |   4 +-
  .../net/minecraft/server/EntityFallingBlock.java   |   2 +
  .../java/net/minecraft/server/EntityFireball.java  |   9 +
@@ -120,7 +121,7 @@ Subject: [PATCH] Spigot
  src/main/java/org/spigotmc/TrackingRange.java      |  45 ++
  src/main/java/org/spigotmc/WatchdogThread.java     | 117 ++++
  src/main/resources/configurations/bukkit.yml       |   9 +-
- 116 files changed, 6899 insertions(+), 423 deletions(-)
+ 117 files changed, 7170 insertions(+), 423 deletions(-)
  create mode 100644 src/main/java/net/minecraft/server/BiomeDecorator.java
  create mode 100644 src/main/java/net/minecraft/server/BlockAnvil.java
  create mode 100644 src/main/java/net/minecraft/server/BlockBrewingStand.java
@@ -129,6 +130,7 @@ Subject: [PATCH] Spigot
  create mode 100644 src/main/java/net/minecraft/server/CommandDispatcher.java
  create mode 100644 src/main/java/net/minecraft/server/DataWatcher.java
  mode change 100644 => 100755 src/main/java/net/minecraft/server/DedicatedServer.java
+ create mode 100644 src/main/java/net/minecraft/server/EntityAnimal.java
  create mode 100644 src/main/java/net/minecraft/server/NBTBase.java
  create mode 100644 src/main/java/net/minecraft/server/NBTCompressedStreamTools.java
  create mode 100644 src/main/java/net/minecraft/server/NBTTagByteArray.java
@@ -2303,6 +2305,283 @@ index 36ed831..7ddca48 100644
      public EntityAgeable(World world) {
          super(world);
      }
+diff --git a/src/main/java/net/minecraft/server/EntityAnimal.java b/src/main/java/net/minecraft/server/EntityAnimal.java
+new file mode 100644
+index 0000000..23fc06d
+--- /dev/null
++++ b/src/main/java/net/minecraft/server/EntityAnimal.java
+@@ -0,0 +1,271 @@
++package net.minecraft.server;
++
++import java.util.List;
++
++public abstract class EntityAnimal extends EntityAgeable implements IAnimal {
++
++    private int love;
++    private int bq;
++    private EntityHuman br;
++
++    public EntityAnimal(World world) {
++        super(world);
++    }
++
++    protected void bp() {
++        if (this.getAge() != 0) {
++            this.love = 0;
++        }
++
++        super.bp();
++    }
++
++    public void e() {
++        super.e();
++        if (this.getAge() != 0) {
++            this.love = 0;
++        }
++
++        if (this.love > 0) {
++            --this.love;
++            String s = "heart";
++
++            if (this.love % 10 == 0) {
++                double d0 = this.random.nextGaussian() * 0.02D;
++                double d1 = this.random.nextGaussian() * 0.02D;
++                double d2 = this.random.nextGaussian() * 0.02D;
++
++                this.world.addParticle(s, this.locX + (double) (this.random.nextFloat() * this.width * 2.0F) - (double) this.width, this.locY + 0.5D + (double) (this.random.nextFloat() * this.length), this.locZ + (double) (this.random.nextFloat() * this.width * 2.0F) - (double) this.width, d0, d1, d2);
++            }
++        } else {
++            this.bq = 0;
++        }
++    }
++
++    protected void a(Entity entity, float f) {
++        if (entity instanceof EntityHuman) {
++            if (f < 3.0F) {
++                double d0 = entity.locX - this.locX;
++                double d1 = entity.locZ - this.locZ;
++
++                this.yaw = (float) (Math.atan2(d1, d0) * 180.0D / 3.1415927410125732D) - 90.0F;
++                this.bn = true;
++            }
++
++            EntityHuman entityhuman = (EntityHuman) entity;
++
++            if (entityhuman.bD() == null || !this.c(entityhuman.bD())) {
++                this.target = null;
++            }
++        } else if (entity instanceof EntityAnimal) {
++            EntityAnimal entityanimal = (EntityAnimal) entity;
++
++            if (this.getAge() > 0 && entityanimal.getAge() < 0) {
++                if ((double) f < 2.5D) {
++                    this.bn = true;
++                }
++            } else if (this.love > 0 && entityanimal.love > 0) {
++                if (entityanimal.target == null) {
++                    entityanimal.target = this;
++                }
++
++                if (entityanimal.target == this && (double) f < 3.5D) {
++                    ++entityanimal.love;
++                    ++this.love;
++                    ++this.bq;
++                    if (this.bq % 4 == 0) {
++                        this.world.addParticle("heart", this.locX + (double) (this.random.nextFloat() * this.width * 2.0F) - (double) this.width, this.locY + 0.5D + (double) (this.random.nextFloat() * this.length), this.locZ + (double) (this.random.nextFloat() * this.width * 2.0F) - (double) this.width, 0.0D, 0.0D, 0.0D);
++                    }
++
++                    if (this.bq == 60) {
++                        this.b((EntityAnimal) entity);
++                    }
++                } else {
++                    this.bq = 0;
++                }
++            } else {
++                this.bq = 0;
++                this.target = null;
++            }
++        }
++    }
++
++    private void b(EntityAnimal entityanimal) {
++        EntityAgeable entityageable = this.createChild(entityanimal);
++
++        if (entityageable != null) {
++            if (this.br == null && entityanimal.cb() != null) {
++                this.br = entityanimal.cb();
++            }
++
++            if (this.br != null) {
++                this.br.a(StatisticList.x);
++                if (this instanceof EntityCow) {
++                    this.br.a((Statistic) AchievementList.H);
++                }
++            }
++
++            this.setAge(6000);
++            entityanimal.setAge(6000);
++            this.love = 0;
++            this.bq = 0;
++            this.target = null;
++            entityanimal.target = null;
++            entityanimal.bq = 0;
++            entityanimal.love = 0;
++            entityageable.setAge(-24000);
++            entityageable.setPositionRotation(this.locX, this.locY, this.locZ, this.yaw, this.pitch);
++
++            for (int i = 0; i < 7; ++i) {
++                double d0 = this.random.nextGaussian() * 0.02D;
++                double d1 = this.random.nextGaussian() * 0.02D;
++                double d2 = this.random.nextGaussian() * 0.02D;
++
++                this.world.addParticle("heart", this.locX + (double) (this.random.nextFloat() * this.width * 2.0F) - (double) this.width, this.locY + 0.5D + (double) (this.random.nextFloat() * this.length), this.locZ + (double) (this.random.nextFloat() * this.width * 2.0F) - (double) this.width, d0, d1, d2);
++            }
++
++            this.world.addEntity(entityageable);
++        }
++    }
++
++    public boolean damageEntity(DamageSource damagesource, float f) {
++        if (this.isInvulnerable()) {
++            return false;
++        } else {
++            this.bo = 60;
++            if (!this.bk()) {
++                AttributeInstance attributeinstance = this.getAttributeInstance(GenericAttributes.d);
++
++                if (attributeinstance.a(h) == null) {
++                    attributeinstance.a(i);
++                }
++            }
++
++            this.target = null;
++            this.love = 0;
++            return super.damageEntity(damagesource, f);
++        }
++    }
++
++    public float a(int i, int j, int k) {
++        return this.world.getType(i, j - 1, k) == Blocks.GRASS ? 10.0F : this.world.n(i, j, k) - 0.5F;
++    }
++
++    public void b(NBTTagCompound nbttagcompound) {
++        super.b(nbttagcompound);
++        nbttagcompound.setInt("InLove", this.love);
++    }
++
++    public void a(NBTTagCompound nbttagcompound) {
++        super.a(nbttagcompound);
++        this.love = nbttagcompound.getInt("InLove");
++    }
++
++    protected Entity findTarget() {
++        if (this.bo > 0) {
++            return null;
++        } else {
++            float f = 8.0F;
++            List list;
++            int i;
++            EntityAnimal entityanimal;
++
++            if (this.love > 0) {
++                list = this.world.a(this.getClass(), this.boundingBox.grow((double) f, (double) f, (double) f));
++
++                for (i = 0; i < list.size(); ++i) {
++                    entityanimal = (EntityAnimal) list.get(i);
++                    if (entityanimal != this && entityanimal.love > 0) {
++                        return entityanimal;
++                    }
++                }
++            } else if (this.getAge() == 0) {
++                list = this.world.a(EntityHuman.class, this.boundingBox.grow((double) f, (double) f, (double) f));
++
++                for (i = 0; i < list.size(); ++i) {
++                    EntityHuman entityhuman = (EntityHuman) list.get(i);
++
++                    if (entityhuman.bD() != null && this.c(entityhuman.bD())) {
++                        return entityhuman;
++                    }
++                }
++            } else if (this.getAge() > 0) {
++                list = this.world.a(this.getClass(), this.boundingBox.grow((double) f, (double) f, (double) f));
++
++                for (i = 0; i < list.size(); ++i) {
++                    entityanimal = (EntityAnimal) list.get(i);
++                    if (entityanimal != this && entityanimal.getAge() < 0) {
++                        return entityanimal;
++                    }
++                }
++            }
++
++            return null;
++        }
++    }
++
++    public boolean canSpawn() {
++        int i = MathHelper.floor(this.locX);
++        int j = MathHelper.floor(this.boundingBox.b);
++        int k = MathHelper.floor(this.locZ);
++
++        return this.world.getType(i, j - 1, k) == Blocks.GRASS && this.world.j(i, j, k) > 8 && super.canSpawn();
++    }
++
++    public int q() {
++        return 120;
++    }
++
++    protected boolean isTypeNotPersistent() {
++        return false;
++    }
++
++    protected int getExpValue(EntityHuman entityhuman) {
++        return 1 + this.world.random.nextInt(3);
++    }
++
++    public boolean c(ItemStack itemstack) {
++        return itemstack.getItem() == Items.WHEAT;
++    }
++
++    public boolean a(EntityHuman entityhuman) {
++        ItemStack itemstack = entityhuman.inventory.getItemInHand();
++
++        if (itemstack != null && this.c(itemstack) && this.getAge() == 0 && this.love <= 0) {
++            if (!entityhuman.abilities.canInstantlyBuild) {
++                --itemstack.count;
++                if (itemstack.count <= 0) {
++                    entityhuman.inventory.setItem(entityhuman.inventory.itemInHandIndex, (ItemStack) null);
++                }
++            }
++
++            this.f(entityhuman);
++            return true;
++        } else {
++            return super.a(entityhuman);
++        }
++    }
++
++    public void f(EntityHuman entityhuman) {
++        this.love = 600;
++        this.br = entityhuman;
++        this.target = null;
++        this.world.broadcastEntityEffect(this, (byte) 18);
++    }
++
++    public EntityHuman cb() {
++        return this.br;
++    }
++
++    public boolean cc() {
++        return this.love > 0;
++    }
++
++    public void cd() {
++        this.love = 0;
++    }
++
++    public boolean mate(EntityAnimal entityanimal) {
++        return entityanimal == this ? false : (entityanimal.getClass() != this.getClass() ? false : this.cc() && entityanimal.cc());
++    }
++}
 diff --git a/src/main/java/net/minecraft/server/EntityArrow.java b/src/main/java/net/minecraft/server/EntityArrow.java
 index 5887ee8..7c9780a 100644
 --- a/src/main/java/net/minecraft/server/EntityArrow.java

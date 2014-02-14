@@ -33,6 +33,7 @@ import NBTCompressedStreamTools
 import ServerStatisticManager
 import RemoteControlListener
 import NBTTagList
+import EntityAnimal
 
 cd $basedir
 git add mc-dev-master --all
