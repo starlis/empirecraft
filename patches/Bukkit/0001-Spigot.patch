@@ -1,6 +1,6 @@
-From 7f4e7a955ca3cab827e15f5234f248cb3616f07f Mon Sep 17 00:00:00 2001
+From 1b56b6c668373de0308e517dd7fb190e47ea5380 Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Thu, 13 Feb 2014 22:24:29 -0500
+Date: Mon, 17 Feb 2014 15:51:54 -0500
 Subject: [PATCH] Spigot
 
 ---
@@ -26,16 +26,17 @@ Subject: [PATCH] Spigot
  .../event/inventory/InventoryClickEvent.java       |  16 ++
  .../bukkit/event/player/PlayerItemDamageEvent.java |  54 ++++++
  .../org/bukkit/event/player/PlayerLoginEvent.java  |  27 ++-
- .../org/bukkit/plugin/SimplePluginManager.java     |   1 +
+ .../org/bukkit/plugin/PluginDescriptionFile.java   |  81 +++++----
+ .../org/bukkit/plugin/SimplePluginManager.java     |  24 +--
  .../org/bukkit/plugin/TimedRegisteredListener.java |  21 ++-
- .../org/bukkit/plugin/java/JavaPluginLoader.java   |   2 +-
+ .../org/bukkit/plugin/java/JavaPluginLoader.java   |  60 ++++--
  .../bukkit/plugin/messaging/StandardMessenger.java |  10 +-
  .../java/org/spigotmc/CustomTimingsHandler.java    | 175 ++++++++++++++++++
  .../spigotmc/event/entity/EntityDismountEvent.java |  39 ++++
  .../spigotmc/event/entity/EntityMountEvent.java    |  52 ++++++
  src/test/java/org/bukkit/EffectTest.java           |   6 +-
  .../bukkit/plugin/TimedRegisteredListenerTest.java |   1 -
- 31 files changed, 1001 insertions(+), 131 deletions(-)
+ 32 files changed, 1092 insertions(+), 202 deletions(-)
  create mode 100644 src/main/java/org/bukkit/event/entity/EntitySpawnEvent.java
  create mode 100644 src/main/java/org/bukkit/event/entity/SpawnerSpawnEvent.java
  create mode 100644 src/main/java/org/bukkit/event/player/PlayerItemDamageEvent.java
@@ -1314,11 +1315,188 @@ index b74b7b8..8fb1c98 100644
      /**
       * Gets the current result of the login, as an enum
       *
+diff --git a/src/main/java/org/bukkit/plugin/PluginDescriptionFile.java b/src/main/java/org/bukkit/plugin/PluginDescriptionFile.java
+index cfd4b71..0d1e3a0 100644
+--- a/src/main/java/org/bukkit/plugin/PluginDescriptionFile.java
++++ b/src/main/java/org/bukkit/plugin/PluginDescriptionFile.java
+@@ -166,13 +166,12 @@ import com.google.common.collect.ImmutableMap;
+  */
+ public final class PluginDescriptionFile {
+     private static final Yaml yaml = new Yaml(new SafeConstructor());
+-    String rawName = null;
+     private String name = null;
+     private String main = null;
+     private String classLoaderOf = null;
+-    private List<String> depend = ImmutableList.of();
+-    private List<String> softDepend = ImmutableList.of();
+-    private List<String> loadBefore = ImmutableList.of();
++    private List<String> depend = null;
++    private List<String> softDepend = null;
++    private List<String> loadBefore = null;
+     private String version = null;
+     private Map<String, Map<String, Object>> commands = null;
+     private String description = null;
+@@ -229,7 +228,6 @@ public final class PluginDescriptionFile {
+      * <li>Case sensitive.
+      * <li>The is the token referenced in {@link #getDepend()}, {@link
+      *     #getSoftDepend()}, and {@link #getLoadBefore()}.
+-     * <li>Using spaces in the plugin's name is deprecated.
+      * </ul>
+      * <p>
+      * In the plugin.yml, this entry is named <code>name</code>.
+@@ -801,7 +799,7 @@ public final class PluginDescriptionFile {
+ 
+     private void loadMap(Map<?, ?> map) throws InvalidDescriptionException {
+         try {
+-            name = rawName = map.get("name").toString();
++            name = map.get("name").toString();
+ 
+             if (!name.matches("^[A-Za-z0-9 _.-]+$")) {
+                 throw new InvalidDescriptionException("name '" + name + "' contains invalid characters.");
+@@ -865,9 +863,47 @@ public final class PluginDescriptionFile {
+             classLoaderOf = map.get("class-loader-of").toString();
+         }
+ 
+-        depend = makePluginNameList(map, "depend");
+-        softDepend = makePluginNameList(map, "softdepend");
+-        loadBefore = makePluginNameList(map, "loadbefore");
++        if (map.get("depend") != null) {
++            ImmutableList.Builder<String> dependBuilder = ImmutableList.<String>builder();
++            try {
++                for (Object dependency : (Iterable<?>) map.get("depend")) {
++                    dependBuilder.add(dependency.toString());
++                }
++            } catch (ClassCastException ex) {
++                throw new InvalidDescriptionException(ex, "depend is of wrong type");
++            } catch (NullPointerException e) {
++                throw new InvalidDescriptionException(e, "invalid dependency format");
++            }
++            depend = dependBuilder.build();
++        }
++
++        if (map.get("softdepend") != null) {
++            ImmutableList.Builder<String> softDependBuilder = ImmutableList.<String>builder();
++            try {
++                for (Object dependency : (Iterable<?>) map.get("softdepend")) {
++                    softDependBuilder.add(dependency.toString());
++                }
++            } catch (ClassCastException ex) {
++                throw new InvalidDescriptionException(ex, "softdepend is of wrong type");
++            } catch (NullPointerException ex) {
++                throw new InvalidDescriptionException(ex, "invalid soft-dependency format");
++            }
++            softDepend = softDependBuilder.build();
++        }
++
++        if (map.get("loadbefore") != null) {
++            ImmutableList.Builder<String> loadBeforeBuilder = ImmutableList.<String>builder();
++            try {
++                for (Object predependency : (Iterable<?>) map.get("loadbefore")) {
++                    loadBeforeBuilder.add(predependency.toString());
++                }
++            } catch (ClassCastException ex) {
++                throw new InvalidDescriptionException(ex, "loadbefore is of wrong type");
++            } catch (NullPointerException ex) {
++                throw new InvalidDescriptionException(ex, "invalid load-before format");
++            }
++            loadBefore = loadBeforeBuilder.build();
++        }
+ 
+         if (map.get("database") != null) {
+             try {
+@@ -937,25 +973,6 @@ public final class PluginDescriptionFile {
+         }
+     }
+ 
+-    private static List<String> makePluginNameList(final Map<?, ?> map, final String key) throws InvalidDescriptionException {
+-        final Object value = map.get(key);
+-        if (value == null) {
+-            return ImmutableList.of();
+-        }
+-
+-        final ImmutableList.Builder<String> builder = ImmutableList.<String>builder();
+-        try {
+-            for (final Object entry : (Iterable<?>) value) {
+-                builder.add(entry.toString().replace(' ', '_'));
+-            }
+-        } catch (ClassCastException ex) {
+-            throw new InvalidDescriptionException(ex, key + " is of wrong type");
+-        } catch (NullPointerException ex) {
+-            throw new InvalidDescriptionException(ex, "invalid " + key + " format");
+-        }
+-        return builder.build();
+-    }
+-
+     private Map<String, Object> saveMap() {
+         Map<String, Object> map = new HashMap<String, Object>();
+ 
+@@ -1005,12 +1022,4 @@ public final class PluginDescriptionFile {
+         }
+         throw new InvalidDescriptionException(object + " is not properly structured.");
+     }
+-
+-    /**
+-     * @deprecated Internal use
+-     */
+-    @Deprecated
+-    public String getRawName() {
+-        return rawName;
+-    }
+ }
 diff --git a/src/main/java/org/bukkit/plugin/SimplePluginManager.java b/src/main/java/org/bukkit/plugin/SimplePluginManager.java
-index 787dcfe..b870ecd 100644
+index d2fe422..b870ecd 100644
 --- a/src/main/java/org/bukkit/plugin/SimplePluginManager.java
 +++ b/src/main/java/org/bukkit/plugin/SimplePluginManager.java
-@@ -280,6 +280,7 @@ public final class SimplePluginManager implements PluginManager {
+@@ -135,31 +135,16 @@ public final class SimplePluginManager implements PluginManager {
+                 if (name.equalsIgnoreCase("bukkit") || name.equalsIgnoreCase("minecraft") || name.equalsIgnoreCase("mojang")) {
+                     server.getLogger().log(Level.SEVERE, "Could not load '" + file.getPath() + "' in folder '" + directory.getPath() + "': Restricted Name");
+                     continue;
+-                } else if (description.rawName.indexOf(' ') != -1) {
+-                    server.getLogger().warning(String.format(
+-                        "Plugin `%s' uses the space-character (0x20) in its name `%s' - this is discouraged",
+-                        description.getFullName(),
+-                        description.rawName
+-                        ));
+                 }
+             } catch (InvalidDescriptionException ex) {
+                 server.getLogger().log(Level.SEVERE, "Could not load '" + file.getPath() + "' in folder '" + directory.getPath() + "'", ex);
+                 continue;
+             }
+ 
+-            File replacedFile = plugins.put(description.getName(), file);
+-            if (replacedFile != null) {
+-                server.getLogger().severe(String.format(
+-                    "Ambiguous plugin name `%s' for files `%s' and `%s' in `%s'",
+-                    description.getName(),
+-                    file.getPath(),
+-                    replacedFile.getPath(),
+-                    directory.getPath()
+-                    ));
+-            }
++            plugins.put(description.getName(), file);
+ 
+             Collection<String> softDependencySet = description.getSoftDepend();
+-            if (softDependencySet != null && !softDependencySet.isEmpty()) {
++            if (softDependencySet != null) {
+                 if (softDependencies.containsKey(description.getName())) {
+                     // Duplicates do not matter, they will be removed together if applicable
+                     softDependencies.get(description.getName()).addAll(softDependencySet);
+@@ -169,12 +154,12 @@ public final class SimplePluginManager implements PluginManager {
+             }
+ 
+             Collection<String> dependencySet = description.getDepend();
+-            if (dependencySet != null && !dependencySet.isEmpty()) {
++            if (dependencySet != null) {
+                 dependencies.put(description.getName(), new LinkedList<String>(dependencySet));
+             }
+ 
+             Collection<String> loadBeforeSet = description.getLoadBefore();
+-            if (loadBeforeSet != null && !loadBeforeSet.isEmpty()) {
++            if (loadBeforeSet != null) {
+                 for (String loadBeforeTarget : loadBeforeSet) {
+                     if (softDependencies.containsKey(loadBeforeTarget)) {
+                         softDependencies.get(loadBeforeTarget).add(description.getName());
+@@ -295,6 +280,7 @@ public final class SimplePluginManager implements PluginManager {
              }
          }
  
@@ -1380,10 +1558,140 @@ index e09234c..ab2c65e 100644
  
      /**
 diff --git a/src/main/java/org/bukkit/plugin/java/JavaPluginLoader.java b/src/main/java/org/bukkit/plugin/java/JavaPluginLoader.java
-index 57681dc..075695c 100644
+index b178c0d..075695c 100644
 --- a/src/main/java/org/bukkit/plugin/java/JavaPluginLoader.java
 +++ b/src/main/java/org/bukkit/plugin/java/JavaPluginLoader.java
-@@ -323,7 +323,7 @@ public final class JavaPluginLoader implements PluginLoader {
+@@ -10,6 +10,7 @@ import java.util.Arrays;
+ import java.util.HashMap;
+ import java.util.HashSet;
+ import java.util.LinkedHashMap;
++import java.util.List;
+ import java.util.Map;
+ import java.util.Set;
+ import java.util.jar.JarEntry;
+@@ -41,6 +42,8 @@ import org.bukkit.plugin.TimedRegisteredListener;
+ import org.bukkit.plugin.UnknownDependencyException;
+ import org.yaml.snakeyaml.error.YAMLException;
+ 
++import com.google.common.collect.ImmutableList;
++
+ /**
+  * Represents a Java plugin loader, allowing plugins in the form of .jar
+  */
+@@ -59,43 +62,41 @@ public final class JavaPluginLoader implements PluginLoader {
+         server = instance;
+     }
+ 
+-    public Plugin loadPlugin(final File file) throws InvalidPluginException {
++    public Plugin loadPlugin(File file) throws InvalidPluginException {
+         Validate.notNull(file, "File cannot be null");
+ 
+         if (!file.exists()) {
+             throw new InvalidPluginException(new FileNotFoundException(file.getPath() + " does not exist"));
+         }
+ 
+-        final PluginDescriptionFile description;
++        PluginDescriptionFile description;
+         try {
+             description = getPluginDescription(file);
+         } catch (InvalidDescriptionException ex) {
+             throw new InvalidPluginException(ex);
+         }
+ 
+-        final File parentFile = file.getParentFile();
+-        final File dataFolder = new File(parentFile, description.getName());
+-        @SuppressWarnings("deprecation")
+-        final File oldDataFolder = new File(parentFile, description.getRawName());
++        File dataFolder = new File(file.getParentFile(), description.getName());
++        File oldDataFolder = getDataFolder(file);
+ 
+         // Found old data folder
+         if (dataFolder.equals(oldDataFolder)) {
+             // They are equal -- nothing needs to be done!
+         } else if (dataFolder.isDirectory() && oldDataFolder.isDirectory()) {
+-            server.getLogger().warning(String.format(
+-                "While loading %s (%s) found old-data folder: `%s' next to the new one `%s'",
+-                description.getFullName(),
++            server.getLogger().log(Level.INFO, String.format(
++                "While loading %s (%s) found old-data folder: %s next to the new one: %s",
++                description.getName(),
+                 file,
+                 oldDataFolder,
+                 dataFolder
+             ));
+         } else if (oldDataFolder.isDirectory() && !dataFolder.exists()) {
+             if (!oldDataFolder.renameTo(dataFolder)) {
+-                throw new InvalidPluginException("Unable to rename old data folder: `" + oldDataFolder + "' to: `" + dataFolder + "'");
++                throw new InvalidPluginException("Unable to rename old data folder: '" + oldDataFolder + "' to: '" + dataFolder + "'");
+             }
+             server.getLogger().log(Level.INFO, String.format(
+-                "While loading %s (%s) renamed data folder: `%s' to `%s'",
+-                description.getFullName(),
++                "While loading %s (%s) renamed data folder: '%s' to '%s'",
++                description.getName(),
+                 file,
+                 oldDataFolder,
+                 dataFolder
+@@ -104,14 +105,19 @@ public final class JavaPluginLoader implements PluginLoader {
+ 
+         if (dataFolder.exists() && !dataFolder.isDirectory()) {
+             throw new InvalidPluginException(String.format(
+-                "Projected datafolder: `%s' for %s (%s) exists and is not a directory",
++                "Projected datafolder: '%s' for %s (%s) exists and is not a directory",
+                 dataFolder,
+-                description.getFullName(),
++                description.getName(),
+                 file
+             ));
+         }
+ 
+-        for (final String pluginName : description.getDepend()) {
++        List<String> depend = description.getDepend();
++        if (depend == null) {
++            depend = ImmutableList.<String>of();
++        }
++
++        for (String pluginName : depend) {
+             if (loaders == null) {
+                 throw new UnknownDependencyException(pluginName);
+             }
+@@ -122,7 +128,7 @@ public final class JavaPluginLoader implements PluginLoader {
+             }
+         }
+ 
+-        final PluginClassLoader loader;
++        PluginClassLoader loader;
+         try {
+             loader = new PluginClassLoader(this, getClass().getClassLoader(), description, dataFolder, file);
+         } catch (InvalidPluginException ex) {
+@@ -136,6 +142,26 @@ public final class JavaPluginLoader implements PluginLoader {
+         return loader.plugin;
+     }
+ 
++    private File getDataFolder(File file) {
++        File dataFolder = null;
++
++        String filename = file.getName();
++        int index = file.getName().lastIndexOf(".");
++
++        if (index != -1) {
++            String name = filename.substring(0, index);
++
++            dataFolder = new File(file.getParentFile(), name);
++        } else {
++            // This is if there is no extension, which should not happen
++            // Using _ to prevent name collision
++
++            dataFolder = new File(file.getParentFile(), filename + "_");
++        }
++
++        return dataFolder;
++    }
++
+     public PluginDescriptionFile getPluginDescription(File file) throws InvalidDescriptionException {
+         Validate.notNull(file, "File cannot be null");
+ 
+@@ -297,7 +323,7 @@ public final class JavaPluginLoader implements PluginLoader {
                      }
                  }
              };

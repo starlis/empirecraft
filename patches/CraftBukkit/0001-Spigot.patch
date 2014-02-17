@@ -1,6 +1,6 @@
-From 133ef89d7664fae586178931eb95d614a91c26f8 Mon Sep 17 00:00:00 2001
+From d62292f205f8d8153aef591f38655b7ac3f7b56f Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Thu, 13 Feb 2014 23:20:17 -0500
+Date: Mon, 17 Feb 2014 15:51:58 -0500
 Subject: [PATCH] Spigot
 
 ---
@@ -66,7 +66,7 @@ Subject: [PATCH] Spigot
  .../server/PacketPlayOutMapChunkBulk.java          |  24 +-
  .../net/minecraft/server/PacketStatusListener.java |   7 +
  .../java/net/minecraft/server/PlayerChunkMap.java  |   2 +-
- .../net/minecraft/server/PlayerConnection.java     |  43 +-
+ .../net/minecraft/server/PlayerConnection.java     |  45 +-
  .../minecraft/server/PlayerInteractManager.java    |   1 +
  src/main/java/net/minecraft/server/PlayerList.java |  39 +-
  .../java/net/minecraft/server/PropertyManager.java |   2 +-
@@ -118,10 +118,10 @@ Subject: [PATCH] Spigot
  src/main/java/org/spigotmc/SpigotConfig.java       | 290 +++++++++
  src/main/java/org/spigotmc/SpigotWorldConfig.java  | 281 +++++++++
  .../java/org/spigotmc/TicksPerSecondCommand.java   |  45 ++
- src/main/java/org/spigotmc/TrackingRange.java      |  45 ++
+ src/main/java/org/spigotmc/TrackingRange.java      |  51 ++
  src/main/java/org/spigotmc/WatchdogThread.java     | 117 ++++
  src/main/resources/configurations/bukkit.yml       |   9 +-
- 117 files changed, 7170 insertions(+), 423 deletions(-)
+ 117 files changed, 7177 insertions(+), 424 deletions(-)
  create mode 100644 src/main/java/net/minecraft/server/BiomeDecorator.java
  create mode 100644 src/main/java/net/minecraft/server/BlockAnvil.java
  create mode 100644 src/main/java/net/minecraft/server/BlockBrewingStand.java
@@ -4775,7 +4775,7 @@ index 4e0398c..ae4ca63 100644
          } else {
              this.f = i;
 diff --git a/src/main/java/net/minecraft/server/PlayerConnection.java b/src/main/java/net/minecraft/server/PlayerConnection.java
-index 3e8517c..0f0fc49 100644
+index 3e8517c..f506da0 100644
 --- a/src/main/java/net/minecraft/server/PlayerConnection.java
 +++ b/src/main/java/net/minecraft/server/PlayerConnection.java
 @@ -105,6 +105,7 @@ public class PlayerConnection implements PacketPlayInListener {
@@ -4905,6 +4905,15 @@ index 3e8517c..0f0fc49 100644
  
                  if (packetplayinupdatesign.f()[j].length() > 15) {
                      flag = false;
+@@ -1815,7 +1846,7 @@ public class PlayerConnection implements PacketPlayInListener {
+     }
+ 
+     // CraftBukkit start - Add "isDisconnected" method
+-    public final boolean isDisconnected() {
++    public boolean isDisconnected() {
+         return !NetworkManager.a(this.networkManager).config().isAutoRead();
+     }
+     // CraftBukkit end
 diff --git a/src/main/java/net/minecraft/server/PlayerInteractManager.java b/src/main/java/net/minecraft/server/PlayerInteractManager.java
 index bceba7b..c963fac 100644
 --- a/src/main/java/net/minecraft/server/PlayerInteractManager.java
@@ -9806,7 +9815,7 @@ index 0000000..df70756
 +}
 diff --git a/src/main/java/org/spigotmc/SpigotWorldConfig.java b/src/main/java/org/spigotmc/SpigotWorldConfig.java
 new file mode 100644
-index 0000000..979b315
+index 0000000..dc0257b
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/SpigotWorldConfig.java
 @@ -0,0 +1,281 @@
@@ -9967,15 +9976,15 @@ index 0000000..979b315
 +    public int animalTrackingRange = 48;
 +    public int monsterTrackingRange = 48;
 +    public int miscTrackingRange = 32;
-+    public int maxTrackingRange = 64;
++    public int otherTrackingRange = 64;
 +    private void trackingRange()
 +    {
 +        playerTrackingRange = getInt( "entity-tracking-range.players", playerTrackingRange );
 +        animalTrackingRange = getInt( "entity-tracking-range.animals", animalTrackingRange );
 +        monsterTrackingRange = getInt( "entity-tracking-range.monsters", monsterTrackingRange );
 +        miscTrackingRange = getInt( "entity-tracking-range.misc", miscTrackingRange );
-+        maxTrackingRange = getInt( "entity-tracking-range.other", maxTrackingRange );
-+        log( "Entity Tracking Range: Pl " + playerTrackingRange + " / An " + animalTrackingRange + " / Mo " + monsterTrackingRange + " / Mi " + miscTrackingRange + " / Other " + maxTrackingRange );
++        otherTrackingRange = getInt( "entity-tracking-range.other", otherTrackingRange );
++        log( "Entity Tracking Range: Pl " + playerTrackingRange + " / An " + animalTrackingRange + " / Mo " + monsterTrackingRange + " / Mi " + miscTrackingRange + " / Other " + otherTrackingRange );
 +    }
 +
 +    public int hopperTransfer = 8;
@@ -10144,10 +10153,10 @@ index 0000000..2b8343d
 +}
 diff --git a/src/main/java/org/spigotmc/TrackingRange.java b/src/main/java/org/spigotmc/TrackingRange.java
 new file mode 100644
-index 0000000..bc6438d
+index 0000000..4bf4d2a
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/TrackingRange.java
-@@ -0,0 +1,45 @@
+@@ -0,0 +1,51 @@
 +package org.spigotmc;
 +
 +import net.minecraft.server.Entity;
@@ -10172,25 +10181,31 @@ index 0000000..bc6438d
 +    public static int getEntityTrackingRange(Entity entity, int defaultRange)
 +    {
 +        SpigotWorldConfig config = entity.world.spigotConfig;
-+        int range = defaultRange;
 +        if ( entity instanceof EntityPlayer )
 +        {
-+            range = config.playerTrackingRange;
-+        } else if ( entity.defaultActivationState || entity instanceof EntityGhast )
++            return config.playerTrackingRange;
++        }  else if ( entity.activationType == 1 )
 +        {
-+            range = defaultRange;
-+        } else if ( entity.activationType == 1 )
++            return config.monsterTrackingRange;
++        } else if ( entity instanceof EntityGhast )
 +        {
-+            range = config.monsterTrackingRange;
++            if ( config.monsterTrackingRange > config.monsterActivationRange )
++            {
++                return config.monsterTrackingRange;
++            } else
++            {
++                return config.monsterActivationRange;
++            }
 +        } else if ( entity.activationType == 2 )
 +        {
-+            range = config.animalTrackingRange;
++            return config.animalTrackingRange;
 +        } else if ( entity instanceof EntityItemFrame || entity instanceof EntityPainting || entity instanceof EntityItem || entity instanceof EntityExperienceOrb )
 +        {
-+            range = config.miscTrackingRange;
++            return config.miscTrackingRange;
++        } else 
++        {
++            return config.otherTrackingRange;
 +        }
-+
-+        return Math.min( config.maxTrackingRange, range );
 +    }
 +}
 diff --git a/src/main/java/org/spigotmc/WatchdogThread.java b/src/main/java/org/spigotmc/WatchdogThread.java
