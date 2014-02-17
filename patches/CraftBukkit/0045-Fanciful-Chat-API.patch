@@ -1,0 +1,231 @@
+From 1730dbfb741bc2fa8ca791022e60527039cb0422 Mon Sep 17 00:00:00 2001
+From: Max Kreminski <maxkreminski@gmail.com>
+Date: Mon, 17 Feb 2014 00:05:26 -0500
+Subject: [PATCH] Fanciful Chat API
+
+Provides new 1.7 chat features
+
+Credits to http://forums.bukkit.org/threads/lib-fanciful-pleasant-chat-message-formatting.195148/
+---
+ pom.xml                                            |   5 +
+ .../empireminecraft/emcapi/FancifulChatAPI.java    | 192 +++++++++++++++++++++
+ 2 files changed, 197 insertions(+)
+ create mode 100644 src/main/java/com/empireminecraft/emcapi/FancifulChatAPI.java
+
+diff --git a/pom.xml b/pom.xml
+index 73526a0..59bffa9 100644
+--- a/pom.xml
++++ b/pom.xml
+@@ -79,6 +79,11 @@
+       <scope>compile</scope>
+     </dependency>
+     <dependency>
++      <groupId>org.json</groupId>
++      <artifactId>json</artifactId>
++      <version>20090211</version>
++    </dependency>
++    <dependency>
+       <groupId>net.sf.jopt-simple</groupId>
+       <artifactId>jopt-simple</artifactId>
+       <version>3.2</version>
+diff --git a/src/main/java/com/empireminecraft/emcapi/FancifulChatAPI.java b/src/main/java/com/empireminecraft/emcapi/FancifulChatAPI.java
+new file mode 100644
+index 0000000..885ef05
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/emcapi/FancifulChatAPI.java
+@@ -0,0 +1,192 @@
++package com.empireminecraft.emcapi;
++
++/**
++ * Credits to http://forums.bukkit.org/threads/lib-fanciful-pleasant-chat-message-formatting.195148/
++ * @author mkremins
++ *
++ * Reformatted this for Empire use
++ */
++
++import java.util.ArrayList;
++import java.util.List;
++
++import net.minecraft.server.ChatSerializer;
++import net.minecraft.server.NBTTagCompound;
++import net.minecraft.server.PacketPlayOutChat;
++
++import org.bukkit.ChatColor;
++import org.bukkit.craftbukkit.entity.CraftPlayer;
++import org.bukkit.craftbukkit.inventory.CraftItemStack;
++import org.bukkit.entity.Player;
++import org.bukkit.inventory.ItemStack;
++import org.json.JSONException;
++import org.json.JSONStringer;
++import org.json.JSONWriter;
++
++public class FancifulChatAPI {
++
++    protected final List<MessagePart> messageParts = new ArrayList<MessagePart>();
++
++    public FancifulChatAPI color(final ChatColor color) {
++        if (!color.isColor()) {
++            throw new IllegalArgumentException(color.name() + " is not a color");
++        }
++        latest().color = color;
++        return this;
++    }
++
++    public FancifulChatAPI style(final ChatColor... styles) {
++        for (final ChatColor style : styles) {
++            if (!style.isFormat()) {
++                throw new IllegalArgumentException(style.name() + " is not a style");
++            }
++        }
++        latest().styles = styles;
++        return this;
++    }
++
++    public FancifulChatAPI file(final String path) {
++        onClick("open_file", path);
++        return this;
++    }
++
++    public FancifulChatAPI link(final String url) {
++        onClick("open_url", url);
++        return this;
++    }
++
++    public FancifulChatAPI suggest(final String command) {
++        onClick("suggest_command", command);
++        return this;
++    }
++
++    public FancifulChatAPI command(final String command) {
++        onClick("run_command", command);
++        return this;
++    }
++
++    public FancifulChatAPI achievementTooltip(final String name) {
++        onHover("show_achievement", "achievement." + name);
++        return this;
++    }
++
++    public FancifulChatAPI itemTooltip(final String itemJSON) {
++        onHover("show_item", itemJSON);
++        return this;
++    }
++
++    public FancifulChatAPI itemTooltip(final ItemStack itemStack) {
++        return itemTooltip(CraftItemStack.asNMSCopy(itemStack).save(new NBTTagCompound()).toString());
++    }
++
++    public FancifulChatAPI tooltip(final String text) {
++        final String[] lines = text.split("\\n");
++        if (lines.length <= 1) {
++            onHover("show_text", text);
++        } else {
++            itemTooltip(makeMultilineTooltip(lines));
++        }
++        return this;
++    }
++
++    public FancifulChatAPI then(final Object obj) {
++        messageParts.add(new MessagePart(obj.toString()));
++        return this;
++    }
++
++    public String toJSONString() {
++        final JSONStringer json = new JSONStringer();
++        try {
++            if (messageParts.size() == 1) {
++                latest().writeJson(json);
++            } else {
++                json.object().key("text").value("").key("extra").array();
++                for (final MessagePart part : messageParts) {
++                    part.writeJson(json);
++                }
++                json.endArray().endObject();
++            }
++        } catch (final JSONException e) {
++            throw new RuntimeException("invalid message");
++        }
++        return json.toString();
++    }
++
++    public void send(Player player){
++        ((CraftPlayer) player).getHandle().playerConnection.sendPacket(new PacketPlayOutChat(ChatSerializer.a(toJSONString())));
++    }
++
++    protected MessagePart latest() {
++        return messageParts.get(messageParts.size() - 1);
++    }
++
++    protected String makeMultilineTooltip(final String[] lines) {
++        final JSONStringer json = new JSONStringer();
++        try {
++            json.object().key("id").value(1);
++            json.key("tag").object().key("display").object();
++            json.key("Name").value("\\u00A7f" + lines[0]);
++            json.key("Lore").array();
++            for (int i = 1; i < lines.length; i++) {
++                json.value(lines[i]);
++            }
++            json.endArray().endObject().endObject().endObject();
++        } catch (final JSONException e) {
++            throw new RuntimeException("invalid tooltip");
++        }
++        return json.toString();
++    }
++
++    protected void onClick(final String name, final String data) {
++        final MessagePart latest = latest();
++        latest.clickActionName = name;
++        latest.clickActionData = data;
++    }
++
++    protected void onHover(final String name, final String data) {
++        final MessagePart latest = latest();
++        latest.hoverActionName = name;
++        latest.hoverActionData = data;
++    }
++    static final class MessagePart {
++
++        ChatColor color = null;
++        ChatColor[] styles = null;
++        String clickActionName = null, clickActionData = null,
++            hoverActionName = null, hoverActionData = null;
++        final String text;
++
++        MessagePart(final String text) {
++            this.text = text;
++        }
++
++        JSONWriter writeJson(final JSONWriter json) throws JSONException {
++            json.object().key("text").value(text);
++            if (color != null) {
++                json.key("color").value(color.name().toLowerCase());
++            }
++            if (styles != null) {
++                for (final ChatColor style : styles) {
++                    json.key(style.name().toLowerCase()).value(true);
++                }
++            }
++            if (clickActionName != null && clickActionData != null) {
++                json.key("clickEvent")
++                    .object()
++                    .key("action").value(clickActionName)
++                    .key("value").value(clickActionData)
++                    .endObject();
++            }
++            if (hoverActionName != null && hoverActionData != null) {
++                json.key("hoverEvent")
++                    .object()
++                    .key("action").value(hoverActionName)
++                    .key("value").value(hoverActionData)
++                    .endObject();
++            }
++            return json.endObject();
++        }
++
++    }
++}
++
+-- 
+1.8.3.2
+
