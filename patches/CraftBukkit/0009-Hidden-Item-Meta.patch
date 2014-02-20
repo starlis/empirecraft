@@ -1,4 +1,4 @@
-From 3762c62c21df4c943722fb90a22698a5b970c14c Mon Sep 17 00:00:00 2001
+From c3919553bc2fcde8465d67393baa01f6de9ee918 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Wed, 27 Feb 2013 23:27:45 -0500
 Subject: [PATCH] Hidden Item Meta
@@ -13,62 +13,83 @@ Then you can store Data on 21+
 Also adds a &&::SHINY tag to send a fake enchantment aura if it does not exists.
 Must be set before META
 ---
- .../net/minecraft/server/PacketDataSerializer.java | 56 ++++++++++++++++++++++
- 1 file changed, 56 insertions(+)
+ .../com/empireminecraft/cbmisc/HiddenItemMeta.java | 53 ++++++++++++++++++++++
+ .../net/minecraft/server/PacketDataSerializer.java | 16 +++++++
+ 2 files changed, 69 insertions(+)
+ create mode 100644 src/main/java/com/empireminecraft/cbmisc/HiddenItemMeta.java
 
-diff --git a/src/main/java/net/minecraft/server/PacketDataSerializer.java b/src/main/java/net/minecraft/server/PacketDataSerializer.java
-index fe2b24d..cbaa0d8 100644
---- a/src/main/java/net/minecraft/server/PacketDataSerializer.java
-+++ b/src/main/java/net/minecraft/server/PacketDataSerializer.java
-@@ -89,6 +89,47 @@ public class PacketDataSerializer extends ByteBuf {
- 
-             if (itemstack.getItem().usesDurability() || itemstack.getItem().s()) {
-                 nbttagcompound = itemstack.tag;
-+                // EMC start
-+                if (nbttagcompound != null && nbttagcompound.hasKey("display")) {
-+                    NBTTagCompound display = nbttagcompound.getCompound("display");
-+                    if (display.hasKey("Lore")) {
-+                        NBTTagList lore = display.getList("Lore", 8);
-+                        int lastLine = 0;
-+                        boolean hasSpecial = false;
-+                        boolean hasShiny = false;
-+                        for (int i = 0; i < lore.size(); i++) {
-+                            String line = lore.f(i);
+diff --git a/src/main/java/com/empireminecraft/cbmisc/HiddenItemMeta.java b/src/main/java/com/empireminecraft/cbmisc/HiddenItemMeta.java
+new file mode 100644
+index 0000000..6f8b7e6
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/cbmisc/HiddenItemMeta.java
+@@ -0,0 +1,53 @@
++package com.empireminecraft.cbmisc;
 +
-+                            if (line.equals("&&::META")) {
-+                                hasSpecial = true;
-+                                break;
-+                            } else if (!line.isEmpty()) {
-+                                if (line.equals("&&::SHINY")) {
-+                                    hasShiny = true;
-+                                    hasSpecial = true;
-+                                    break;
-+                                } else {
-+                                    lastLine = i+1;
-+                                }
-+                            }
-+                        }
-+                        if (hasSpecial) {
-+                            NBTTagList newlore = new NBTTagList();
-+                            for (int x = 0; x < lastLine; x++) {
-+                                newlore.add(new NBTTagString(lore.f(x)));
-+                            }
++import net.minecraft.server.NBTTagCompound;
++import net.minecraft.server.NBTTagList;
++import net.minecraft.server.NBTTagString;
 +
-+                            nbttagcompound = (NBTTagCompound) nbttagcompound.clone();
-+                            if (hasShiny && !nbttagcompound.hasKey("ench")) {
-+                                nbttagcompound.set("ench" , new NBTTagList());
-+                            }
-+                            display = nbttagcompound.getCompound("display");
-+                            display.set("Lore", newlore);
-+                            display.set("OriginalLore", lore);
++public class HiddenItemMeta {
++    public static NBTTagCompound filterItemLore(NBTTagCompound nbttagcompound, boolean storeOriginal) {
++        // EMC start
++        if (nbttagcompound != null && nbttagcompound.hasKey("display")) {
++            NBTTagCompound display = nbttagcompound.getCompound("display");
++            if (display.hasKey("Lore")) {
++                NBTTagList lore = display.getList("Lore", 8);
++                int lastLine = 0;
++                boolean hasSpecial = false;
++                boolean hasShiny = false;
++                for (int i = 0; i < lore.size(); i++) {
++                    String line = lore.f(i);
++
++                    if (line.equals("&&::META")) {
++                        hasSpecial = true;
++                        break;
++                    } else if (!line.isEmpty()) {
++                        if (line.equals("&&::SHINY")) {
++                            hasShiny = true;
++                            hasSpecial = true;
++                            break;
++                        } else {
++                            lastLine = i+1;
 +                        }
 +                    }
 +                }
-+                // EMC end
++                if (hasSpecial) {
++                    NBTTagList newlore = new NBTTagList();
++                    for (int x = 0; x < lastLine; x++) {
++                        newlore.add(new NBTTagString(lore.f(x)));
++                    }
++
++                    nbttagcompound = (NBTTagCompound) nbttagcompound.clone();
++                    if (hasShiny && !nbttagcompound.hasKey("ench")) {
++                        nbttagcompound.set("ench" , new NBTTagList());
++                    }
++                    display = nbttagcompound.getCompound("display");
++                    display.set("Lore", newlore);
++                    if (storeOriginal) {
++                        display.set("OriginalLore", lore);
++                    }
++                }
++            }
++        }
++        return nbttagcompound;
++    }
++}
+diff --git a/src/main/java/net/minecraft/server/PacketDataSerializer.java b/src/main/java/net/minecraft/server/PacketDataSerializer.java
+index fe2b24d..8d6a062 100644
+--- a/src/main/java/net/minecraft/server/PacketDataSerializer.java
++++ b/src/main/java/net/minecraft/server/PacketDataSerializer.java
+@@ -89,6 +89,7 @@ public class PacketDataSerializer extends ByteBuf {
+ 
+             if (itemstack.getItem().usesDurability() || itemstack.getItem().s()) {
+                 nbttagcompound = itemstack.tag;
++                com.empireminecraft.cbmisc.HiddenItemMeta.filterItemLore(nbttagcompound, true); // EMC
              }
  
              this.a(nbttagcompound);
-@@ -107,6 +148,21 @@ public class PacketDataSerializer extends ByteBuf {
+@@ -107,6 +108,21 @@ public class PacketDataSerializer extends ByteBuf {
              itemstack.tag = this.b();
              // CraftBukkit start
              if (itemstack.tag != null) {
