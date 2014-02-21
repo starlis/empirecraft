@@ -1,0 +1,84 @@
+From 2dfb9603da19b130b2c11daf3b449df100806111 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Fri, 21 Feb 2014 00:50:46 -0500
+Subject: [PATCH] Add EntityEffectAddedEvent
+
+---
+ .../customevents/EntityEffectAddedEvent.java       | 52 ++++++++++++++++++++++
+ .../java/net/minecraft/server/EntityLiving.java    |  1 +
+ 2 files changed, 53 insertions(+)
+ create mode 100644 src/main/java/com/empireminecraft/customevents/EntityEffectAddedEvent.java
+
+diff --git a/src/main/java/com/empireminecraft/customevents/EntityEffectAddedEvent.java b/src/main/java/com/empireminecraft/customevents/EntityEffectAddedEvent.java
+new file mode 100644
+index 0000000..a135ea1
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/customevents/EntityEffectAddedEvent.java
+@@ -0,0 +1,52 @@
++package com.empireminecraft.customevents;
++
++import net.minecraft.server.EntityLiving;
++import net.minecraft.server.MobEffect;
++import org.bukkit.block.Block;
++import org.bukkit.entity.Arrow;
++import org.bukkit.entity.Entity;
++import org.bukkit.entity.LivingEntity;
++import org.bukkit.event.Cancellable;
++import org.bukkit.event.Event;
++import org.bukkit.event.HandlerList;
++import org.bukkit.potion.PotionEffect;
++import org.bukkit.potion.PotionEffectType;
++
++public class EntityEffectAddedEvent extends Event implements Cancellable {
++    private static final HandlerList handlers = new HandlerList();
++    private boolean canceled;
++
++    final EntityLiving entity;
++    private final PotionEffect effect;
++
++    public EntityEffectAddedEvent(EntityLiving entity, MobEffect mcEffect) {
++        this.entity = entity;
++        effect = new PotionEffect(PotionEffectType.getById(mcEffect.getEffectId()),
++            mcEffect.getDuration(), mcEffect.getAmplifier());
++    }
++
++    public PotionEffect getEffect() {
++        return effect;
++    }
++
++    public LivingEntity getEntity() {
++        return (LivingEntity) entity.getBukkitEntity();
++    }
++
++    public boolean isCancelled() {
++        return canceled;
++    }
++
++    public void setCancelled(boolean cancel) {
++        canceled = cancel;
++    }
++
++    public HandlerList getHandlers() {
++        return handlers;
++    }
++
++    public static HandlerList getHandlerList() {
++        return handlers;
++    }
++
++}
+diff --git a/src/main/java/net/minecraft/server/EntityLiving.java b/src/main/java/net/minecraft/server/EntityLiving.java
+index 8f8f9ce..2f59979 100644
+--- a/src/main/java/net/minecraft/server/EntityLiving.java
++++ b/src/main/java/net/minecraft/server/EntityLiving.java
+@@ -538,6 +538,7 @@ public abstract class EntityLiving extends Entity {
+     }
+ 
+     public void addEffect(MobEffect mobeffect) {
++        if (!new com.empireminecraft.customevents.EntityEffectAddedEvent(this, mobeffect).callEvent()) { return; }; // EMC
+         if (this.d(mobeffect)) {
+             if (this.effects.containsKey(Integer.valueOf(mobeffect.getEffectId()))) {
+                 ((MobEffect) this.effects.get(Integer.valueOf(mobeffect.getEffectId()))).a(mobeffect);
+-- 
+1.8.3.2
+
