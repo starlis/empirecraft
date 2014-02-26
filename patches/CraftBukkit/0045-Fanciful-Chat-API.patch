@@ -1,15 +1,16 @@
-From 8e6e07f97a16b19dfc3e4c078d932e3bba96d2b2 Mon Sep 17 00:00:00 2001
+From ead35805f6ce2de1a6b7afbab6b04096998ed34f Mon Sep 17 00:00:00 2001
 From: Max Kreminski <maxkreminski@gmail.com>
 Date: Mon, 17 Feb 2014 00:05:26 -0500
 Subject: [PATCH] Fanciful Chat API
 
 Provides new 1.7 chat features
 
-Credits to http://forums.bukkit.org/threads/lib-fanciful-pleasant-chat-message-formatting.195148/
+Initial Credits to http://forums.bukkit.org/threads/lib-fanciful-pleasant-chat-message-formatting.195148/
+But did a lot of bug fixing on it.
 ---
  pom.xml                                            |   5 +
- .../empireminecraft/emcapi/FancifulChatAPI.java    | 209 +++++++++++++++++++++
- 2 files changed, 214 insertions(+)
+ .../empireminecraft/emcapi/FancifulChatAPI.java    | 238 +++++++++++++++++++++
+ 2 files changed, 243 insertions(+)
  create mode 100644 src/main/java/com/empireminecraft/emcapi/FancifulChatAPI.java
 
 diff --git a/pom.xml b/pom.xml
@@ -30,21 +31,24 @@ index 73526a0..59bffa9 100644
        <version>3.2</version>
 diff --git a/src/main/java/com/empireminecraft/emcapi/FancifulChatAPI.java b/src/main/java/com/empireminecraft/emcapi/FancifulChatAPI.java
 new file mode 100644
-index 0000000..9241ab6
+index 0000000..6d5a4d5
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/emcapi/FancifulChatAPI.java
-@@ -0,0 +1,209 @@
+@@ -0,0 +1,238 @@
 +package com.empireminecraft.emcapi;
 +
 +/**
-+ * Credits to http://forums.bukkit.org/threads/lib-fanciful-pleasant-chat-message-formatting.195148/
-+ * @author mkremins
++ * Credits to original version @
++ * http://forums.bukkit.org/threads/lib-fanciful-pleasant-chat-message-formatting.195148/
 + *
-+ * Reformatted this for Empire use
++ * Improved to use proper components to fix issues
++ * @author aikar
++ *
 + */
 +
 +import java.util.ArrayList;
 +import java.util.List;
++import java.util.regex.Pattern;
 +
 +import com.empireminecraft.cbmisc.HiddenItemMeta;
 +import net.minecraft.server.*;
@@ -52,6 +56,7 @@ index 0000000..9241ab6
 +import org.bukkit.ChatColor;
 +import org.bukkit.craftbukkit.entity.CraftPlayer;
 +import org.bukkit.craftbukkit.inventory.CraftItemStack;
++import org.bukkit.craftbukkit.util.CraftChatMessage;
 +import org.bukkit.entity.Player;
 +import org.bukkit.inventory.ItemStack;
 +import org.json.JSONException;
@@ -59,26 +64,8 @@ index 0000000..9241ab6
 +import org.json.JSONWriter;
 +
 +public class FancifulChatAPI {
-+
 +    protected final List<MessagePart> messageParts = new ArrayList<MessagePart>();
 +
-+    public FancifulChatAPI color(final ChatColor color) {
-+        if (!color.isColor()) {
-+            throw new IllegalArgumentException(color.name() + " is not a color");
-+        }
-+        latest().color = color;
-+        return this;
-+    }
-+
-+    public FancifulChatAPI style(final ChatColor... styles) {
-+        for (final ChatColor style : styles) {
-+            if (!style.isFormat()) {
-+                throw new IllegalArgumentException(style.name() + " is not a style");
-+            }
-+        }
-+        latest().styles = styles;
-+        return this;
-+    }
 +
 +    public FancifulChatAPI file(final String path) {
 +        onClick("open_file", path);
@@ -147,7 +134,7 @@ index 0000000..9241ab6
 +        return this;
 +    }
 +
-+    public String toJSONString() {
++    /*public String toJSONString() {
 +        final JSONStringer json = new JSONStringer();
 +        try {
 +            if (messageParts.size() == 1) {
@@ -163,10 +150,20 @@ index 0000000..9241ab6
 +            throw new RuntimeException("invalid message");
 +        }
 +        return json.toString();
-+    }
++    }*/
 +
 +    public void send(Player player){
-+        ((CraftPlayer) player).getHandle().playerConnection.sendPacket(new PacketPlayOutChat(ChatSerializer.a(toJSONString())));
++        final PlayerConnection conn = ((CraftPlayer) player).getHandle().playerConnection;
++        if (conn == null) {
++            return;
++        }
++        ChatComponentText master = new ChatComponentText("");
++        for (MessagePart msg : messageParts) {
++            for (IChatBaseComponent cmp : msg.getComponents()) {
++                master.a(cmp);
++            }
++        }
++        conn.sendPacket(new PacketPlayOutChat(master));
 +    }
 +
 +    protected MessagePart latest() {
@@ -203,16 +200,49 @@ index 0000000..9241ab6
 +    }
 +    static final class MessagePart {
 +
-+        ChatColor color = null;
-+        ChatColor[] styles = null;
++
 +        String clickActionName = null, clickActionData = null,
 +            hoverActionName = null, hoverActionData = null;
-+        final String text;
++        final IChatBaseComponent[] components;
 +
 +        MessagePart(final String text) {
-+            this.text = text;
++            components = CraftChatMessage.fromString(text);
 +        }
++        public IChatBaseComponent[] getComponents() {
++            for (IChatBaseComponent component : components) {
++                if (clickActionName != null) {
++                    if (clickActionName.equals("open_file")) {
++                        component.b().a(
++                            new ChatClickable(EnumClickAction.OPEN_FILE, clickActionData));
++                    } else if (clickActionName.equals("open_url")) {
++                        component.b().a(
++                            new ChatClickable(EnumClickAction.OPEN_URL, clickActionData));
++                    } else if (clickActionName.equals("suggest_command")) {
++                        component.b().a(
++                            new ChatClickable(EnumClickAction.SUGGEST_COMMAND, clickActionData));
++                    } else if (clickActionName.equals("run_command")) {
++                        component.b().a(
++                            new ChatClickable(EnumClickAction.RUN_COMMAND, clickActionData));
++                    }
++                }
++                if (hoverActionName != null) {
++                    final ChatComponentText hover = new ChatComponentText(hoverActionData);
++                    if (hoverActionName.equals("show_achievement")) {
++                        component.b().a(
++                            new ChatHoverable(EnumHoverAction.SHOW_ACHIEVEMENT, hover));
++                    } else if (hoverActionName.equals("show_item")) {
++                        component.b().a(
++                            new ChatHoverable(EnumHoverAction.SHOW_ITEM, hover));
++                    } else if (hoverActionName.equals("show_text")) {
++                        component.b().a(
++                            new ChatHoverable(EnumHoverAction.SHOW_TEXT, hover));
++                    }
++                }
++            }
 +
++            return components;
++        }
++/*
 +        JSONWriter writeJson(final JSONWriter json) throws JSONException {
 +            json.object().key("text").value(text);
 +            if (color != null) {
@@ -239,7 +269,7 @@ index 0000000..9241ab6
 +            }
 +            return json.endObject();
 +        }
-+
++*/
 +    }
 +}
 +
