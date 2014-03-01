@@ -34,6 +34,7 @@ import ServerStatisticManager
 import RemoteControlListener
 import NBTTagList
 import EntityAnimal
+import PathfinderGoalNearestAttackableTarget
 
 cd $basedir
 git add mc-dev-master --all
