@@ -1,0 +1,126 @@
+From 969401e2b1674d64425729967dcd6b5cc37290bd Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Wed, 12 Mar 2014 22:03:24 -0400
+Subject: [PATCH] LivingEntityReceiveDamageEvent
+
+This fires for the ACTUAL amount of damage a living entity is receiving
+---
+ .../LivingEntityReceiveDamageEvent.java            | 72 ++++++++++++++++++++++
+ .../java/net/minecraft/server/EntityLiving.java    |  9 +++
+ 2 files changed, 81 insertions(+)
+ create mode 100644 src/main/java/com/empireminecraft/customevents/LivingEntityReceiveDamageEvent.java
+
+diff --git a/src/main/java/com/empireminecraft/customevents/LivingEntityReceiveDamageEvent.java b/src/main/java/com/empireminecraft/customevents/LivingEntityReceiveDamageEvent.java
+new file mode 100644
+index 0000000..aa0d42d
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/customevents/LivingEntityReceiveDamageEvent.java
+@@ -0,0 +1,72 @@
++package com.empireminecraft.customevents;
++
++import com.empireminecraft.cbmisc.CBMiscUtils;
++import net.minecraft.server.*;
++import org.bukkit.craftbukkit.event.CraftEventFactory;
++import org.bukkit.entity.LivingEntity;
++import org.bukkit.entity.Projectile;
++import org.bukkit.entity.ThrownPotion;
++import org.bukkit.event.Cancellable;
++import org.bukkit.event.Event;
++import org.bukkit.event.HandlerList;
++
++import static org.bukkit.event.entity.EntityDamageEvent.DamageCause;
++
++public class LivingEntityReceiveDamageEvent extends Event implements Cancellable {
++
++
++    private static final HandlerList handlers = new HandlerList();
++    private final DamageCause cause;
++    private final LivingEntity entity;
++    private double originalDamage;
++    private double damage;
++
++    public double getOriginalDamage() {
++        return originalDamage;
++    }
++
++    public double getDamage() {
++        return damage;
++    }
++
++    public void setDamage(double damage) {
++        this.damage = damage;
++    }
++
++    private boolean cancelled = false;
++
++    public LivingEntityReceiveDamageEvent(DamageSource source,
++                                          EntityLiving entity, float originalDamage, float damage) {
++        this.originalDamage = originalDamage;
++        this.damage = damage;
++        cause = CBMiscUtils.getCause(source);
++        this.entity = (LivingEntity) entity.getBukkitEntity();
++    }
++
++    public HandlerList getHandlers() {
++        return handlers;
++    }
++
++    public static HandlerList getHandlerList() {
++        return handlers;
++    }
++
++    public DamageCause getCause() {
++        return cause;
++    }
++
++    public LivingEntity getEntity() {
++        return entity;
++    }
++
++    @Override
++    public boolean isCancelled() {
++        return cancelled;
++    }
++
++    @Override
++    public void setCancelled(boolean cancel) {
++        cancelled = cancel;
++    }
++}
++
+diff --git a/src/main/java/net/minecraft/server/EntityLiving.java b/src/main/java/net/minecraft/server/EntityLiving.java
+index 484c928..21d4f48 100644
+--- a/src/main/java/net/minecraft/server/EntityLiving.java
++++ b/src/main/java/net/minecraft/server/EntityLiving.java
+@@ -8,6 +8,7 @@ import java.util.Random;
+ import java.util.UUID;
+ 
+ // CraftBukkit start
++import com.empireminecraft.customevents.LivingEntityReceiveDamageEvent; // EMC
+ import org.bukkit.craftbukkit.SpigotTimings;
+ import org.bukkit.craftbukkit.event.CraftEventFactory;
+ import org.bukkit.event.entity.EntityDamageEvent;
+@@ -977,12 +978,20 @@ public abstract class EntityLiving extends Entity {
+ 
+     protected void d(DamageSource damagesource, float f) {
+         if (!this.isInvulnerable()) {
++            float origDamage = f; // EMC
+             f = this.b(damagesource, f);
+             f = this.c(damagesource, f);
+             float f1 = f;
+ 
+             f = Math.max(f - this.br(), 0.0F);
++            // EMC start
++            LivingEntityReceiveDamageEvent event = new LivingEntityReceiveDamageEvent(damagesource, this, origDamage, f);
++            if (!event.callEvent()) {
++                return;
++            }
++            // EMC end
+             this.m(this.br() - (f1 - f));
++            f = (float) event.getDamage(); // EMC
+             if (f != 0.0F) {
+                 float f2 = this.getHealth();
+ 
+-- 
+1.8.3.2
+
