@@ -1,23 +1,23 @@
-From ea27c3dbd7aadb670ef019da159c806997b09d5a Mon Sep 17 00:00:00 2001
+From 46f5cc5d18cec4955d7b1b1b9fc94cf3f9a94661 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Sat, 11 Jan 2014 21:44:10 -0500
-Subject: [PATCH] Improved Timings Support
+Subject: [PATCH] Timings Overhaul
 
-Fixes many bugs and adds better timing data
 ---
  src/main/java/net/minecraft/server/Chunk.java      |   2 +
  .../net/minecraft/server/ChunkProviderServer.java  |   6 +-
  .../net/minecraft/server/ChunkRegionLoader.java    |   9 +-
  .../java/net/minecraft/server/DedicatedServer.java |   3 +
  .../java/net/minecraft/server/EntityLiving.java    |  11 ++
- .../java/net/minecraft/server/MinecraftServer.java |  12 +-
+ .../java/net/minecraft/server/MinecraftServer.java |  13 ++-
  src/main/java/net/minecraft/server/World.java      |   2 +-
+ .../java/net/minecraft/server/WorldServer.java     |   1 +
  .../java/org/bukkit/craftbukkit/CraftWorld.java    |   2 +
- .../java/org/bukkit/craftbukkit/SpigotTimings.java |  77 +++++++++---
+ .../java/org/bukkit/craftbukkit/SpigotTimings.java |  79 ++++++++++---
  .../craftbukkit/chunkio/ChunkIOProvider.java       |   2 +
- .../craftbukkit/scheduler/CraftScheduler.java      | 131 +++++++++++----------
- .../bukkit/craftbukkit/scheduler/CraftTask.java    |  45 ++++---
- 12 files changed, 200 insertions(+), 102 deletions(-)
+ .../craftbukkit/scheduler/CraftScheduler.java      | 127 +++++++++++----------
+ .../bukkit/craftbukkit/scheduler/CraftTask.java    |  45 +++++---
+ 13 files changed, 200 insertions(+), 102 deletions(-)
 
 diff --git a/src/main/java/net/minecraft/server/Chunk.java b/src/main/java/net/minecraft/server/Chunk.java
 index 7451e07..d1551a5 100644
@@ -219,10 +219,18 @@ index 9053843..8f8f9ce 100644
  
          this.world.methodProfiler.b();
 diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
-index c236b69..a05c7ac 100644
+index c236b69..afa6f62 100644
 --- a/src/main/java/net/minecraft/server/MinecraftServer.java
 +++ b/src/main/java/net/minecraft/server/MinecraftServer.java
-@@ -576,6 +576,7 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+@@ -10,6 +10,7 @@ import java.util.ArrayList;
+ import java.util.Arrays;
+ import java.util.Collections;
+ import java.util.Date;
++import java.util.Iterator;
+ import java.util.List;
+ import java.util.Random;
+ import java.util.UUID;
+@@ -576,6 +577,7 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
          }
  
          if ((this.autosavePeriod > 0) && ((this.ticks % this.autosavePeriod) == 0)) { // CraftBukkit
@@ -230,7 +238,7 @@ index c236b69..a05c7ac 100644
              this.methodProfiler.a("save");
              this.t.savePlayers();
              // Spigot Start
-@@ -589,6 +590,7 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+@@ -589,6 +591,7 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
              // this.saveChunks(true);
              // Spigot End
              this.methodProfiler.b();
@@ -238,7 +246,7 @@ index c236b69..a05c7ac 100644
          }
  
          this.methodProfiler.a("tallying");
-@@ -613,17 +615,20 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+@@ -613,17 +616,20 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
          SpigotTimings.schedulerTimer.startTiming(); // Spigot
          // CraftBukkit start
          this.server.getScheduler().mainThreadHeartbeat(this.ticks);
@@ -260,7 +268,7 @@ index c236b69..a05c7ac 100644
          // Send time updates to everyone, it will get the right time from the world the player is in.
          if (this.ticks % 20 == 0) {
              for (int i = 0; i < this.getPlayerList().players.size(); ++i) {
-@@ -631,6 +636,7 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+@@ -631,6 +637,7 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
                  entityplayer.playerConnection.sendPacket(new PacketPlayOutUpdateTime(entityplayer.world.getTime(), entityplayer.getPlayerTime(), entityplayer.world.getGameRules().getBoolean("doDaylightCycle"))); // Add support for per player time
              }
          }
@@ -268,7 +276,7 @@ index c236b69..a05c7ac 100644
  
          int i;
  
-@@ -657,7 +663,9 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+@@ -657,7 +664,9 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
                  CrashReport crashreport;
  
                  try {
@@ -278,7 +286,7 @@ index c236b69..a05c7ac 100644
                  } catch (Throwable throwable) {
                      // Spigot Start
                      try {
-@@ -671,7 +679,9 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+@@ -671,7 +680,9 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
                  }
  
                  try {
@@ -308,6 +316,18 @@ index b71ce1d..8329a0e 100644
      }
  
      protected abstract IChunkProvider j();
+diff --git a/src/main/java/net/minecraft/server/WorldServer.java b/src/main/java/net/minecraft/server/WorldServer.java
+index 9672508..e9e8d8c 100644
+--- a/src/main/java/net/minecraft/server/WorldServer.java
++++ b/src/main/java/net/minecraft/server/WorldServer.java
+@@ -187,6 +187,7 @@ public class WorldServer extends World implements org.bukkit.BlockChangeDelegate
+             timings.mobSpawn.startTiming(); // Spigot
+             this.R.spawnEntities(this, this.allowMonsters && (this.ticksPerMonsterSpawns != 0 && time % this.ticksPerMonsterSpawns == 0L), this.allowAnimals && (this.ticksPerAnimalSpawns != 0 && time % this.ticksPerAnimalSpawns == 0L), this.worldData.getTime() % 400L == 0L);
+             timings.mobSpawn.stopTiming(); // Spigot
++            // CraftBukkit end
+         }
+         // CraftBukkit end
+         timings.doChunkUnload.startTiming(); // Spigot
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
 index ab87519..1223992 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
@@ -325,10 +345,24 @@ index ab87519..1223992 100644
          return chunk != null;
      }
 diff --git a/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java b/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java
-index 541dfe4..5a80c80 100644
+index 541dfe4..4c3f981 100644
 --- a/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java
 +++ b/src/main/java/org/bukkit/craftbukkit/SpigotTimings.java
-@@ -11,11 +11,13 @@ public class SpigotTimings {
+@@ -1,21 +1,27 @@
+ package org.bukkit.craftbukkit;
+ 
++import com.google.common.collect.Maps;
+ import net.minecraft.server.*;
++import org.bukkit.plugin.java.JavaPluginLoader;
+ import org.spigotmc.CustomTimingsHandler;
+ import org.bukkit.scheduler.BukkitTask;
+ 
+ import java.util.HashMap;
++import java.util.Map;
++
+ import org.bukkit.craftbukkit.scheduler.CraftTask;
+ 
+ public class SpigotTimings {
  
      public static final CustomTimingsHandler serverTickTimer = new CustomTimingsHandler("** Full Server Tick");
      public static final CustomTimingsHandler playerListTimer = new CustomTimingsHandler("Player List");
@@ -344,19 +378,17 @@ index 541dfe4..5a80c80 100644
  
      public static final CustomTimingsHandler entityMoveTimer = new CustomTimingsHandler("** entityMove");
      public static final CustomTimingsHandler tickEntityTimer = new CustomTimingsHandler("** tickEntity");
-@@ -33,6 +35,11 @@ public class SpigotTimings {
+@@ -33,6 +39,9 @@ public class SpigotTimings {
      public static final CustomTimingsHandler entityActivationCheckTimer = new CustomTimingsHandler("entityActivationCheck");
      public static final CustomTimingsHandler checkIfActiveTimer = new CustomTimingsHandler("** checkIfActive");
  
 +    public static final CustomTimingsHandler processQueueTimer = new CustomTimingsHandler("processQueue");
-+    public static final CustomTimingsHandler pendingTimer = new CustomTimingsHandler("** Scheduler - Pending Task");
-+    public static final CustomTimingsHandler schedulerSyncTimer = new CustomTimingsHandler("** Scheduler - Sync Task");
-+    public static final CustomTimingsHandler schedulerAsyncTimer = new CustomTimingsHandler("** Scheduler - Async Task");
++    public static final CustomTimingsHandler schedulerSyncTimer = new CustomTimingsHandler("** Scheduler - Sync Tasks", JavaPluginLoader.pluginParentTimer);
 +
      public static final HashMap<String, CustomTimingsHandler> entityTypeTimingMap = new HashMap<String, CustomTimingsHandler>();
      public static final HashMap<String, CustomTimingsHandler> tileEntityTypeTimingMap = new HashMap<String, CustomTimingsHandler>();
      public static final HashMap<String, CustomTimingsHandler> pluginTaskTimingMap = new HashMap<String, CustomTimingsHandler>();
-@@ -44,8 +51,22 @@ public class SpigotTimings {
+@@ -44,8 +53,22 @@ public class SpigotTimings {
       * @return
       */
      public static CustomTimingsHandler getPluginTaskTimings(BukkitTask task, long period) {
@@ -381,7 +413,7 @@ index 541dfe4..5a80c80 100644
          if (period > 0) {
              name += "(interval:" + period +")";
          } else {
-@@ -53,7 +74,7 @@ public class SpigotTimings {
+@@ -53,7 +76,7 @@ public class SpigotTimings {
          }
          CustomTimingsHandler result = pluginTaskTimingMap.get(name);
          if (result == null) {
@@ -390,7 +422,7 @@ index 541dfe4..5a80c80 100644
              pluginTaskTimingMap.put(name, result);
          }
          return result;
-@@ -106,23 +127,45 @@ public class SpigotTimings {
+@@ -106,23 +129,45 @@ public class SpigotTimings {
          public final CustomTimingsHandler tileEntityTick;
          public final CustomTimingsHandler tileEntityPending;
          public final CustomTimingsHandler tracker;
@@ -463,7 +495,7 @@ index 8feadd1..1a9d53f 100644
  
          Server server = queuedChunk.provider.world.getServer();
 diff --git a/src/main/java/org/bukkit/craftbukkit/scheduler/CraftScheduler.java b/src/main/java/org/bukkit/craftbukkit/scheduler/CraftScheduler.java
-index a30f217..f9080ba 100644
+index a30f217..7a15041 100644
 --- a/src/main/java/org/bukkit/craftbukkit/scheduler/CraftScheduler.java
 +++ b/src/main/java/org/bukkit/craftbukkit/scheduler/CraftScheduler.java
 @@ -15,6 +15,7 @@ import java.util.concurrent.atomic.AtomicReference;
@@ -618,7 +650,7 @@ index a30f217..f9080ba 100644
          handle(task, 0l);
          for (CraftTask taskPending = head.getNext(); taskPending != null; taskPending = taskPending.getNext()) {
              if (taskPending == task) {
-@@ -342,20 +343,24 @@ public class CraftScheduler implements BukkitScheduler {
+@@ -342,15 +343,17 @@ public class CraftScheduler implements BukkitScheduler {
              }
              if (task.isSync()) {
                  try {
@@ -642,22 +674,7 @@ index a30f217..f9080ba 100644
                  }
                  parsePending();
              } else {
-+                SpigotTimings.schedulerAsyncTimer.startTiming(); // Spigot
-                 debugTail = debugTail.setNext(new CraftAsyncDebugger(currentTick + RECENT_TICKS, task.getOwner(), task.getTaskClass()));
-                 executor.execute(task);
-+                SpigotTimings.schedulerAsyncTimer.stopTiming(); // Spigot
-                 // We don't need to parse pending
-                 // (async tasks must live with race-conditions if they attempt to cancel between these few lines of code)
-             }
-@@ -400,6 +405,7 @@ public class CraftScheduler implements BukkitScheduler {
-     }
- 
-     private void parsePending() {
-+        SpigotTimings.pendingTimer.startTiming(); // Spigot
-         CraftTask head = this.head;
-         CraftTask task = head.getNext();
-         CraftTask lastTask = head;
-@@ -414,10 +420,11 @@ public class CraftScheduler implements BukkitScheduler {
+@@ -414,8 +417,8 @@ public class CraftScheduler implements BukkitScheduler {
          // We split this because of the way things are ordered for all of the async calls in CraftScheduler
          // (it prevents race-conditions)
          for (task = head; task != lastTask; task = head) {
@@ -667,10 +684,7 @@ index a30f217..f9080ba 100644
 +            task.setNext(null);
          }
          this.head = lastTask;
-+        SpigotTimings.pendingTimer.stopTiming(); // Spigot
      }
- 
-     private boolean isReady(final int currentTick) {
 diff --git a/src/main/java/org/bukkit/craftbukkit/scheduler/CraftTask.java b/src/main/java/org/bukkit/craftbukkit/scheduler/CraftTask.java
 index 7d294c0..220e39a 100644
 --- a/src/main/java/org/bukkit/craftbukkit/scheduler/CraftTask.java
