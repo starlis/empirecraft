@@ -35,6 +35,7 @@ import RemoteControlListener
 import NBTTagList
 import EntityAnimal
 import PathfinderGoalNearestAttackableTarget
+import EnchantmentManager
 
 cd $basedir
 git add mc-dev-master --all

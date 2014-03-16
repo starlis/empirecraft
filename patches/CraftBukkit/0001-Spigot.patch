@@ -1,6 +1,6 @@
-From 113d582a7446dd7180f87b2578dbc1de084f7a0a Mon Sep 17 00:00:00 2001
+From ba2d5b8a87d572fd0382ba4c6025c4f69a2dee42 Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Tue, 11 Mar 2014 21:04:36 -0400
+Date: Sun, 16 Mar 2014 18:16:50 -0400
 Subject: [PATCH] Spigot
 
 ---
@@ -27,10 +27,12 @@ Subject: [PATCH] Spigot
  .../net/minecraft/server/ChunkRegionLoader.java    |  57 +-
  .../java/net/minecraft/server/ChunkSection.java    |  26 +-
  .../net/minecraft/server/CommandDispatcher.java    |  93 +++
+ .../minecraft/server/ContainerEnchantTable.java    |   7 +-
  .../java/net/minecraft/server/DataWatcher.java     | 306 ++++++++++
  .../java/net/minecraft/server/DedicatedServer.java |  39 +-
  .../minecraft/server/DispenseBehaviorBonemeal.java |   2 +-
- src/main/java/net/minecraft/server/Entity.java     |  38 +-
+ .../net/minecraft/server/EnchantmentManager.java   | 356 ++++++++++++
+ src/main/java/net/minecraft/server/Entity.java     |  42 +-
  .../java/net/minecraft/server/EntityAgeable.java   |  25 +
  .../java/net/minecraft/server/EntityAnimal.java    | 271 +++++++++
  .../java/net/minecraft/server/EntityArrow.java     |   4 +-
@@ -45,9 +47,10 @@ Subject: [PATCH] Spigot
  .../java/net/minecraft/server/EntityPlayer.java    |  60 +-
  .../java/net/minecraft/server/EntityTracker.java   |   3 +
  .../net/minecraft/server/EntityTrackerEntry.java   |   2 +
+ .../net/minecraft/server/EntityWitherSkull.java    |  10 +-
  .../java/net/minecraft/server/EntityZombie.java    |   4 +-
  src/main/java/net/minecraft/server/Explosion.java  |   1 +
- .../net/minecraft/server/HandshakeListener.java    |  17 +-
+ .../net/minecraft/server/HandshakeListener.java    |  20 +-
  src/main/java/net/minecraft/server/IRecipe.java    |   2 +
  src/main/java/net/minecraft/server/ItemStack.java  |  27 +-
  .../java/net/minecraft/server/LoginListener.java   |  17 +-
@@ -68,9 +71,9 @@ Subject: [PATCH] Spigot
  .../net/minecraft/server/PacketStatusListener.java |   7 +
  .../PathfinderGoalNearestAttackableTarget.java     |  52 ++
  .../java/net/minecraft/server/PlayerChunkMap.java  |   2 +-
- .../net/minecraft/server/PlayerConnection.java     |  57 +-
+ .../net/minecraft/server/PlayerConnection.java     |  61 +-
  .../minecraft/server/PlayerInteractManager.java    |   1 +
- src/main/java/net/minecraft/server/PlayerList.java |  39 +-
+ src/main/java/net/minecraft/server/PlayerList.java |  95 ++-
  .../java/net/minecraft/server/PropertyManager.java |   2 +-
  .../java/net/minecraft/server/RegionFileCache.java |  67 +++
  .../minecraft/server/RemoteControlListener.java    | 107 ++++
@@ -85,14 +88,15 @@ Subject: [PATCH] Spigot
  src/main/java/net/minecraft/server/TileEntity.java |   2 +
  .../net/minecraft/server/TileEntityHopper.java     |  18 +-
  .../java/net/minecraft/server/WatchableObject.java |  44 ++
- src/main/java/net/minecraft/server/World.java      | 240 ++++++--
+ src/main/java/net/minecraft/server/World.java      | 271 +++++++--
  .../net/minecraft/server/WorldGenForestTree.java   |   7 +-
  .../net/minecraft/server/WorldGenPackedIce2.java   | 101 ++++
  .../net/minecraft/server/WorldMapHumanTracker.java |  24 +-
  .../java/net/minecraft/server/WorldServer.java     |  46 +-
  .../java/org/bukkit/craftbukkit/CraftChunk.java    |  44 +-
  .../java/org/bukkit/craftbukkit/CraftEffect.java   |   2 +
- .../java/org/bukkit/craftbukkit/CraftServer.java   | 158 +++--
+ .../org/bukkit/craftbukkit/CraftOfflinePlayer.java |  12 +-
+ .../java/org/bukkit/craftbukkit/CraftServer.java   | 178 ++++--
  .../java/org/bukkit/craftbukkit/CraftWorld.java    | 107 +++-
  src/main/java/org/bukkit/craftbukkit/Main.java     |  16 +
  .../java/org/bukkit/craftbukkit/SpigotTimings.java | 128 ++++
@@ -101,7 +105,7 @@ Subject: [PATCH] Spigot
  .../org/bukkit/craftbukkit/entity/CraftArrow.java  |  22 +
  .../org/bukkit/craftbukkit/entity/CraftEntity.java |  16 +
  .../craftbukkit/entity/CraftLightningStrike.java   |  20 +
- .../org/bukkit/craftbukkit/entity/CraftPlayer.java |  74 ++-
+ .../org/bukkit/craftbukkit/entity/CraftPlayer.java |  82 ++-
  .../craftbukkit/event/CraftEventFactory.java       |  17 +
  .../craftbukkit/inventory/CraftInventoryAnvil.java |  22 +
  .../craftbukkit/inventory/CraftMetaFirework.java   |   4 +-
@@ -126,7 +130,7 @@ Subject: [PATCH] Spigot
  src/main/java/org/spigotmc/WatchdogThread.java     | 117 ++++
  src/main/resources/configurations/bukkit.yml       |   9 +-
  src/main/resources/configurations/commands.yml     |   9 +-
- 122 files changed, 7306 insertions(+), 432 deletions(-)
+ 126 files changed, 7742 insertions(+), 507 deletions(-)
  create mode 100644 src/main/java/net/minecraft/server/BiomeDecorator.java
  create mode 100644 src/main/java/net/minecraft/server/BlockAnvil.java
  create mode 100644 src/main/java/net/minecraft/server/BlockBrewingStand.java
@@ -135,6 +139,7 @@ Subject: [PATCH] Spigot
  create mode 100644 src/main/java/net/minecraft/server/CommandDispatcher.java
  create mode 100644 src/main/java/net/minecraft/server/DataWatcher.java
  mode change 100644 => 100755 src/main/java/net/minecraft/server/DedicatedServer.java
+ create mode 100644 src/main/java/net/minecraft/server/EnchantmentManager.java
  create mode 100644 src/main/java/net/minecraft/server/EntityAnimal.java
  create mode 100644 src/main/java/net/minecraft/server/NBTBase.java
  create mode 100644 src/main/java/net/minecraft/server/NBTCompressedStreamTools.java
@@ -1759,6 +1764,31 @@ index 0000000..e2389d4
 +        }
 +    }
 +}
+diff --git a/src/main/java/net/minecraft/server/ContainerEnchantTable.java b/src/main/java/net/minecraft/server/ContainerEnchantTable.java
+index cc36e2b..7c0d998 100644
+--- a/src/main/java/net/minecraft/server/ContainerEnchantTable.java
++++ b/src/main/java/net/minecraft/server/ContainerEnchantTable.java
+@@ -152,6 +152,11 @@ public class ContainerEnchantTable extends Container {
+         if (this.costs[i] > 0 && itemstack != null && (entityhuman.expLevel >= this.costs[i] || entityhuman.abilities.canInstantlyBuild)) {
+             if (!this.world.isStatic) {
+                 List list = EnchantmentManager.b(this.l, itemstack, this.costs[i]);
++                // Spigot - Provide an empty enchantment list
++                if (list == null) {
++                    list = new java.util.ArrayList<EnchantmentInstance>();
++                }
++                // Spigot End
+                 boolean flag = itemstack.getItem() == Items.BOOK;
+ 
+                 if (list != null) {
+@@ -186,7 +191,7 @@ public class ContainerEnchantTable extends Container {
+                                 EnchantmentInstance enchantment = new EnchantmentInstance(enchantId, entry.getValue());
+                                 Items.ENCHANTED_BOOK.a(itemstack, enchantment);
+                             } else {
+-                                item.addEnchantment(entry.getKey(), entry.getValue());
++                                item.addUnsafeEnchantment(entry.getKey(), entry.getValue()); // Spigot addEnchantment -> addUnsafeEnchantment
+                             }
+                         } catch (IllegalArgumentException e) {
+                             /* Just swallow invalid enchantments */
 diff --git a/src/main/java/net/minecraft/server/DataWatcher.java b/src/main/java/net/minecraft/server/DataWatcher.java
 new file mode 100644
 index 0000000..cca6bd9
@@ -2150,8 +2180,370 @@ index 92b3789..a164627 100644
  
              BlockDispenseEvent event = new BlockDispenseEvent(block, craftItem.clone(), new org.bukkit.util.Vector(0, 0, 0));
              if (!BlockDispenser.eventFired) {
+diff --git a/src/main/java/net/minecraft/server/EnchantmentManager.java b/src/main/java/net/minecraft/server/EnchantmentManager.java
+new file mode 100644
+index 0000000..94d8cd9
+--- /dev/null
++++ b/src/main/java/net/minecraft/server/EnchantmentManager.java
+@@ -0,0 +1,356 @@
++package net.minecraft.server;
++
++import java.util.ArrayList;
++import java.util.HashMap;
++import java.util.Iterator;
++import java.util.LinkedHashMap;
++import java.util.List;
++import java.util.Map;
++import java.util.Random;
++
++public class EnchantmentManager {
++
++    private static final Random random = new Random();
++    private static final EnchantmentModifierProtection b = new EnchantmentModifierProtection((EmptyClass) null);
++    private static final EnchantmentModifierDamage c = new EnchantmentModifierDamage((EmptyClass) null);
++    private static final EnchantmentModifierThorns d = new EnchantmentModifierThorns((EmptyClass) null);
++    private static final EnchantmentModifierArthropods e = new EnchantmentModifierArthropods((EmptyClass) null);
++
++    public static int getEnchantmentLevel(int i, ItemStack itemstack) {
++        if (itemstack == null) {
++            return 0;
++        } else {
++            NBTTagList nbttaglist = itemstack.getEnchantments();
++
++            if (nbttaglist == null) {
++                return 0;
++            } else {
++                for (int j = 0; j < nbttaglist.size(); ++j) {
++                    short short1 = nbttaglist.get(j).getShort("id");
++                    short short2 = nbttaglist.get(j).getShort("lvl");
++
++                    if (short1 == i) {
++                        return short2;
++                    }
++                }
++
++                return 0;
++            }
++        }
++    }
++
++    public static Map a(ItemStack itemstack) {
++        LinkedHashMap linkedhashmap = new LinkedHashMap();
++        NBTTagList nbttaglist = itemstack.getItem() == Items.ENCHANTED_BOOK ? Items.ENCHANTED_BOOK.g(itemstack) : itemstack.getEnchantments();
++
++        if (nbttaglist != null) {
++            for (int i = 0; i < nbttaglist.size(); ++i) {
++                short short1 = nbttaglist.get(i).getShort("id");
++                short short2 = nbttaglist.get(i).getShort("lvl");
++
++                linkedhashmap.put(Integer.valueOf(short1), Integer.valueOf(short2));
++            }
++        }
++
++        return linkedhashmap;
++    }
++
++    public static void a(Map map, ItemStack itemstack) {
++        NBTTagList nbttaglist = new NBTTagList();
++        Iterator iterator = map.keySet().iterator();
++
++        while (iterator.hasNext()) {
++            int i = ((Integer) iterator.next()).intValue();
++            NBTTagCompound nbttagcompound = new NBTTagCompound();
++
++            nbttagcompound.setShort("id", (short) i);
++            nbttagcompound.setShort("lvl", (short) ((Integer) map.get(Integer.valueOf(i))).intValue());
++            nbttaglist.add(nbttagcompound);
++            if (itemstack.getItem() == Items.ENCHANTED_BOOK) {
++                Items.ENCHANTED_BOOK.a(itemstack, new EnchantmentInstance(i, ((Integer) map.get(Integer.valueOf(i))).intValue()));
++            }
++        }
++
++        if (nbttaglist.size() > 0) {
++            if (itemstack.getItem() != Items.ENCHANTED_BOOK) {
++                itemstack.a("ench", (NBTBase) nbttaglist);
++            }
++        } else if (itemstack.hasTag()) {
++            itemstack.getTag().remove("ench");
++        }
++    }
++
++    public static int getEnchantmentLevel(int i, ItemStack[] aitemstack) {
++        if (aitemstack == null) {
++            return 0;
++        } else {
++            int j = 0;
++            ItemStack[] aitemstack1 = aitemstack;
++            int k = aitemstack.length;
++
++            for (int l = 0; l < k; ++l) {
++                ItemStack itemstack = aitemstack1[l];
++                int i1 = getEnchantmentLevel(i, itemstack);
++
++                if (i1 > j) {
++                    j = i1;
++                }
++            }
++
++            return j;
++        }
++    }
++
++    private static void a(EnchantmentModifier enchantmentmodifier, ItemStack itemstack) {
++        if (itemstack != null) {
++            NBTTagList nbttaglist = itemstack.getEnchantments();
++
++            if (nbttaglist != null) {
++                for (int i = 0; i < nbttaglist.size(); ++i) {
++                    short short1 = nbttaglist.get(i).getShort("id");
++                    short short2 = nbttaglist.get(i).getShort("lvl");
++
++                    if (Enchantment.byId[short1] != null) {
++                        enchantmentmodifier.a(Enchantment.byId[short1], short2);
++                    }
++                }
++            }
++        }
++    }
++
++    private static void a(EnchantmentModifier enchantmentmodifier, ItemStack[] aitemstack) {
++        ItemStack[] aitemstack1 = aitemstack;
++        int i = aitemstack.length;
++
++        for (int j = 0; j < i; ++j) {
++            ItemStack itemstack = aitemstack1[j];
++
++            a(enchantmentmodifier, itemstack);
++        }
++    }
++
++    public static int a(ItemStack[] aitemstack, DamageSource damagesource) {
++        b.a = 0;
++        b.b = damagesource;
++        a((EnchantmentModifier) b, aitemstack);
++        if (b.a > 25) {
++            b.a = 25;
++        }
++
++        return (b.a + 1 >> 1) + random.nextInt((b.a >> 1) + 1);
++    }
++
++    public static float a(EntityLiving entityliving, EntityLiving entityliving1) {
++        c.a = 0.0F;
++        c.b = entityliving1;
++        a((EnchantmentModifier) c, entityliving.be());
++        return c.a;
++    }
++
++    public static void a(EntityLiving entityliving, Entity entity) {
++        d.b = entity;
++        d.a = entityliving;
++        a((EnchantmentModifier) d, entityliving.getEquipment());
++        if (entity instanceof EntityHuman) {
++            a((EnchantmentModifier) d, entityliving.be());
++        }
++    }
++
++    public static void b(EntityLiving entityliving, Entity entity) {
++        e.a = entityliving;
++        e.b = entity;
++        a((EnchantmentModifier) e, entityliving.getEquipment());
++        if (entityliving instanceof EntityHuman) {
++            a((EnchantmentModifier) e, entityliving.be());
++        }
++    }
++
++    public static int getKnockbackEnchantmentLevel(EntityLiving entityliving, EntityLiving entityliving1) {
++        return getEnchantmentLevel(Enchantment.KNOCKBACK.id, entityliving.be());
++    }
++
++    public static int getFireAspectEnchantmentLevel(EntityLiving entityliving) {
++        return getEnchantmentLevel(Enchantment.FIRE_ASPECT.id, entityliving.be());
++    }
++
++    public static int getOxygenEnchantmentLevel(EntityLiving entityliving) {
++        return getEnchantmentLevel(Enchantment.OXYGEN.id, entityliving.getEquipment());
++    }
++
++    public static int getDigSpeedEnchantmentLevel(EntityLiving entityliving) {
++        return getEnchantmentLevel(Enchantment.DIG_SPEED.id, entityliving.be());
++    }
++
++    public static boolean hasSilkTouchEnchantment(EntityLiving entityliving) {
++        return getEnchantmentLevel(Enchantment.SILK_TOUCH.id, entityliving.be()) > 0;
++    }
++
++    public static int getBonusBlockLootEnchantmentLevel(EntityLiving entityliving) {
++        return getEnchantmentLevel(Enchantment.LOOT_BONUS_BLOCKS.id, entityliving.be());
++    }
++
++    public static int getLuckEnchantmentLevel(EntityLiving entityliving) {
++        return getEnchantmentLevel(Enchantment.LUCK.id, entityliving.be());
++    }
++
++    public static int getLureEnchantmentLevel(EntityLiving entityliving) {
++        return getEnchantmentLevel(Enchantment.LURE.id, entityliving.be());
++    }
++
++    public static int getBonusMonsterLootEnchantmentLevel(EntityLiving entityliving) {
++        return getEnchantmentLevel(Enchantment.LOOT_BONUS_MOBS.id, entityliving.be());
++    }
++
++    public static boolean hasWaterWorkerEnchantment(EntityLiving entityliving) {
++        return getEnchantmentLevel(Enchantment.WATER_WORKER.id, entityliving.getEquipment()) > 0;
++    }
++
++    public static ItemStack a(Enchantment enchantment, EntityLiving entityliving) {
++        ItemStack[] aitemstack = entityliving.getEquipment();
++        int i = aitemstack.length;
++
++        for (int j = 0; j < i; ++j) {
++            ItemStack itemstack = aitemstack[j];
++
++            if (itemstack != null && getEnchantmentLevel(enchantment.id, itemstack) > 0) {
++                return itemstack;
++            }
++        }
++
++        return null;
++    }
++
++    public static int a(Random random, int i, int j, ItemStack itemstack) {
++        Item item = itemstack.getItem();
++        int k = item.c();
++
++        if (k <= 0) {
++            return 0;
++        } else {
++            if (j > 15) {
++                j = 15;
++            }
++
++            int l = random.nextInt(8) + 1 + (j >> 1) + random.nextInt(j + 1);
++
++            return i == 0 ? Math.max(l / 3, 1) : (i == 1 ? l * 2 / 3 + 1 : Math.max(l, j * 2));
++        }
++    }
++
++    public static ItemStack a(Random random, ItemStack itemstack, int i) {
++        List list = b(random, itemstack, i);
++        boolean flag = itemstack.getItem() == Items.BOOK;
++
++        if (flag) {
++            itemstack.setItem(Items.ENCHANTED_BOOK);
++        }
++
++        if (list != null) {
++            Iterator iterator = list.iterator();
++
++            while (iterator.hasNext()) {
++                EnchantmentInstance enchantmentinstance = (EnchantmentInstance) iterator.next();
++
++                if (flag) {
++                    Items.ENCHANTED_BOOK.a(itemstack, enchantmentinstance);
++                } else {
++                    itemstack.addEnchantment(enchantmentinstance.enchantment, enchantmentinstance.level);
++                }
++            }
++        }
++
++        return itemstack;
++    }
++
++    public static List b(Random random, ItemStack itemstack, int i) {
++        Item item = itemstack.getItem();
++        int j = item.c();
++
++        if (j <= 0) {
++            return null;
++        } else {
++            j /= 2;
++            j = 1 + random.nextInt((j >> 1) + 1) + random.nextInt((j >> 1) + 1);
++            int k = j + i;
++            float f = (random.nextFloat() + random.nextFloat() - 1.0F) * 0.15F;
++            int l = (int) ((float) k * (1.0F + f) + 0.5F);
++
++            if (l < 1) {
++                l = 1;
++            }
++
++            ArrayList arraylist = null;
++            Map map = b(l, itemstack);
++
++            if (map != null && !map.isEmpty()) {
++                EnchantmentInstance enchantmentinstance = (EnchantmentInstance) WeightedRandom.a(random, map.values());
++
++                if (enchantmentinstance != null) {
++                    arraylist = new ArrayList();
++                    arraylist.add(enchantmentinstance);
++
++                    for (int i1 = l; random.nextInt(50) <= i1; i1 >>= 1) {
++                        Iterator iterator = map.keySet().iterator();
++
++                        while (iterator.hasNext()) {
++                            Integer integer = (Integer) iterator.next();
++                            boolean flag = true;
++                            Iterator iterator1 = arraylist.iterator();
++
++                            while (true) {
++                                if (iterator1.hasNext()) {
++                                    EnchantmentInstance enchantmentinstance1 = (EnchantmentInstance) iterator1.next();
++
++                                    if (enchantmentinstance1.enchantment.a(Enchantment.byId[integer.intValue()])) {
++                                        continue;
++                                    }
++
++                                    flag = false;
++                                }
++
++                                if (!flag) {
++                                    iterator.remove();
++                                }
++                                break;
++                            }
++                        }
++
++                        if (!map.isEmpty()) {
++                            EnchantmentInstance enchantmentinstance2 = (EnchantmentInstance) WeightedRandom.a(random, map.values());
++
++                            arraylist.add(enchantmentinstance2);
++                        }
++                    }
++                }
++            }
++
++            return arraylist;
++        }
++    }
++
++    public static Map b(int i, ItemStack itemstack) {
++        Item item = itemstack.getItem();
++        HashMap hashmap = null;
++        boolean flag = itemstack.getItem() == Items.BOOK;
++        Enchantment[] aenchantment = Enchantment.byId;
++        int j = aenchantment.length;
++
++        for (int k = 0; k < j; ++k) {
++            Enchantment enchantment = aenchantment[k];
++
++            if (enchantment != null && (enchantment.slot.canEnchant(item) || flag)) {
++                for (int l = enchantment.getStartLevel(); l <= enchantment.getMaxLevel(); ++l) {
++                    if (i >= enchantment.a(l) && i <= enchantment.b(l)) {
++                        if (hashmap == null) {
++                            hashmap = new HashMap();
++                        }
++
++                        hashmap.put(Integer.valueOf(enchantment.id), new EnchantmentInstance(enchantment, l));
++                    }
++                }
++            }
++        }
++
++        return hashmap;
++    }
++}
 diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
-index f74d937..4d09fdb 100644
+index f74d937..2bacea0 100644
 --- a/src/main/java/net/minecraft/server/Entity.java
 +++ b/src/main/java/net/minecraft/server/Entity.java
 @@ -14,6 +14,7 @@ import org.bukkit.block.BlockFace;
@@ -2207,6 +2599,24 @@ index f74d937..4d09fdb 100644
  
          this.datawatcher = new DataWatcher(this);
          this.datawatcher.a(0, Byte.valueOf((byte) 0));
+@@ -202,7 +217,7 @@ public abstract class Entity {
+         if ((f == Float.POSITIVE_INFINITY) || (f == Float.NEGATIVE_INFINITY)) {
+             if (this instanceof EntityPlayer) {
+                 this.world.getServer().getLogger().warning(((CraftPlayer) this.getBukkitEntity()).getName() + " was caught trying to crash the server with an invalid yaw");
+-                ((CraftPlayer) this.getBukkitEntity()).kickPlayer("Nope");
++                ((CraftPlayer) this.getBukkitEntity()).kickPlayer("Infinite yaw (Hacking?)"); //Spigot "Nope" -> Descriptive reason
+             }
+             f = 0;
+         }
+@@ -215,7 +230,7 @@ public abstract class Entity {
+         if ((f1 == Float.POSITIVE_INFINITY) || (f1 == Float.NEGATIVE_INFINITY)) {
+             if (this instanceof EntityPlayer) {
+                 this.world.getServer().getLogger().warning(((CraftPlayer) this.getBukkitEntity()).getName() + " was caught trying to crash the server with an invalid pitch");
+-                ((CraftPlayer) this.getBukkitEntity()).kickPlayer("Nope");
++                ((CraftPlayer) this.getBukkitEntity()).kickPlayer("Infinite pitch (Hacking?)"); //Spigot "Nope" -> Descriptive reason
+             }
+             f1 = 0;
+         }
 @@ -424,6 +439,8 @@ public abstract class Entity {
              return;
          }
@@ -3025,6 +3435,33 @@ index 9f818cf..8052ea6 100644
          if (this.trackedPlayers.contains(entityplayer)) {
              this.trackedPlayers.remove(entityplayer);
              entityplayer.removeQueue.add(Integer.valueOf(this.tracker.getId()));
+diff --git a/src/main/java/net/minecraft/server/EntityWitherSkull.java b/src/main/java/net/minecraft/server/EntityWitherSkull.java
+index 2d428f9..de0f2bb 100644
+--- a/src/main/java/net/minecraft/server/EntityWitherSkull.java
++++ b/src/main/java/net/minecraft/server/EntityWitherSkull.java
+@@ -35,15 +35,19 @@ public class EntityWitherSkull extends EntityFireball {
+     protected void a(MovingObjectPosition movingobjectposition) {
+         if (!this.world.isStatic) {
+             if (movingobjectposition.entity != null) {
++                // Spigot start
++                boolean didDamage = false;         	
+                 if (this.shooter != null) {
+-                    if (movingobjectposition.entity.damageEntity(DamageSource.mobAttack(this.shooter), 8.0F) && !movingobjectposition.entity.isAlive()) {
++                    didDamage = movingobjectposition.entity.damageEntity(DamageSource.mobAttack(this.shooter), 8.0F);
++                    if (didDamage && !movingobjectposition.entity.isAlive()) {
+                         this.shooter.heal(5.0F, org.bukkit.event.entity.EntityRegainHealthEvent.RegainReason.WITHER); // CraftBukkit
+                     }
+                 } else {
+-                    movingobjectposition.entity.damageEntity(DamageSource.MAGIC, 5.0F);
++                    didDamage = movingobjectposition.entity.damageEntity(DamageSource.MAGIC, 5.0F);
+                 }
+ 
+-                if (movingobjectposition.entity instanceof EntityLiving) {
++                if (didDamage && movingobjectposition.entity instanceof EntityLiving) {
++                // Spigot end
+                     byte b0 = 0;
+ 
+                     if (this.world.difficulty == EnumDifficulty.NORMAL) {
 diff --git a/src/main/java/net/minecraft/server/EntityZombie.java b/src/main/java/net/minecraft/server/EntityZombie.java
 index 6c6e03e..5c8b0a8 100644
 --- a/src/main/java/net/minecraft/server/EntityZombie.java
@@ -3060,10 +3497,10 @@ index 39e5b5b..d2587c1 100644
                      double d0 = (double) ((float) i + this.world.random.nextFloat());
                      double d1 = (double) ((float) j + this.world.random.nextFloat());
 diff --git a/src/main/java/net/minecraft/server/HandshakeListener.java b/src/main/java/net/minecraft/server/HandshakeListener.java
-index 54ecbdf..a517306 100644
+index 54ecbdf..0215891 100644
 --- a/src/main/java/net/minecraft/server/HandshakeListener.java
 +++ b/src/main/java/net/minecraft/server/HandshakeListener.java
-@@ -64,15 +64,28 @@ public class HandshakeListener implements PacketHandshakingInListener {
+@@ -64,15 +64,31 @@ public class HandshakeListener implements PacketHandshakingInListener {
              // CraftBukkit end
  
              if (packethandshakinginsetprotocol.d() > 4) {
@@ -3081,13 +3518,16 @@ index 54ecbdf..a517306 100644
 +                // Spigot Start
 +                if (org.spigotmc.SpigotConfig.bungee) {
 +                    String[] split = packethandshakinginsetprotocol.b.split("\00");
-+                    if (split.length == 2 || split.length == 3) {
++                    if ( split.length == 3 ) {
 +                        packethandshakinginsetprotocol.b = split[0];
 +                        b.l = new java.net.InetSocketAddress(split[1], ((java.net.InetSocketAddress) b.getSocketAddress()).getPort());
-+                    }
-+                    if ( split.length == 3 )
-+                    {
 +                        b.spoofedUUID = split[2];
++                    } else
++                    {
++                        chatcomponenttext = new ChatComponentText("If you wish to use IP forwarding, please enable it in your BungeeCord config as well!");
++                        this.b.handle(new PacketLoginOutDisconnect(chatcomponenttext), new GenericFutureListener[0]);
++                        this.b.a(chatcomponenttext);
++                        return;
 +                    }
 +                }
 +                // Spigot End
@@ -4880,7 +5320,7 @@ index 4e0398c..ae4ca63 100644
          } else {
              this.f = i;
 diff --git a/src/main/java/net/minecraft/server/PlayerConnection.java b/src/main/java/net/minecraft/server/PlayerConnection.java
-index 3e8517c..b68cd97 100644
+index 3e8517c..f6bcccb 100644
 --- a/src/main/java/net/minecraft/server/PlayerConnection.java
 +++ b/src/main/java/net/minecraft/server/PlayerConnection.java
 @@ -105,6 +105,7 @@ public class PlayerConnection implements PacketPlayInListener {
@@ -4891,6 +5331,15 @@ index 3e8517c..b68cd97 100644
  
      // For the PacketPlayOutBlockPlace hack :(
      Long lastPacket;
+@@ -182,7 +183,7 @@ public class PlayerConnection implements PacketPlayInListener {
+         // CraftBukkit start - Check for NaN
+         if (Double.isNaN(packetplayinflying.x) || Double.isNaN(packetplayinflying.y) || Double.isNaN(packetplayinflying.z) || Double.isNaN(packetplayinflying.stance)) {
+             c.warn(player.getName() + " was caught trying to crash the server with an invalid position.");
+-            getPlayer().kickPlayer("Nope!");
++            getPlayer().kickPlayer("NaN in position (Hacking?)"); //Spigot "Nope" -> Descriptive reason
+             return;
+         }
+         // CraftBukkit end
 @@ -201,6 +202,18 @@ public class PlayerConnection implements PacketPlayInListener {
  
              // CraftBukkit start
@@ -4930,6 +5379,15 @@ index 3e8517c..b68cd97 100644
              // CraftBukkit end
  
              flag = true;
+@@ -762,7 +777,7 @@ public class PlayerConnection implements PacketPlayInListener {
+             this.player.w();
+         } else {
+             c.warn(this.player.getName() + " tried to set an invalid carried item");
+-            this.disconnect("Nope!"); // CraftBukkit
++            this.disconnect("Invalid hotbar selection (Hacking?)"); // CraftBukkit //Spigot "Nope" -> Descriptive reason
+         }
+     }
+ 
 @@ -776,7 +791,7 @@ public class PlayerConnection implements PacketPlayInListener {
              this.player.w();
              String s = packetplayinchat.c();
@@ -5051,10 +5509,52 @@ index bceba7b..c963fac 100644
      }
  
 diff --git a/src/main/java/net/minecraft/server/PlayerList.java b/src/main/java/net/minecraft/server/PlayerList.java
-index 4383275..2ff1e19 100644
+index 4383275..9a1ea8c 100644
 --- a/src/main/java/net/minecraft/server/PlayerList.java
 +++ b/src/main/java/net/minecraft/server/PlayerList.java
-@@ -335,7 +335,7 @@ public abstract class PlayerList {
+@@ -56,6 +56,25 @@ public abstract class PlayerList {
+     private boolean o;
+     private int p;
+ 
++    // Spigot Start
++    private final Map<String, EntityPlayer> playerMap = new java.util.HashMap<String, EntityPlayer>();
++
++    private void removePlayer(EntityPlayer player)
++    {
++        playerMap.remove( player.getName().toLowerCase() );
++    }
++
++    private void addPlayer(EntityPlayer player)
++    {
++        playerMap.put( player.getName().toLowerCase(), player );
++    }
++
++    private EntityPlayer getPlayerByName(String name)
++    {
++        return playerMap.get( name.toLowerCase() );
++    }
++    // Spigot End
++
+     // CraftBukkit start
+     private CraftServer cserver;
+ 
+@@ -218,6 +237,7 @@ public abstract class PlayerList {
+         cserver.detectListNameConflict(entityplayer); // CraftBukkit
+         // this.sendAll(new PacketPlayOutPlayerInfo(entityplayer.getName(), true, 1000)); // CraftBukkit - replaced with loop below
+         this.players.add(entityplayer);
++        addPlayer( entityplayer ); // Spigot
+         WorldServer worldserver = this.server.getWorldServer(entityplayer.dimension);
+ 
+         // CraftBukkit start
+@@ -292,6 +312,7 @@ public abstract class PlayerList {
+         worldserver.kill(entityplayer);
+         worldserver.getPlayerChunkMap().removePlayer(entityplayer);
+         this.players.remove(entityplayer);
++        removePlayer( entityplayer ); // Spigot
+         this.k.remove(entityplayer.getName());
+         ChunkIOExecutor.adjustPoolSize(this.getPlayerCount()); // CraftBukkit
+ 
+@@ -335,7 +356,7 @@ public abstract class PlayerList {
              event.disallow(PlayerLoginEvent.Result.KICK_BANNED, s);
          } else if (!this.isWhitelisted(gameprofile.getName())) {
              // return "You are not white-listed on this server!";
@@ -5063,7 +5563,7 @@ index 4383275..2ff1e19 100644
          } else {
              String s1 = socketaddress.toString();
  
-@@ -354,7 +354,7 @@ public abstract class PlayerList {
+@@ -354,7 +375,7 @@ public abstract class PlayerList {
              } else {
                  // return this.players.size() >= this.maxPlayers ? "The server is full!" : null;
                  if (this.players.size() >= this.maxPlayers) {
@@ -5072,7 +5572,37 @@ index 4383275..2ff1e19 100644
                  }
              }
          }
-@@ -467,6 +467,11 @@ public abstract class PlayerList {
+@@ -370,23 +391,14 @@ public abstract class PlayerList {
+     }
+ 
+     public EntityPlayer processLogin(GameProfile gameprofile, EntityPlayer player) { // CraftBukkit - added EntityPlayer
+-        ArrayList arraylist = new ArrayList();
++        // Spigot Start
++        EntityPlayer entityplayer = getPlayer( gameprofile.getName() );
+ 
+-        EntityPlayer entityplayer;
+-
+-        for (int i = 0; i < this.players.size(); ++i) {
+-            entityplayer = (EntityPlayer) this.players.get(i);
+-            if (entityplayer.getName().equalsIgnoreCase(gameprofile.getName())) {
+-                arraylist.add(entityplayer);
+-            }
+-        }
+-
+-        Iterator iterator = arraylist.iterator();
+-
+-        while (iterator.hasNext()) {
+-            entityplayer = (EntityPlayer) iterator.next();
+-            entityplayer.playerConnection.disconnect("You logged in from another location");
++        if ( entityplayer != null )
++        {
++            entityplayer.playerConnection.disconnect( "You logged in from another location" );
+         }
++        // Spigot End
+ 
+         /* CraftBukkit start
+         Object object;
+@@ -467,6 +479,11 @@ public abstract class PlayerList {
              Player respawnPlayer = this.cserver.getPlayer(entityplayer1);
              PlayerRespawnEvent respawnEvent = new PlayerRespawnEvent(respawnPlayer, location, isBedSpawn);
              this.cserver.getPluginManager().callEvent(respawnEvent);
@@ -5084,7 +5614,7 @@ index 4383275..2ff1e19 100644
  
              location = respawnEvent.getRespawnLocation();
              entityplayer.reset();
-@@ -775,6 +780,25 @@ public abstract class PlayerList {
+@@ -775,6 +792,25 @@ public abstract class PlayerList {
              this.sendAll(new PacketPlayOutPlayerInfo(entityplayer.getName(), true, entityplayer.ping));
          }
          // CraftBukkit end */
@@ -5110,6 +5640,27 @@ index 4383275..2ff1e19 100644
      }
  
      public void sendAll(Packet packet) {
+@@ -858,19 +894,7 @@ public abstract class PlayerList {
+     }
+ 
+     public EntityPlayer getPlayer(String s) {
+-        Iterator iterator = this.players.iterator();
+-
+-        EntityPlayer entityplayer;
+-
+-        do {
+-            if (!iterator.hasNext()) {
+-                return null;
+-            }
+-
+-            entityplayer = (EntityPlayer) iterator.next();
+-        } while (!entityplayer.getName().equalsIgnoreCase(s));
+-
+-        return entityplayer;
++        return getPlayerByName( s ); // Spigot
+     }
+ 
+     public List a(ChunkCoordinates chunkcoordinates, int i, int j, int k, int l, int i1, int j1, Map map, String s, String s1, World world) {
 @@ -1106,8 +1130,15 @@ public abstract class PlayerList {
      }
  
@@ -6293,7 +6844,7 @@ index 0000000..678aa91
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index 4a42bb4..d0d9ea9 100644
+index 4a42bb4..97486db 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
 @@ -14,6 +14,7 @@ import java.util.concurrent.Callable;
@@ -6484,7 +7035,7 @@ index 4a42bb4..d0d9ea9 100644
  
          if (event != null && (event.isCancelled() || entity.dead)) {
              entity.dead = true;
-@@ -961,6 +1039,7 @@ public abstract class World implements IBlockAccess {
+@@ -961,28 +1039,30 @@ public abstract class World implements IBlockAccess {
      }
  
      public void removeEntity(Entity entity) {
@@ -6492,7 +7043,45 @@ index 4a42bb4..d0d9ea9 100644
          entity.die();
          if (entity instanceof EntityHuman) {
              this.players.remove(entity);
-@@ -1000,23 +1079,42 @@ public abstract class World implements IBlockAccess {
+             this.everyoneSleeping();
+         }
+-
+-        int i = entity.ai;
+-        int j = entity.ak;
+-
+-        if (entity.ah && this.isChunkLoaded(i, j)) {
+-            this.getChunkAt(i, j).b(entity);
+-        }
+-
+-        // CraftBukkit start - Decrement loop variable field if we've already ticked this entity
+-        int index = this.entityList.indexOf(entity);
+-        if (index != -1) {
+-            if (index <= this.tickPosition) {
+-                this.tickPosition--;
++        // Spigot start
++        if (!guardEntityList) { // It will get removed after the tick if we are ticking
++            int i = entity.ai;
++            int j = entity.ak;
++            if (entity.ah && this.isChunkLoaded(i, j)) {
++                this.getChunkAt(i, j).b(entity);
++            }
++            // CraftBukkit start - Decrement loop variable field if we've already ticked this entity
++            int index = this.entityList.indexOf(entity);
++            if (index != -1) {
++                if (index <= this.tickPosition) {
++                    this.tickPosition--;
++                }
++                this.entityList.remove(index);
+             }
+-            this.entityList.remove(index);
++            // CraftBukkit end
+         }
+-        // CraftBukkit end
++        // Spigot end
+ 
+         this.b(entity);
+     }
+@@ -1000,23 +1080,42 @@ public abstract class World implements IBlockAccess {
          int i1 = MathHelper.floor(axisalignedbb.c);
          int j1 = MathHelper.floor(axisalignedbb.f + 1.0D);
  
@@ -6547,7 +7136,7 @@ index 4a42bb4..d0d9ea9 100644
  
          double d0 = 0.25D;
          List list = this.getEntities(entity, axisalignedbb.grow(d0, d0, d0));
-@@ -1136,6 +1234,7 @@ public abstract class World implements IBlockAccess {
+@@ -1136,6 +1235,7 @@ public abstract class World implements IBlockAccess {
          CrashReport crashreport;
          CrashReportSystemDetails crashreportsystemdetails;
  
@@ -6555,7 +7144,7 @@ index 4a42bb4..d0d9ea9 100644
          for (i = 0; i < this.i.size(); ++i) {
              entity = (Entity) this.i.get(i);
              // CraftBukkit start - Fixed an NPE, don't process entities in chunks queued for unload
-@@ -1144,10 +1243,15 @@ public abstract class World implements IBlockAccess {
+@@ -1144,10 +1244,15 @@ public abstract class World implements IBlockAccess {
              }
  
              ChunkProviderServer chunkProviderServer = ((WorldServer) this).chunkProviderServer;
@@ -6573,7 +7162,7 @@ index 4a42bb4..d0d9ea9 100644
  
              try {
                  ++entity.ticksLived;
-@@ -1168,6 +1272,7 @@ public abstract class World implements IBlockAccess {
+@@ -1168,6 +1273,7 @@ public abstract class World implements IBlockAccess {
                  this.i.remove(i--);
              }
          }
@@ -6581,7 +7170,7 @@ index 4a42bb4..d0d9ea9 100644
  
          this.methodProfiler.c("remove");
          this.entityList.removeAll(this.f);
-@@ -1191,16 +1296,24 @@ public abstract class World implements IBlockAccess {
+@@ -1191,16 +1297,24 @@ public abstract class World implements IBlockAccess {
          this.f.clear();
          this.methodProfiler.c("regular");
  
@@ -6608,7 +7197,7 @@ index 4a42bb4..d0d9ea9 100644
  
              if (entity.vehicle != null) {
                  if (!entity.vehicle.dead && entity.vehicle.passenger == entity) {
-@@ -1214,7 +1327,9 @@ public abstract class World implements IBlockAccess {
+@@ -1214,7 +1328,9 @@ public abstract class World implements IBlockAccess {
              this.methodProfiler.a("tick");
              if (!entity.dead) {
                  try {
@@ -6618,7 +7207,7 @@ index 4a42bb4..d0d9ea9 100644
                  } catch (Throwable throwable1) {
                      crashreport = CrashReport.a(throwable1, "Ticking entity");
                      crashreportsystemdetails = crashreport.a("Entity being ticked");
-@@ -1232,19 +1347,31 @@ public abstract class World implements IBlockAccess {
+@@ -1232,19 +1348,31 @@ public abstract class World implements IBlockAccess {
                      this.getChunkAt(j, k).b(entity);
                  }
  
@@ -6650,7 +7239,7 @@ index 4a42bb4..d0d9ea9 100644
              // CraftBukkit start - Don't tick entities in chunks queued for unload
              ChunkProviderServer chunkProviderServer = ((WorldServer) this).chunkProviderServer;
              if (chunkProviderServer.unloadQueue.contains(tileentity.x >> 4, tileentity.z >> 4)) {
-@@ -1254,8 +1381,11 @@ public abstract class World implements IBlockAccess {
+@@ -1254,8 +1382,11 @@ public abstract class World implements IBlockAccess {
  
              if (!tileentity.r() && tileentity.o() && this.isLoaded(tileentity.x, tileentity.y, tileentity.z)) {
                  try {
@@ -6662,7 +7251,7 @@ index 4a42bb4..d0d9ea9 100644
                      crashreport = CrashReport.a(throwable2, "Ticking block entity");
                      crashreportsystemdetails = crashreport.a("Block entity being ticked");
                      tileentity.a(crashreportsystemdetails);
-@@ -1275,6 +1405,8 @@ public abstract class World implements IBlockAccess {
+@@ -1275,6 +1406,8 @@ public abstract class World implements IBlockAccess {
              }
          }
  
@@ -6671,7 +7260,7 @@ index 4a42bb4..d0d9ea9 100644
          this.N = false;
          if (!this.b.isEmpty()) {
              this.tileEntityList.removeAll(this.b);
-@@ -1313,6 +1445,7 @@ public abstract class World implements IBlockAccess {
+@@ -1313,6 +1446,7 @@ public abstract class World implements IBlockAccess {
              this.a.clear();
          }
  
@@ -6679,7 +7268,7 @@ index 4a42bb4..d0d9ea9 100644
          this.methodProfiler.b();
          this.methodProfiler.b();
      }
-@@ -1334,7 +1467,12 @@ public abstract class World implements IBlockAccess {
+@@ -1334,7 +1468,12 @@ public abstract class World implements IBlockAccess {
          int j = MathHelper.floor(entity.locZ);
          byte b0 = 32;
  
@@ -6693,7 +7282,7 @@ index 4a42bb4..d0d9ea9 100644
              entity.T = entity.locX;
              entity.U = entity.locY;
              entity.V = entity.locZ;
-@@ -1396,6 +1534,7 @@ public abstract class World implements IBlockAccess {
+@@ -1396,6 +1535,7 @@ public abstract class World implements IBlockAccess {
                      entity.passenger = null;
                  }
              }
@@ -6701,7 +7290,7 @@ index 4a42bb4..d0d9ea9 100644
          }
      }
  
-@@ -1911,24 +2050,44 @@ public abstract class World implements IBlockAccess {
+@@ -1911,24 +2051,44 @@ public abstract class World implements IBlockAccess {
          int j;
          int k;
  
@@ -6756,7 +7345,7 @@ index 4a42bb4..d0d9ea9 100644
          }
  
          this.methodProfiler.b();
-@@ -1937,7 +2096,7 @@ public abstract class World implements IBlockAccess {
+@@ -1937,7 +2097,7 @@ public abstract class World implements IBlockAccess {
          }
  
          this.methodProfiler.a("playerCheckLight");
@@ -6765,7 +7354,7 @@ index 4a42bb4..d0d9ea9 100644
              i = this.random.nextInt(this.players.size());
              entityhuman = (EntityHuman) this.players.get(i);
              j = MathHelper.floor(entityhuman.locX) + this.random.nextInt(11) - 5;
-@@ -2320,6 +2479,7 @@ public abstract class World implements IBlockAccess {
+@@ -2320,6 +2480,7 @@ public abstract class World implements IBlockAccess {
      }
  
      public void a(List list) {
@@ -7144,8 +7733,31 @@ index 7de0de5..7eca388 100644
          default:
              datavalue = 0;
          }
+diff --git a/src/main/java/org/bukkit/craftbukkit/CraftOfflinePlayer.java b/src/main/java/org/bukkit/craftbukkit/CraftOfflinePlayer.java
+index 36bcfef..55df803 100644
+--- a/src/main/java/org/bukkit/craftbukkit/CraftOfflinePlayer.java
++++ b/src/main/java/org/bukkit/craftbukkit/CraftOfflinePlayer.java
+@@ -101,14 +101,10 @@ public class CraftOfflinePlayer implements OfflinePlayer, ConfigurationSerializa
+     }
+ 
+     public Player getPlayer() {
+-        for (Object obj : server.getHandle().players) {
+-            EntityPlayer player = (EntityPlayer) obj;
+-            if (player.getName().equalsIgnoreCase(getName())) {
+-                return (player.playerConnection != null) ? player.playerConnection.getPlayer() : null;
+-            }
+-        }
+-
+-        return null;
++        // Spigot Start
++        EntityPlayer player = server.getHandle().getPlayer( name );
++        return ( player != null && player.playerConnection != null ) ? player.getBukkitEntity() : null;
++        // Spigot End
+     }
+ 
+     @Override
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-index e6c8575..931cae7 100644
+index e6c8575..c6f473f 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 @@ -83,6 +83,8 @@ import net.minecraft.server.MinecraftServer;
@@ -7304,7 +7916,41 @@ index e6c8575..931cae7 100644
  
      private void loadPlugin(Plugin plugin) {
          try {
-@@ -684,11 +705,7 @@ public final class CraftServer implements Server {
+@@ -479,6 +500,13 @@ public final class CraftServer implements Server {
+     public Player getPlayer(final String name) {
+         Validate.notNull(name, "Name cannot be null");
+ 
++        // Spigot End
++        Player directLookup = getPlayerExact( name );
++        if ( directLookup != null )
++        {
++            return directLookup;
++        }
++        // Spigot End
+         Player[] players = getOnlinePlayers();
+ 
+         Player found = null;
+@@ -500,15 +528,10 @@ public final class CraftServer implements Server {
+     public Player getPlayerExact(String name) {
+         Validate.notNull(name, "Name cannot be null");
+ 
+-        String lname = name.toLowerCase();
+-
+-        for (Player player : getOnlinePlayers()) {
+-            if (player.getName().equalsIgnoreCase(lname)) {
+-                return player;
+-            }
+-        }
+-
+-        return null;
++        // Spigot Start
++        EntityPlayer entityPlayer = playerList.getPlayer( name );
++        return ( entityPlayer != null ) ? entityPlayer.getBukkitEntity() : null;
++        // Spigot End
+     }
+ 
+     public int broadcastMessage(String message) {
+@@ -684,11 +707,7 @@ public final class CraftServer implements Server {
              return true;
          }
  
@@ -7317,7 +7963,7 @@ index e6c8575..931cae7 100644
  
          return false;
      }
-@@ -723,6 +740,7 @@ public final class CraftServer implements Server {
+@@ -723,6 +742,7 @@ public final class CraftServer implements Server {
          playerList.getIPBans().load();
          playerList.getNameBans().load();
  
@@ -7325,7 +7971,7 @@ index e6c8575..931cae7 100644
          for (WorldServer world : console.worlds) {
              world.difficulty = difficulty;
              world.setSpawnFlags(monsters, animals);
-@@ -737,11 +755,14 @@ public final class CraftServer implements Server {
+@@ -737,11 +757,14 @@ public final class CraftServer implements Server {
              } else {
                  world.ticksPerMonsterSpawns = this.getTicksPerMonsterSpawns();
              }
@@ -7340,7 +7986,7 @@ index e6c8575..931cae7 100644
          overrideAllCommandBlockCommands = commandsConfiguration.getStringList("command-block-overrides").contains("*");
  
          int pollCount = 0;
-@@ -987,6 +1008,30 @@ public final class CraftServer implements Server {
+@@ -987,6 +1010,30 @@ public final class CraftServer implements Server {
          worlds.remove(world.getName().toLowerCase());
          console.worlds.remove(console.worlds.indexOf(handle));
  
@@ -7371,7 +8017,7 @@ index e6c8575..931cae7 100644
          return true;
      }
  
-@@ -1245,7 +1290,7 @@ public final class CraftServer implements Server {
+@@ -1245,7 +1292,7 @@ public final class CraftServer implements Server {
      }
  
      public OfflinePlayer getOfflinePlayer(String name) {
@@ -7380,7 +8026,7 @@ index e6c8575..931cae7 100644
      }
  
      public OfflinePlayer getOfflinePlayer(String name, boolean search) {
-@@ -1522,6 +1567,13 @@ public final class CraftServer implements Server {
+@@ -1522,6 +1569,13 @@ public final class CraftServer implements Server {
      }
  
      public List<String> tabCompleteCommand(Player player, String message) {
@@ -7846,7 +8492,7 @@ index 64e346d..be4f10f 100644
 +    // Spigot end
  }
 diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
-index 60b0435..9b0672b 100644
+index 60b0435..93d733b 100644
 --- a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
 @@ -63,7 +63,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
@@ -7858,7 +8504,22 @@ index 60b0435..9b0672b 100644
      private int hash = 0;
      private double health = 20;
      private boolean scaledHealth = false;
-@@ -231,6 +231,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+@@ -94,13 +94,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+     }
+ 
+     public boolean isOnline() {
+-        for (Object obj : server.getHandle().players) {
+-            EntityPlayer player = (EntityPlayer) obj;
+-            if (player.getName().equalsIgnoreCase(getName())) {
+-                return true;
+-            }
+-        }
+-        return false;
++        return server.getHandle().getPlayer( getName() ) != null; // Spigot
+     }
+ 
+     public InetSocketAddress getAddress() {
+@@ -231,6 +225,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
  
      @Override
      public void kickPlayer(String message) {
@@ -7866,7 +8527,7 @@ index 60b0435..9b0672b 100644
          if (getHandle().playerConnection == null) return;
  
          getHandle().playerConnection.disconnect(message == null ? "" : message);
-@@ -430,9 +431,11 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+@@ -430,9 +425,11 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
              return false;
          }
  
@@ -7881,7 +8542,7 @@ index 60b0435..9b0672b 100644
  
          // From = Players current Location
          Location from = this.getLocation();
-@@ -446,6 +449,11 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+@@ -446,6 +443,11 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
          if (event.isCancelled()) {
              return false;
          }
@@ -7893,7 +8554,7 @@ index 60b0435..9b0672b 100644
  
          // Update the From Location
          from = event.getFrom();
-@@ -1015,6 +1023,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+@@ -1015,6 +1017,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
      }
  
      public void addChannel(String channel) {
@@ -7901,7 +8562,7 @@ index 60b0435..9b0672b 100644
          if (channels.add(channel)) {
              server.getPluginManager().callEvent(new PlayerRegisterChannelEvent(this, channel));
          }
-@@ -1128,7 +1137,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+@@ -1128,7 +1131,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
      public void setFlySpeed(float value) {
          validateSpeed(value);
          EntityPlayer player = getHandle();
@@ -7910,7 +8571,7 @@ index 60b0435..9b0672b 100644
          player.updateAbilities();
  
      }
-@@ -1136,7 +1145,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+@@ -1136,7 +1139,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
      public void setWalkSpeed(float value) {
          validateSpeed(value);
          EntityPlayer player = getHandle();
@@ -7919,7 +8580,7 @@ index 60b0435..9b0672b 100644
          player.updateAbilities();
      }
  
-@@ -1184,7 +1193,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+@@ -1184,7 +1187,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
              throw new IllegalStateException("Cannot set scoreboard yet");
          }
          if (playerConnection.isDisconnected()) {
@@ -7928,7 +8589,7 @@ index 60b0435..9b0672b 100644
          }
  
          this.server.getScoreboardManager().setPlayerBoard(this, scoreboard);
-@@ -1252,4 +1261,55 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+@@ -1252,4 +1255,55 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
          }
          collection.add(new AttributeModifiable(getHandle().bc(), (new AttributeRanged("generic.maxHealth", scaledHealth ? healthScale : getMaxHealth(), 0.0D, Float.MAX_VALUE)).a("Max Health").a(true)));
      }
