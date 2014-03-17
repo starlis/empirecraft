@@ -36,6 +36,7 @@ import NBTTagList
 import EntityAnimal
 import PathfinderGoalNearestAttackableTarget
 import EnchantmentManager
+import EmptyClass # weird bug
 
 cd $basedir
 git add mc-dev-master --all
