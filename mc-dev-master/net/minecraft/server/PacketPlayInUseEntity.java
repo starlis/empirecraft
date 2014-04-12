@@ -28,4 +28,8 @@ public class PacketPlayInUseEntity extends Packet {
     public EnumEntityUseAction c() {
         return this.action;
     }
+
+    public void handle(PacketListener packetlistener) {
+        this.a((PacketPlayInListener) packetlistener);
+    }
 }

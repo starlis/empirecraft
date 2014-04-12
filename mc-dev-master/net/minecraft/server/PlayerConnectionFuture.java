@@ -6,7 +6,6 @@ import net.minecraft.util.io.netty.util.concurrent.GenericFutureListener;
 class PlayerConnectionFuture implements GenericFutureListener {
 
     final ChatComponentText a;
-
     final PlayerConnection b;
 
     PlayerConnectionFuture(PlayerConnection playerconnection, ChatComponentText chatcomponenttext) {
@@ -15,6 +14,6 @@ class PlayerConnectionFuture implements GenericFutureListener {
     }
 
     public void operationComplete(Future future) {
-        this.b.networkManager.a((IChatBaseComponent) this.a);
+        this.b.networkManager.close(this.a);
     }
 }

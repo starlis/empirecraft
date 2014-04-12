@@ -19,19 +19,19 @@ public class RegistrySimple implements IRegistry {
         return Maps.newHashMap();
     }
 
-    public Object a(Object object) {
+    public Object get(Object object) {
         return this.c.get(object);
     }
 
     public void a(Object object, Object object1) {
         if (this.c.containsKey(object)) {
-            a.warn("Adding duplicate key \'" + object + "\' to registry");
+            a.debug("Adding duplicate key \'" + object + "\' to registry");
         }
 
         this.c.put(object, object1);
     }
 
-    public Set b() {
+    public Set keySet() {
         return Collections.unmodifiableSet(this.c.keySet());
     }
 

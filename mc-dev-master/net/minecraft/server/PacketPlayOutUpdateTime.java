@@ -35,4 +35,8 @@ public class PacketPlayOutUpdateTime extends Packet {
     public String b() {
         return String.format("time=%d,dtime=%d", new Object[] { Long.valueOf(this.a), Long.valueOf(this.b)});
     }
+
+    public void handle(PacketListener packetlistener) {
+        this.a((PacketPlayOutListener) packetlistener);
+    }
 }

@@ -3,7 +3,6 @@ package net.minecraft.server;
 class SlotArmor extends Slot {
 
     final int a;
-
     final ContainerPlayer b;
 
     SlotArmor(ContainerPlayer containerplayer, IInventory iinventory, int i, int j, int k, int l) {
@@ -12,7 +11,7 @@ class SlotArmor extends Slot {
         this.a = l;
     }
 
-    public int a() {
+    public int getMaxStackSize() {
         return 1;
     }
 

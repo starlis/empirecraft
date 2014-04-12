@@ -6,13 +6,9 @@ import net.minecraft.util.io.netty.util.concurrent.GenericFutureListener;
 class QueuedProtocolSwitch implements Runnable {
 
     final EnumProtocol a;
-
     final EnumProtocol b;
-
     final Packet c;
-
     final GenericFutureListener[] d;
-
     final NetworkManager e;
 
     QueuedProtocolSwitch(NetworkManager networkmanager, EnumProtocol enumprotocol, EnumProtocol enumprotocol1, Packet packet, GenericFutureListener[] agenericfuturelistener) {

@@ -28,4 +28,8 @@ public class PacketPlayOutEntityLook extends PacketPlayOutEntity {
     public String b() {
         return super.b() + String.format(", yRot=%d, xRot=%d", new Object[] { Byte.valueOf(this.e), Byte.valueOf(this.f)});
     }
+
+    public void handle(PacketListener packetlistener) {
+        super.a((PacketPlayOutListener) packetlistener);
+    }
 }

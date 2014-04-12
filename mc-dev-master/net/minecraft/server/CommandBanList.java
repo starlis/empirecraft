@@ -6,7 +6,7 @@ public class CommandBanList extends CommandAbstract {
 
     public CommandBanList() {}
 
-    public String c() {
+    public String getCommand() {
         return "banlist";
     }
 
@@ -14,25 +14,25 @@ public class CommandBanList extends CommandAbstract {
         return 3;
     }
 
-    public boolean a(ICommandListener icommandlistener) {
-        return (MinecraftServer.getServer().getPlayerList().getIPBans().isEnabled() || MinecraftServer.getServer().getPlayerList().getNameBans().isEnabled()) && super.a(icommandlistener);
+    public boolean canUse(ICommandListener icommandlistener) {
+        return (MinecraftServer.getServer().getPlayerList().getIPBans().isEnabled() || MinecraftServer.getServer().getPlayerList().getProfileBans().isEnabled()) && super.canUse(icommandlistener);
     }
 
     public String c(ICommandListener icommandlistener) {
         return "commands.banlist.usage";
     }
 
-    public void b(ICommandListener icommandlistener, String[] astring) {
+    public void execute(ICommandListener icommandlistener, String[] astring) {
         if (astring.length >= 1 && astring[0].equalsIgnoreCase("ips")) {
-            icommandlistener.sendMessage(new ChatMessage("commands.banlist.ips", new Object[] { Integer.valueOf(MinecraftServer.getServer().getPlayerList().getIPBans().getEntries().size())}));
-            icommandlistener.sendMessage(new ChatComponentText(a(MinecraftServer.getServer().getPlayerList().getIPBans().getEntries().keySet().toArray())));
+            icommandlistener.sendMessage(new ChatMessage("commands.banlist.ips", new Object[] { Integer.valueOf(MinecraftServer.getServer().getPlayerList().getIPBans().getEntries().length)}));
+            icommandlistener.sendMessage(new ChatComponentText(a(MinecraftServer.getServer().getPlayerList().getIPBans().getEntries())));
         } else {
-            icommandlistener.sendMessage(new ChatMessage("commands.banlist.players", new Object[] { Integer.valueOf(MinecraftServer.getServer().getPlayerList().getNameBans().getEntries().size())}));
-            icommandlistener.sendMessage(new ChatComponentText(a(MinecraftServer.getServer().getPlayerList().getNameBans().getEntries().keySet().toArray())));
+            icommandlistener.sendMessage(new ChatMessage("commands.banlist.players", new Object[] { Integer.valueOf(MinecraftServer.getServer().getPlayerList().getProfileBans().getEntries().length)}));
+            icommandlistener.sendMessage(new ChatComponentText(a(MinecraftServer.getServer().getPlayerList().getProfileBans().getEntries())));
         }
     }
 
-    public List a(ICommandListener icommandlistener, String[] astring) {
+    public List tabComplete(ICommandListener icommandlistener, String[] astring) {
         return astring.length == 1 ? a(astring, new String[] { "players", "ips"}) : null;
     }
 }

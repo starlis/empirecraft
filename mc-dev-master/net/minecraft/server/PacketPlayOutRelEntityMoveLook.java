@@ -37,4 +37,8 @@ public class PacketPlayOutRelEntityMoveLook extends PacketPlayOutEntity {
     public String b() {
         return super.b() + String.format(", xa=%d, ya=%d, za=%d, yRot=%d, xRot=%d", new Object[] { Byte.valueOf(this.b), Byte.valueOf(this.c), Byte.valueOf(this.d), Byte.valueOf(this.e), Byte.valueOf(this.f)});
     }
+
+    public void handle(PacketListener packetlistener) {
+        super.a((PacketPlayOutListener) packetlistener);
+    }
 }

@@ -10,7 +10,6 @@ import net.minecraft.util.com.google.gson.stream.JsonWriter;
 class ChatTypeAdapter extends TypeAdapter {
 
     final Map a;
-
     final ChatTypeAdapterFactory b;
 
     ChatTypeAdapter(ChatTypeAdapterFactory chattypeadapterfactory, Map map) {

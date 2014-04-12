@@ -5,7 +5,6 @@ import java.util.concurrent.Callable;
 class CrashReportServerConnection implements Callable {
 
     final NetworkManager a;
-
     final ServerConnection b;
 
     CrashReportServerConnection(ServerConnection serverconnection, NetworkManager networkmanager) {

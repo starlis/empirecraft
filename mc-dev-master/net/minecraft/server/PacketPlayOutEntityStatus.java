@@ -25,4 +25,8 @@ public class PacketPlayOutEntityStatus extends Packet {
     public void a(PacketPlayOutListener packetplayoutlistener) {
         packetplayoutlistener.a(this);
     }
+
+    public void handle(PacketListener packetlistener) {
+        this.a((PacketPlayOutListener) packetlistener);
+    }
 }

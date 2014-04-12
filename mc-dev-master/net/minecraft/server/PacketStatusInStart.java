@@ -15,4 +15,8 @@ public class PacketStatusInStart extends Packet {
     public boolean a() {
         return true;
     }
+
+    public void handle(PacketListener packetlistener) {
+        this.a((PacketStatusInListener) packetlistener);
+    }
 }

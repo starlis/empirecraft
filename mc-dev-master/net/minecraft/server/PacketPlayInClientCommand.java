@@ -25,4 +25,8 @@ public class PacketPlayInClientCommand extends Packet {
     public EnumClientCommand c() {
         return this.a;
     }
+
+    public void handle(PacketListener packetlistener) {
+        this.a((PacketPlayInListener) packetlistener);
+    }
 }

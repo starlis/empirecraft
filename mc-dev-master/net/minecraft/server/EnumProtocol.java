@@ -19,7 +19,6 @@ public enum EnumProtocol {
     private final int g;
     private final BiMap h;
     private final BiMap i;
-
     private static final EnumProtocol[] ENUM$VALUES = new EnumProtocol[] { HANDSHAKING, PLAY, STATUS, LOGIN};
 
     private EnumProtocol(String s, int i, int j) {

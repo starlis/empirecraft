@@ -70,4 +70,8 @@ public class PacketPlayInBlockPlace extends Packet {
     public float j() {
         return this.h;
     }
+
+    public void handle(PacketListener packetlistener) {
+        this.a((PacketPlayInListener) packetlistener);
+    }
 }

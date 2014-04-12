@@ -65,4 +65,8 @@ public class PacketPlayInFlying extends Packet {
     public void a(boolean flag) {
         this.hasPos = flag;
     }
+
+    public void handle(PacketListener packetlistener) {
+        this.a((PacketPlayInListener) packetlistener);
+    }
 }

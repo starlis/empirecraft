@@ -7,7 +7,6 @@ public class BiomeCacheBlock {
     public int c;
     public int d;
     public long e;
-
     final BiomeCache f;
 
     public BiomeCacheBlock(BiomeCache biomecache, int i, int j) {

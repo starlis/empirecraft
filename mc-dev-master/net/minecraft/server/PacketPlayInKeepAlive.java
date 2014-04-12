@@ -25,4 +25,8 @@ public class PacketPlayInKeepAlive extends Packet {
     public int c() {
         return this.a;
     }
+
+    public void handle(PacketListener packetlistener) {
+        this.a((PacketPlayInListener) packetlistener);
+    }
 }

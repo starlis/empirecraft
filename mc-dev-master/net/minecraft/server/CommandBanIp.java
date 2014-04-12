@@ -1,5 +1,6 @@
 package net.minecraft.server;
 
+import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -11,7 +12,7 @@ public class CommandBanIp extends CommandAbstract {
 
     public CommandBanIp() {}
 
-    public String c() {
+    public String getCommand() {
         return "ban-ip";
     }
 
@@ -19,15 +20,15 @@ public class CommandBanIp extends CommandAbstract {
         return 3;
     }
 
-    public boolean a(ICommandListener icommandlistener) {
-        return MinecraftServer.getServer().getPlayerList().getIPBans().isEnabled() && super.a(icommandlistener);
+    public boolean canUse(ICommandListener icommandlistener) {
+        return MinecraftServer.getServer().getPlayerList().getIPBans().isEnabled() && super.canUse(icommandlistener);
     }
 
     public String c(ICommandListener icommandlistener) {
         return "commands.banip.usage";
     }
 
-    public void b(ICommandListener icommandlistener, String[] astring) {
+    public void execute(ICommandListener icommandlistener, String[] astring) {
         if (astring.length >= 1 && astring[0].length() > 1) {
             Matcher matcher = a.matcher(astring[0]);
             IChatBaseComponent ichatbasecomponent = null;
@@ -52,20 +53,15 @@ public class CommandBanIp extends CommandAbstract {
         }
     }
 
-    public List a(ICommandListener icommandlistener, String[] astring) {
+    public List tabComplete(ICommandListener icommandlistener, String[] astring) {
         return astring.length == 1 ? a(astring, MinecraftServer.getServer().getPlayers()) : null;
     }
 
     protected void a(ICommandListener icommandlistener, String s, String s1) {
-        BanEntry banentry = new BanEntry(s);
+        IpBanEntry ipbanentry = new IpBanEntry(s, (Date) null, icommandlistener.getName(), (Date) null, s1);
 
-        banentry.setSource(icommandlistener.getName());
-        if (s1 != null) {
-            banentry.setReason(s1);
-        }
-
-        MinecraftServer.getServer().getPlayerList().getIPBans().add(banentry);
-        List list = MinecraftServer.getServer().getPlayerList().h(s);
+        MinecraftServer.getServer().getPlayerList().getIPBans().add(ipbanentry);
+        List list = MinecraftServer.getServer().getPlayerList().b(s);
         String[] astring = new String[list.size()];
         int i = 0;
 
@@ -77,9 +73,9 @@ public class CommandBanIp extends CommandAbstract {
         }
 
         if (list.isEmpty()) {
-            a(icommandlistener, "commands.banip.success", new Object[] { s});
+            a(icommandlistener, this, "commands.banip.success", new Object[] { s});
         } else {
-            a(icommandlistener, "commands.banip.success.players", new Object[] { s, a(astring)});
+            a(icommandlistener, this, "commands.banip.success.players", new Object[] { s, a(astring)});
         }
     }
 }

@@ -6,11 +6,8 @@ import javax.swing.JTextArea;
 class ServerGuiInvokeRunnable implements Runnable {
 
     final JTextArea a;
-
     final JScrollPane b;
-
     final String c;
-
     final ServerGUI d;
 
     ServerGuiInvokeRunnable(ServerGUI servergui, JTextArea jtextarea, JScrollPane jscrollpane, String s) {

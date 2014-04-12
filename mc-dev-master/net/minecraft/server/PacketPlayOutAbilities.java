@@ -110,4 +110,8 @@ public class PacketPlayOutAbilities extends Packet {
     public void b(float f) {
         this.f = f;
     }
+
+    public void handle(PacketListener packetlistener) {
+        this.a((PacketPlayOutListener) packetlistener);
+    }
 }

@@ -5,7 +5,6 @@ public enum EnumEntityUseAction {
     INTERACT("INTERACT", 0, 0), ATTACK("ATTACK", 1, 1);
     private static final EnumEntityUseAction[] c = new EnumEntityUseAction[values().length];
     private final int d;
-
     private static final EnumEntityUseAction[] e = new EnumEntityUseAction[] { INTERACT, ATTACK};
 
     private EnumEntityUseAction(String s, int i, int j) {

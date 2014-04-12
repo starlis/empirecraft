@@ -43,4 +43,8 @@ public class PacketPlayOutEntityDestroy extends Packet {
 
         return String.format("entities=%d[%s]", new Object[] { Integer.valueOf(this.a.length), stringbuilder});
     }
+
+    public void handle(PacketListener packetlistener) {
+        this.a((PacketPlayOutListener) packetlistener);
+    }
 }

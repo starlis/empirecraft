@@ -35,4 +35,8 @@ public class PacketPlayOutEntity extends Packet {
     public String toString() {
         return "Entity_" + super.toString();
     }
+
+    public void handle(PacketListener packetlistener) {
+        this.a((PacketPlayOutListener) packetlistener);
+    }
 }

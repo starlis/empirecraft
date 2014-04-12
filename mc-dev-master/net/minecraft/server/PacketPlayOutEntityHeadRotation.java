@@ -29,4 +29,8 @@ public class PacketPlayOutEntityHeadRotation extends Packet {
     public String b() {
         return String.format("id=%d, rot=%d", new Object[] { Integer.valueOf(this.a), Byte.valueOf(this.b)});
     }
+
+    public void handle(PacketListener packetlistener) {
+        this.a((PacketPlayOutListener) packetlistener);
+    }
 }

@@ -21,4 +21,8 @@ public class PacketPlayInHeldItemSlot extends Packet {
     public int c() {
         return this.itemInHandIndex;
     }
+
+    public void handle(PacketListener packetlistener) {
+        this.a((PacketPlayInListener) packetlistener);
+    }
 }

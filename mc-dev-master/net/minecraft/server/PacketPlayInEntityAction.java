@@ -31,4 +31,8 @@ public class PacketPlayInEntityAction extends Packet {
     public int e() {
         return this.c;
     }
+
+    public void handle(PacketListener packetlistener) {
+        this.a((PacketPlayInListener) packetlistener);
+    }
 }

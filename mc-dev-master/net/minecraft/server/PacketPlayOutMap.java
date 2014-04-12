@@ -31,4 +31,8 @@ public class PacketPlayOutMap extends Packet {
     public String b() {
         return String.format("id=%d, length=%d", new Object[] { Integer.valueOf(this.a), Integer.valueOf(this.b.length)});
     }
+
+    public void handle(PacketListener packetlistener) {
+        this.a((PacketPlayOutListener) packetlistener);
+    }
 }

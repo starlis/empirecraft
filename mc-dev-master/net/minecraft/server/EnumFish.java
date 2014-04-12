@@ -15,7 +15,6 @@ public enum EnumFish {
     private final int l;
     private final float m;
     private boolean n = false;
-
     private static final EnumFish[] o = new EnumFish[] { COD, SALMON, CLOWNFISH, PUFFERFISH};
 
     private EnumFish(String s, int i, int j, String s1, int k, float f, int l, float f1) {

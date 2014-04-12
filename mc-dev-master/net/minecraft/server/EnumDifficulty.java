@@ -6,7 +6,6 @@ public enum EnumDifficulty {
     private static final EnumDifficulty[] e = new EnumDifficulty[values().length];
     private final int f;
     private final String g;
-
     private static final EnumDifficulty[] h = new EnumDifficulty[] { PEACEFUL, EASY, NORMAL, HARD};
 
     private EnumDifficulty(String s, int i, int j, String s1) {

@@ -25,4 +25,8 @@ public class PacketLoginOutDisconnect extends Packet {
     public boolean a() {
         return true;
     }
+
+    public void handle(PacketListener packetlistener) {
+        this.a((PacketLoginOutListener) packetlistener);
+    }
 }

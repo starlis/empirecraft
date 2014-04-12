@@ -49,4 +49,8 @@ public class PacketPlayInUpdateSign extends Packet {
     public String[] f() {
         return this.d;
     }
+
+    public void handle(PacketListener packetlistener) {
+        this.a((PacketPlayInListener) packetlistener);
+    }
 }

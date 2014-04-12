@@ -11,7 +11,6 @@ public class MinecartTrackLogic {
     private int e;
     private final boolean f;
     private List g;
-
     final BlockMinecartTrackAbstract a;
 
     public MinecartTrackLogic(BlockMinecartTrackAbstract blockminecarttrackabstract, World world, int i, int j, int k) {

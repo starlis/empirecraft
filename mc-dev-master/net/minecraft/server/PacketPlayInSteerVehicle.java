@@ -42,4 +42,8 @@ public class PacketPlayInSteerVehicle extends Packet {
     public boolean f() {
         return this.d;
     }
+
+    public void handle(PacketListener packetlistener) {
+        this.a((PacketPlayInListener) packetlistener);
+    }
 }

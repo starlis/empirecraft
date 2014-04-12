@@ -28,4 +28,8 @@ public class RegistryBlocks extends RegistryMaterials {
 
         return object == null ? this.e : object;
     }
+
+    public Object get(Object object) {
+        return this.a((String) object);
+    }
 }

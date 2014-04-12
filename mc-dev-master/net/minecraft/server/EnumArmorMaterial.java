@@ -6,7 +6,6 @@ public enum EnumArmorMaterial {
     private int f;
     private int[] g;
     private int h;
-
     private static final EnumArmorMaterial[] i = new EnumArmorMaterial[] { CLOTH, CHAIN, IRON, GOLD, DIAMOND};
 
     private EnumArmorMaterial(String s, int i, int j, int[] aint, int k) {

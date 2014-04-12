@@ -33,4 +33,8 @@ public class PacketLoginInEncryptionBegin extends Packet {
     public byte[] b(PrivateKey privatekey) {
         return privatekey == null ? this.b : MinecraftEncryption.b(privatekey, this.b);
     }
+
+    public void handle(PacketListener packetlistener) {
+        this.a((PacketLoginInListener) packetlistener);
+    }
 }

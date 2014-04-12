@@ -49,4 +49,8 @@ public class PacketPlayInBlockDig extends Packet {
     public int g() {
         return this.e;
     }
+
+    public void handle(PacketListener packetlistener) {
+        this.a((PacketPlayInListener) packetlistener);
+    }
 }

@@ -33,4 +33,8 @@ public class PacketPlayOutEntityEquipment extends Packet {
     public String b() {
         return String.format("entity=%d, slot=%d, item=%s", new Object[] { Integer.valueOf(this.a), Integer.valueOf(this.b), this.c});
     }
+
+    public void handle(PacketListener packetlistener) {
+        this.a((PacketPlayOutListener) packetlistener);
+    }
 }

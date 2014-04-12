@@ -3,13 +3,9 @@ package net.minecraft.server;
 class SlotAnvilResult extends Slot {
 
     final World a;
-
     final int b;
-
     final int c;
-
     final int d;
-
     final ContainerAnvil e;
 
     SlotAnvilResult(ContainerAnvil containeranvil, IInventory iinventory, int i, int j, int k, World world, int l, int i1, int j1) {
@@ -25,8 +21,8 @@ class SlotAnvilResult extends Slot {
         return false;
     }
 
-    public boolean a(EntityHuman entityhuman) {
-        return (entityhuman.abilities.canInstantlyBuild || entityhuman.expLevel >= this.e.a) && this.e.a > 0 && this.e();
+    public boolean isAllowed(EntityHuman entityhuman) {
+        return (entityhuman.abilities.canInstantlyBuild || entityhuman.expLevel >= this.e.a) && this.e.a > 0 && this.hasItem();
     }
 
     public void a(EntityHuman entityhuman, ItemStack itemstack) {
@@ -49,7 +45,7 @@ class SlotAnvilResult extends Slot {
         }
 
         this.e.a = 0;
-        if (!entityhuman.abilities.canInstantlyBuild && !this.a.isStatic && this.a.getType(this.b, this.c, this.d) == Blocks.ANVIL && entityhuman.aI().nextFloat() < 0.12F) {
+        if (!entityhuman.abilities.canInstantlyBuild && !this.a.isStatic && this.a.getType(this.b, this.c, this.d) == Blocks.ANVIL && entityhuman.aH().nextFloat() < 0.12F) {
             int i = this.a.getData(this.b, this.c, this.d);
             int j = i & 3;
             int k = i >> 2;

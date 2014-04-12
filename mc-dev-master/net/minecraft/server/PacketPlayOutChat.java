@@ -38,4 +38,8 @@ public class PacketPlayOutChat extends Packet {
     public boolean d() {
         return this.b;
     }
+
+    public void handle(PacketListener packetlistener) {
+        this.a((PacketPlayOutListener) packetlistener);
+    }
 }

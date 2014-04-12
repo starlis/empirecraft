@@ -21,4 +21,8 @@ public class PacketPlayInPosition extends PacketPlayInFlying {
         packetdataserializer.writeDouble(this.z);
         super.b(packetdataserializer);
     }
+
+    public void handle(PacketListener packetlistener) {
+        super.a((PacketPlayInListener) packetlistener);
+    }
 }

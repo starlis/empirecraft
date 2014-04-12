@@ -4,7 +4,6 @@ public class TileEntityMobSpawnerData extends WeightedRandomChoice {
 
     public final NBTTagCompound b;
     public final String c;
-
     final MobSpawnerAbstract d;
 
     public TileEntityMobSpawnerData(MobSpawnerAbstract mobspawnerabstract, NBTTagCompound nbttagcompound) {

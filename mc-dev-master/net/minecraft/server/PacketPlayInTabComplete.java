@@ -31,4 +31,8 @@ public class PacketPlayInTabComplete extends Packet {
     public String b() {
         return String.format("message=\'%s\'", new Object[] { this.a});
     }
+
+    public void handle(PacketListener packetlistener) {
+        this.a((PacketPlayInListener) packetlistener);
+    }
 }

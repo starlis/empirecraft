@@ -5,9 +5,7 @@ import java.util.concurrent.Callable;
 class CrashReportWorldLocation implements Callable {
 
     final int a;
-
     final int b;
-
     final World c;
 
     CrashReportWorldLocation(World world, int i, int j) {

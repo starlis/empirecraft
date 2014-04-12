@@ -24,14 +24,21 @@ public class PacketSplitter extends ByteToMessageDecoder {
 
             abyte[i] = bytebuf.readByte();
             if (abyte[i] >= 0) {
-                int j = (new PacketDataSerializer(Unpooled.wrappedBuffer(abyte))).a();
+                PacketDataSerializer packetdataserializer = new PacketDataSerializer(Unpooled.wrappedBuffer(abyte));
 
-                if (bytebuf.readableBytes() < j) {
+                try {
+                    int j = packetdataserializer.a();
+
+                    if (bytebuf.readableBytes() >= j) {
+                        list.add(bytebuf.readBytes(j));
+                        return;
+                    }
+
                     bytebuf.resetReaderIndex();
-                    return;
+                } finally {
+                    packetdataserializer.release();
                 }
 
-                list.add(bytebuf.readBytes(j));
                 return;
             }
         }

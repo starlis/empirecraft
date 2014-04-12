@@ -5,7 +5,6 @@ import java.util.concurrent.Callable;
 final class CrashReportBlockType implements Callable {
 
     final int a;
-
     final Block b;
 
     CrashReportBlockType(int i, Block block) {

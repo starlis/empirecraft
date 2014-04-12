@@ -39,7 +39,7 @@ public class LegacyPingHandler extends ChannelInboundHandlerAdapter {
             switch (i) {
             case 0:
                 a.debug("Ping: (<1.3.x) from {}:{}", new Object[] { inetsocketaddress.getAddress(), Integer.valueOf(inetsocketaddress.getPort())});
-                s = String.format("%s\u00A7%d\u00A7%d", new Object[] { minecraftserver.getMotd(), Integer.valueOf(minecraftserver.B()), Integer.valueOf(minecraftserver.C())});
+                s = String.format("%s�%d�%d", new Object[] { minecraftserver.getMotd(), Integer.valueOf(minecraftserver.C()), Integer.valueOf(minecraftserver.D())});
                 this.a(channelhandlercontext, this.a(s));
                 break;
 
@@ -49,7 +49,7 @@ public class LegacyPingHandler extends ChannelInboundHandlerAdapter {
                 }
 
                 a.debug("Ping: (1.4-1.5.x) from {}:{}", new Object[] { inetsocketaddress.getAddress(), Integer.valueOf(inetsocketaddress.getPort())});
-                s = String.format("\u00A71, new Object[] { Integer.valueOf(127), minecraftserver.getVersion(), minecraftserver.getMotd(), Integer.valueOf(minecraftserver.B()), Integer.valueOf(minecraftserver.C())});
+                s = String.format("�1, new Object[] { Integer.valueOf(127), minecraftserver.getVersion(), minecraftserver.getMotd(), Integer.valueOf(minecraftserver.C()), Integer.valueOf(minecraftserver.D())});
                 this.a(channelhandlercontext, this.a(s));
                 break;
 
@@ -69,9 +69,14 @@ public class LegacyPingHandler extends ChannelInboundHandlerAdapter {
                 }
 
                 a.debug("Ping: (1.6) from {}:{}", new Object[] { inetsocketaddress.getAddress(), Integer.valueOf(inetsocketaddress.getPort())});
-                String s1 = String.format("\u00A71, new Object[] { Integer.valueOf(127), minecraftserver.getVersion(), minecraftserver.getMotd(), Integer.valueOf(minecraftserver.B()), Integer.valueOf(minecraftserver.C())});
+                String s1 = String.format("�1, new Object[] { Integer.valueOf(127), minecraftserver.getVersion(), minecraftserver.getMotd(), Integer.valueOf(minecraftserver.C()), Integer.valueOf(minecraftserver.D())});
+                ByteBuf bytebuf1 = this.a(s1);
 
-                this.a(channelhandlercontext, this.a(s1));
+                try {
+                    this.a(channelhandlercontext, bytebuf1);
+                } finally {
+                    bytebuf1.release();
+                }
             }
 
             bytebuf.release();

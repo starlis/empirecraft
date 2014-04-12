@@ -8,9 +8,7 @@ import net.minecraft.util.com.mojang.util.QueueLogAppender;
 class ServerGuiThreadRunnable implements Runnable {
 
     final JTextArea a;
-
     final JScrollPane b;
-
     final ServerGUI c;
 
     ServerGuiThreadRunnable(ServerGUI servergui, JTextArea jtextarea, JScrollPane jscrollpane) {

@@ -7,7 +7,6 @@ public class AttributeSnapshot {
     private final String b;
     private final double c;
     private final Collection d;
-
     final PacketPlayOutUpdateAttributes a;
 
     public AttributeSnapshot(PacketPlayOutUpdateAttributes packetplayoutupdateattributes, String s, double d0, Collection collection) {

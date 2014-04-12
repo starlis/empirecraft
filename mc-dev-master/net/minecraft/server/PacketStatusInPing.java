@@ -25,4 +25,8 @@ public class PacketStatusInPing extends Packet {
     public long c() {
         return this.a;
     }
+
+    public void handle(PacketListener packetlistener) {
+        this.a((PacketStatusInListener) packetlistener);
+    }
 }

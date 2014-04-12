@@ -6,7 +6,6 @@ public enum EnumChatVisibility {
     private static final EnumChatVisibility[] d = new EnumChatVisibility[values().length];
     private final int e;
     private final String f;
-
     private static final EnumChatVisibility[] g = new EnumChatVisibility[] { FULL, SYSTEM, HIDDEN};
 
     private EnumChatVisibility(String s, int i, int j, String s1) {

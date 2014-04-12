@@ -33,4 +33,8 @@ public class PacketLoginOutEncryptionBegin extends Packet {
     public void a(PacketLoginOutListener packetloginoutlistener) {
         packetloginoutlistener.a(this);
     }
+
+    public void handle(PacketListener packetlistener) {
+        this.a((PacketLoginOutListener) packetlistener);
+    }
 }

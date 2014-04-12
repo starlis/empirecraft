@@ -23,12 +23,12 @@ public class PacketPlayOutSpawnEntityLiving extends Packet {
     public PacketPlayOutSpawnEntityLiving(EntityLiving entityliving) {
         this.a = entityliving.getId();
         this.b = (byte) EntityTypes.a(entityliving);
-        this.c = entityliving.at.a(entityliving.locX);
+        this.c = entityliving.as.a(entityliving.locX);
         this.d = MathHelper.floor(entityliving.locY * 32.0D);
-        this.e = entityliving.at.a(entityliving.locZ);
+        this.e = entityliving.as.a(entityliving.locZ);
         this.i = (byte) ((int) (entityliving.yaw * 256.0F / 360.0F));
         this.j = (byte) ((int) (entityliving.pitch * 256.0F / 360.0F));
-        this.k = (byte) ((int) (entityliving.aP * 256.0F / 360.0F));
+        this.k = (byte) ((int) (entityliving.aO * 256.0F / 360.0F));
         double d0 = 3.9D;
         double d1 = entityliving.motX;
         double d2 = entityliving.motY;
@@ -100,5 +100,9 @@ public class PacketPlayOutSpawnEntityLiving extends Packet {
 
     public String b() {
         return String.format("id=%d, type=%d, x=%.2f, y=%.2f, z=%.2f, xd=%.2f, yd=%.2f, zd=%.2f", new Object[] { Integer.valueOf(this.a), Integer.valueOf(this.b), Float.valueOf((float) this.c / 32.0F), Float.valueOf((float) this.d / 32.0F), Float.valueOf((float) this.e / 32.0F), Float.valueOf((float) this.f / 8000.0F), Float.valueOf((float) this.g / 8000.0F), Float.valueOf((float) this.h / 8000.0F)});
+    }
+
+    public void handle(PacketListener packetlistener) {
+        this.a((PacketPlayOutListener) packetlistener);
     }
 }

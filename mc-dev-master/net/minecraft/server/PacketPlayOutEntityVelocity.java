@@ -67,4 +67,8 @@ public class PacketPlayOutEntityVelocity extends Packet {
     public String b() {
         return String.format("id=%d, x=%.2f, y=%.2f, z=%.2f", new Object[] { Integer.valueOf(this.a), Float.valueOf((float) this.b / 8000.0F), Float.valueOf((float) this.c / 8000.0F), Float.valueOf((float) this.d / 8000.0F)});
     }
+
+    public void handle(PacketListener packetlistener) {
+        this.a((PacketPlayOutListener) packetlistener);
+    }
 }

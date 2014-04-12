@@ -29,4 +29,8 @@ public class PacketPlayOutOpenSignEditor extends Packet {
         packetdataserializer.writeInt(this.b);
         packetdataserializer.writeInt(this.c);
     }
+
+    public void handle(PacketListener packetlistener) {
+        this.a((PacketPlayOutListener) packetlistener);
+    }
 }

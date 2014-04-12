@@ -25,7 +25,11 @@ public class PacketPlayInSetCreativeSlot extends Packet {
         return this.slot;
     }
 
-    public ItemStack d() {
+    public ItemStack getItemStack() {
         return this.b;
+    }
+
+    public void handle(PacketListener packetlistener) {
+        this.a((PacketPlayInListener) packetlistener);
     }
 }

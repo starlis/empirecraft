@@ -35,4 +35,8 @@ public class PacketPlayInTransaction extends Packet {
     public short d() {
         return this.b;
     }
+
+    public void handle(PacketListener packetlistener) {
+        this.a((PacketPlayInListener) packetlistener);
+    }
 }

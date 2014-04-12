@@ -5,7 +5,6 @@ import java.util.concurrent.Callable;
 class CrashReportCorruptNBTTag implements Callable {
 
     final String a;
-
     final NBTTagCompound b;
 
     CrashReportCorruptNBTTag(NBTTagCompound nbttagcompound, String s) {

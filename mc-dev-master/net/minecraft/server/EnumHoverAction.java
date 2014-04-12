@@ -9,7 +9,6 @@ public enum EnumHoverAction {
     private static final Map d = Maps.newHashMap();
     private final boolean e;
     private final String f;
-
     private static final EnumHoverAction[] g = new EnumHoverAction[] { SHOW_TEXT, SHOW_ACHIEVEMENT, SHOW_ITEM};
 
     private EnumHoverAction(String s, int i, String s1, boolean flag) {

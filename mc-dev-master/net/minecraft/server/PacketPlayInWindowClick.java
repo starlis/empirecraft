@@ -60,4 +60,8 @@ public class PacketPlayInWindowClick extends Packet {
     public int h() {
         return this.shift;
     }
+
+    public void handle(PacketListener packetlistener) {
+        this.a((PacketPlayInListener) packetlistener);
+    }
 }

@@ -21,4 +21,8 @@ public class PacketPlayOutCloseWindow extends Packet {
     public void b(PacketDataSerializer packetdataserializer) {
         packetdataserializer.writeByte(this.a);
     }
+
+    public void handle(PacketListener packetlistener) {
+        this.a((PacketPlayOutListener) packetlistener);
+    }
 }

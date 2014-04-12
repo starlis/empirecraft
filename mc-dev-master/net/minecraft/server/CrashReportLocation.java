@@ -5,11 +5,8 @@ import java.util.concurrent.Callable;
 class CrashReportLocation implements Callable {
 
     final int a;
-
     final int b;
-
     final int c;
-
     final Chunk d;
 
     CrashReportLocation(Chunk chunk, int i, int j, int k) {

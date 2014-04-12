@@ -29,4 +29,8 @@ public class PacketPlayOutCraftProgressBar extends Packet {
         packetdataserializer.writeShort(this.b);
         packetdataserializer.writeShort(this.c);
     }
+
+    public void handle(PacketListener packetlistener) {
+        this.a((PacketPlayOutListener) packetlistener);
+    }
 }

@@ -17,4 +17,8 @@ public class PacketPlayInLook extends PacketPlayInFlying {
         packetdataserializer.writeFloat(this.pitch);
         super.b(packetdataserializer);
     }
+
+    public void handle(PacketListener packetlistener) {
+        super.a((PacketPlayInListener) packetlistener);
+    }
 }

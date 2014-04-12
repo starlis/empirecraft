@@ -36,4 +36,8 @@ public class PacketPlayOutRespawn extends Packet {
         packetdataserializer.writeByte(this.c.a());
         packetdataserializer.a(this.d.name());
     }
+
+    public void handle(PacketListener packetlistener) {
+        this.a((PacketPlayOutListener) packetlistener);
+    }
 }

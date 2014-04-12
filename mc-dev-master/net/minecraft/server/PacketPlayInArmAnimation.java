@@ -28,4 +28,8 @@ public class PacketPlayInArmAnimation extends Packet {
     public int d() {
         return this.b;
     }
+
+    public void handle(PacketListener packetlistener) {
+        this.a((PacketPlayInListener) packetlistener);
+    }
 }

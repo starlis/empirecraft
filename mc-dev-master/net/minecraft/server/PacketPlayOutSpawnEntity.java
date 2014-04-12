@@ -128,4 +128,8 @@ public class PacketPlayOutSpawnEntity extends Packet {
     public void f(int i) {
         this.g = i;
     }
+
+    public void handle(PacketListener packetlistener) {
+        this.a((PacketPlayOutListener) packetlistener);
+    }
 }

@@ -39,4 +39,8 @@ public class PacketPlayOutTabComplete extends Packet {
     public String b() {
         return String.format("candidates=\'%s\'", new Object[] { ArrayUtils.toString(this.a)});
     }
+
+    public void handle(PacketListener packetlistener) {
+        this.a((PacketPlayOutListener) packetlistener);
+    }
 }
