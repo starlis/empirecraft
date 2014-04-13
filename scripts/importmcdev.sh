@@ -28,8 +28,6 @@ function import {
 	fi
 }
 
-#import EntityItemFrame
-import NBTCompressedStreamTools
 import ServerStatisticManager
 import RemoteControlListener
 import NBTTagList
