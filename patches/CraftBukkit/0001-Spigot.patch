@@ -1,6 +1,6 @@
-From 28eea0a2115a0e303036aeb85b05f736870f1731 Mon Sep 17 00:00:00 2001
+From 8baea5baea19a5648f9532aacce918ba2027e0e6 Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Sun, 13 Apr 2014 23:50:54 -0400
+Date: Mon, 14 Apr 2014 19:38:25 -0400
 Subject: [PATCH] Spigot
 
 ---
@@ -43,11 +43,12 @@ Subject: [PATCH] Spigot
  src/main/java/net/minecraft/server/Entity.java     |  43 +-
  .../java/net/minecraft/server/EntityAgeable.java   |  25 +
  .../java/net/minecraft/server/EntityAnimal.java    | 271 +++++++++
- .../java/net/minecraft/server/EntityArrow.java     |   4 +-
+ .../java/net/minecraft/server/EntityArrow.java     |  16 +-
  src/main/java/net/minecraft/server/EntityBoat.java |   2 +-
  .../net/minecraft/server/EntityEnderDragon.java    |   9 +-
  .../net/minecraft/server/EntityFallingBlock.java   |   2 +
  .../java/net/minecraft/server/EntityFireball.java  |   9 +
+ .../java/net/minecraft/server/EntityFireworks.java |   9 +
  .../net/minecraft/server/EntityFishingHook.java    |  10 +-
  .../java/net/minecraft/server/EntityHuman.java     |   7 +-
  .../net/minecraft/server/EntityInsentient.java     |   6 +
@@ -73,7 +74,7 @@ Subject: [PATCH] Spigot
  .../java/net/minecraft/server/NBTTagByteArray.java |  58 ++
  .../java/net/minecraft/server/NBTTagIntArray.java  |  74 +++
  src/main/java/net/minecraft/server/NBTTagList.java | 167 ++++++
- .../server/NameReferencingFileConverter.java       |   4 +-
+ .../server/NameReferencingFileConverter.java       |   2 +-
  .../java/net/minecraft/server/NetworkManager.java  |  28 +-
  .../net/minecraft/server/NextTickListEntry.java    |  60 ++
  .../java/net/minecraft/server/NibbleArray.java     | 158 +++++
@@ -92,7 +93,7 @@ Subject: [PATCH] Spigot
  .../java/net/minecraft/server/PlayerChunkMap.java  |   4 +-
  .../net/minecraft/server/PlayerConnection.java     |  63 +-
  .../minecraft/server/PlayerInteractManager.java    |   1 +
- src/main/java/net/minecraft/server/PlayerList.java |  52 +-
+ src/main/java/net/minecraft/server/PlayerList.java |  48 +-
  .../java/net/minecraft/server/PlayerSelector.java  |   6 +-
  .../java/net/minecraft/server/PropertyManager.java |   2 +-
  .../java/net/minecraft/server/RegionFileCache.java |  67 +++
@@ -115,14 +116,14 @@ Subject: [PATCH] Spigot
  .../net/minecraft/server/WorldGenForestTree.java   |   7 +-
  .../net/minecraft/server/WorldGenPackedIce2.java   | 101 ++++
  .../net/minecraft/server/WorldMapHumanTracker.java |  24 +-
- .../java/net/minecraft/server/WorldNBTStorage.java |  27 +-
+ .../java/net/minecraft/server/WorldNBTStorage.java |  18 +
  .../java/net/minecraft/server/WorldServer.java     |  43 +-
  .../java/org/bukkit/craftbukkit/CraftChunk.java    |  44 +-
  .../java/org/bukkit/craftbukkit/CraftEffect.java   |   2 +
- .../org/bukkit/craftbukkit/CraftOfflinePlayer.java |   8 +-
- .../java/org/bukkit/craftbukkit/CraftServer.java   | 158 +++--
+ .../org/bukkit/craftbukkit/CraftOfflinePlayer.java |   6 +
+ .../java/org/bukkit/craftbukkit/CraftServer.java   | 159 +++--
  .../java/org/bukkit/craftbukkit/CraftWorld.java    | 115 +++-
- src/main/java/org/bukkit/craftbukkit/Main.java     |  44 +-
+ src/main/java/org/bukkit/craftbukkit/Main.java     |  45 +-
  .../java/org/bukkit/craftbukkit/SpigotTimings.java | 128 ++++
  .../org/bukkit/craftbukkit/block/CraftSign.java    |   8 +-
  .../craftbukkit/command/ServerCommandSender.java   |  11 +-
@@ -156,7 +157,7 @@ Subject: [PATCH] Spigot
  src/main/java/org/spigotmc/WatchdogThread.java     | 117 ++++
  src/main/resources/configurations/bukkit.yml       |   9 +-
  src/main/resources/configurations/commands.yml     |   9 +-
- 152 files changed, 8468 insertions(+), 486 deletions(-)
+ 153 files changed, 8484 insertions(+), 476 deletions(-)
  create mode 100644 src/main/java/net/minecraft/server/BanEntrySerializer.java
  create mode 100644 src/main/java/net/minecraft/server/BiomeDecorator.java
  create mode 100644 src/main/java/net/minecraft/server/BlockAnvil.java
@@ -3271,7 +3272,7 @@ index 0000000..99b9237
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/EntityArrow.java b/src/main/java/net/minecraft/server/EntityArrow.java
-index 3628774..08232d5 100644
+index 3628774..344f917 100644
 --- a/src/main/java/net/minecraft/server/EntityArrow.java
 +++ b/src/main/java/net/minecraft/server/EntityArrow.java
 @@ -15,7 +15,7 @@ public class EntityArrow extends Entity implements IProjectile {
@@ -3283,7 +3284,26 @@ index 3628774..08232d5 100644
      public int fromPlayer;
      public int shake;
      public Entity shooter;
-@@ -144,7 +144,7 @@ public class EntityArrow extends Entity implements IProjectile {
+@@ -24,6 +24,18 @@ public class EntityArrow extends Entity implements IProjectile {
+     private double damage = 2.0D;
+     public int knockbackStrength; // CraftBukkit - private -> public
+ 
++    // Spigot Start
++    @Override
++    public void inactiveTick()
++    {
++        if ( this.inGround )
++        {
++            this.at += 19; // Despawn counter. First int after shooter
++        }
++        super.inactiveTick();
++    }
++    // Spigot End
++
+     public EntityArrow(World world) {
+         super(world);
+         this.j = 10.0D;
+@@ -144,7 +156,7 @@ public class EntityArrow extends Entity implements IProjectile {
  
              if (block == this.g && i == this.h) {
                  ++this.at;
@@ -3372,6 +3392,26 @@ index 0eecaad..b14c73e 100644
          } else {
              this.die();
          }
+diff --git a/src/main/java/net/minecraft/server/EntityFireworks.java b/src/main/java/net/minecraft/server/EntityFireworks.java
+index a228a2c..0a81006 100644
+--- a/src/main/java/net/minecraft/server/EntityFireworks.java
++++ b/src/main/java/net/minecraft/server/EntityFireworks.java
+@@ -5,6 +5,15 @@ public class EntityFireworks extends Entity {
+     private int ticksFlown;
+     public int expectedLifespan; // CraftBukkit - private -> public
+ 
++    // Spigot Start
++    @Override
++    public void inactiveTick()
++    {
++        this.ticksFlown += 19;
++        super.inactiveTick();
++    }
++    // Spigot End
++
+     public EntityFireworks(World world) {
+         super(world);
+         this.a(0.25F, 0.25F);
 diff --git a/src/main/java/net/minecraft/server/EntityFishingHook.java b/src/main/java/net/minecraft/server/EntityFishingHook.java
 index 2a73b6c..0763dd1 100644
 --- a/src/main/java/net/minecraft/server/EntityFishingHook.java
@@ -4889,7 +4929,7 @@ index 0000000..dbc5d13
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/NameReferencingFileConverter.java b/src/main/java/net/minecraft/server/NameReferencingFileConverter.java
-index 45561e9..035e6cb 100644
+index 45561e9..f218a59 100644
 --- a/src/main/java/net/minecraft/server/NameReferencingFileConverter.java
 +++ b/src/main/java/net/minecraft/server/NameReferencingFileConverter.java
 @@ -56,7 +56,7 @@ public class NameReferencingFileConverter {
@@ -4901,15 +4941,6 @@ index 45561e9..035e6cb 100644
              minecraftserver.getGameProfileRepository().findProfilesByNames(astring, Agent.MINECRAFT, profilelookupcallback);
          } else {
              String[] astring1 = astring;
-@@ -373,7 +373,7 @@ public class NameReferencingFileConverter {
- 
-     private static File d(PropertyManager propertymanager) {
-         String s = propertymanager.getString("level-name", "world");
--        File file1 = new File(MinecraftServer.getServer().server.getWorldContainer(), s); // CraftBukkit - Respect container setting
-+        File file1 = new File(s);
- 
-         return new File(file1, "players");
-     }
 diff --git a/src/main/java/net/minecraft/server/NetworkManager.java b/src/main/java/net/minecraft/server/NetworkManager.java
 index 1dd2227..8825258 100644
 --- a/src/main/java/net/minecraft/server/NetworkManager.java
@@ -6152,7 +6183,7 @@ index 2db45ad..97fe53c 100644
      }
  
 diff --git a/src/main/java/net/minecraft/server/PlayerList.java b/src/main/java/net/minecraft/server/PlayerList.java
-index 9a90671..5b112d5 100644
+index 9a90671..bbed3f4 100644
 --- a/src/main/java/net/minecraft/server/PlayerList.java
 +++ b/src/main/java/net/minecraft/server/PlayerList.java
 @@ -350,7 +350,7 @@ public abstract class PlayerList {
@@ -6173,13 +6204,7 @@ index 9a90671..5b112d5 100644
          } else if (this.k.isBanned(socketaddress)) {
              IpBanEntry ipbanentry = this.k.get(socketaddress);
  
-@@ -374,12 +374,12 @@ public abstract class PlayerList {
-                 s = s + "\nYour ban will be removed on " + h.format(ipbanentry.getExpires());
-             }
- 
--            // return s;
-+            // return s2;
-             event.disallow(PlayerLoginEvent.Result.KICK_BANNED, s);
+@@ -379,7 +379,7 @@ public abstract class PlayerList {
          } else {
              // return this.players.size() >= this.maxPlayers ? "The server is full!" : null;
              if (this.players.size() >= this.maxPlayers) {
@@ -6200,15 +6225,6 @@ index 9a90671..5b112d5 100644
  
              location = respawnEvent.getRespawnLocation();
              entityplayer.reset();
-@@ -768,7 +773,7 @@ public abstract class PlayerList {
-             */
-             if (entity.isAlive()) {
-                 // entity.setPositionRotation(d0, entity.locY, d1, entity.yaw, entity.pitch)
--                // worldserver1.getTravelAgent().a(entity, d3, d4, d5, f);
-+                // worldserver1.s().a(entity, d3, d4, d5, f);
-                 if (portal) {
-                     Vector velocity = entity.getBukkitEntity().getVelocity();
-                     worldserver1.getTravelAgent().adjustExit(entity, exit, velocity);
 @@ -788,6 +793,8 @@ public abstract class PlayerList {
          // CraftBukkit end
      }
@@ -8478,17 +8494,13 @@ index ec708d1..ef56386 100644
  
                      this.c[i] = -1;
 diff --git a/src/main/java/net/minecraft/server/WorldNBTStorage.java b/src/main/java/net/minecraft/server/WorldNBTStorage.java
-index 93ff8d3..8f2de94 100644
+index 93ff8d3..cc4d487 100644
 --- a/src/main/java/net/minecraft/server/WorldNBTStorage.java
 +++ b/src/main/java/net/minecraft/server/WorldNBTStorage.java
-@@ -194,12 +194,31 @@ public class WorldNBTStorage implements IDataManager, IPlayerFileData {
-     public NBTTagCompound load(EntityHuman entityhuman) {
-         NBTTagCompound nbttagcompound = null;
+@@ -196,10 +196,28 @@ public class WorldNBTStorage implements IDataManager, IPlayerFileData {
  
-+        File file1 = null; // Spigot
          try {
--            File file1 = new File(this.playerDir, entityhuman.getUniqueID().toString() + ".dat");
-+            file1 = new File(this.playerDir, entityhuman.getUniqueID().toString() + ".dat"); // Spigot
+             File file1 = new File(this.playerDir, entityhuman.getUniqueID().toString() + ".dat");
 +            // Spigot Start
 +            boolean usingWrongFile = false;
 +            if ( !file1.exists() )
@@ -8514,19 +8526,6 @@ index 93ff8d3..8f2de94 100644
          } catch (Exception exception) {
              a.warn("Failed to load player data for " + entityhuman.getName());
          }
-@@ -208,11 +227,7 @@ public class WorldNBTStorage implements IDataManager, IPlayerFileData {
-             // CraftBukkit start
-             if (entityhuman instanceof EntityPlayer) {
-                 CraftPlayer player = (CraftPlayer) entityhuman.bukkitEntity;
--                // Only update first played if it is older than the one we have
--                long modified = new File(this.playerDir, entityhuman.getUniqueID().toString() + ".dat").lastModified();
--                if (modified < player.getFirstPlayed()) {
--                    player.setFirstPlayed(modified);
--                }
-+                player.setFirstPlayed(file1.lastModified()); // Spigot
-             }
-             // CraftBukkit end
- 
 diff --git a/src/main/java/net/minecraft/server/WorldServer.java b/src/main/java/net/minecraft/server/WorldServer.java
 index 843761a..a5e0e13 100644
 --- a/src/main/java/net/minecraft/server/WorldServer.java
@@ -8722,7 +8721,7 @@ index 7de0de5..7eca388 100644
              datavalue = 0;
          }
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftOfflinePlayer.java b/src/main/java/org/bukkit/craftbukkit/CraftOfflinePlayer.java
-index 237837d..7af54cf 100644
+index 237837d..a197edf 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftOfflinePlayer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftOfflinePlayer.java
 @@ -48,6 +48,12 @@ public class CraftOfflinePlayer implements OfflinePlayer, ConfigurationSerializa
@@ -8738,17 +8737,8 @@ index 237837d..7af54cf 100644
  
          // This might not match lastKnownName but if not it should be more correct
          if (profile.getName() != null) {
-@@ -163,7 +169,7 @@ public class CraftOfflinePlayer implements OfflinePlayer, ConfigurationSerializa
-     @Override
-     public int hashCode() {
-         int hash = 5;
--        hash = 97 * hash + (this.getUniqueId() != null ? this.getUniqueId().hashCode() : 0);
-+        hash = 97 * hash + (this.getUniqueId() != null ? this.getUniqueId().toString().hashCode() : 0);
-         return hash;
-     }
- 
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-index c4ef9fa..c30197b 100644
+index c4ef9fa..9f0517b 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 @@ -81,6 +81,8 @@ import net.minecraft.server.MinecraftServer;
@@ -8976,7 +8966,15 @@ index c4ef9fa..c30197b 100644
          return true;
      }
  
-@@ -1285,7 +1330,7 @@ public final class CraftServer implements Server {
+@@ -1259,6 +1304,7 @@ public final class CraftServer implements Server {
+ 
+     public OfflinePlayer getOfflinePlayer(String name) {
+         Validate.notNull(name, "Name cannot be null");
++        com.google.common.base.Preconditions.checkArgument( !org.apache.commons.lang.StringUtils.isBlank( name ), "Name cannot be blank" ); // Spigot
+ 
+         OfflinePlayer result = getPlayerExact(name);
+         if (result == null) {
+@@ -1285,7 +1331,7 @@ public final class CraftServer implements Server {
          if (result == null) {
              result = offlinePlayers.get(id);
              if (result == null) {
@@ -8985,7 +8983,7 @@ index c4ef9fa..c30197b 100644
                  offlinePlayers.put(id, result);
              }
          } else {
-@@ -1559,6 +1604,13 @@ public final class CraftServer implements Server {
+@@ -1559,6 +1605,13 @@ public final class CraftServer implements Server {
      }
  
      public List<String> tabCompleteCommand(Player player, String message) {
@@ -9162,7 +9160,7 @@ index a4ede34..8592205 100644
 +    // Spigot end
  }
 diff --git a/src/main/java/org/bukkit/craftbukkit/Main.java b/src/main/java/org/bukkit/craftbukkit/Main.java
-index 8d127fb..f70db91 100644
+index 8d127fb..1bc6d4a 100644
 --- a/src/main/java/org/bukkit/craftbukkit/Main.java
 +++ b/src/main/java/org/bukkit/craftbukkit/Main.java
 @@ -1,7 +1,9 @@
@@ -9175,7 +9173,7 @@ index 8d127fb..f70db91 100644
  import java.text.SimpleDateFormat;
  import java.util.Arrays;
  import java.util.List;
-@@ -15,7 +17,31 @@ public class Main {
+@@ -15,7 +17,32 @@ public class Main {
      public static boolean useJline = true;
      public static boolean useConsole = true;
  
@@ -9189,6 +9187,7 @@ index 8d127fb..f70db91 100644
 +            String line;
 +            System.err.println( "WARNING: This Minecraft update alters the way in which saved data is stored." );
 +            System.err.println( "Please ensure your server is in the correct online/offline mode state, as the changes made are PERMANENT" );
++            System.err.println( "If you are running in offline mode, but your BungeeCord is in online mode, it is imperative that BungeeCord support is enabled in spigot.yml and BungeeCord's config.yml" );
 +            System.err.println( "By typing `yes` you acknowledge that you have taken the necessary backups and are aware of this conversion" );
 +            System.err.println( "Please type yes to continue starting the server. You have been warned :)" );
 +            System.err.println( "See http://www.spigotmc.org/wiki/uuid-conversion/ if you have any questions and remember BACKUP BACKUP BACKUP" );
@@ -9208,7 +9207,7 @@ index 8d127fb..f70db91 100644
          // Todo: Installation script
          OptionParser parser = new OptionParser() {
              {
-@@ -155,6 +181,22 @@ public class Main {
+@@ -155,6 +182,22 @@ public class Main {
                      useConsole = false;
                  }
  
