@@ -1,6 +1,6 @@
-From 8baea5baea19a5648f9532aacce918ba2027e0e6 Mon Sep 17 00:00:00 2001
+From f3c79a5caacaec6709e10bb002909772d730da1e Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Mon, 14 Apr 2014 19:38:25 -0400
+Date: Mon, 14 Apr 2014 22:49:58 -0400
 Subject: [PATCH] Spigot
 
 ---
@@ -63,9 +63,11 @@ Subject: [PATCH] Spigot
  .../net/minecraft/server/EntityWitherSkull.java    |  10 +-
  .../java/net/minecraft/server/EntityZombie.java    |   4 +-
  src/main/java/net/minecraft/server/Explosion.java  |   1 +
+ .../net/minecraft/server/GameProfileBanEntry.java  |  57 ++
  .../net/minecraft/server/HandshakeListener.java    |  30 +-
  src/main/java/net/minecraft/server/IRecipe.java    |   2 +
  .../java/net/minecraft/server/ItemFishingRod.java  |   1 +
+ src/main/java/net/minecraft/server/ItemSkull.java  |   6 +
  src/main/java/net/minecraft/server/ItemStack.java  |  27 +-
  .../java/net/minecraft/server/LoginListener.java   |  31 +-
  .../java/net/minecraft/server/MinecraftServer.java | 124 +++-
@@ -91,7 +93,7 @@ Subject: [PATCH] Spigot
  .../net/minecraft/server/PacketStatusListener.java |   9 +-
  .../PathfinderGoalNearestAttackableTarget.java     |  52 ++
  .../java/net/minecraft/server/PlayerChunkMap.java  |   4 +-
- .../net/minecraft/server/PlayerConnection.java     |  63 +-
+ .../net/minecraft/server/PlayerConnection.java     |  65 ++-
  .../minecraft/server/PlayerInteractManager.java    |   1 +
  src/main/java/net/minecraft/server/PlayerList.java |  48 +-
  .../java/net/minecraft/server/PlayerSelector.java  |   6 +-
@@ -120,8 +122,7 @@ Subject: [PATCH] Spigot
  .../java/net/minecraft/server/WorldServer.java     |  43 +-
  .../java/org/bukkit/craftbukkit/CraftChunk.java    |  44 +-
  .../java/org/bukkit/craftbukkit/CraftEffect.java   |   2 +
- .../org/bukkit/craftbukkit/CraftOfflinePlayer.java |   6 +
- .../java/org/bukkit/craftbukkit/CraftServer.java   | 159 +++--
+ .../java/org/bukkit/craftbukkit/CraftServer.java   | 157 +++--
  .../java/org/bukkit/craftbukkit/CraftWorld.java    | 115 +++-
  src/main/java/org/bukkit/craftbukkit/Main.java     |  45 +-
  .../java/org/bukkit/craftbukkit/SpigotTimings.java | 128 ++++
@@ -157,7 +158,7 @@ Subject: [PATCH] Spigot
  src/main/java/org/spigotmc/WatchdogThread.java     | 117 ++++
  src/main/resources/configurations/bukkit.yml       |   9 +-
  src/main/resources/configurations/commands.yml     |   9 +-
- 153 files changed, 8484 insertions(+), 476 deletions(-)
+ 154 files changed, 8541 insertions(+), 476 deletions(-)
  create mode 100644 src/main/java/net/minecraft/server/BanEntrySerializer.java
  create mode 100644 src/main/java/net/minecraft/server/BiomeDecorator.java
  create mode 100644 src/main/java/net/minecraft/server/BlockAnvil.java
@@ -173,6 +174,7 @@ Subject: [PATCH] Spigot
  create mode 100644 src/main/java/net/minecraft/server/EnchantmentModifierProtection.java
  create mode 100644 src/main/java/net/minecraft/server/EnchantmentModifierThorns.java
  create mode 100644 src/main/java/net/minecraft/server/EntityAnimal.java
+ create mode 100644 src/main/java/net/minecraft/server/GameProfileBanEntry.java
  create mode 100644 src/main/java/net/minecraft/server/NBTBase.java
  create mode 100644 src/main/java/net/minecraft/server/NBTTagByteArray.java
  create mode 100644 src/main/java/net/minecraft/server/NBTTagIntArray.java
@@ -3272,7 +3274,7 @@ index 0000000..99b9237
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/EntityArrow.java b/src/main/java/net/minecraft/server/EntityArrow.java
-index 3628774..344f917 100644
+index 3628774..13903e9 100644
 --- a/src/main/java/net/minecraft/server/EntityArrow.java
 +++ b/src/main/java/net/minecraft/server/EntityArrow.java
 @@ -15,7 +15,7 @@ public class EntityArrow extends Entity implements IProjectile {
@@ -3308,7 +3310,7 @@ index 3628774..344f917 100644
              if (block == this.g && i == this.h) {
                  ++this.at;
 -                if (this.at == 1200) {
-+                if (this.at == world.spigotConfig.arrowDespawnRate) {
++                if (this.at >= world.spigotConfig.arrowDespawnRate) { // First int after shooter
                      this.die();
                  }
              } else {
@@ -3912,6 +3914,69 @@ index d6ac728..229b296 100644
                  if (flag) {
                      double d0 = (double) ((float) i + this.world.random.nextFloat());
                      double d1 = (double) ((float) j + this.world.random.nextFloat());
+diff --git a/src/main/java/net/minecraft/server/GameProfileBanEntry.java b/src/main/java/net/minecraft/server/GameProfileBanEntry.java
+new file mode 100644
+index 0000000..3738b3e
+--- /dev/null
++++ b/src/main/java/net/minecraft/server/GameProfileBanEntry.java
+@@ -0,0 +1,57 @@
++package net.minecraft.server;
++
++import java.util.Date;
++import java.util.UUID;
++
++import net.minecraft.util.com.google.gson.JsonObject;
++import net.minecraft.util.com.mojang.authlib.GameProfile;
++
++public class GameProfileBanEntry extends ExpirableListEntry {
++
++    public GameProfileBanEntry(GameProfile gameprofile) {
++        this(gameprofile, (Date) null, (String) null, (Date) null, (String) null);
++    }
++
++    public GameProfileBanEntry(GameProfile gameprofile, Date date, String s, Date date1, String s1) {
++        super(gameprofile, date1, s, date1, s1);
++    }
++
++    public GameProfileBanEntry(JsonObject jsonobject) {
++        super(b(jsonobject), jsonobject);
++    }
++
++    protected void a(JsonObject jsonobject) {
++        if (this.f() != null) {
++            jsonobject.addProperty("uuid", ((GameProfile) this.f()).getId() == null ? "" : ((GameProfile) this.f()).getId().toString());
++            jsonobject.addProperty("name", ((GameProfile) this.f()).getName());
++            super.a(jsonobject);
++        }
++    }
++
++    private static GameProfile b(JsonObject jsonobject) {
++        // Spigot start
++        // this whole method has to be reworked to account for the fact Bukkit only accepts UUID bans and gives no way for usernames to be stored!
++        UUID uuid = null;
++        String name = null;
++        if (jsonobject.has("uuid")) {
++            String s = jsonobject.get("uuid").getAsString();
++
++            try {
++                uuid = UUID.fromString(s);
++            } catch (Throwable throwable) {
++            }
++
++        }
++        if ( jsonobject.has("name"))
++        {
++            name = jsonobject.get("name").getAsString();
++        }
++        if ( uuid != null || name != null )
++        {
++            return new GameProfile( uuid, name );
++        } else {
++            return null;
++        }
++        // Spigot End
++    }
++}
 diff --git a/src/main/java/net/minecraft/server/HandshakeListener.java b/src/main/java/net/minecraft/server/HandshakeListener.java
 index 17e69db..2ef286e 100644
 --- a/src/main/java/net/minecraft/server/HandshakeListener.java
@@ -4004,6 +4069,23 @@ index 4451a9f..3ced72b 100644
                  return itemstack;
              }
              // CraftBukkit end
+diff --git a/src/main/java/net/minecraft/server/ItemSkull.java b/src/main/java/net/minecraft/server/ItemSkull.java
+index dd7e5cc..49346a6 100644
+--- a/src/main/java/net/minecraft/server/ItemSkull.java
++++ b/src/main/java/net/minecraft/server/ItemSkull.java
+@@ -45,6 +45,12 @@ public class ItemSkull extends Item {
+             if (!world.isStatic) {
+                 // CraftBukkit start - Handle in ItemBlock
+                 // world.setTypeAndData(i, j, k, Blocks.SKULL, l, 2);
++                // Spigot Start
++                if ( !Blocks.SKULL.canPlace( world, i, j, k ) )
++                {
++                    return false;
++                }
++                // Spigot End
+                 if (!ItemBlock.processBlockPlace(world, entityhuman, null, i, j, k, Blocks.SKULL, l, clickedX, clickedY, clickedZ)) {
+                     return false;
+                 }
 diff --git a/src/main/java/net/minecraft/server/ItemStack.java b/src/main/java/net/minecraft/server/ItemStack.java
 index 791467b..a535479 100644
 --- a/src/main/java/net/minecraft/server/ItemStack.java
@@ -5985,7 +6067,7 @@ index ae53635..cc1b095 100644
  
      public WorldServer a() {
 diff --git a/src/main/java/net/minecraft/server/PlayerConnection.java b/src/main/java/net/minecraft/server/PlayerConnection.java
-index 00d924c..fd6e057 100644
+index 00d924c..be8d72d 100644
 --- a/src/main/java/net/minecraft/server/PlayerConnection.java
 +++ b/src/main/java/net/minecraft/server/PlayerConnection.java
 @@ -106,6 +106,7 @@ public class PlayerConnection implements PacketPlayInListener {
@@ -6152,6 +6234,15 @@ index 00d924c..fd6e057 100644
  
                  if (packetplayinupdatesign.f()[j].length() > 15) {
                      flag = false;
+@@ -1665,7 +1708,7 @@ public class PlayerConnection implements PacketPlayInListener {
+                 itemstack1 = this.player.inventory.getItemInHand();
+                 if (itemstack1 != null) {
+                     if (itemstack.getItem() == Items.BOOK_AND_QUILL && itemstack.getItem() == itemstack1.getItem()) {
+-                        itemstack1.a("pages", (NBTBase) itemstack.getTag().getList("pages", 8));
++                        CraftEventFactory.handleEditBookEvent(player, itemstack); // Spigot
+                     }
+ 
+                     return;
 @@ -1697,7 +1740,7 @@ public class PlayerConnection implements PacketPlayInListener {
                      }
  
@@ -8720,25 +8811,8 @@ index 7de0de5..7eca388 100644
          default:
              datavalue = 0;
          }
-diff --git a/src/main/java/org/bukkit/craftbukkit/CraftOfflinePlayer.java b/src/main/java/org/bukkit/craftbukkit/CraftOfflinePlayer.java
-index 237837d..a197edf 100644
---- a/src/main/java/org/bukkit/craftbukkit/CraftOfflinePlayer.java
-+++ b/src/main/java/org/bukkit/craftbukkit/CraftOfflinePlayer.java
-@@ -48,6 +48,12 @@ public class CraftOfflinePlayer implements OfflinePlayer, ConfigurationSerializa
-         if (player != null) {
-             return player.getName();
-         }
-+        // Spigot Start
-+        if ( profile != null )
-+        {
-+            return profile.getName();
-+        }
-+        // Spigot End
- 
-         // This might not match lastKnownName but if not it should be more correct
-         if (profile.getName() != null) {
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-index c4ef9fa..9f0517b 100644
+index c4ef9fa..50a783e 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 @@ -81,6 +81,8 @@ import net.minecraft.server.MinecraftServer;
@@ -8974,15 +9048,6 @@ index c4ef9fa..9f0517b 100644
  
          OfflinePlayer result = getPlayerExact(name);
          if (result == null) {
-@@ -1285,7 +1331,7 @@ public final class CraftServer implements Server {
-         if (result == null) {
-             result = offlinePlayers.get(id);
-             if (result == null) {
--                result = new CraftOfflinePlayer(this, new GameProfile(id, null));
-+                result = new CraftOfflinePlayer(this, MinecraftServer.getServer().getUserCache().a(id)); // Spigot - this is blocking, but we have no choice!
-                 offlinePlayers.put(id, result);
-             }
-         } else {
 @@ -1559,6 +1605,13 @@ public final class CraftServer implements Server {
      }
  
