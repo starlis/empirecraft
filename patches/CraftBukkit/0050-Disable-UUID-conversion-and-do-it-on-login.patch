@@ -1,0 +1,80 @@
+From e5e63ccd1e33b32404fb9d78cebe464163ca569d Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Mon, 14 Apr 2014 20:44:38 -0400
+Subject: [PATCH] Disable UUID conversion and do it on login
+
+---
+ src/main/java/net/minecraft/server/DedicatedServer.java            | 4 ++--
+ .../java/net/minecraft/server/NameReferencingFileConverter.java    | 1 +
+ src/main/java/net/minecraft/server/WorldNBTStorage.java            | 7 +++++++
+ src/main/java/org/bukkit/craftbukkit/Main.java                     | 2 +-
+ 4 files changed, 11 insertions(+), 3 deletions(-)
+
+diff --git a/src/main/java/net/minecraft/server/DedicatedServer.java b/src/main/java/net/minecraft/server/DedicatedServer.java
+index 11177dc..92f9e38 100644
+--- a/src/main/java/net/minecraft/server/DedicatedServer.java
++++ b/src/main/java/net/minecraft/server/DedicatedServer.java
+@@ -468,7 +468,7 @@ public class DedicatedServer extends MinecraftServer implements IMinecraftServer
+             flag3 = NameReferencingFileConverter.d((MinecraftServer) this);
+         }
+ 
+-        boolean flag4 = false;
++        boolean flag4 = true; // EMC - Disable Full Player data conversion, it will happen on login.
+ 
+         for (i = 0; !flag4 && i <= 2; ++i) {
+             if (i > 0) {
+@@ -477,7 +477,7 @@ public class DedicatedServer extends MinecraftServer implements IMinecraftServer
+                 this.aG();
+             }
+ 
+-            flag4 = NameReferencingFileConverter.a(this, this.propertyManager);
++            // flag4 = NameReferencingFileConverter.a(this, this.propertyManager); // EMC - Disable Full Player data conversion, it will happen on login.
+         }
+ 
+         return flag || flag1 || flag2 || flag3 || flag4;
+diff --git a/src/main/java/net/minecraft/server/NameReferencingFileConverter.java b/src/main/java/net/minecraft/server/NameReferencingFileConverter.java
+index f218a59..60c1573 100644
+--- a/src/main/java/net/minecraft/server/NameReferencingFileConverter.java
++++ b/src/main/java/net/minecraft/server/NameReferencingFileConverter.java
+@@ -355,6 +355,7 @@ public class NameReferencingFileConverter {
+     }
+ 
+     private static boolean c(PropertyManager propertymanager) {
++        if (true) return true; // EMC
+         File file1 = d(propertymanager);
+ 
+         if (file1.exists() && file1.isDirectory()) {
+diff --git a/src/main/java/net/minecraft/server/WorldNBTStorage.java b/src/main/java/net/minecraft/server/WorldNBTStorage.java
+index 4d7a6c9..b0ae9bd 100644
+--- a/src/main/java/net/minecraft/server/WorldNBTStorage.java
++++ b/src/main/java/net/minecraft/server/WorldNBTStorage.java
+@@ -201,6 +201,13 @@ public class WorldNBTStorage implements IDataManager, IPlayerFileData {
+ 
+         try {
+             File file1 = new File(this.playerDir, entityhuman.getUniqueID().toString() + ".dat");
++            // EMC start
++            File fileold = new File(this.baseDir, "players/" + entityhuman.getName() + ".dat");
++            if (!file1.exists() && fileold.exists() && fileold.isFile()) {
++                fileold.renameTo(file1);
++                System.out.println("Converting " + entityhuman.getName() + " to UUID storage");
++            }
++            // EMC end
+             // Spigot Start
+             boolean usingWrongFile = false;
+             if ( !file1.exists() )
+diff --git a/src/main/java/org/bukkit/craftbukkit/Main.java b/src/main/java/org/bukkit/craftbukkit/Main.java
+index 1bc6d4a..01f36fa 100644
+--- a/src/main/java/org/bukkit/craftbukkit/Main.java
++++ b/src/main/java/org/bukkit/craftbukkit/Main.java
+@@ -20,7 +20,7 @@ public class Main {
+     public static void main(String[] args) throws IOException {
+         // Spigot Start
+         File lock = new File( ".update-lock" );
+-        if ( !lock.exists() && System.getProperty( "IReallyKnowWhatIAmDoingThisUpdate" ) == null )
++        if ( !lock.exists() && System.getProperty( "IReallyKnowWhatIAmDoingThisUpdate" ) == null && false) // EMC
+         {
+             BufferedReader br = new BufferedReader( new InputStreamReader( System.in ) );
+             String line;
+-- 
+1.8.3.2
+
