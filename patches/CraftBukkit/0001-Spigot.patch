@@ -1,6 +1,6 @@
-From f3c79a5caacaec6709e10bb002909772d730da1e Mon Sep 17 00:00:00 2001
+From a4f764955192bd5ca8c265255fc0abf283e3f84d Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Mon, 14 Apr 2014 22:49:58 -0400
+Date: Tue, 15 Apr 2014 23:43:05 -0400
 Subject: [PATCH] Spigot
 
 ---
@@ -95,7 +95,7 @@ Subject: [PATCH] Spigot
  .../java/net/minecraft/server/PlayerChunkMap.java  |   4 +-
  .../net/minecraft/server/PlayerConnection.java     |  65 ++-
  .../minecraft/server/PlayerInteractManager.java    |   1 +
- src/main/java/net/minecraft/server/PlayerList.java |  48 +-
+ src/main/java/net/minecraft/server/PlayerList.java |  50 +-
  .../java/net/minecraft/server/PlayerSelector.java  |   6 +-
  .../java/net/minecraft/server/PropertyManager.java |   2 +-
  .../java/net/minecraft/server/RegionFileCache.java |  67 +++
@@ -127,6 +127,7 @@ Subject: [PATCH] Spigot
  src/main/java/org/bukkit/craftbukkit/Main.java     |  45 +-
  .../java/org/bukkit/craftbukkit/SpigotTimings.java | 128 ++++
  .../org/bukkit/craftbukkit/block/CraftSign.java    |   8 +-
+ .../org/bukkit/craftbukkit/block/CraftSkull.java   |   1 +
  .../craftbukkit/command/ServerCommandSender.java   |  11 +-
  .../conversations/ConversationTracker.java         |   8 +-
  .../org/bukkit/craftbukkit/entity/CraftArrow.java  |  22 +
@@ -158,7 +159,7 @@ Subject: [PATCH] Spigot
  src/main/java/org/spigotmc/WatchdogThread.java     | 117 ++++
  src/main/resources/configurations/bukkit.yml       |   9 +-
  src/main/resources/configurations/commands.yml     |   9 +-
- 154 files changed, 8541 insertions(+), 476 deletions(-)
+ 155 files changed, 8543 insertions(+), 477 deletions(-)
  create mode 100644 src/main/java/net/minecraft/server/BanEntrySerializer.java
  create mode 100644 src/main/java/net/minecraft/server/BiomeDecorator.java
  create mode 100644 src/main/java/net/minecraft/server/BlockAnvil.java
@@ -3916,7 +3917,7 @@ index d6ac728..229b296 100644
                      double d1 = (double) ((float) j + this.world.random.nextFloat());
 diff --git a/src/main/java/net/minecraft/server/GameProfileBanEntry.java b/src/main/java/net/minecraft/server/GameProfileBanEntry.java
 new file mode 100644
-index 0000000..3738b3e
+index 0000000..4e8ffd4
 --- /dev/null
 +++ b/src/main/java/net/minecraft/server/GameProfileBanEntry.java
 @@ -0,0 +1,57 @@
@@ -3935,7 +3936,7 @@ index 0000000..3738b3e
 +    }
 +
 +    public GameProfileBanEntry(GameProfile gameprofile, Date date, String s, Date date1, String s1) {
-+        super(gameprofile, date1, s, date1, s1);
++        super(gameprofile, date, s, date1, s1); // Spigot
 +    }
 +
 +    public GameProfileBanEntry(JsonObject jsonobject) {
@@ -5024,7 +5025,7 @@ index 45561e9..f218a59 100644
          } else {
              String[] astring1 = astring;
 diff --git a/src/main/java/net/minecraft/server/NetworkManager.java b/src/main/java/net/minecraft/server/NetworkManager.java
-index 1dd2227..8825258 100644
+index 1dd2227..6321eac 100644
 --- a/src/main/java/net/minecraft/server/NetworkManager.java
 +++ b/src/main/java/net/minecraft/server/NetworkManager.java
 @@ -6,6 +6,7 @@ import javax.crypto.SecretKey;
@@ -5069,7 +5070,7 @@ index 1dd2227..8825258 100644
  
      public void exceptionCaught(ChannelHandlerContext channelhandlercontext, Throwable throwable) {
          this.close(new ChatMessage("disconnect.genericReason", new Object[] { "Internal Exception: " + throwable}));
-+        throwable.printStackTrace(); // Spigot
++        if (MinecraftServer.getServer().isDebugging()) throwable.printStackTrace(); // Spigot
      }
  
      protected void a(ChannelHandlerContext channelhandlercontext, Packet packet) {
@@ -6274,7 +6275,7 @@ index 2db45ad..97fe53c 100644
      }
  
 diff --git a/src/main/java/net/minecraft/server/PlayerList.java b/src/main/java/net/minecraft/server/PlayerList.java
-index 9a90671..bbed3f4 100644
+index 9a90671..77266d7 100644
 --- a/src/main/java/net/minecraft/server/PlayerList.java
 +++ b/src/main/java/net/minecraft/server/PlayerList.java
 @@ -350,7 +350,7 @@ public abstract class PlayerList {
@@ -6286,8 +6287,12 @@ index 9a90671..bbed3f4 100644
          String s;
  
          if (this.j.isBanned(gameprofile)) {
-@@ -365,7 +365,7 @@ public abstract class PlayerList {
-             event.disallow(PlayerLoginEvent.Result.KICK_BANNED, s);
+@@ -362,10 +362,10 @@ public abstract class PlayerList {
+             }
+ 
+             // return s;
+-            event.disallow(PlayerLoginEvent.Result.KICK_BANNED, s);
++            if (!gameprofilebanentry.e()) event.disallow(PlayerLoginEvent.Result.KICK_BANNED, s); // Spigot
          } else if (!this.isWhitelisted(gameprofile)) {
              // return "You are not white-listed on this server!";
 -            event.disallow(PlayerLoginEvent.Result.KICK_WHITELIST, "You are not white-listed on this server!");
@@ -9225,7 +9230,7 @@ index a4ede34..8592205 100644
 +    // Spigot end
  }
 diff --git a/src/main/java/org/bukkit/craftbukkit/Main.java b/src/main/java/org/bukkit/craftbukkit/Main.java
-index 8d127fb..1bc6d4a 100644
+index 8d127fb..9bbc782 100644
 --- a/src/main/java/org/bukkit/craftbukkit/Main.java
 +++ b/src/main/java/org/bukkit/craftbukkit/Main.java
 @@ -1,7 +1,9 @@
@@ -9246,7 +9251,7 @@ index 8d127fb..1bc6d4a 100644
 +    public static void main(String[] args) throws IOException {
 +        // Spigot Start
 +        File lock = new File( ".update-lock" );
-+        if ( !lock.exists() && System.getProperty( "IReallyKnowWhatIAmDoingThisUpdate" ) == null )
++        if ( !new File( "update-lock" ).exists() && !lock.exists()  && System.getProperty( "IReallyKnowWhatIAmDoingThisUpdate" ) == null )
 +        {
 +            BufferedReader br = new BufferedReader( new InputStreamReader( System.in ) );
 +            String line;
@@ -9455,6 +9460,18 @@ index 77717d5..1533dd4 100644
              sign.lines = sanitizeLines(lines);
              sign.update();
          }
+diff --git a/src/main/java/org/bukkit/craftbukkit/block/CraftSkull.java b/src/main/java/org/bukkit/craftbukkit/block/CraftSkull.java
+index d544760..29778c0 100644
+--- a/src/main/java/org/bukkit/craftbukkit/block/CraftSkull.java
++++ b/src/main/java/org/bukkit/craftbukkit/block/CraftSkull.java
+@@ -146,6 +146,7 @@ public class CraftSkull extends CraftBlockState implements Skull {
+     }
+ 
+     public String getOwner() {
++        com.google.common.base.Preconditions.checkState( hasOwner(), "Cannot call getOwner if skull has no owner!" ); // Spigot
+         return profile.getName();
+     }
+ 
 diff --git a/src/main/java/org/bukkit/craftbukkit/command/ServerCommandSender.java b/src/main/java/org/bukkit/craftbukkit/command/ServerCommandSender.java
 index 1314c74..b339cf3 100644
 --- a/src/main/java/org/bukkit/craftbukkit/command/ServerCommandSender.java
