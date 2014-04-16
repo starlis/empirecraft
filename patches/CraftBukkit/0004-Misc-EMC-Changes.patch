@@ -1,4 +1,4 @@
-From 0dfdc7f85aa15dbd7c30ec2abad9578d7016c477 Mon Sep 17 00:00:00 2001
+From 44a85745d5209b017a242bd9f91c8f2b16ffb11b Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Thu, 22 Nov 2012 21:30:59 -0500
 Subject: [PATCH] Misc EMC Changes
@@ -6,19 +6,18 @@ Subject: [PATCH] Misc EMC Changes
 Only spawn 1 ocelot ever from eggs.
 Load custom permissions before plugins
 Unload plugins after everything else
-Color name tags to match list
 Make Durability enchant scale 0-80% reduction on Armor damage (up to level 5)
 Zombies break down doors on normal
 Update inventory on block place/interact cancellation
 ---
- src/main/java/net/minecraft/server/EntityOcelot.java        |  2 +-
- src/main/java/net/minecraft/server/ItemStack.java           |  9 +++++++++
- src/main/java/net/minecraft/server/MinecraftServer.java     | 11 ++++++-----
- .../net/minecraft/server/PacketPlayOutNamedEntitySpawn.java | 13 +++++++------
- .../java/net/minecraft/server/PathfinderGoalBreakDoor.java  |  2 +-
- src/main/java/org/bukkit/craftbukkit/CraftServer.java       |  3 ++-
- .../org/bukkit/craftbukkit/event/CraftEventFactory.java     |  2 ++
- 7 files changed, 28 insertions(+), 14 deletions(-)
+ src/main/java/net/minecraft/server/EntityOcelot.java          |  2 +-
+ src/main/java/net/minecraft/server/ItemStack.java             |  9 +++++++++
+ src/main/java/net/minecraft/server/MinecraftServer.java       | 11 ++++++-----
+ .../net/minecraft/server/PacketPlayOutNamedEntitySpawn.java   |  1 +
+ .../java/net/minecraft/server/PathfinderGoalBreakDoor.java    |  2 +-
+ src/main/java/org/bukkit/craftbukkit/CraftServer.java         |  3 ++-
+ .../java/org/bukkit/craftbukkit/event/CraftEventFactory.java  |  2 ++
+ 7 files changed, 22 insertions(+), 8 deletions(-)
 
 diff --git a/src/main/java/net/minecraft/server/EntityOcelot.java b/src/main/java/net/minecraft/server/EntityOcelot.java
 index 7f78fa0..52a815b 100644
@@ -55,7 +54,7 @@ index a535479..d3b3988 100644
                          ++k;
                      }
 diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
-index 43e0ab2..e2e03c5 100644
+index 3233353..730bfe3 100644
 --- a/src/main/java/net/minecraft/server/MinecraftServer.java
 +++ b/src/main/java/net/minecraft/server/MinecraftServer.java
 @@ -387,11 +387,6 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
@@ -84,48 +83,17 @@ index 43e0ab2..e2e03c5 100644
                  this.l.e();
              }
 diff --git a/src/main/java/net/minecraft/server/PacketPlayOutNamedEntitySpawn.java b/src/main/java/net/minecraft/server/PacketPlayOutNamedEntitySpawn.java
-index 5e24f7e..2a828f7 100644
+index 5e24f7e..1be7302 100644
 --- a/src/main/java/net/minecraft/server/PacketPlayOutNamedEntitySpawn.java
 +++ b/src/main/java/net/minecraft/server/PacketPlayOutNamedEntitySpawn.java
-@@ -1,16 +1,16 @@
- package net.minecraft.server;
+@@ -9,6 +9,7 @@ import net.minecraft.util.com.mojang.authlib.properties.Property;
  
--import java.util.Iterator;
--import java.util.List;
--import java.util.UUID;
--
- import net.minecraft.util.com.mojang.authlib.GameProfile;
- import net.minecraft.util.com.mojang.authlib.properties.Property;
+ import java.io.IOException; // CraftBukkit
  
--import java.io.IOException; // CraftBukkit
-+import java.io.IOException;
-+import java.util.Iterator;
-+import java.util.List;
-+import java.util.UUID;
- 
++
  public class PacketPlayOutNamedEntitySpawn extends Packet {
  
-+    private EntityPlayer entityhuman = null; // EMC
      private int a;
-     private GameProfile b;
-     private int c;
-@@ -25,6 +25,7 @@ public class PacketPlayOutNamedEntitySpawn extends Packet {
-     public PacketPlayOutNamedEntitySpawn() {}
- 
-     public PacketPlayOutNamedEntitySpawn(EntityHuman entityhuman) {
-+        this.entityhuman = (EntityPlayer) entityhuman; // EMC
-         this.a = entityhuman.getId();
-         this.b = entityhuman.getProfile();
-         this.c = MathHelper.floor(entityhuman.locX * 32.0D);
-@@ -67,7 +68,7 @@ public class PacketPlayOutNamedEntitySpawn extends Packet {
-         UUID uuid = this.b.getId();
- 
-         packetdataserializer.a( uuid == null ? "" : ( ( packetdataserializer.version >= 5 ) ? uuid.toString() : uuid.toString().replaceAll( "-", "" ) ) ); // Spigot
--        packetdataserializer.a(this.b.getName().length() > 16 ? this.b.getName().substring(0, 16) : this.b.getName()); // CraftBukkit - Limit name length to 16 characters
-+        packetdataserializer.a(entityhuman.listName.length() > 16 ? entityhuman.listName.substring(0, 16) : entityhuman.listName); // EMC
-         if (packetdataserializer.version >= 5 ) { // Spigot
-         packetdataserializer.b(this.b.getProperties().size());
-         Iterator iterator = this.b.getProperties().values().iterator();
 diff --git a/src/main/java/net/minecraft/server/PathfinderGoalBreakDoor.java b/src/main/java/net/minecraft/server/PathfinderGoalBreakDoor.java
 index 35d5498..07511cc 100644
 --- a/src/main/java/net/minecraft/server/PathfinderGoalBreakDoor.java
@@ -140,7 +108,7 @@ index 35d5498..07511cc 100644
              if (org.bukkit.craftbukkit.event.CraftEventFactory.callEntityBreakDoorEvent(this.a, this.b, this.c, this.d).isCancelled()) {
                  this.c();
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-index c30197b..a5e9155 100644
+index 50a783e..f0ec067 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 @@ -371,6 +371,7 @@ public final class CraftServer implements Server {
