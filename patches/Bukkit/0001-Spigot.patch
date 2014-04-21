@@ -1,6 +1,6 @@
-From 56c5271899f1104458df5cc07f80055bae884098 Mon Sep 17 00:00:00 2001
+From 9a5bcfee8ea2514d5b526dd1af434762e5f395d6 Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Sat, 12 Apr 2014 20:37:16 -0400
+Date: Sun, 20 Apr 2014 20:47:23 -0400
 Subject: [PATCH] Spigot
 
 ---
@@ -33,12 +33,14 @@ Subject: [PATCH] Spigot
  .../org/bukkit/plugin/TimedRegisteredListener.java |  21 ++-
  .../org/bukkit/plugin/java/JavaPluginLoader.java   |   2 +-
  .../bukkit/plugin/messaging/StandardMessenger.java |  10 +-
+ src/main/java/org/bukkit/scoreboard/Score.java     |  11 ++
+ src/main/java/org/bukkit/scoreboard/Team.java      |  36 ++++
  .../java/org/spigotmc/CustomTimingsHandler.java    | 175 ++++++++++++++++++
  .../spigotmc/event/entity/EntityDismountEvent.java |  39 ++++
  .../spigotmc/event/entity/EntityMountEvent.java    |  52 ++++++
  src/test/java/org/bukkit/EffectTest.java           |   6 +-
  .../bukkit/plugin/TimedRegisteredListenerTest.java |   1 -
- 34 files changed, 1042 insertions(+), 142 deletions(-)
+ 36 files changed, 1089 insertions(+), 142 deletions(-)
  create mode 100644 src/main/java/org/bukkit/event/entity/EntitySpawnEvent.java
  create mode 100644 src/main/java/org/bukkit/event/entity/SpawnerSpawnEvent.java
  create mode 100644 src/main/java/org/bukkit/event/player/PlayerItemDamageEvent.java
@@ -67,7 +69,7 @@ index a51766e..1905b8d 100644
  Compilation
  -----------
 diff --git a/pom.xml b/pom.xml
-index ec3d67d..0806736 100644
+index feac8db..4bfd660 100644
 --- a/pom.xml
 +++ b/pom.xml
 @@ -1,43 +1,23 @@
@@ -85,7 +87,7 @@ index ec3d67d..0806736 100644
 +
 +    <groupId>org.spigotmc</groupId>
 +    <artifactId>spigot-api</artifactId>
-     <version>1.7.8-R0.1-SNAPSHOT</version>
+     <version>1.7.9-R0.1-SNAPSHOT</version>
 -    <name>Bukkit</name>
 -    <url>http://www.bukkit.org</url>
 +    <name>Spigot-API</name>
@@ -1052,7 +1054,7 @@ index fe8a0bd..37c8a58 100644
 +    // Spigot end
  }
 diff --git a/src/main/java/org/bukkit/event/entity/CreatureSpawnEvent.java b/src/main/java/org/bukkit/event/entity/CreatureSpawnEvent.java
-index 46b8262..182f634 100644
+index 288e98b..8883157 100644
 --- a/src/main/java/org/bukkit/event/entity/CreatureSpawnEvent.java
 +++ b/src/main/java/org/bukkit/event/entity/CreatureSpawnEvent.java
 @@ -4,17 +4,13 @@ import org.bukkit.Location;
@@ -1527,6 +1529,94 @@ index a906f8d..4c171e8 100644
          }
      }
  
+diff --git a/src/main/java/org/bukkit/scoreboard/Score.java b/src/main/java/org/bukkit/scoreboard/Score.java
+index 4c10346..2410cbd 100644
+--- a/src/main/java/org/bukkit/scoreboard/Score.java
++++ b/src/main/java/org/bukkit/scoreboard/Score.java
+@@ -51,6 +51,17 @@ public interface Score {
+      */
+     void setScore(int score) throws IllegalStateException;
+ 
++    // Spigot start
++    /**
++     * Shows if this score has been set at any point in time.
++     * 
++     * @return if this score has been set before
++     * @throws IllegalStateException if the associated objective has been
++     *     unregistered
++     */
++    boolean isScoreSet() throws IllegalStateException;
++    // Spigot end
++
+     /**
+      * Gets the scoreboard for the associated objective.
+      *
+diff --git a/src/main/java/org/bukkit/scoreboard/Team.java b/src/main/java/org/bukkit/scoreboard/Team.java
+index 50c6f76..b90b9c3 100644
+--- a/src/main/java/org/bukkit/scoreboard/Team.java
++++ b/src/main/java/org/bukkit/scoreboard/Team.java
+@@ -118,6 +118,15 @@ public interface Team {
+      */
+     Set<OfflinePlayer> getPlayers() throws IllegalStateException;
+ 
++    // Spigot start
++    /**
++     * Same as the player method, but with an arbitrary string.
++     *
++     * @see #getPlayers()
++     */
++    Set<String> getEntries() throws IllegalStateException;
++    // Spigot End
++
+     /**
+      * Gets the size of the team
+      *
+@@ -145,6 +154,15 @@ public interface Team {
+      */
+     void addPlayer(OfflinePlayer player) throws IllegalStateException, IllegalArgumentException;
+ 
++    // Spigot start
++    /**
++     * Same as the player method, but with an arbitrary string.
++     *
++     * @see #addPlayer(org.bukkit.OfflinePlayer)
++     */
++    void addEntry(String entry) throws IllegalStateException, IllegalArgumentException;
++    // Spigot end
++
+     /**
+      * Removes the player from this team.
+      *
+@@ -155,6 +173,15 @@ public interface Team {
+      */
+     boolean removePlayer(OfflinePlayer player) throws IllegalStateException, IllegalArgumentException;
+ 
++    // Spigot start
++    /**
++     * Same as the player method, but with an arbitrary string.
++     *
++     * @see #removePlayer(org.bukkit.OfflinePlayer)
++     */
++    boolean removeEntry(String entry) throws IllegalStateException, IllegalArgumentException;
++    // Spigot end
++
+     /**
+      * Unregisters this team from the Scoreboard
+      *
+@@ -171,4 +198,13 @@ public interface Team {
+      * @throws IllegalStateException if this team has been unregistered
+      */
+     boolean hasPlayer(OfflinePlayer player) throws IllegalArgumentException, IllegalStateException;
++
++    // Spigot start
++    /**
++     * Same as the player method, but with an arbitrary string.
++     *
++     * @see #hasPlayer(org.bukkit.OfflinePlayer)
++     */
++    boolean hasEntry(String entry) throws IllegalArgumentException,IllegalStateException;
++    // Spigot end
+ }
 diff --git a/src/main/java/org/spigotmc/CustomTimingsHandler.java b/src/main/java/org/spigotmc/CustomTimingsHandler.java
 new file mode 100644
 index 0000000..9fca481
