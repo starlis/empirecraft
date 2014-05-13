@@ -1,6 +1,6 @@
-From 9a5bcfee8ea2514d5b526dd1af434762e5f395d6 Mon Sep 17 00:00:00 2001
+From afa0c5f24e58c6f877f9e1e632be8bfc2871b6f4 Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Sun, 20 Apr 2014 20:47:23 -0400
+Date: Mon, 12 May 2014 20:36:24 -0400
 Subject: [PATCH] Spigot
 
 ---
@@ -29,6 +29,7 @@ Subject: [PATCH] Spigot
  .../event/inventory/InventoryClickEvent.java       |  16 ++
  .../bukkit/event/player/PlayerItemDamageEvent.java |  54 ++++++
  .../org/bukkit/event/player/PlayerLoginEvent.java  |  27 ++-
+ .../org/bukkit/event/player/PlayerMoveEvent.java   |  16 +-
  .../org/bukkit/plugin/SimplePluginManager.java     |   1 +
  .../org/bukkit/plugin/TimedRegisteredListener.java |  21 ++-
  .../org/bukkit/plugin/java/JavaPluginLoader.java   |   2 +-
@@ -38,15 +39,17 @@ Subject: [PATCH] Spigot
  .../java/org/spigotmc/CustomTimingsHandler.java    | 175 ++++++++++++++++++
  .../spigotmc/event/entity/EntityDismountEvent.java |  39 ++++
  .../spigotmc/event/entity/EntityMountEvent.java    |  52 ++++++
+ .../event/player/PlayerSpawnLocationEvent.java     |  50 +++++
  src/test/java/org/bukkit/EffectTest.java           |   6 +-
  .../bukkit/plugin/TimedRegisteredListenerTest.java |   1 -
- 36 files changed, 1089 insertions(+), 142 deletions(-)
+ 38 files changed, 1153 insertions(+), 144 deletions(-)
  create mode 100644 src/main/java/org/bukkit/event/entity/EntitySpawnEvent.java
  create mode 100644 src/main/java/org/bukkit/event/entity/SpawnerSpawnEvent.java
  create mode 100644 src/main/java/org/bukkit/event/player/PlayerItemDamageEvent.java
  create mode 100644 src/main/java/org/spigotmc/CustomTimingsHandler.java
  create mode 100644 src/main/java/org/spigotmc/event/entity/EntityDismountEvent.java
  create mode 100644 src/main/java/org/spigotmc/event/entity/EntityMountEvent.java
+ create mode 100644 src/main/java/org/spigotmc/event/player/PlayerSpawnLocationEvent.java
 
 diff --git a/README.md b/README.md
 index a51766e..1905b8d 100644
@@ -163,7 +166,7 @@ index feac8db..4bfd660 100644
  
          <!-- testing -->
 diff --git a/src/main/java/org/bukkit/Bukkit.java b/src/main/java/org/bukkit/Bukkit.java
-index 6b9c9f3..7d8736e 100644
+index f61270a..e3cecdb 100644
 --- a/src/main/java/org/bukkit/Bukkit.java
 +++ b/src/main/java/org/bukkit/Bukkit.java
 @@ -182,7 +182,6 @@ public final class Bukkit {
@@ -444,7 +447,7 @@ index 2474a2d..9964203 100644
 +    public enum Type {SOUND, VISUAL, PARTICLE}
  }
 diff --git a/src/main/java/org/bukkit/Server.java b/src/main/java/org/bukkit/Server.java
-index 22dc74a..6b21ea1 100644
+index 3c4d541..fbc8b87 100644
 --- a/src/main/java/org/bukkit/Server.java
 +++ b/src/main/java/org/bukkit/Server.java
 @@ -268,23 +268,17 @@ public interface Server extends PluginMessageRecipient {
@@ -1430,6 +1433,54 @@ index b74b7b8..081e994 100644
      /**
       * Gets the current result of the login, as an enum
       *
+diff --git a/src/main/java/org/bukkit/event/player/PlayerMoveEvent.java b/src/main/java/org/bukkit/event/player/PlayerMoveEvent.java
+index fa3b340..12b2250 100644
+--- a/src/main/java/org/bukkit/event/player/PlayerMoveEvent.java
++++ b/src/main/java/org/bukkit/event/player/PlayerMoveEvent.java
+@@ -5,6 +5,8 @@ import org.bukkit.entity.Player;
+ import org.bukkit.event.Cancellable;
+ import org.bukkit.event.HandlerList;
+ 
++import org.apache.commons.lang.Validate; // Spigot
++
+ /**
+  * Holds information for player movement events
+  */
+@@ -16,8 +18,10 @@ public class PlayerMoveEvent extends PlayerEvent implements Cancellable {
+ 
+     public PlayerMoveEvent(final Player player, final Location from, final Location to) {
+         super(player);
+-        this.from = from;
+-        this.to = to;
++        // Spigot start
++        setFrom( from );
++        setTo( to );
++        // Spigot end
+     }
+ 
+     /**
+@@ -63,6 +67,10 @@ public class PlayerMoveEvent extends PlayerEvent implements Cancellable {
+      * @param from New location to mark as the players previous location
+      */
+     public void setFrom(Location from) {
++        // Spigot start
++        Validate.notNull(from, "from location cannot be null");
++        Validate.notNull(from.getWorld(), "from location's world cannot be null");
++        // Spigot end
+         this.from = from;
+     }
+ 
+@@ -81,6 +89,10 @@ public class PlayerMoveEvent extends PlayerEvent implements Cancellable {
+      * @param to New Location this player will move to
+      */
+     public void setTo(Location to) {
++        // Spigot start
++        Validate.notNull(to, "to location cannot be null");
++        Validate.notNull(to.getWorld(), "to location's world cannot be null");
++        // Spigot end
+         this.to = to;
+     }
+ 
 diff --git a/src/main/java/org/bukkit/plugin/SimplePluginManager.java b/src/main/java/org/bukkit/plugin/SimplePluginManager.java
 index d2fe422..1d51908 100644
 --- a/src/main/java/org/bukkit/plugin/SimplePluginManager.java
@@ -1901,6 +1952,62 @@ index 0000000..16aa2a7
 +        return handlers;
 +    }
 +}
+diff --git a/src/main/java/org/spigotmc/event/player/PlayerSpawnLocationEvent.java b/src/main/java/org/spigotmc/event/player/PlayerSpawnLocationEvent.java
+new file mode 100644
+index 0000000..dd3f58c
+--- /dev/null
++++ b/src/main/java/org/spigotmc/event/player/PlayerSpawnLocationEvent.java
+@@ -0,0 +1,50 @@
++package org.spigotmc.event.player;
++
++import org.bukkit.Location;
++import org.bukkit.entity.Entity;
++import org.bukkit.entity.Player;
++import org.bukkit.event.HandlerList;
++import org.bukkit.event.player.PlayerEvent;
++
++/**
++ * Called when player is about to spawn in a world after joining the server.
++ */
++public class PlayerSpawnLocationEvent extends PlayerEvent {
++    private static final HandlerList handlers = new HandlerList();
++    private Location spawnLocation;
++
++    public PlayerSpawnLocationEvent(final Player who, Location spawnLocation) {
++        super(who);
++        this.spawnLocation = spawnLocation;
++    }
++
++
++    /**
++     * Gets player's spawn location.
++     * If the player {@link Player#hasPlayedBefore()}, it's going to default to the location inside player.dat file.
++     * For new players, the default spawn location is spawn of the main Bukkit world.
++     *
++     * @return the spawn location
++     */
++    public Location getSpawnLocation() {
++        return spawnLocation;
++    }
++
++    /**
++     * Sets player's spawn location.
++     *
++     * @param location the spawn location
++     */
++    public void setSpawnLocation(Location location) {
++        this.spawnLocation = location;
++    }
++
++    @Override
++    public HandlerList getHandlers() {
++        return handlers;
++    }
++
++    public static HandlerList getHandlerList() {
++        return handlers;
++    }
++}
 diff --git a/src/test/java/org/bukkit/EffectTest.java b/src/test/java/org/bukkit/EffectTest.java
 index 08aa71d..5217aec 100644
 --- a/src/test/java/org/bukkit/EffectTest.java
@@ -1931,5 +2038,5 @@ index b206b1f..01b62fb 100644
          Listener listener = new Listener() {};
          EventExecutor executor = new EventExecutor() {
 -- 
-1.8.3.2
+1.9.1
 
