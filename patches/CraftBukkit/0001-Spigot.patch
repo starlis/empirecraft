@@ -1,6 +1,6 @@
-From b1ca6e60d2421de306a02353007b31da7b966721 Mon Sep 17 00:00:00 2001
+From a1870ae2bdd837b78aeb7e86bfc3200d940bc136 Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Mon, 12 May 2014 20:36:30 -0400
+Date: Tue, 13 May 2014 10:11:14 -0400
 Subject: [PATCH] Spigot
 
 ---
@@ -29,6 +29,7 @@ Subject: [PATCH] Spigot
  .../java/net/minecraft/server/ChunkSection.java    |  26 +-
  .../server/CommandBlockListenerAbstract.java       |   8 +
  .../net/minecraft/server/CommandDispatcher.java    |  94 +++
+ src/main/java/net/minecraft/server/Container.java  |   7 +-
  .../java/net/minecraft/server/DataWatcher.java     | 306 ++++++++++
  .../java/net/minecraft/server/DedicatedServer.java |  26 +-
  .../minecraft/server/DispenseBehaviorBonemeal.java |   2 +-
@@ -95,7 +96,7 @@ Subject: [PATCH] Spigot
  .../java/net/minecraft/server/PlayerChunkMap.java  |   4 +-
  .../net/minecraft/server/PlayerConnection.java     |  59 +-
  .../minecraft/server/PlayerInteractManager.java    |   1 +
- src/main/java/net/minecraft/server/PlayerList.java |  72 ++-
+ src/main/java/net/minecraft/server/PlayerList.java |  66 ++-
  .../java/net/minecraft/server/PlayerSelector.java  |   6 +-
  .../java/net/minecraft/server/PropertyManager.java |   2 +-
  .../java/net/minecraft/server/RegionFileCache.java |  67 +++
@@ -128,6 +129,7 @@ Subject: [PATCH] Spigot
  src/main/java/org/bukkit/craftbukkit/Main.java     |  45 +-
  .../java/org/bukkit/craftbukkit/SpigotTimings.java | 128 ++++
  .../org/bukkit/craftbukkit/block/CraftSign.java    |   8 +-
+ .../org/bukkit/craftbukkit/block/CraftSkull.java   |  13 +-
  .../craftbukkit/command/ServerCommandSender.java   |  11 +-
  .../org/bukkit/craftbukkit/entity/CraftArrow.java  |  22 +
  .../org/bukkit/craftbukkit/entity/CraftEntity.java |  16 +
@@ -160,7 +162,7 @@ Subject: [PATCH] Spigot
  src/main/java/org/spigotmc/WatchdogThread.java     | 124 ++++
  src/main/resources/configurations/bukkit.yml       |   9 +-
  src/main/resources/configurations/commands.yml     |   9 +-
- 156 files changed, 8922 insertions(+), 480 deletions(-)
+ 158 files changed, 8929 insertions(+), 487 deletions(-)
  create mode 100644 src/main/java/net/minecraft/server/BanEntrySerializer.java
  create mode 100644 src/main/java/net/minecraft/server/BiomeDecorator.java
  create mode 100644 src/main/java/net/minecraft/server/BlockAnvil.java
@@ -1909,6 +1911,32 @@ index 0000000..caced26
 +        }
 +    }
 +}
+diff --git a/src/main/java/net/minecraft/server/Container.java b/src/main/java/net/minecraft/server/Container.java
+index 3443a19..7358645 100644
+--- a/src/main/java/net/minecraft/server/Container.java
++++ b/src/main/java/net/minecraft/server/Container.java
+@@ -13,6 +13,7 @@ import org.bukkit.craftbukkit.inventory.CraftInventory;
+ import org.bukkit.craftbukkit.inventory.CraftItemStack;
+ import org.bukkit.event.Event.Result;
+ import org.bukkit.event.inventory.InventoryDragEvent;
++import org.bukkit.event.inventory.InventoryType;
+ import org.bukkit.inventory.InventoryView;
+ // CraftBukkit end
+ 
+@@ -346,8 +347,12 @@ public abstract class Container {
+ 
+                         slot2.f();
+                         // CraftBukkit start - Make sure the client has the right slot contents
+-                        if (entityhuman instanceof EntityPlayer) {
++                        if (entityhuman instanceof EntityPlayer && slot2.getMaxStackSize() != 64) {
+                             ((EntityPlayer) entityhuman).playerConnection.sendPacket(new PacketPlayOutSetSlot(this.windowId, slot2.rawSlotIndex, slot2.getItem()));
++                            // Updating a crafting inventory makes the client reset the result slot, have to send it again
++                            if (this.getBukkitView().getType() == InventoryType.WORKBENCH || this.getBukkitView().getType() == InventoryType.CRAFTING) {
++                                ((EntityPlayer) entityhuman).playerConnection.sendPacket(new PacketPlayOutSetSlot(this.windowId, 0, this.getSlot(0).getItem()));
++                            }
+                         }
+                         // CraftBukkit end
+                     }
 diff --git a/src/main/java/net/minecraft/server/DataWatcher.java b/src/main/java/net/minecraft/server/DataWatcher.java
 new file mode 100644
 index 0000000..cca6bd9
@@ -6266,7 +6294,7 @@ index 2db45ad..97fe53c 100644
      }
  
 diff --git a/src/main/java/net/minecraft/server/PlayerList.java b/src/main/java/net/minecraft/server/PlayerList.java
-index 1dbce5c..a033f07 100644
+index 1dbce5c..a4a59ee 100644
 --- a/src/main/java/net/minecraft/server/PlayerList.java
 +++ b/src/main/java/net/minecraft/server/PlayerList.java
 @@ -36,6 +36,7 @@ import org.bukkit.event.player.PlayerQuitEvent;
@@ -6342,20 +6370,7 @@ index 1dbce5c..a033f07 100644
  
              location = respawnEvent.getRespawnLocation();
              entityplayer.reset();
-@@ -590,6 +609,12 @@ public abstract class PlayerList {
-         }
- 
-         TravelAgent agent = exit != null ? (TravelAgent) ((CraftWorld) exit.getWorld()).getHandle().getTravelAgent() : org.bukkit.craftbukkit.CraftTravelAgent.DEFAULT; // return arbitrary TA to compensate for implementation dependent plugins
-+        // Spigot start
-+        if ( exit == null )
-+        {
-+            return;
-+        }
-+        // Spigot end
-         PlayerPortalEvent event = new PlayerPortalEvent(entityplayer.getBukkitEntity(), enter, exit, agent, cause);
-         event.useTravelAgent(useTravelAgent);
-         Bukkit.getServer().getPluginManager().callEvent(event);
-@@ -788,6 +813,8 @@ public abstract class PlayerList {
+@@ -788,6 +807,8 @@ public abstract class PlayerList {
          // CraftBukkit end
      }
  
@@ -6364,7 +6379,7 @@ index 1dbce5c..a033f07 100644
      public void tick() {
          if (++this.t > 600) {
              this.t = 0;
-@@ -800,6 +827,30 @@ public abstract class PlayerList {
+@@ -800,6 +821,30 @@ public abstract class PlayerList {
              this.sendAll(new PacketPlayOutPlayerInfo(entityplayer.getName(), true, entityplayer.ping));
          }
          // CraftBukkit end */
@@ -6395,7 +6410,7 @@ index 1dbce5c..a033f07 100644
      }
  
      public void sendAll(Packet packet) {
-@@ -1152,8 +1203,15 @@ public abstract class PlayerList {
+@@ -1152,8 +1197,15 @@ public abstract class PlayerList {
      }
  
      public void u() {
@@ -9795,6 +9810,43 @@ index 77717d5..1533dd4 100644
 +        if (result && sign != null) { // Spigot, add null check
              sign.lines = sanitizeLines(lines);
              sign.update();
+         }
+diff --git a/src/main/java/org/bukkit/craftbukkit/block/CraftSkull.java b/src/main/java/org/bukkit/craftbukkit/block/CraftSkull.java
+index 4e0620e..8ebb22c 100644
+--- a/src/main/java/org/bukkit/craftbukkit/block/CraftSkull.java
++++ b/src/main/java/org/bukkit/craftbukkit/block/CraftSkull.java
+@@ -2,16 +2,13 @@ package org.bukkit.craftbukkit.block;
+ 
+ import net.minecraft.server.MinecraftServer;
+ import net.minecraft.server.TileEntitySkull;
+-
+ import net.minecraft.util.com.mojang.authlib.GameProfile;
+-import org.bukkit.OfflinePlayer;
++
+ import org.bukkit.SkullType;
+ import org.bukkit.block.Block;
+ import org.bukkit.block.BlockFace;
+ import org.bukkit.block.Skull;
+-import org.bukkit.craftbukkit.CraftOfflinePlayer;
+ import org.bukkit.craftbukkit.CraftWorld;
+-import org.bukkit.craftbukkit.entity.CraftPlayer;
+ 
+ public class CraftSkull extends CraftBlockState implements Skull {
+     private static final int MAX_OWNER_LENGTH = 16;
+@@ -193,8 +190,12 @@ public class CraftSkull extends CraftBlockState implements Skull {
+         boolean result = super.update(force, applyPhysics);
+ 
+         if (result) {
+-            skull.setSkullType(getSkullType(skullType));
+-            skull.setGameProfile(profile);
++            if (skullType == SkullType.PLAYER) {
++                skull.setGameProfile(profile);
++            } else {
++                skull.setSkullType(getSkullType(skullType));
++            }
++
+             skull.setRotation(rotation);
+             skull.update();
          }
 diff --git a/src/main/java/org/bukkit/craftbukkit/command/ServerCommandSender.java b/src/main/java/org/bukkit/craftbukkit/command/ServerCommandSender.java
 index 1314c74..b339cf3 100644
