@@ -1,11 +1,11 @@
-From a1870ae2bdd837b78aeb7e86bfc3200d940bc136 Mon Sep 17 00:00:00 2001
+From 94879b64ee417357960ce3bda7e7da7eea401477 Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Tue, 13 May 2014 10:11:14 -0400
+Date: Thu, 15 May 2014 22:45:06 -0400
 Subject: [PATCH] Spigot
 
 ---
  README.md                                          |  14 +-
- pom.xml                                            |  79 +--
+ pom.xml                                            |  76 +--
  .../net/minecraft/server/BanEntrySerializer.java   |  89 +++
  .../java/net/minecraft/server/BiomeDecorator.java  | 286 +++++++++
  src/main/java/net/minecraft/server/Block.java      |  20 +-
@@ -29,7 +29,6 @@ Subject: [PATCH] Spigot
  .../java/net/minecraft/server/ChunkSection.java    |  26 +-
  .../server/CommandBlockListenerAbstract.java       |   8 +
  .../net/minecraft/server/CommandDispatcher.java    |  94 +++
- src/main/java/net/minecraft/server/Container.java  |   7 +-
  .../java/net/minecraft/server/DataWatcher.java     | 306 ++++++++++
  .../java/net/minecraft/server/DedicatedServer.java |  26 +-
  .../minecraft/server/DispenseBehaviorBonemeal.java |   2 +-
@@ -86,7 +85,7 @@ Subject: [PATCH] Spigot
  .../java/net/minecraft/server/PacketEncoder.java   |  45 ++
  .../server/PacketHandshakingInSetProtocol.java     |   2 +-
  .../minecraft/server/PacketLoginOutSuccess.java    |  44 ++
- .../net/minecraft/server/PacketPlayInChat.java     |  22 +-
+ .../net/minecraft/server/PacketPlayInChat.java     |  20 +-
  .../minecraft/server/PacketPlayOutMapChunk.java    | 191 ++++++
  .../server/PacketPlayOutMapChunkBulk.java          |  24 +-
  .../server/PacketPlayOutNamedEntitySpawn.java      |   4 +-
@@ -94,7 +93,7 @@ Subject: [PATCH] Spigot
  .../net/minecraft/server/PacketStatusListener.java |   9 +-
  .../PathfinderGoalNearestAttackableTarget.java     |  52 ++
  .../java/net/minecraft/server/PlayerChunkMap.java  |   4 +-
- .../net/minecraft/server/PlayerConnection.java     |  59 +-
+ .../net/minecraft/server/PlayerConnection.java     |  72 ++-
  .../minecraft/server/PlayerInteractManager.java    |   1 +
  src/main/java/net/minecraft/server/PlayerList.java |  66 ++-
  .../java/net/minecraft/server/PlayerSelector.java  |   6 +-
@@ -129,7 +128,6 @@ Subject: [PATCH] Spigot
  src/main/java/org/bukkit/craftbukkit/Main.java     |  45 +-
  .../java/org/bukkit/craftbukkit/SpigotTimings.java | 128 ++++
  .../org/bukkit/craftbukkit/block/CraftSign.java    |   8 +-
- .../org/bukkit/craftbukkit/block/CraftSkull.java   |  13 +-
  .../craftbukkit/command/ServerCommandSender.java   |  11 +-
  .../org/bukkit/craftbukkit/entity/CraftArrow.java  |  22 +
  .../org/bukkit/craftbukkit/entity/CraftEntity.java |  16 +
@@ -162,7 +160,7 @@ Subject: [PATCH] Spigot
  src/main/java/org/spigotmc/WatchdogThread.java     | 124 ++++
  src/main/resources/configurations/bukkit.yml       |   9 +-
  src/main/resources/configurations/commands.yml     |   9 +-
- 158 files changed, 8929 insertions(+), 487 deletions(-)
+ 156 files changed, 8926 insertions(+), 478 deletions(-)
  create mode 100644 src/main/java/net/minecraft/server/BanEntrySerializer.java
  create mode 100644 src/main/java/net/minecraft/server/BiomeDecorator.java
  create mode 100644 src/main/java/net/minecraft/server/BlockAnvil.java
@@ -247,27 +245,19 @@ index cda766b..1f12a75 100644
 +    * *Note*: this is not needed as the repository we use has Spigot-API too, but you might have a newer one (with your own changes :D)
  * Check out this repo and: `mvn clean package`
 diff --git a/pom.xml b/pom.xml
-index 84a00a3..607be4e 100644
+index b4b7ae0..006d26b 100644
 --- a/pom.xml
 +++ b/pom.xml
-@@ -1,12 +1,20 @@
+@@ -1,12 +1,12 @@
  <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
    <modelVersion>4.0.0</modelVersion>
 -  <groupId>org.bukkit</groupId>
 -  <artifactId>craftbukkit</artifactId>
-+
-+  <parent>
-+    <groupId>org.spigotmc</groupId>
-+    <artifactId>spigot-parent</artifactId>
-+    <version>dev-SNAPSHOT</version>
-+    <relativePath>../pom.xml</relativePath>
-+  </parent>
-+
 +  <groupId>org.spigotmc</groupId>
 +  <artifactId>spigot</artifactId>
    <packaging>jar</packaging>
-   <version>1.7.9-R0.1-SNAPSHOT</version>
+   <version>1.7.9-R0.2-SNAPSHOT</version>
 -  <name>CraftBukkit</name>
 -  <url>http://www.bukkit.org</url>
 +  <name>Spigot</name>
@@ -275,7 +265,7 @@ index 84a00a3..607be4e 100644
  
    <properties>
      <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-@@ -18,25 +26,6 @@
+@@ -18,24 +18,12 @@
      <buildtag.suffix></buildtag.suffix>
    </properties>
  
@@ -297,11 +287,16 @@ index 84a00a3..607be4e 100644
 -      <url>http://repo.bukkit.org/content/repositories/snapshots/</url>
 -    </snapshotRepository>
 -  </distributionManagement>
--
++  <parent>
++    <groupId>org.spigotmc</groupId>
++    <artifactId>spigot-parent</artifactId>
++    <version>dev-SNAPSHOT</version>
++    <relativePath>../pom.xml</relativePath>
++  </parent>
+ 
    <repositories>
      <repository>
-       <id>repobo-snap</id>
-@@ -53,8 +42,8 @@
+@@ -53,8 +41,8 @@
  
    <dependencies>
      <dependency>
@@ -312,7 +307,7 @@ index 84a00a3..607be4e 100644
        <version>${project.version}</version>
        <type>jar</type>
        <scope>compile</scope>
-@@ -107,33 +96,6 @@
+@@ -107,33 +95,6 @@
        <artifactId>gson</artifactId>
        <version>2.1</version>
      </dependency>
@@ -346,7 +341,7 @@ index 84a00a3..607be4e 100644
      <!-- testing -->
      <dependency>
        <groupId>junit</groupId>
-@@ -147,19 +109,24 @@
+@@ -147,19 +108,24 @@
        <version>1.3</version>
        <scope>test</scope>
      </dependency>
@@ -374,7 +369,7 @@ index 84a00a3..607be4e 100644
          </configuration>
          <executions>
            <execution>
-@@ -212,7 +179,7 @@
+@@ -212,7 +178,7 @@
        <plugin>
          <groupId>org.apache.maven.plugins</groupId>
          <artifactId>maven-shade-plugin</artifactId>
@@ -1911,32 +1906,6 @@ index 0000000..caced26
 +        }
 +    }
 +}
-diff --git a/src/main/java/net/minecraft/server/Container.java b/src/main/java/net/minecraft/server/Container.java
-index 3443a19..7358645 100644
---- a/src/main/java/net/minecraft/server/Container.java
-+++ b/src/main/java/net/minecraft/server/Container.java
-@@ -13,6 +13,7 @@ import org.bukkit.craftbukkit.inventory.CraftInventory;
- import org.bukkit.craftbukkit.inventory.CraftItemStack;
- import org.bukkit.event.Event.Result;
- import org.bukkit.event.inventory.InventoryDragEvent;
-+import org.bukkit.event.inventory.InventoryType;
- import org.bukkit.inventory.InventoryView;
- // CraftBukkit end
- 
-@@ -346,8 +347,12 @@ public abstract class Container {
- 
-                         slot2.f();
-                         // CraftBukkit start - Make sure the client has the right slot contents
--                        if (entityhuman instanceof EntityPlayer) {
-+                        if (entityhuman instanceof EntityPlayer && slot2.getMaxStackSize() != 64) {
-                             ((EntityPlayer) entityhuman).playerConnection.sendPacket(new PacketPlayOutSetSlot(this.windowId, slot2.rawSlotIndex, slot2.getItem()));
-+                            // Updating a crafting inventory makes the client reset the result slot, have to send it again
-+                            if (this.getBukkitView().getType() == InventoryType.WORKBENCH || this.getBukkitView().getType() == InventoryType.CRAFTING) {
-+                                ((EntityPlayer) entityhuman).playerConnection.sendPacket(new PacketPlayOutSetSlot(this.windowId, 0, this.getSlot(0).getItem()));
-+                            }
-                         }
-                         // CraftBukkit end
-                     }
 diff --git a/src/main/java/net/minecraft/server/DataWatcher.java b/src/main/java/net/minecraft/server/DataWatcher.java
 new file mode 100644
 index 0000000..cca6bd9
@@ -5623,18 +5592,9 @@ index 0000000..a244f00
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/PacketPlayInChat.java b/src/main/java/net/minecraft/server/PacketPlayInChat.java
-index 604a7af..b26c290 100644
+index 604a7af..d419f0f 100644
 --- a/src/main/java/net/minecraft/server/PacketPlayInChat.java
 +++ b/src/main/java/net/minecraft/server/PacketPlayInChat.java
-@@ -17,7 +17,7 @@ public class PacketPlayInChat extends Packet {
-     }
- 
-     public void a(PacketDataSerializer packetdataserializer) throws IOException { // CraftBukkit - added throws
--        this.message = packetdataserializer.c(100);
-+        this.message = org.apache.commons.lang.StringUtils.normalizeSpace( packetdataserializer.c( 100 ) ); // Spigot
-     }
- 
-     public void b(PacketDataSerializer packetdataserializer) throws IOException { // CraftBukkit - added throws
 @@ -43,7 +43,25 @@ public class PacketPlayInChat extends Packet {
      }
      // CraftBukkit end
@@ -6107,7 +6067,7 @@ index ae53635..cc1b095 100644
  
      public WorldServer a() {
 diff --git a/src/main/java/net/minecraft/server/PlayerConnection.java b/src/main/java/net/minecraft/server/PlayerConnection.java
-index 75a5cbe..8039bee 100644
+index 89ef6fa..e54ef47 100644
 --- a/src/main/java/net/minecraft/server/PlayerConnection.java
 +++ b/src/main/java/net/minecraft/server/PlayerConnection.java
 @@ -106,6 +106,7 @@ public class PlayerConnection implements PacketPlayInListener {
@@ -6164,16 +6124,34 @@ index 75a5cbe..8039bee 100644
          }
      }
  
-@@ -779,7 +792,7 @@ public class PlayerConnection implements PacketPlayInListener {
-             this.player.v();
-             String s = packetplayinchat.c();
+@@ -821,7 +834,25 @@ public class PlayerConnection implements PacketPlayInListener {
+             } else if (s.isEmpty()) {
+                 c.warn(this.player.getName() + " tried to send an empty message");
+             } else if (getPlayer().isConversing()) {
+-                getPlayer().acceptConversationInput(s);
++                final String message = s;
++
++                Waitable waitable = new Waitable() {
++                    @Override
++                    protected Object evaluate() {
++                        getPlayer().acceptConversationInput(message);
++                        return null;
++                    }
++                };
++
++                this.minecraftServer.processQueue.add(waitable);
++
++                try {
++                    waitable.get();
++                } catch (InterruptedException e) {
++                    Thread.currentThread().interrupt();
++                } catch (ExecutionException e) {
++                    throw new RuntimeException(e);
++                }
+             } else if (this.player.getChatFlags() == EnumChatVisibility.SYSTEM) { // Re-add "Command Only" flag check
+                 ChatMessage chatmessage = new ChatMessage("chat.cannotSend", new Object[0]);
  
--            s = StringUtils.normalizeSpace(s);
-+            // s = StringUtils.normalizeSpace(s); Spigot - Moved to PacketPlayInChat
- 
-             for (int i = 0; i < s.length(); ++i) {
-                 if (!SharedConstants.isAllowedChatCharacter(s.charAt(i))) {
-@@ -836,9 +849,19 @@ public class PlayerConnection implements PacketPlayInListener {
+@@ -836,9 +867,19 @@ public class PlayerConnection implements PacketPlayInListener {
                  this.minecraftServer.getPlayerList().sendMessage(chatmessage1, false);
              }
  
@@ -6194,15 +6172,18 @@ index 75a5cbe..8039bee 100644
                  if (packetplayinchat.a()) {
                      Waitable waitable = new Waitable() {
                          @Override
-@@ -940,6 +963,7 @@ public class PlayerConnection implements PacketPlayInListener {
+@@ -940,8 +981,9 @@ public class PlayerConnection implements PacketPlayInListener {
      // CraftBukkit end
  
      private void handleCommand(String s) {
 +        org.bukkit.craftbukkit.SpigotTimings.playerCommandTimer.startTiming(); // Spigot
          // CraftBukkit start - whole method
+-        this.c.info(this.player.getName() + " issued server command: " + s);
++        if ( org.spigotmc.SpigotConfig.logCommands ) this.c.info(this.player.getName() + " issued server command: " + s); // Spigot
+ 
          CraftPlayer player = this.getPlayer();
  
-@@ -947,19 +971,28 @@ public class PlayerConnection implements PacketPlayInListener {
+@@ -949,18 +991,22 @@ public class PlayerConnection implements PacketPlayInListener {
          this.server.getPluginManager().callEvent(event);
  
          if (event.isCancelled()) {
@@ -6211,13 +6192,6 @@ index 75a5cbe..8039bee 100644
          }
  
          try {
--            this.c.info(event.getPlayer().getName() + " issued server command: " + event.getMessage());
-+            // Spigot Start
-+            if ( org.spigotmc.SpigotConfig.logCommands )
-+            {
-+                this.c.info(event.getPlayer().getName() + " issued server command: " + event.getMessage());
-+            }
-+            // Spigot end
              if (this.server.dispatchCommand(event.getPlayer(), event.getMessage().substring(1))) {
 +                org.bukkit.craftbukkit.SpigotTimings.playerCommandTimer.stopTiming(); // Spigot
                  return;
@@ -6232,7 +6206,7 @@ index 75a5cbe..8039bee 100644
          //this.minecraftServer.getCommandHandler().a(this.player, s);
          // CraftBukkit end
      }
-@@ -1050,6 +1083,13 @@ public class PlayerConnection implements PacketPlayInListener {
+@@ -1051,6 +1097,13 @@ public class PlayerConnection implements PacketPlayInListener {
          if (this.player.dead) return; // CraftBukkit
          WorldServer worldserver = this.minecraftServer.getWorldServer(this.player.dimension);
          Entity entity = packetplayinuseentity.a((World) worldserver);
@@ -6246,7 +6220,7 @@ index 75a5cbe..8039bee 100644
  
          this.player.v();
          if (entity != null) {
-@@ -1461,7 +1501,7 @@ public class PlayerConnection implements PacketPlayInListener {
+@@ -1462,7 +1515,7 @@ public class PlayerConnection implements PacketPlayInListener {
              ItemStack itemstack = packetplayinsetcreativeslot.getItemStack();
              boolean flag1 = packetplayinsetcreativeslot.c() >= 1 && packetplayinsetcreativeslot.c() < 36 + PlayerInventory.getHotbarSize();
              // CraftBukkit - Add invalidItems check
@@ -6255,7 +6229,7 @@ index 75a5cbe..8039bee 100644
              boolean flag3 = itemstack == null || itemstack.getData() >= 0 && itemstack.count <= 64 && itemstack.count > 0;
  
              // CraftBukkit start - Call click event
-@@ -1556,6 +1596,7 @@ public class PlayerConnection implements PacketPlayInListener {
+@@ -1557,6 +1610,7 @@ public class PlayerConnection implements PacketPlayInListener {
  
              for (j = 0; j < 4; ++j) {
                  boolean flag = true;
@@ -6263,7 +6237,7 @@ index 75a5cbe..8039bee 100644
  
                  if (packetplayinupdatesign.f()[j].length() > 15) {
                      flag = false;
-@@ -1699,7 +1740,7 @@ public class PlayerConnection implements PacketPlayInListener {
+@@ -1700,7 +1754,7 @@ public class PlayerConnection implements PacketPlayInListener {
                      }
  
                      if (itemstack.getItem() == Items.WRITTEN_BOOK && itemstack1.getItem() == Items.BOOK_AND_QUILL) {
@@ -6272,7 +6246,7 @@ index 75a5cbe..8039bee 100644
                      }
  
                      return;
-@@ -1846,7 +1887,7 @@ public class PlayerConnection implements PacketPlayInListener {
+@@ -1847,7 +1901,7 @@ public class PlayerConnection implements PacketPlayInListener {
      }
  
      // CraftBukkit start - Add "isDisconnected" method
@@ -9154,10 +9128,10 @@ index 7de0de5..7eca388 100644
              datavalue = 0;
          }
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-index b0c2156..06b1ee7 100644
+index 3be5174..c5268f1 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-@@ -86,6 +86,8 @@ import net.minecraft.server.MinecraftServer;
+@@ -85,6 +85,8 @@ import net.minecraft.server.MinecraftServer;
  import net.minecraft.server.MobEffectList;
  import net.minecraft.server.PropertyManager;
  import net.minecraft.server.ServerCommand;
@@ -9166,7 +9140,7 @@ index b0c2156..06b1ee7 100644
  import net.minecraft.server.ServerNBTManager;
  import net.minecraft.server.WorldLoaderServer;
  import net.minecraft.server.WorldManager;
-@@ -119,6 +121,7 @@ import org.bukkit.command.CommandSender;
+@@ -118,6 +120,7 @@ import org.bukkit.command.CommandSender;
  import org.bukkit.command.ConsoleCommandSender;
  import org.bukkit.command.PluginCommand;
  import org.bukkit.command.SimpleCommandMap;
@@ -9174,7 +9148,7 @@ index b0c2156..06b1ee7 100644
  import org.bukkit.configuration.ConfigurationSection;
  import org.bukkit.configuration.file.YamlConfiguration;
  import org.bukkit.configuration.serialization.ConfigurationSerialization;
-@@ -228,8 +231,6 @@ public final class CraftServer implements Server {
+@@ -226,8 +229,6 @@ public final class CraftServer implements Server {
      private boolean printSaveWarning;
      private CraftIconCache icon;
      private boolean overrideAllCommandBlockCommands = false;
@@ -9183,7 +9157,7 @@ index b0c2156..06b1ee7 100644
  
      private final class BooleanWrapper {
          private boolean value = true;
-@@ -310,14 +311,16 @@ public final class CraftServer implements Server {
+@@ -308,14 +309,16 @@ public final class CraftServer implements Server {
          loadIcon();
  
          updater = new AutoUpdater(new BukkitDLUpdaterService(configuration.getString("auto-updater.host")), getLogger(), configuration.getString("auto-updater.preferred-channel"));
@@ -9203,7 +9177,7 @@ index b0c2156..06b1ee7 100644
      }
  
      public boolean getCommandBlockOverride(String command) {
-@@ -384,8 +387,11 @@ public final class CraftServer implements Server {
+@@ -382,8 +385,11 @@ public final class CraftServer implements Server {
          }
  
          if (type == PluginLoadOrder.POSTWORLD) {
@@ -9216,7 +9190,7 @@ index b0c2156..06b1ee7 100644
              commandMap.registerServerAliases();
              loadCustomPermissions();
              DefaultPermissions.registerCorePermissions();
-@@ -397,51 +403,64 @@ public final class CraftServer implements Server {
+@@ -395,51 +401,64 @@ public final class CraftServer implements Server {
          pluginManager.disablePlugins();
      }
  
@@ -9324,7 +9298,7 @@ index b0c2156..06b1ee7 100644
  
      private void loadPlugin(Plugin plugin) {
          try {
-@@ -644,7 +663,13 @@ public final class CraftServer implements Server {
+@@ -642,7 +661,13 @@ public final class CraftServer implements Server {
      }
  
      public long getConnectionThrottle() {
@@ -9339,7 +9313,7 @@ index b0c2156..06b1ee7 100644
      }
  
      public int getTicksPerAnimalSpawns() {
-@@ -704,11 +729,7 @@ public final class CraftServer implements Server {
+@@ -702,11 +727,7 @@ public final class CraftServer implements Server {
              return true;
          }
  
@@ -9352,7 +9326,7 @@ index b0c2156..06b1ee7 100644
  
          return false;
      }
-@@ -751,6 +772,7 @@ public final class CraftServer implements Server {
+@@ -749,6 +770,7 @@ public final class CraftServer implements Server {
              logger.log(Level.WARNING, "Failed to load banned-players.json, " + ex.getMessage());
          }
  
@@ -9360,7 +9334,7 @@ index b0c2156..06b1ee7 100644
          for (WorldServer world : console.worlds) {
              world.difficulty = difficulty;
              world.setSpawnFlags(monsters, animals);
-@@ -765,11 +787,14 @@ public final class CraftServer implements Server {
+@@ -763,11 +785,14 @@ public final class CraftServer implements Server {
              } else {
                  world.ticksPerMonsterSpawns = this.getTicksPerMonsterSpawns();
              }
@@ -9375,7 +9349,7 @@ index b0c2156..06b1ee7 100644
          overrideAllCommandBlockCommands = commandsConfiguration.getStringList("command-block-overrides").contains("*");
  
          int pollCount = 0;
-@@ -1015,6 +1040,30 @@ public final class CraftServer implements Server {
+@@ -1013,6 +1038,30 @@ public final class CraftServer implements Server {
          worlds.remove(world.getName().toLowerCase());
          console.worlds.remove(console.worlds.indexOf(handle));
  
@@ -9406,7 +9380,7 @@ index b0c2156..06b1ee7 100644
          return true;
      }
  
-@@ -1274,11 +1323,7 @@ public final class CraftServer implements Server {
+@@ -1272,11 +1321,7 @@ public final class CraftServer implements Server {
  
      public OfflinePlayer getOfflinePlayer(String name) {
          Validate.notNull(name, "Name cannot be null");
@@ -9419,7 +9393,7 @@ index b0c2156..06b1ee7 100644
  
          OfflinePlayer result = getPlayerExact(name);
          if (result == null) {
-@@ -1570,6 +1615,13 @@ public final class CraftServer implements Server {
+@@ -1568,6 +1613,13 @@ public final class CraftServer implements Server {
      }
  
      public List<String> tabCompleteCommand(Player player, String message) {
@@ -9810,43 +9784,6 @@ index 77717d5..1533dd4 100644
 +        if (result && sign != null) { // Spigot, add null check
              sign.lines = sanitizeLines(lines);
              sign.update();
-         }
-diff --git a/src/main/java/org/bukkit/craftbukkit/block/CraftSkull.java b/src/main/java/org/bukkit/craftbukkit/block/CraftSkull.java
-index 4e0620e..8ebb22c 100644
---- a/src/main/java/org/bukkit/craftbukkit/block/CraftSkull.java
-+++ b/src/main/java/org/bukkit/craftbukkit/block/CraftSkull.java
-@@ -2,16 +2,13 @@ package org.bukkit.craftbukkit.block;
- 
- import net.minecraft.server.MinecraftServer;
- import net.minecraft.server.TileEntitySkull;
--
- import net.minecraft.util.com.mojang.authlib.GameProfile;
--import org.bukkit.OfflinePlayer;
-+
- import org.bukkit.SkullType;
- import org.bukkit.block.Block;
- import org.bukkit.block.BlockFace;
- import org.bukkit.block.Skull;
--import org.bukkit.craftbukkit.CraftOfflinePlayer;
- import org.bukkit.craftbukkit.CraftWorld;
--import org.bukkit.craftbukkit.entity.CraftPlayer;
- 
- public class CraftSkull extends CraftBlockState implements Skull {
-     private static final int MAX_OWNER_LENGTH = 16;
-@@ -193,8 +190,12 @@ public class CraftSkull extends CraftBlockState implements Skull {
-         boolean result = super.update(force, applyPhysics);
- 
-         if (result) {
--            skull.setSkullType(getSkullType(skullType));
--            skull.setGameProfile(profile);
-+            if (skullType == SkullType.PLAYER) {
-+                skull.setGameProfile(profile);
-+            } else {
-+                skull.setSkullType(getSkullType(skullType));
-+            }
-+
-             skull.setRotation(rotation);
-             skull.update();
          }
 diff --git a/src/main/java/org/bukkit/craftbukkit/command/ServerCommandSender.java b/src/main/java/org/bukkit/craftbukkit/command/ServerCommandSender.java
 index 1314c74..b339cf3 100644
