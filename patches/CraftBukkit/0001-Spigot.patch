@@ -1,6 +1,6 @@
-From 94879b64ee417357960ce3bda7e7da7eea401477 Mon Sep 17 00:00:00 2001
+From 85e22b3c33771e6b54e122db01b55ce0bf8d1cac Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Thu, 15 May 2014 22:45:06 -0400
+Date: Tue, 20 May 2014 18:39:58 -0400
 Subject: [PATCH] Spigot
 
 ---
@@ -111,7 +111,7 @@ Subject: [PATCH] Spigot
  .../minecraft/server/ThreadPlayerLookupUUID.java   |  93 +--
  src/main/java/net/minecraft/server/TileEntity.java |  11 +-
  .../net/minecraft/server/TileEntityHopper.java     |  27 +-
- .../java/net/minecraft/server/TileEntitySkull.java |  63 +-
+ .../java/net/minecraft/server/TileEntitySkull.java |  71 ++-
  src/main/java/net/minecraft/server/UserCache.java  | 247 ++++++++
  .../java/net/minecraft/server/UserCacheEntry.java  |  34 ++
  .../java/net/minecraft/server/WatchableObject.java |  44 ++
@@ -130,6 +130,7 @@ Subject: [PATCH] Spigot
  .../org/bukkit/craftbukkit/block/CraftSign.java    |   8 +-
  .../craftbukkit/command/ServerCommandSender.java   |  11 +-
  .../org/bukkit/craftbukkit/entity/CraftArrow.java  |  22 +
+ .../org/bukkit/craftbukkit/entity/CraftBat.java    |   4 +-
  .../org/bukkit/craftbukkit/entity/CraftEntity.java |  16 +
  .../craftbukkit/entity/CraftLightningStrike.java   |  20 +
  .../org/bukkit/craftbukkit/entity/CraftPlayer.java | 121 +++-
@@ -160,7 +161,7 @@ Subject: [PATCH] Spigot
  src/main/java/org/spigotmc/WatchdogThread.java     | 124 ++++
  src/main/resources/configurations/bukkit.yml       |   9 +-
  src/main/resources/configurations/commands.yml     |   9 +-
- 156 files changed, 8926 insertions(+), 478 deletions(-)
+ 157 files changed, 8936 insertions(+), 480 deletions(-)
  create mode 100644 src/main/java/net/minecraft/server/BanEntrySerializer.java
  create mode 100644 src/main/java/net/minecraft/server/BiomeDecorator.java
  create mode 100644 src/main/java/net/minecraft/server/BlockAnvil.java
@@ -7624,7 +7625,7 @@ index 48a882a..b620394 100644
  
          if (tileentity != null && tileentity instanceof IInventory) {
 diff --git a/src/main/java/net/minecraft/server/TileEntitySkull.java b/src/main/java/net/minecraft/server/TileEntitySkull.java
-index 748f00a..a239f04 100644
+index 748f00a..255e0de 100644
 --- a/src/main/java/net/minecraft/server/TileEntitySkull.java
 +++ b/src/main/java/net/minecraft/server/TileEntitySkull.java
 @@ -6,11 +6,25 @@ import net.minecraft.util.com.google.common.collect.Iterables;
@@ -7653,7 +7654,7 @@ index 748f00a..a239f04 100644
  
      public TileEntitySkull() {}
  
-@@ -65,18 +79,45 @@ public class TileEntitySkull extends TileEntity {
+@@ -65,18 +79,53 @@ public class TileEntitySkull extends TileEntity {
      private void d() {
          if (this.j != null && !UtilColor.b(this.j.getName())) {
              if (!this.j.isComplete() || !this.j.getProperties().containsKey("textures")) {
@@ -7666,6 +7667,7 @@ index 748f00a..a239f04 100644
 -                        gameprofile = MinecraftServer.getServer().av().fillProfileProperties(gameprofile, true);
 +                // Spigot start - Handle async
 +                final String name = this.j.getName();
++                setSkullType( 0 ); // Work around a client bug
 +                executor.execute(new Runnable() {
 +                    @Override
 +                    public void run() {
@@ -7692,11 +7694,18 @@ index 748f00a..a239f04 100644
 +                            MinecraftServer.getServer().processQueue.add(new Runnable() {
 +                                @Override
 +                                public void run() {
++                                    a = 3;
 +                                    j = finalProfile;
-+                                    update();
-+                                    MinecraftServer.getServer().getPlayerList().sendPacketNearby(x, y, z,
-+                                            world.spigotConfig.viewDistance * 16,
-+                                            world.worldData.j()/*Dimension*/, getUpdatePacket());
++                                    world.notify( x, y, z );
++                                }
++                            });
++                        } else {
++                            MinecraftServer.getServer().processQueue.add(new Runnable() {
++                                @Override
++                                public void run() {
++                                    a = 3;
++                                    j = new GameProfile( null, name );
++                                    world.notify( x, y, z );
 +                                }
 +                            });
 +                        }
@@ -9839,6 +9848,24 @@ index 4f8d47d..8c8a173 100644
 +        return spigot;
 +    }
 +    // Spigot end
+ }
+diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftBat.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftBat.java
+index bf3a872..ba0a960 100644
+--- a/src/main/java/org/bukkit/craftbukkit/entity/CraftBat.java
++++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftBat.java
+@@ -26,11 +26,11 @@ public class CraftBat extends CraftAmbient implements Bat {
+ 
+     @Override
+     public boolean isAwake() {
+-        return !getHandle().isStartled();
++        return getHandle().isStartled();
+     }
+ 
+     @Override
+     public void setAwake(boolean state) {
+-        getHandle().setStartled(!state);
++        getHandle().setStartled(state);
+     }
  }
 diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java
 index fe0f200..96d763b 100644
