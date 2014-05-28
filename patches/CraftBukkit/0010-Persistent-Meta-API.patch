@@ -1,4 +1,4 @@
-From 41fe3b7eac24476cf5be6f2d90818f1899bc58d4 Mon Sep 17 00:00:00 2001
+From e461869a094af7351ae2df82d6dbc129435d3a17 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Mon, 4 Mar 2013 23:35:02 -0500
 Subject: [PATCH] Persistent Meta API
@@ -7,23 +7,23 @@ This adds an API for getting and setting PERSISTENT Metadata
 Meta data can be stored on Worlds, Entities, Chunks and at a Block level.
 Meta is is provided in a simple Map/List setup and does not expose raw NBT access.
 ---
- .../java/com/empireminecraft/metaapi/MetaApi.java  | 196 ++++++++++++++
+ .../java/com/empireminecraft/metaapi/MetaApi.java  | 219 +++++++++++++++
  src/main/java/net/minecraft/server/Chunk.java      |   1 +
  .../net/minecraft/server/ChunkRegionLoader.java    |   2 +
  src/main/java/net/minecraft/server/Entity.java     |   3 +
- .../java/net/minecraft/server/MetaApiAccessor.java | 295 +++++++++++++++++++++
+ .../java/net/minecraft/server/MetaApiAccessor.java | 296 +++++++++++++++++++++
  src/main/java/net/minecraft/server/NBTTagList.java |  13 +-
  .../java/net/minecraft/server/WorldNBTStorage.java |   5 +
- 7 files changed, 513 insertions(+), 2 deletions(-)
+ 7 files changed, 537 insertions(+), 2 deletions(-)
  create mode 100644 src/main/java/com/empireminecraft/metaapi/MetaApi.java
  create mode 100644 src/main/java/net/minecraft/server/MetaApiAccessor.java
 
 diff --git a/src/main/java/com/empireminecraft/metaapi/MetaApi.java b/src/main/java/com/empireminecraft/metaapi/MetaApi.java
 new file mode 100644
-index 0000000..7a4bcf0
+index 0000000..0016f91
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/metaapi/MetaApi.java
-@@ -0,0 +1,196 @@
+@@ -0,0 +1,219 @@
 +package com.empireminecraft.metaapi;
 +
 +import net.minecraft.server.MetaApiAccessor;
@@ -49,8 +49,13 @@ index 0000000..7a4bcf0
 +    }
 +
 +    public static <T> T getWorldMeta(World world, String key) {
++        return getWorldMeta(world, key, null);
++    }
++
++    public static <T> T getWorldMeta(World world, String key, T def) {
 +        final MetaMap worldMetaMap = getWorldMetaMap(world);
-+        return worldMetaMap != null && !worldMetaMap.isEmpty() ? (T) worldMetaMap.get(key) : null;
++        T ret = worldMetaMap != null && !worldMetaMap.isEmpty() ? (T) worldMetaMap.get(key) : null;
++        return ret != null ? ret : null;
 +    }
 +
 +    public static boolean hasWorldMeta(World world, String key) {
@@ -75,8 +80,13 @@ index 0000000..7a4bcf0
 +    }
 +
 +    public static <T> T getEntityMeta(Entity entity, String key) {
++        return getEntityMeta(entity, key, null);
++    }
++
++    public static <T> T getEntityMeta(Entity entity, String key, T def) {
 +        final MetaMap entityMetaMap = getEntityMetaMap(entity, false);
-+        return entityMetaMap != null && !entityMetaMap.isEmpty() ? (T) entityMetaMap.get(key) : null;
++        T ret = entityMetaMap != null && !entityMetaMap.isEmpty() ? (T) entityMetaMap.get(key) : null;
++        return ret != null ? ret : null;
 +    }
 +
 +    public static boolean hasEntityMeta(Entity entity, String key) {
@@ -106,8 +116,13 @@ index 0000000..7a4bcf0
 +    }
 +
 +    public static <T> T getChunkMeta(Chunk chunk, String key) {
++        return getChunkMeta(chunk, key, null);
++    }
++
++    public static <T> T getChunkMeta(Chunk chunk, String key, T def) {
 +        final MetaMap chunkMetaMap = getChunkMetaMap(chunk, false);
-+        return chunkMetaMap != null && !chunkMetaMap.isEmpty() ? (T) getChunkMetaMap(chunk, false).get(key) : null;
++        T ret = chunkMetaMap != null && !chunkMetaMap.isEmpty() ? (T) getChunkMetaMap(chunk, false).get(key) : null;
++        return ret != null ? ret : null;
 +    }
 +
 +    public static <T> T setChunkMeta(Chunk chunk, String key, Object val) {
@@ -132,8 +147,13 @@ index 0000000..7a4bcf0
 +    }
 +
 +    public static <T> T getBlockMeta(Location loc, String key) {
++        return getBlockMeta(loc, key, null);
++    }
++
++    public static <T> T getBlockMeta(Location loc, String key, T def) {
 +        final MetaMap blockMetaMap = getBlockMetaMap(loc, false);
-+        return blockMetaMap != null && !blockMetaMap.isEmpty() ? (T) blockMetaMap.get(key) : null;
++        T ret = blockMetaMap != null && !blockMetaMap.isEmpty() ? (T) blockMetaMap.get(key) : null;
++        return ret != null ? ret : null;
 +    }
 +
 +    public static <T> T setBlockMeta(Location loc, String key, Object val) {
@@ -216,12 +236,15 @@ index 0000000..7a4bcf0
 +            if (!isValidMeta(value)) {
 +                throw new InvalidParameterException();
 +            }
++            if ("MetaType".equals(key)) {
++                throw new InvalidParameterException();
++            }
 +            return super.put(key, value);
 +        }
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/Chunk.java b/src/main/java/net/minecraft/server/Chunk.java
-index 90f32ed..074e015 100644
+index 364df1d..a961016 100644
 --- a/src/main/java/net/minecraft/server/Chunk.java
 +++ b/src/main/java/net/minecraft/server/Chunk.java
 @@ -70,6 +70,7 @@ public class Chunk {
@@ -282,10 +305,10 @@ index 961927b..296e769 100644
                  this.motX = 0.0D;
 diff --git a/src/main/java/net/minecraft/server/MetaApiAccessor.java b/src/main/java/net/minecraft/server/MetaApiAccessor.java
 new file mode 100644
-index 0000000..de26922
+index 0000000..0658a91
 --- /dev/null
 +++ b/src/main/java/net/minecraft/server/MetaApiAccessor.java
-@@ -0,0 +1,295 @@
+@@ -0,0 +1,296 @@
 +package net.minecraft.server;
 +
 +import org.bukkit.craftbukkit.CraftChunk;
@@ -499,9 +522,10 @@ index 0000000..de26922
 +            }
 +            return list;
 +        } else if (nbt instanceof NBTTagCompound) {
-+            NBTTagCompound cmp = (NBTTagCompound) nbt;
++            NBTTagCompound cmp = (NBTTagCompound) nbt.clone();
 +            if (cmp.hasKey("MetaType")) {
 +                String type = cmp.getString("MetaType");
++                cmp.remove("MetaType");
 +                if ("Item".equals(type)) {
 +                    return CraftItemStack.asBukkitCopy(ItemStack.createStack(cmp));
 +                } else if ("MetaMap".equals(type)) {
@@ -617,7 +641,7 @@ index ed0c5ea..08c59e6 100644
  
      void load(DataInput datainput, int i, NBTReadLimiter nbtreadlimiter) {
 diff --git a/src/main/java/net/minecraft/server/WorldNBTStorage.java b/src/main/java/net/minecraft/server/WorldNBTStorage.java
-index cc4d487..4d7a6c9 100644
+index efdcad7..e71995a 100644
 --- a/src/main/java/net/minecraft/server/WorldNBTStorage.java
 +++ b/src/main/java/net/minecraft/server/WorldNBTStorage.java
 @@ -15,6 +15,7 @@ import org.apache.logging.log4j.Logger;
@@ -661,5 +685,5 @@ index cc4d487..4d7a6c9 100644
  
          try {
 -- 
-1.8.3.2
+1.9.1
 
