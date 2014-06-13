@@ -1,6 +1,6 @@
-From e99fefe92bd828ef0f0b0ae742d8ba8a2d8198a2 Mon Sep 17 00:00:00 2001
+From b9d74e3883715df65e6529bfdb5c50d8bded61c3 Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Tue, 27 May 2014 22:19:40 -0400
+Date: Thu, 12 Jun 2014 21:57:36 -0400
 Subject: [PATCH] Spigot
 
 ---
@@ -15,7 +15,7 @@ Subject: [PATCH] Spigot
  src/main/java/net/minecraft/server/BlockCrops.java |   2 +-
  .../java/net/minecraft/server/BlockFlowerPot.java  | 187 ++++++
  src/main/java/net/minecraft/server/BlockGrass.java |   3 +-
- .../java/net/minecraft/server/BlockHopper.java     |  20 +
+ .../java/net/minecraft/server/BlockHopper.java     |  24 +
  .../java/net/minecraft/server/BlockMushroom.java   |   2 +-
  src/main/java/net/minecraft/server/BlockMycel.java |   3 +-
  .../java/net/minecraft/server/BlockPortal.java     |   2 +-
@@ -30,7 +30,6 @@ Subject: [PATCH] Spigot
  .../java/net/minecraft/server/ChunkSection.java    |  26 +-
  .../server/CommandBlockListenerAbstract.java       |   8 +
  .../net/minecraft/server/CommandDispatcher.java    |  94 +++
- src/main/java/net/minecraft/server/Container.java  |   4 +-
  .../java/net/minecraft/server/DataWatcher.java     | 306 ++++++++++
  .../java/net/minecraft/server/DedicatedServer.java |  26 +-
  .../minecraft/server/DispenseBehaviorBonemeal.java |   2 +-
@@ -54,12 +53,12 @@ Subject: [PATCH] Spigot
  .../java/net/minecraft/server/EntityHorse.java     |   8 +
  .../java/net/minecraft/server/EntityHuman.java     |   7 +-
  .../net/minecraft/server/EntityInsentient.java     |   6 +
- src/main/java/net/minecraft/server/EntityItem.java |  41 +-
+ src/main/java/net/minecraft/server/EntityItem.java |  42 +-
  .../java/net/minecraft/server/EntityLightning.java |  12 +-
  .../java/net/minecraft/server/EntityLiving.java    |  14 +-
- .../minecraft/server/EntityMinecartAbstract.java   |  20 +
+ .../minecraft/server/EntityMinecartAbstract.java   |  21 +
  .../minecraft/server/EntityMinecartContainer.java  |   6 +
- .../java/net/minecraft/server/EntityOcelot.java    |  23 +
+ .../java/net/minecraft/server/EntityOcelot.java    |  25 +
  .../java/net/minecraft/server/EntityPlayer.java    |  20 +-
  .../java/net/minecraft/server/EntityTracker.java   |   3 +
  .../net/minecraft/server/EntityTrackerEntry.java   |   2 +
@@ -113,13 +112,13 @@ Subject: [PATCH] Spigot
  .../net/minecraft/server/StatisticManager.java     |   5 +-
  .../net/minecraft/server/StructureGenerator.java   | 227 ++++++++
  .../minecraft/server/ThreadPlayerLookupUUID.java   |  93 +--
- src/main/java/net/minecraft/server/TileEntity.java |  44 +-
- .../net/minecraft/server/TileEntityHopper.java     | 125 +++-
+ src/main/java/net/minecraft/server/TileEntity.java |  49 +-
+ .../net/minecraft/server/TileEntityHopper.java     | 128 +++-
  .../java/net/minecraft/server/TileEntitySkull.java |  71 ++-
  src/main/java/net/minecraft/server/UserCache.java  | 247 ++++++++
  .../java/net/minecraft/server/UserCacheEntry.java  |  34 ++
  .../java/net/minecraft/server/WatchableObject.java |  44 ++
- src/main/java/net/minecraft/server/World.java      | 319 ++++++++--
+ src/main/java/net/minecraft/server/World.java      | 323 +++++++++--
  .../net/minecraft/server/WorldGenForestTree.java   | 171 ++++++
  .../net/minecraft/server/WorldGenPackedIce2.java   | 101 ++++
  .../net/minecraft/server/WorldMapHumanTracker.java |  24 +-
@@ -164,7 +163,7 @@ Subject: [PATCH] Spigot
  src/main/java/org/spigotmc/WatchdogThread.java     | 124 ++++
  src/main/resources/configurations/bukkit.yml       |   9 +-
  src/main/resources/configurations/commands.yml     |   9 +-
- 160 files changed, 9238 insertions(+), 489 deletions(-)
+ 159 files changed, 9256 insertions(+), 487 deletions(-)
  create mode 100644 src/main/java/net/minecraft/server/BanEntrySerializer.java
  create mode 100644 src/main/java/net/minecraft/server/BiomeDecorator.java
  create mode 100644 src/main/java/net/minecraft/server/BlockAnvil.java
@@ -249,7 +248,7 @@ index cda766b..1f12a75 100644
 +    * *Note*: this is not needed as the repository we use has Spigot-API too, but you might have a newer one (with your own changes :D)
  * Check out this repo and: `mvn clean package`
 diff --git a/pom.xml b/pom.xml
-index b4b7ae0..006d26b 100644
+index b2e2002..c1073e5 100644
 --- a/pom.xml
 +++ b/pom.xml
 @@ -1,12 +1,12 @@
@@ -261,7 +260,7 @@ index b4b7ae0..006d26b 100644
 +  <groupId>org.spigotmc</groupId>
 +  <artifactId>spigot</artifactId>
    <packaging>jar</packaging>
-   <version>1.7.9-R0.2-SNAPSHOT</version>
+   <version>1.7.9-R0.3-SNAPSHOT</version>
 -  <name>CraftBukkit</name>
 -  <url>http://www.bukkit.org</url>
 +  <name>Spigot</name>
@@ -1255,15 +1254,18 @@ index abd991b..7c00158 100644
                      int j1 = j + random.nextInt(5) - 3;
                      int k1 = k + random.nextInt(3) - 1;
 diff --git a/src/main/java/net/minecraft/server/BlockHopper.java b/src/main/java/net/minecraft/server/BlockHopper.java
-index 9e64702..36682df 100644
+index 9e64702..e1e626b 100644
 --- a/src/main/java/net/minecraft/server/BlockHopper.java
 +++ b/src/main/java/net/minecraft/server/BlockHopper.java
-@@ -87,6 +87,14 @@ public class BlockHopper extends BlockContainer {
+@@ -87,6 +87,17 @@ public class BlockHopper extends BlockContainer {
  
          if (flag != flag1) {
              world.setData(i, j, k, i1 | (flag ? 0 : 8), 4);
 +            // Spigot start - When this hopper becomes unpowered, make it active.
++            // Called when this block's power level changes. flag1 is the current
++            // isNotPowered from metadata. flag is the recalculated isNotPowered.
 +            if (world.spigotConfig.altHopperTicking) {
++            	// e returns the TileEntityHopper associated with this BlockHopper.
 +                TileEntityHopper hopper = e((IBlockAccess) world, i, j, k);
 +                if (flag && hopper != null) {
 +                    hopper.makeTick();
@@ -1273,7 +1275,7 @@ index 9e64702..36682df 100644
          }
      }
  
-@@ -163,4 +171,16 @@ public class BlockHopper extends BlockContainer {
+@@ -163,4 +174,17 @@ public class BlockHopper extends BlockContainer {
      public static TileEntityHopper e(IBlockAccess iblockaccess, int i, int j, int k) {
          return (TileEntityHopper) iblockaccess.getTileEntity(i, j, k);
      }
@@ -1282,6 +1284,7 @@ index 9e64702..36682df 100644
 +    @Override
 +    public void a(World world, int i, int j, int k, Random random) {
 +        if (world.spigotConfig.altHopperTicking) {
++        	// e returns the TileEntityHopper associated with this BlockHopper.
 +            TileEntityHopper hopper = e((IBlockAccess) world, i, j, k);
 +            if (hopper != null) {
 +                hopper.makeTick();
@@ -1474,7 +1477,7 @@ index 0000000..7320a88
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/Chunk.java b/src/main/java/net/minecraft/server/Chunk.java
-index ade0c35..5771fbd 100644
+index ade0c35..620561b 100644
 --- a/src/main/java/net/minecraft/server/Chunk.java
 +++ b/src/main/java/net/minecraft/server/Chunk.java
 @@ -40,6 +40,7 @@ public class Chunk {
@@ -1499,13 +1502,13 @@ index ade0c35..5771fbd 100644
      }
  
 +    // Spigot start - prevent invalid data values
-+    private static int checkData( Block block, int l )
++    public static int checkData( Block block, int data )
 +    {
-+        if (block == Block.b( "minecraft:double_plant" ) )
++        if (block == Blocks.DOUBLE_PLANT )
 +        {
-+            return l == 7 ? 0 : l;
++            return data < 6 || data >= 8 ? data : 0;
 +        }
-+        return l;
++        return data;
 +    }
 +    // Spigot end
 +
@@ -1583,7 +1586,7 @@ index ade0c35..5771fbd 100644
  
              tileentity.t();
              this.tileEntities.put(chunkposition, tileentity);
-+            // Spigot start - We have a world, now we can be sure hoppers are born ticking.
++            // Spigot start - The tile entity has a world, now hoppers can be born ticking.
 +            if (this.world.spigotConfig.altHopperTicking) {
 +                this.world.triggerHoppersList.add(tileentity);
 +            }
@@ -1958,28 +1961,6 @@ index 0000000..caced26
 +        }
 +    }
 +}
-diff --git a/src/main/java/net/minecraft/server/Container.java b/src/main/java/net/minecraft/server/Container.java
-index 7358645..12e48d4 100644
---- a/src/main/java/net/minecraft/server/Container.java
-+++ b/src/main/java/net/minecraft/server/Container.java
-@@ -504,7 +504,7 @@ public abstract class Container {
-                         itemstack.count -= maxStack - itemstack1.count;
-                         itemstack1.count = maxStack;
-                         slot.f();
--                        flag1 = itemstack.count == 0; // Don't give a success return if we have leftovers
-+                        flag1 = true; // Don't give a success return if we have leftovers
-                     }
-                     // CraftBukkit end
-                 }
-@@ -532,7 +532,7 @@ public abstract class Container {
-                     slot.f();
-                     // CraftBukkit start - Don't assume entire stack went in
-                     itemstack.count -= slot.getItem().count;
--                    flag1 = itemstack.count == 0;
-+                    flag1 = true;
-                     // CraftBukkit end
-                     break;
-                 }
 diff --git a/src/main/java/net/minecraft/server/DataWatcher.java b/src/main/java/net/minecraft/server/DataWatcher.java
 new file mode 100644
 index 0000000..cca6bd9
@@ -3558,14 +3539,15 @@ index 12e1036..76fe528 100644
          this.bq.a();
          this.world.methodProfiler.b();
 diff --git a/src/main/java/net/minecraft/server/EntityItem.java b/src/main/java/net/minecraft/server/EntityItem.java
-index 8343ac9..f9e16ac 100644
+index 8343ac9..6dfedc0 100644
 --- a/src/main/java/net/minecraft/server/EntityItem.java
 +++ b/src/main/java/net/minecraft/server/EntityItem.java
-@@ -102,9 +102,29 @@ public class EntityItem extends Entity {
+@@ -102,9 +102,30 @@ public class EntityItem extends Entity {
              if (this.onGround) {
                  this.motY *= -0.5D;
              }
-+            // Spigot start - Make the hopper below this item active.
++            // Spigot start - Make the hopper(s) below this item active.
++            // Called each tick on each item entity.
 +            if (this.world.spigotConfig.altHopperTicking) {
 +                int xi = MathHelper.floor(this.boundingBox.a);
 +                int yi = MathHelper.floor(this.boundingBox.b) - 1;
@@ -3592,7 +3574,7 @@ index 8343ac9..f9e16ac 100644
                  // CraftBukkit start - fire ItemDespawnEvent
                  if (org.bukkit.craftbukkit.event.CraftEventFactory.callItemDespawnEvent(this).isCancelled()) {
                      this.age = 0;
-@@ -117,7 +137,10 @@ public class EntityItem extends Entity {
+@@ -117,7 +138,10 @@ public class EntityItem extends Entity {
      }
  
      private void k() {
@@ -3604,7 +3586,7 @@ index 8343ac9..f9e16ac 100644
  
          while (iterator.hasNext()) {
              EntityItem entityitem = (EntityItem) iterator.next();
-@@ -148,11 +171,13 @@ public class EntityItem extends Entity {
+@@ -148,11 +172,13 @@ public class EntityItem extends Entity {
              } else if (itemstack1.count + itemstack.count > itemstack1.getMaxStackSize()) {
                  return false;
              } else {
@@ -3623,7 +3605,7 @@ index 8343ac9..f9e16ac 100644
                  return true;
              }
          } else {
-@@ -315,7 +340,7 @@ public class EntityItem extends Entity {
+@@ -315,7 +341,7 @@ public class EntityItem extends Entity {
      public ItemStack getItemStack() {
          ItemStack itemstack = this.getDataWatcher().getItemStack(10);
  
@@ -3708,14 +3690,15 @@ index b3bf43a..c821e78 100644
      }
  
 diff --git a/src/main/java/net/minecraft/server/EntityMinecartAbstract.java b/src/main/java/net/minecraft/server/EntityMinecartAbstract.java
-index 166206c..1305526 100644
+index 166206c..de60840 100644
 --- a/src/main/java/net/minecraft/server/EntityMinecartAbstract.java
 +++ b/src/main/java/net/minecraft/server/EntityMinecartAbstract.java
-@@ -342,6 +342,26 @@ public abstract class EntityMinecartAbstract extends Entity {
+@@ -342,6 +342,27 @@ public abstract class EntityMinecartAbstract extends Entity {
  
                  this.passenger = null;
              }
-+            // Spigot start - Make hoppers adjacent to this container minecart active.
++            // Spigot start - Make hoppers around this container minecart active.
++            // Called each tick on each minecart.
 +            if (this.world.spigotConfig.altHopperTicking && this instanceof EntityMinecartContainer) {
 +                int xi = MathHelper.floor(this.boundingBox.a) - 1;
 +                int yi = MathHelper.floor(this.boundingBox.b) - 1;
@@ -3756,15 +3739,17 @@ index b599eeb..2065e5a 100644
          super.b(i);
      }
 diff --git a/src/main/java/net/minecraft/server/EntityOcelot.java b/src/main/java/net/minecraft/server/EntityOcelot.java
-index 1ce9fb8..20b045b 100644
+index 1ce9fb8..b3e6ec8 100644
 --- a/src/main/java/net/minecraft/server/EntityOcelot.java
 +++ b/src/main/java/net/minecraft/server/EntityOcelot.java
-@@ -27,6 +27,29 @@ public class EntityOcelot extends EntityTameableAnimal {
+@@ -27,6 +27,31 @@ public class EntityOcelot extends EntityTameableAnimal {
          this.datawatcher.a(18, Byte.valueOf((byte) 0));
      }
  
-+    // Spigot start - When this ocelot begins standing, any chests below this ocelot must be
-+    // updated as if its contents have changed.
++    // Spigot start - When this ocelot begins standing, chests below this ocelot must be
++    // updated as if its contents have changed. We update chests if this ocelot is sitting
++    // knowing that it may be dead, gone, or standing after this method returns.
++    // Called each tick on each ocelot.
 +    @Override
 +    public void h() {
 +        if (this.world.spigotConfig.altHopperTicking && this.isSitting()) {
@@ -4236,10 +4221,10 @@ index 0000000..15c60bb
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/ItemStack.java b/src/main/java/net/minecraft/server/ItemStack.java
-index 7342848..3a18002 100644
+index f9aaf4a..d1bbb05 100644
 --- a/src/main/java/net/minecraft/server/ItemStack.java
 +++ b/src/main/java/net/minecraft/server/ItemStack.java
-@@ -224,7 +224,13 @@ public final class ItemStack {
+@@ -228,7 +228,13 @@ public final class ItemStack {
      }
  
      public boolean g() {
@@ -4254,7 +4239,7 @@ index 7342848..3a18002 100644
      }
  
      public boolean usesData() {
-@@ -270,7 +276,13 @@ public final class ItemStack {
+@@ -279,7 +285,13 @@ public final class ItemStack {
          return this.item.getMaxDurability();
      }
  
@@ -4268,7 +4253,7 @@ index 7342848..3a18002 100644
          if (!this.g()) {
              return false;
          } else {
-@@ -285,7 +297,16 @@ public final class ItemStack {
+@@ -294,7 +306,16 @@ public final class ItemStack {
                  }
  
                  i -= k;
@@ -4286,7 +4271,7 @@ index 7342848..3a18002 100644
                      return false;
                  }
              }
-@@ -298,7 +319,7 @@ public final class ItemStack {
+@@ -307,7 +328,7 @@ public final class ItemStack {
      public void damage(int i, EntityLiving entityliving) {
          if (!(entityliving instanceof EntityHuman) || !((EntityHuman) entityliving).abilities.canInstantlyBuild) {
              if (this.g()) {
@@ -6242,7 +6227,7 @@ index ae53635..cc1b095 100644
  
      public WorldServer a() {
 diff --git a/src/main/java/net/minecraft/server/PlayerConnection.java b/src/main/java/net/minecraft/server/PlayerConnection.java
-index 89ef6fa..e54ef47 100644
+index ec45c30..c6fbf44 100644
 --- a/src/main/java/net/minecraft/server/PlayerConnection.java
 +++ b/src/main/java/net/minecraft/server/PlayerConnection.java
 @@ -106,6 +106,7 @@ public class PlayerConnection implements PacketPlayInListener {
@@ -7659,7 +7644,7 @@ index 6b91be7..1b2620c 100644
 +    }
  }
 diff --git a/src/main/java/net/minecraft/server/TileEntity.java b/src/main/java/net/minecraft/server/TileEntity.java
-index 2a3d647..4a0ca46 100644
+index 2a3d647..c5859e5 100644
 --- a/src/main/java/net/minecraft/server/TileEntity.java
 +++ b/src/main/java/net/minecraft/server/TileEntity.java
 @@ -7,10 +7,12 @@ import java.util.concurrent.Callable;
@@ -7675,32 +7660,36 @@ index 2a3d647..4a0ca46 100644
      private static final Logger a = LogManager.getLogger();
      private static Map i = new HashMap();
      private static Map j = new HashMap();
-@@ -22,6 +24,36 @@ public class TileEntity {
+@@ -22,6 +24,40 @@ public class TileEntity {
      public int g = -1;
      public Block h;
  
 +    // Spigot start
-+    // Used for alternative ticking. If the hopper at x0, y0, z0 is pointed at this tile entity, make it active.
++    // Helper method for scheduleTicks. If the hopper at x0, y0, z0 is pointed
++    // at this tile entity, then make it active.
 +    private void scheduleTick(int x0, int y0, int z0) {
 +        TileEntity tileEntity = this.world.getTileEntity(x0, y0, z0);
 +        if (tileEntity instanceof TileEntityHopper && tileEntity.world != null) {
++            // i is the metadeta assoiated with the direction the hopper faces.
 +            int i = BlockHopper.b(tileEntity.p());
++            // Facing class provides arrays for direction offset.
 +            if (tileEntity.x + Facing.b[i] == this.x && tileEntity.y + Facing.c[i] == this.y && tileEntity.z + Facing.d[i] == this.z) {
 +                ((TileEntityHopper) tileEntity).makeTick();
 +            }
 +        }
 +    }
 +    
-+    // Contents have changed, so hoppers need ticking. Check all 6 faces.
++    // Called from update when the contents have changed, so hoppers need updates.
++    // Check all 6 faces.
 +    public void scheduleTicks() {
 +        if (this.world != null && this.world.spigotConfig.altHopperTicking) {
-+            // check the top
++            // Check the top
 +            this.scheduleTick(this.x, this.y + 1, this.z);
-+            // check the sides
++            // Check the sides
 +            for (int i = 2; i < 6; i++) {
 +                this.scheduleTick(this.x + Facing.b[i], this.y, this.z + Facing.d[i]);
 +            }
-+            // check the bottom
++            // Check the bottom.
 +            TileEntity tileEntity = this.world.getTileEntity(this.x, this.y - 1, this.z);
 +            if (tileEntity instanceof TileEntityHopper && tileEntity.world != null) {
 +                ((TileEntityHopper) tileEntity).makeTick();
@@ -7712,17 +7701,18 @@ index 2a3d647..4a0ca46 100644
      public TileEntity() {}
  
      private static void a(Class oclass, String s) {
-@@ -103,6 +135,9 @@ public class TileEntity {
+@@ -103,6 +139,10 @@ public class TileEntity {
              if (this.q() != Blocks.AIR) {
                  this.world.f(this.x, this.y, this.z, this.q());
              }
-+            // Spigot start - The contents have changed, so make the hoppers pointed at this inventory active.
++            // Spigot start - Called when the contents have changed, so hoppers around this
++            // tile need updating.
 +            this.scheduleTicks();
 +            // Spigot end
          }
      }
  
-@@ -175,7 +210,14 @@ public class TileEntity {
+@@ -175,7 +215,14 @@ public class TileEntity {
  
      // CraftBukkit start - add method
      public InventoryHolder getOwner() {
@@ -7739,18 +7729,18 @@ index 2a3d647..4a0ca46 100644
          return null;
      }
 diff --git a/src/main/java/net/minecraft/server/TileEntityHopper.java b/src/main/java/net/minecraft/server/TileEntityHopper.java
-index 48a882a..02c07cd 100644
+index 48a882a..c7b3495 100644
 --- a/src/main/java/net/minecraft/server/TileEntityHopper.java
 +++ b/src/main/java/net/minecraft/server/TileEntityHopper.java
-@@ -17,6 +17,42 @@ public class TileEntityHopper extends TileEntity implements IHopper {
+@@ -17,6 +17,43 @@ public class TileEntityHopper extends TileEntity implements IHopper {
      private String i;
      private int j = -1;
  
 +    // Spigot start
-+    private long nextTick = -1; // Next tick this hopper will be ticked
-+    private long lastTick = -1; // Last tick this hopper was polled
++    private long nextTick = -1; // Next tick this hopper will be ticked.
++    private long lastTick = -1; // Last tick this hopper was polled.
 +    
-+    // To be used only with the alternative ticking. If this hopper is not cooling down, assaign a visible tick for next time.
++    // If this hopper is not cooling down, assaign a visible tick for next time.
 +    public void makeTick() {
 +        if (!this.j()) {
 +            this.c(0);
@@ -7764,9 +7754,10 @@ index 48a882a..02c07cd 100644
 +        }
 +    }
 +    
-+    // We can't use config or c() if we don't have a world, so this is called when this hopper is assaigned a world.
-+    // Is also called when alt hopper ticking is turned on from the reload command
++	// Called after this hopper is assaigned a world or when altHopperTicking is turned
++	// on from reload.
 +    public void convertToScheduling() {
++    	// j is the cooldown in ticks
 +        this.c(this.j);
 +    }
 +    
@@ -7785,7 +7776,7 @@ index 48a882a..02c07cd 100644
      // CraftBukkit start - add fields and methods
      public List<HumanEntity> transaction = new java.util.ArrayList<HumanEntity>();
      private int maxStack = MAX_STACK;
-@@ -80,7 +116,19 @@ public class TileEntityHopper extends TileEntity implements IHopper {
+@@ -80,7 +117,20 @@ public class TileEntityHopper extends TileEntity implements IHopper {
          }
  
          nbttagcompound.set("Items", nbttaglist);
@@ -7800,13 +7791,14 @@ index 48a882a..02c07cd 100644
 +            }
 +            nbttagcompound.setInt("TransferCooldown", (int) Math.max(0, Math.min(cooldownDiff, Integer.MAX_VALUE)));
 +        } else {
++        	// j is the cooldown in ticks.
 +            nbttagcompound.setInt("TransferCooldown", this.j);
 +        }
 +        // Spigot end
          if (this.k_()) {
              nbttagcompound.setString("CustomName", this.i);
          }
-@@ -88,6 +136,9 @@ public class TileEntityHopper extends TileEntity implements IHopper {
+@@ -88,6 +138,9 @@ public class TileEntityHopper extends TileEntity implements IHopper {
  
      public void update() {
          super.update();
@@ -7816,7 +7808,7 @@ index 48a882a..02c07cd 100644
      }
  
      public int getSize() {
-@@ -167,11 +218,20 @@ public class TileEntityHopper extends TileEntity implements IHopper {
+@@ -167,11 +220,21 @@ public class TileEntityHopper extends TileEntity implements IHopper {
  
      public void h() {
          if (this.world != null && !this.world.isStatic) {
@@ -7828,6 +7820,7 @@ index 48a882a..02c07cd 100644
 +            if (this.world.spigotConfig.altHopperTicking) {
 +                this.lastTick = this.world.getTime();
 +                if (this.nextTick == this.world.getTime()) {
++                	// Method that does the pushing and pulling.
 +                    this.i();
 +                }
 +            } else {
@@ -7841,7 +7834,7 @@ index 48a882a..02c07cd 100644
          }
      }
  
-@@ -189,12 +249,18 @@ public class TileEntityHopper extends TileEntity implements IHopper {
+@@ -189,12 +252,18 @@ public class TileEntityHopper extends TileEntity implements IHopper {
                  }
  
                  if (flag) {
@@ -7861,7 +7854,7 @@ index 48a882a..02c07cd 100644
              return false;
          } else {
              return false;
-@@ -246,7 +312,7 @@ public class TileEntityHopper extends TileEntity implements IHopper {
+@@ -246,7 +315,7 @@ public class TileEntityHopper extends TileEntity implements IHopper {
                      if (this.getItem(j) != null) {
                          ItemStack itemstack = this.getItem(j).cloneItemStack();
                          // CraftBukkit start - Call event when pushing items into other inventories
@@ -7870,7 +7863,7 @@ index 48a882a..02c07cd 100644
  
                          Inventory destinationInventory;
                          // Have to special case large chests as they work oddly
-@@ -260,11 +326,11 @@ public class TileEntityHopper extends TileEntity implements IHopper {
+@@ -260,11 +329,11 @@ public class TileEntityHopper extends TileEntity implements IHopper {
                          this.getWorld().getServer().getPluginManager().callEvent(event);
                          if (event.isCancelled()) {
                              this.setItem(j, itemstack);
@@ -7884,7 +7877,7 @@ index 48a882a..02c07cd 100644
                          if (itemstack1 == null || itemstack1.count == 0) {
                              if (event.getItem().equals(oitemstack)) {
                                  iinventory.update();
-@@ -274,7 +340,7 @@ public class TileEntityHopper extends TileEntity implements IHopper {
+@@ -274,7 +343,7 @@ public class TileEntityHopper extends TileEntity implements IHopper {
                              // CraftBukkit end
                              return true;
                          }
@@ -7893,7 +7886,7 @@ index 48a882a..02c07cd 100644
                          this.setItem(j, itemstack);
                      }
                  }
-@@ -379,7 +445,7 @@ public class TileEntityHopper extends TileEntity implements IHopper {
+@@ -379,7 +448,7 @@ public class TileEntityHopper extends TileEntity implements IHopper {
          if (itemstack != null && canTakeItemFromInventory(iinventory, itemstack, i, j)) {
              ItemStack itemstack1 = itemstack.cloneItemStack();
              // CraftBukkit start - Call event on collection of items from inventories into the hopper
@@ -7902,7 +7895,7 @@ index 48a882a..02c07cd 100644
  
              Inventory sourceInventory;
              // Have to special case large chests as they work oddly
-@@ -396,13 +462,14 @@ public class TileEntityHopper extends TileEntity implements IHopper {
+@@ -396,13 +465,14 @@ public class TileEntityHopper extends TileEntity implements IHopper {
                  iinventory.setItem(i, itemstack1);
  
                  if (ihopper instanceof TileEntityHopper) {
@@ -7919,7 +7912,7 @@ index 48a882a..02c07cd 100644
              ItemStack itemstack2 = addItem(ihopper, CraftItemStack.asNMSCopy(event.getItem()), -1);
  
              if (itemstack2 == null || itemstack2.count == 0) {
-@@ -415,6 +482,7 @@ public class TileEntityHopper extends TileEntity implements IHopper {
+@@ -415,6 +485,7 @@ public class TileEntityHopper extends TileEntity implements IHopper {
  
                  return true;
              }
@@ -7927,7 +7920,7 @@ index 48a882a..02c07cd 100644
  
              iinventory.setItem(i, itemstack1);
          }
-@@ -502,7 +570,7 @@ public class TileEntityHopper extends TileEntity implements IHopper {
+@@ -502,7 +573,7 @@ public class TileEntityHopper extends TileEntity implements IHopper {
  
              if (flag) {
                  if (iinventory instanceof TileEntityHopper) {
@@ -7936,7 +7929,7 @@ index 48a882a..02c07cd 100644
                      iinventory.update();
                  }
  
-@@ -534,6 +602,7 @@ public class TileEntityHopper extends TileEntity implements IHopper {
+@@ -534,6 +605,7 @@ public class TileEntityHopper extends TileEntity implements IHopper {
          int i = MathHelper.floor(d0);
          int j = MathHelper.floor(d1);
          int k = MathHelper.floor(d2);
@@ -7944,7 +7937,7 @@ index 48a882a..02c07cd 100644
          TileEntity tileentity = world.getTileEntity(i, j, k);
  
          if (tileentity != null && tileentity instanceof IInventory) {
-@@ -575,10 +644,34 @@ public class TileEntityHopper extends TileEntity implements IHopper {
+@@ -575,10 +647,34 @@ public class TileEntityHopper extends TileEntity implements IHopper {
      }
  
      public void c(int i) {
@@ -8420,7 +8413,7 @@ index 0000000..678aa91
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index bbf61a3..3559bfc 100644
+index bbf61a3..a2fa854 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
 @@ -16,6 +16,7 @@ import org.bukkit.Bukkit;
@@ -8474,7 +8467,7 @@ index bbf61a3..3559bfc 100644
      private int K;
      public boolean allowMonsters;
      public boolean allowAnimals;
-@@ -79,6 +105,68 @@ public abstract class World implements IBlockAccess {
+@@ -79,6 +105,70 @@ public abstract class World implements IBlockAccess {
      private boolean M;
      int[] I;
  
@@ -8486,7 +8479,7 @@ index bbf61a3..3559bfc 100644
 +    private final byte chunkTickRadius;
 +    public static boolean haveWeSilencedAPhysicsCrash;
 +    public static String blockLocation;
-+    public List<TileEntity> triggerHoppersList = new ArrayList<TileEntity>(); // Spigot
++    public List<TileEntity> triggerHoppersList = new ArrayList<TileEntity>(); // Spigot, When altHopperTicking, tile entities being added go through here.
 +
 +    public static long chunkToKey(int x, int z)
 +    {
@@ -8505,7 +8498,7 @@ index bbf61a3..3559bfc 100644
 +        return (int) ( ( ( k >> 32 ) & 0xFFFF0000L ) | ( ( k >> 16 ) & 0x0000FFFF ) );
 +    }
 +
-+    // Spigot Start
++    // Spigot Start - Hoppers need to be born ticking.
 +    private void initializeHoppers() {
 +        if (this.spigotConfig.altHopperTicking) {
 +            for (TileEntity o : this.triggerHoppersList) {
@@ -8519,7 +8512,8 @@ index bbf61a3..3559bfc 100644
 +        triggerHoppersList.clear();
 +    }
 +    
-+    // To be used only with alt hopper ticking
++    // Helper method for altHopperTicking. Updates chests at the specified location,
++    // accounting for double chests. Updating the chest will update adjacent hoppers.
 +    public void updateChestAndHoppers(int a, int b, int c) {
 +        Block block = this.getType(a, b, c);
 +        if (block instanceof BlockChest) {
@@ -8528,6 +8522,7 @@ index bbf61a3..3559bfc 100644
 +                tile.scheduleTicks();
 +            }
 +            for (int i = 2; i < 6; i++) {
++            	// Facing class provides arrays for direction offset.
 +                if (this.getType(a + Facing.b[i], b, c + Facing.d[i]) == block) {
 +                    tile = this.getTileEntity(a + Facing.b[i], b, c + Facing.d[i]);
 +                    if (tile instanceof TileEntityChest) {
@@ -8543,7 +8538,7 @@ index bbf61a3..3559bfc 100644
      public BiomeBase getBiome(int i, int j) {
          if (this.isLoaded(i, 0, j)) {
              Chunk chunk = this.getChunkAtWorldCoords(i, j);
-@@ -106,6 +194,9 @@ public abstract class World implements IBlockAccess {
+@@ -106,6 +196,9 @@ public abstract class World implements IBlockAccess {
      public boolean pvpMode;
      public boolean keepSpawnInMemory = true;
      public ChunkGenerator generator;
@@ -8553,7 +8548,7 @@ index bbf61a3..3559bfc 100644
  
      public CraftWorld getWorld() {
          return this.world;
-@@ -117,11 +208,17 @@ public abstract class World implements IBlockAccess {
+@@ -117,11 +210,17 @@ public abstract class World implements IBlockAccess {
  
      // Changed signature - added gen and env
      public World(IDataManager idatamanager, String s, WorldSettings worldsettings, WorldProvider worldprovider, MethodProfiler methodprofiler, ChunkGenerator gen, org.bukkit.World.Environment env) {
@@ -8571,7 +8566,7 @@ index bbf61a3..3559bfc 100644
  
          this.K = this.random.nextInt(12000);
          this.allowMonsters = true;
-@@ -180,6 +277,7 @@ public abstract class World implements IBlockAccess {
+@@ -180,6 +279,7 @@ public abstract class World implements IBlockAccess {
          this.a();
  
          this.getServer().addWorld(this.world); // CraftBukkit
@@ -8579,7 +8574,7 @@ index bbf61a3..3559bfc 100644
      }
  
      protected abstract IChunkProvider j();
-@@ -198,9 +296,16 @@ public abstract class World implements IBlockAccess {
+@@ -198,9 +298,16 @@ public abstract class World implements IBlockAccess {
          return this.getType(i, k, j);
      }
  
@@ -8598,12 +8593,14 @@ index bbf61a3..3559bfc 100644
              Iterator<BlockState> it = capturedBlockStates.iterator();
              while (it.hasNext()) {
                  BlockState previous = it.next();
-@@ -334,6 +439,12 @@ public abstract class World implements IBlockAccess {
+@@ -334,6 +441,14 @@ public abstract class World implements IBlockAccess {
                      this.notifyAndUpdatePhysics(i, j, k, chunk, block1, block, i1);
                  // CraftBukkit end
                  }
 +                // Spigot start - If this block is changing to that which a chest beneath it
-+                // becomes able to be opened, then said chest must be updated
++                // becomes able to be opened, then the chest must be updated.
++                // block1 is the old block. block is the new block. r returns true if the block type
++                // prevents access to a chest.
 +                if (this.spigotConfig.altHopperTicking && block1 != null && block1.r() && !block.r()) {
 +                    this.updateChestAndHoppers(i, j - 1, k);
 +                }
@@ -8611,7 +8608,7 @@ index bbf61a3..3559bfc 100644
  
                  return flag;
              }
-@@ -513,6 +624,7 @@ public abstract class World implements IBlockAccess {
+@@ -513,6 +628,7 @@ public abstract class World implements IBlockAccess {
          this.e(i, j + 1, k, block);
          this.e(i, j, k - 1, block);
          this.e(i, j, k + 1, block);
@@ -8619,7 +8616,7 @@ index bbf61a3..3559bfc 100644
      }
  
      public void b(int i, int j, int k, Block block, int l) {
-@@ -559,6 +671,9 @@ public abstract class World implements IBlockAccess {
+@@ -559,6 +675,9 @@ public abstract class World implements IBlockAccess {
                  // CraftBukkit end
  
                  block1.doPhysics(this, i, j, k, block);
@@ -8629,7 +8626,7 @@ index bbf61a3..3559bfc 100644
              } catch (Throwable throwable) {
                  CrashReport crashreport = CrashReport.a(throwable, "Exception while updating neighbours");
                  CrashReportSystemDetails crashreportsystemdetails = crashreport.a("Block being updated");
-@@ -945,6 +1060,7 @@ public abstract class World implements IBlockAccess {
+@@ -945,6 +1064,7 @@ public abstract class World implements IBlockAccess {
      }
  
      public boolean addEntity(Entity entity, SpawnReason spawnReason) { // Changed signature, added SpawnReason
@@ -8637,7 +8634,7 @@ index bbf61a3..3559bfc 100644
          if (entity == null) return false;
          // CraftBukkit end
  
-@@ -976,6 +1092,23 @@ public abstract class World implements IBlockAccess {
+@@ -976,6 +1096,23 @@ public abstract class World implements IBlockAccess {
              // Not all projectiles extend EntityProjectile, so check for Bukkit interface instead
              event = CraftEventFactory.callProjectileLaunchEvent(entity);
          }
@@ -8661,7 +8658,7 @@ index bbf61a3..3559bfc 100644
  
          if (event != null && (event.isCancelled() || entity.dead)) {
              entity.dead = true;
-@@ -1034,28 +1167,30 @@ public abstract class World implements IBlockAccess {
+@@ -1034,28 +1171,30 @@ public abstract class World implements IBlockAccess {
      }
  
      public void removeEntity(Entity entity) {
@@ -8707,7 +8704,7 @@ index bbf61a3..3559bfc 100644
  
          this.b(entity);
      }
-@@ -1073,23 +1208,42 @@ public abstract class World implements IBlockAccess {
+@@ -1073,23 +1212,42 @@ public abstract class World implements IBlockAccess {
          int i1 = MathHelper.floor(axisalignedbb.c);
          int j1 = MathHelper.floor(axisalignedbb.f + 1.0D);
  
@@ -8762,7 +8759,7 @@ index bbf61a3..3559bfc 100644
  
          double d0 = 0.25D;
          List list = this.getEntities(entity, axisalignedbb.grow(d0, d0, d0));
-@@ -1209,6 +1363,7 @@ public abstract class World implements IBlockAccess {
+@@ -1209,6 +1367,7 @@ public abstract class World implements IBlockAccess {
          CrashReport crashreport;
          CrashReportSystemDetails crashreportsystemdetails;
  
@@ -8770,7 +8767,7 @@ index bbf61a3..3559bfc 100644
          for (i = 0; i < this.i.size(); ++i) {
              entity = (Entity) this.i.get(i);
              // CraftBukkit start - Fixed an NPE, don't process entities in chunks queued for unload
-@@ -1217,10 +1372,15 @@ public abstract class World implements IBlockAccess {
+@@ -1217,10 +1376,15 @@ public abstract class World implements IBlockAccess {
              }
  
              ChunkProviderServer chunkProviderServer = ((WorldServer) this).chunkProviderServer;
@@ -8788,7 +8785,7 @@ index bbf61a3..3559bfc 100644
  
              try {
                  ++entity.ticksLived;
-@@ -1241,6 +1401,7 @@ public abstract class World implements IBlockAccess {
+@@ -1241,6 +1405,7 @@ public abstract class World implements IBlockAccess {
                  this.i.remove(i--);
              }
          }
@@ -8796,7 +8793,7 @@ index bbf61a3..3559bfc 100644
  
          this.methodProfiler.c("remove");
          this.entityList.removeAll(this.f);
-@@ -1264,16 +1425,24 @@ public abstract class World implements IBlockAccess {
+@@ -1264,16 +1429,24 @@ public abstract class World implements IBlockAccess {
          this.f.clear();
          this.methodProfiler.c("regular");
  
@@ -8823,7 +8820,7 @@ index bbf61a3..3559bfc 100644
  
              if (entity.vehicle != null) {
                  if (!entity.vehicle.dead && entity.vehicle.passenger == entity) {
-@@ -1287,7 +1456,9 @@ public abstract class World implements IBlockAccess {
+@@ -1287,7 +1460,9 @@ public abstract class World implements IBlockAccess {
              this.methodProfiler.a("tick");
              if (!entity.dead) {
                  try {
@@ -8833,7 +8830,7 @@ index bbf61a3..3559bfc 100644
                  } catch (Throwable throwable1) {
                      crashreport = CrashReport.a(throwable1, "Ticking entity");
                      crashreportsystemdetails = crashreport.a("Entity being ticked");
-@@ -1305,19 +1476,38 @@ public abstract class World implements IBlockAccess {
+@@ -1305,19 +1480,38 @@ public abstract class World implements IBlockAccess {
                      this.getChunkAt(j, k).b(entity);
                  }
  
@@ -8857,7 +8854,7 @@ index bbf61a3..3559bfc 100644
 +        }
 +        // Spigot End
          this.M = true;
-+        this.initializeHoppers(); // Spigot - hopper ticking
++        this.initializeHoppers(); // Spigot - Initializes hoppers which have been added recently.
          Iterator iterator = this.tileEntityList.iterator();
  
          while (iterator.hasNext()) {
@@ -8872,7 +8869,7 @@ index bbf61a3..3559bfc 100644
              // CraftBukkit start - Don't tick entities in chunks queued for unload
              ChunkProviderServer chunkProviderServer = ((WorldServer) this).chunkProviderServer;
              if (chunkProviderServer.unloadQueue.contains(tileentity.x >> 4, tileentity.z >> 4)) {
-@@ -1327,8 +1517,11 @@ public abstract class World implements IBlockAccess {
+@@ -1327,8 +1521,11 @@ public abstract class World implements IBlockAccess {
  
              if (!tileentity.r() && tileentity.o() && this.isLoaded(tileentity.x, tileentity.y, tileentity.z)) {
                  try {
@@ -8884,7 +8881,7 @@ index bbf61a3..3559bfc 100644
                      crashreport = CrashReport.a(throwable2, "Ticking block entity");
                      crashreportsystemdetails = crashreport.a("Block entity being ticked");
                      tileentity.a(crashreportsystemdetails);
-@@ -1348,11 +1541,9 @@ public abstract class World implements IBlockAccess {
+@@ -1348,11 +1545,9 @@ public abstract class World implements IBlockAccess {
              }
          }
  
@@ -8898,7 +8895,7 @@ index bbf61a3..3559bfc 100644
  
          this.methodProfiler.c("pendingBlockEntities");
          if (!this.a.isEmpty()) {
-@@ -1386,6 +1577,7 @@ public abstract class World implements IBlockAccess {
+@@ -1386,6 +1581,7 @@ public abstract class World implements IBlockAccess {
              this.a.clear();
          }
  
@@ -8906,7 +8903,7 @@ index bbf61a3..3559bfc 100644
          this.methodProfiler.b();
          this.methodProfiler.b();
      }
-@@ -1407,7 +1599,12 @@ public abstract class World implements IBlockAccess {
+@@ -1407,7 +1603,12 @@ public abstract class World implements IBlockAccess {
          int j = MathHelper.floor(entity.locZ);
          byte b0 = 32;
  
@@ -8920,7 +8917,7 @@ index bbf61a3..3559bfc 100644
              entity.S = entity.locX;
              entity.T = entity.locY;
              entity.U = entity.locZ;
-@@ -1469,6 +1666,7 @@ public abstract class World implements IBlockAccess {
+@@ -1469,6 +1670,7 @@ public abstract class World implements IBlockAccess {
                      entity.passenger = null;
                  }
              }
@@ -8928,7 +8925,7 @@ index bbf61a3..3559bfc 100644
          }
      }
  
-@@ -1988,24 +2186,44 @@ public abstract class World implements IBlockAccess {
+@@ -1988,24 +2190,44 @@ public abstract class World implements IBlockAccess {
          int k;
          int l;
  
@@ -8982,7 +8979,7 @@ index bbf61a3..3559bfc 100644
          }
  
          this.methodProfiler.b();
-@@ -2014,7 +2232,7 @@ public abstract class World implements IBlockAccess {
+@@ -2014,7 +2236,7 @@ public abstract class World implements IBlockAccess {
          }
  
          this.methodProfiler.a("playerCheckLight");
@@ -8991,7 +8988,7 @@ index bbf61a3..3559bfc 100644
              i = this.random.nextInt(this.players.size());
              entityhuman = (EntityHuman) this.players.get(i);
              j = MathHelper.floor(entityhuman.locX) + this.random.nextInt(11) - 5;
-@@ -2398,6 +2616,7 @@ public abstract class World implements IBlockAccess {
+@@ -2398,6 +2620,7 @@ public abstract class World implements IBlockAccess {
      }
  
      public void a(List list) {
