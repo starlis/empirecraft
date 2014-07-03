@@ -3,10 +3,10 @@ package net.minecraft.server;
 import java.util.HashMap;
 import java.util.Locale;
 
-import net.minecraft.util.com.google.gson.Gson;
-import net.minecraft.util.com.google.gson.TypeAdapter;
-import net.minecraft.util.com.google.gson.TypeAdapterFactory;
-import net.minecraft.util.com.google.gson.reflect.TypeToken;
+import com.google.gson.Gson;
+import com.google.gson.TypeAdapter;
+import com.google.gson.TypeAdapterFactory;
+import com.google.gson.reflect.TypeToken;
 
 public class ChatTypeAdapterFactory implements TypeAdapterFactory {
 

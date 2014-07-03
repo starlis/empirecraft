@@ -3,13 +3,13 @@ package net.minecraft.server;
 import java.lang.reflect.Type;
 import java.util.UUID;
 
-import net.minecraft.util.com.google.gson.JsonArray;
-import net.minecraft.util.com.google.gson.JsonDeserializationContext;
-import net.minecraft.util.com.google.gson.JsonDeserializer;
-import net.minecraft.util.com.google.gson.JsonElement;
-import net.minecraft.util.com.google.gson.JsonObject;
-import net.minecraft.util.com.google.gson.JsonSerializationContext;
-import net.minecraft.util.com.google.gson.JsonSerializer;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonDeserializationContext;
+import com.google.gson.JsonDeserializer;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonSerializationContext;
+import com.google.gson.JsonSerializer;
 import net.minecraft.util.com.mojang.authlib.GameProfile;
 
 public class ServerPingPlayerSampleSerializer implements JsonDeserializer, JsonSerializer {

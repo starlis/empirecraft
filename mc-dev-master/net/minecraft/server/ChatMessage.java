@@ -7,8 +7,8 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import net.minecraft.util.com.google.common.collect.Iterators;
-import net.minecraft.util.com.google.common.collect.Lists;
+import com.google.common.collect.Iterators;
+import com.google.common.collect.Lists;
 
 public class ChatMessage extends ChatBaseComponent {
 

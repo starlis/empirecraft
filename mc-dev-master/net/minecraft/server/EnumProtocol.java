@@ -3,12 +3,12 @@ package net.minecraft.server;
 import java.util.Iterator;
 import java.util.Map;
 
-import net.minecraft.util.com.google.common.collect.BiMap;
-import net.minecraft.util.com.google.common.collect.HashBiMap;
-import net.minecraft.util.com.google.common.collect.Iterables;
-import net.minecraft.util.com.google.common.collect.Maps;
-import net.minecraft.util.gnu.trove.map.TIntObjectMap;
-import net.minecraft.util.gnu.trove.map.hash.TIntObjectHashMap;
+import com.google.common.collect.BiMap;
+import com.google.common.collect.HashBiMap;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Maps;
+import gnu.trove.map.TIntObjectMap;
+import gnu.trove.map.hash.TIntObjectHashMap;
 import org.apache.logging.log4j.LogManager;
 
 public enum EnumProtocol {

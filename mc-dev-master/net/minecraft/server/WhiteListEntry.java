@@ -2,7 +2,7 @@ package net.minecraft.server;
 
 import java.util.UUID;
 
-import net.minecraft.util.com.google.gson.JsonObject;
+import com.google.gson.JsonObject;
 import net.minecraft.util.com.mojang.authlib.GameProfile;
 
 public class WhiteListEntry extends JsonListEntry {

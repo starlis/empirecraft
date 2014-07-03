@@ -3,7 +3,7 @@ package net.minecraft.server;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 
-import net.minecraft.util.com.mojang.util.QueueLogAppender;
+import com.mojang.util.QueueLogAppender;
 
 class ServerGuiThreadRunnable implements Runnable {
 

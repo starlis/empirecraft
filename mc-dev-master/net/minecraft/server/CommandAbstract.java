@@ -5,7 +5,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 
-import net.minecraft.util.com.google.common.primitives.Doubles;
+import com.google.common.primitives.Doubles;
 
 public abstract class CommandAbstract implements ICommand {
 

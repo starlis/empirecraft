@@ -3,8 +3,8 @@ package net.minecraft.server;
 import java.util.Iterator;
 import java.util.Map;
 
-import net.minecraft.util.com.google.common.collect.BiMap;
-import net.minecraft.util.com.google.common.collect.HashBiMap;
+import com.google.common.collect.BiMap;
+import com.google.common.collect.HashBiMap;
 
 public class RegistryMaterials extends RegistrySimple implements Registry {
 

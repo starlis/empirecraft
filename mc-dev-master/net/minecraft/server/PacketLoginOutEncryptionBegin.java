@@ -2,7 +2,7 @@ package net.minecraft.server;
 
 import java.security.PublicKey;
 
-import net.minecraft.util.io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBuf;
 
 public class PacketLoginOutEncryptionBegin extends Packet {
 

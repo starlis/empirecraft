@@ -3,7 +3,7 @@ package net.minecraft.server;
 import java.io.File;
 import java.util.Iterator;
 
-import net.minecraft.util.com.google.gson.JsonObject;
+import com.google.gson.JsonObject;
 import net.minecraft.util.com.mojang.authlib.GameProfile;
 
 public class GameProfileBanList extends JsonList {

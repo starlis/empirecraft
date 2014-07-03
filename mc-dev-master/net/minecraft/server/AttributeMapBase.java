@@ -6,7 +6,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
 
-import net.minecraft.util.com.google.common.collect.Multimap;
+import com.google.common.collect.Multimap;
 
 public abstract class AttributeMapBase {
 

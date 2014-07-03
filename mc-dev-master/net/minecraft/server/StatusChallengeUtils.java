@@ -1,6 +1,6 @@
 package net.minecraft.server;
 
-import net.minecraft.util.com.google.common.base.Charsets;
+import com.google.common.base.Charsets;
 
 public class StatusChallengeUtils {
 

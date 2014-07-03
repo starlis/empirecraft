@@ -2,9 +2,9 @@ package net.minecraft.server;
 
 import javax.crypto.Cipher;
 
-import net.minecraft.util.io.netty.buffer.ByteBuf;
-import net.minecraft.util.io.netty.channel.ChannelHandlerContext;
-import net.minecraft.util.io.netty.handler.codec.MessageToByteEncoder;
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.handler.codec.MessageToByteEncoder;
 
 public class PacketEncrypter extends MessageToByteEncoder {
 

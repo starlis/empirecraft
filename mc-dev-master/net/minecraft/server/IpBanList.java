@@ -3,7 +3,7 @@ package net.minecraft.server;
 import java.io.File;
 import java.net.SocketAddress;
 
-import net.minecraft.util.com.google.gson.JsonObject;
+import com.google.gson.JsonObject;
 
 public class IpBanList extends JsonList {
 

@@ -1,6 +1,6 @@
 package net.minecraft.server;
 
-import net.minecraft.util.com.google.common.base.Predicate;
+import com.google.common.base.Predicate;
 
 final class PredicateEmptyList implements Predicate {
 

@@ -1,6 +1,6 @@
 package net.minecraft.server;
 
-import net.minecraft.util.org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 
 public class PacketPlayInTabComplete extends Packet {
 

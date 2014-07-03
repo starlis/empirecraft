@@ -1,11 +1,11 @@
 package net.minecraft.server;
 
-import net.minecraft.util.com.google.gson.JsonArray;
-import net.minecraft.util.com.google.gson.JsonElement;
-import net.minecraft.util.com.google.gson.JsonObject;
-import net.minecraft.util.com.google.gson.JsonPrimitive;
-import net.minecraft.util.com.google.gson.JsonSyntaxException;
-import net.minecraft.util.org.apache.commons.lang3.StringUtils;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonPrimitive;
+import com.google.gson.JsonSyntaxException;
+import org.apache.commons.lang3.StringUtils;
 
 public class ChatDeserializer {
 

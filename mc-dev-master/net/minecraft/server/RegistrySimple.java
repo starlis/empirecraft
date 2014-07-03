@@ -4,7 +4,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
-import net.minecraft.util.com.google.common.collect.Maps;
+import com.google.common.collect.Maps;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 

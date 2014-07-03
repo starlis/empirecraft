@@ -3,9 +3,9 @@ package net.minecraft.server;
 import java.util.List;
 import javax.crypto.Cipher;
 
-import net.minecraft.util.io.netty.buffer.ByteBuf;
-import net.minecraft.util.io.netty.channel.ChannelHandlerContext;
-import net.minecraft.util.io.netty.handler.codec.MessageToMessageDecoder;
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.handler.codec.MessageToMessageDecoder;
 
 public class PacketDecrypter extends MessageToMessageDecoder {
 

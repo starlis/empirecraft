@@ -1,7 +1,7 @@
 package net.minecraft.server;
 
 import java.util.UUID;
-import net.minecraft.util.org.apache.commons.lang3.Validate;
+import org.apache.commons.lang3.Validate;
 
 public class AttributeModifier {
 

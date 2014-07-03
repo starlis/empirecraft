@@ -1,7 +1,7 @@
 package net.minecraft.server;
 
-import net.minecraft.util.io.netty.channel.ChannelFutureListener;
-import net.minecraft.util.io.netty.util.concurrent.GenericFutureListener;
+import io.netty.channel.ChannelFutureListener;
+import io.netty.util.concurrent.GenericFutureListener;
 
 class QueuedProtocolSwitch implements Runnable {
 

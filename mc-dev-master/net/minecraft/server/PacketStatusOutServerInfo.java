@@ -1,7 +1,7 @@
 package net.minecraft.server;
 
-import net.minecraft.util.com.google.gson.Gson;
-import net.minecraft.util.com.google.gson.GsonBuilder;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 
 public class PacketStatusOutServerInfo extends Packet {
 

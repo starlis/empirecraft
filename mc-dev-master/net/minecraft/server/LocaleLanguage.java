@@ -6,11 +6,11 @@ import java.util.IllegalFormatException;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.regex.Pattern;
-import net.minecraft.util.com.google.common.base.Splitter;
-import net.minecraft.util.com.google.common.collect.Iterables;
-import net.minecraft.util.com.google.common.collect.Maps;
-import net.minecraft.util.org.apache.commons.io.Charsets;
-import net.minecraft.util.org.apache.commons.io.IOUtils;
+import com.google.common.base.Splitter;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Maps;
+import org.apache.commons.io.Charsets;
+import org.apache.commons.io.IOUtils;
 
 public class LocaleLanguage {
 

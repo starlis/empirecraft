@@ -1,7 +1,7 @@
 package net.minecraft.server;
 
-import net.minecraft.util.io.netty.util.concurrent.Future;
-import net.minecraft.util.io.netty.util.concurrent.GenericFutureListener;
+import io.netty.util.concurrent.Future;
+import io.netty.util.concurrent.GenericFutureListener;
 
 class PlayerConnectionFuture implements GenericFutureListener {
 

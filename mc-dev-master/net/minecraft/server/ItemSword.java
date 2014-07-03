@@ -1,6 +1,6 @@
 package net.minecraft.server;
 
-import net.minecraft.util.com.google.common.collect.Multimap;
+import com.google.common.collect.Multimap;
 
 public class ItemSword extends Item {
 

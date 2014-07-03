@@ -4,9 +4,9 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
-import net.minecraft.util.com.google.common.base.Predicates;
-import net.minecraft.util.com.google.common.collect.Iterators;
-import net.minecraft.util.gnu.trove.map.hash.TIntIntHashMap;
+import com.google.common.base.Predicates;
+import com.google.common.collect.Iterators;
+import gnu.trove.map.hash.TIntIntHashMap;
 
 public class RegistryID implements Registry {
 

@@ -3,8 +3,8 @@ package net.minecraft.server;
 import java.util.Iterator;
 import java.util.List;
 
-import net.minecraft.util.com.google.common.collect.Iterators;
-import net.minecraft.util.com.google.common.collect.Lists;
+import com.google.common.collect.Iterators;
+import com.google.common.collect.Lists;
 
 public abstract class ChatBaseComponent implements IChatBaseComponent {
 

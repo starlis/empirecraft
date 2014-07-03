@@ -2,10 +2,10 @@ package net.minecraft.server;
 
 import java.util.Map;
 
-import net.minecraft.util.com.google.gson.TypeAdapter;
-import net.minecraft.util.com.google.gson.stream.JsonReader;
-import net.minecraft.util.com.google.gson.stream.JsonToken;
-import net.minecraft.util.com.google.gson.stream.JsonWriter;
+import com.google.gson.TypeAdapter;
+import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonToken;
+import com.google.gson.stream.JsonWriter;
 
 class ChatTypeAdapter extends TypeAdapter {
 

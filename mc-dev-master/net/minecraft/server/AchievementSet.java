@@ -3,11 +3,11 @@ package net.minecraft.server;
 import java.util.Iterator;
 import java.util.Set;
 
-import net.minecraft.util.com.google.common.collect.ForwardingSet;
-import net.minecraft.util.com.google.common.collect.Sets;
-import net.minecraft.util.com.google.gson.JsonArray;
-import net.minecraft.util.com.google.gson.JsonElement;
-import net.minecraft.util.com.google.gson.JsonPrimitive;
+import com.google.common.collect.ForwardingSet;
+import com.google.common.collect.Sets;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonPrimitive;
 
 public class AchievementSet extends ForwardingSet implements IJsonStatistic {
 
