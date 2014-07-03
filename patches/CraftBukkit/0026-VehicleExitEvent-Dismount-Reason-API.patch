@@ -1,0 +1,95 @@
+From 6468b73b36837f2daef7550524cb98002a7acd34 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Wed, 7 Aug 2013 19:52:14 -0400
+Subject: [PATCH] VehicleExitEvent Dismount Reason API
+
+---
+ src/main/java/net/minecraft/server/Entity.java       | 5 +++++
+ src/main/java/net/minecraft/server/EntityHuman.java  | 2 ++
+ src/main/java/net/minecraft/server/EntityLiving.java | 1 +
+ src/main/java/net/minecraft/server/World.java        | 2 ++
+ 4 files changed, 10 insertions(+)
+
+diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
+index a54f204..1926df5 100644
+--- a/src/main/java/net/minecraft/server/Entity.java
++++ b/src/main/java/net/minecraft/server/Entity.java
+@@ -1457,7 +1457,10 @@ public abstract class Entity {
+         return this.bukkitEntity;
+     }
+ 
++    VehicleExitEvent.DismountReason dismountReason = VehicleExitEvent.DismountReason.UNKNOWN; // EMC
+     public void setPassengerOf(Entity entity) {
++        VehicleExitEvent.DismountReason reason = dismountReason; // EMC
++        dismountReason = VehicleExitEvent.DismountReason.UNKNOWN; // EMC
+         // b(null) doesn't really fly for overloaded methods,
+         // so this method is needed
+ 
+@@ -1473,6 +1476,7 @@ public abstract class Entity {
+                 // CraftBukkit start
+                 if ((this.bukkitEntity instanceof LivingEntity) && (this.vehicle.getBukkitEntity() instanceof Vehicle)) {
+                     VehicleExitEvent event = new VehicleExitEvent((Vehicle) this.vehicle.getBukkitEntity(), (LivingEntity) this.bukkitEntity);
++                    event.reason = reason; // EMC
+                     pluginManager.callEvent(event);
+ 
+                     if (event.isCancelled() || this.vehicle != originalVehicle) {
+@@ -1494,6 +1498,7 @@ public abstract class Entity {
+                 VehicleExitEvent exitEvent = null;
+                 if (this.vehicle != null && this.vehicle.getBukkitEntity() instanceof Vehicle) {
+                     exitEvent = new VehicleExitEvent((Vehicle) this.vehicle.getBukkitEntity(), (LivingEntity) this.bukkitEntity);
++                    exitEvent.reason = VehicleExitEvent.DismountReason.TRANSFER; // EMC
+                     pluginManager.callEvent(exitEvent);
+ 
+                     if (exitEvent.isCancelled() || this.vehicle != originalVehicle || (this.vehicle != null && this.vehicle.passenger != originalPassenger)) {
+diff --git a/src/main/java/net/minecraft/server/EntityHuman.java b/src/main/java/net/minecraft/server/EntityHuman.java
+index 23c8ecf..e6202af 100644
+--- a/src/main/java/net/minecraft/server/EntityHuman.java
++++ b/src/main/java/net/minecraft/server/EntityHuman.java
+@@ -354,6 +354,7 @@ public abstract class EntityHuman extends EntityLiving implements ICommandListen
+ 
+     public void aa() {
+         if (!this.world.isStatic && this.isSneaking()) {
++            this.dismountReason = org.bukkit.event.vehicle.VehicleExitEvent.DismountReason.PLAYER; // EMC
+             this.mount((Entity) null);
+             this.setSneaking(false);
+         } else {
+@@ -1051,6 +1052,7 @@ public abstract class EntityHuman extends EntityLiving implements ICommandListen
+         }
+ 
+         if (this.al()) {
++            this.dismountReason = org.bukkit.event.vehicle.VehicleExitEvent.DismountReason.PLAYER; // EMC
+             this.mount((Entity) null);
+         }
+ 
+diff --git a/src/main/java/net/minecraft/server/EntityLiving.java b/src/main/java/net/minecraft/server/EntityLiving.java
+index bca30bc..667cbfc 100644
+--- a/src/main/java/net/minecraft/server/EntityLiving.java
++++ b/src/main/java/net/minecraft/server/EntityLiving.java
+@@ -191,6 +191,7 @@ public abstract class EntityLiving extends Entity {
+             }
+ 
+             if (!this.world.isStatic && this.al() && this.vehicle instanceof EntityLiving) {
++                this.dismountReason = org.bukkit.event.vehicle.VehicleExitEvent.DismountReason.WATER; // EMC
+                 this.mount((Entity) null);
+             }
+         } else {
+diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
+index 7301212..fa8927a 100644
+--- a/src/main/java/net/minecraft/server/World.java
++++ b/src/main/java/net/minecraft/server/World.java
+@@ -1161,10 +1161,12 @@ public abstract class World implements IBlockAccess {
+ 
+     public void kill(Entity entity) {
+         if (entity.passenger != null) {
++            entity.passenger.dismountReason = org.bukkit.event.vehicle.VehicleExitEvent.DismountReason.DEAD; // EMC
+             entity.passenger.mount((Entity) null);
+         }
+ 
+         if (entity.vehicle != null) {
++            entity.dismountReason = org.bukkit.event.vehicle.VehicleExitEvent.DismountReason.DEAD; // EMC
+             entity.mount((Entity) null);
+         }
+ 
+-- 
+1.9.1
+

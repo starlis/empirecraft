@@ -1,12 +1,12 @@
-From fd32ef3eded33332b36d0a538292907b205c13c9 Mon Sep 17 00:00:00 2001
+From 1e2953045a6de4f96a91ce0263f79dc3d04f83ff Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Thu, 12 Jun 2014 21:57:31 -0400
+Date: Wed, 2 Jul 2014 21:32:16 -0400
 Subject: [PATCH] Spigot
 
 ---
  README.md                                          |   8 +-
  pom.xml                                            |  49 ++---
- src/main/java/org/bukkit/Bukkit.java               |  15 +-
+ src/main/java/org/bukkit/Bukkit.java               |   3 -
  src/main/java/org/bukkit/Effect.java               | 201 ++++++++++++++++++++-
  src/main/java/org/bukkit/Server.java               |   9 -
  src/main/java/org/bukkit/World.java                |  74 ++++++++
@@ -39,10 +39,9 @@ Subject: [PATCH] Spigot
  .../spigotmc/event/entity/EntityDismountEvent.java |  39 ++++
  .../spigotmc/event/entity/EntityMountEvent.java    |  52 ++++++
  .../event/player/PlayerSpawnLocationEvent.java     |  50 +++++
- src/test/java/org/bukkit/BukkitMirrorTest.java     |  68 +------
  src/test/java/org/bukkit/EffectTest.java           |   6 +-
  .../bukkit/plugin/TimedRegisteredListenerTest.java |   1 -
- 38 files changed, 1149 insertions(+), 210 deletions(-)
+ 37 files changed, 1137 insertions(+), 142 deletions(-)
  create mode 100644 src/main/java/org/bukkit/event/entity/EntitySpawnEvent.java
  create mode 100644 src/main/java/org/bukkit/event/entity/SpawnerSpawnEvent.java
  create mode 100644 src/main/java/org/bukkit/event/player/PlayerItemDamageEvent.java
@@ -163,34 +162,10 @@ index dcf7ed3..fc62bbf 100644
  
          <!-- testing -->
 diff --git a/src/main/java/org/bukkit/Bukkit.java b/src/main/java/org/bukkit/Bukkit.java
-index dafea2e..e3cecdb 100644
+index 1eaf92d..b693257 100644
 --- a/src/main/java/org/bukkit/Bukkit.java
 +++ b/src/main/java/org/bukkit/Bukkit.java
-@@ -10,7 +10,6 @@ import java.util.UUID;
- import java.util.logging.Logger;
- 
- import org.bukkit.Warning.WarningState;
--import org.bukkit.command.CommandException;
- import org.bukkit.command.CommandSender;
- import org.bukkit.command.ConsoleCommandSender;
- import org.bukkit.command.PluginCommand;
-@@ -20,7 +19,6 @@ import org.bukkit.help.HelpMap;
- import org.bukkit.inventory.ItemStack;
- import org.bukkit.inventory.Inventory;
- import org.bukkit.inventory.InventoryHolder;
--import org.bukkit.inventory.ItemFactory;
- import org.bukkit.inventory.Recipe;
- import org.bukkit.map.MapView;
- import org.bukkit.plugin.PluginManager;
-@@ -31,6 +29,7 @@ import org.bukkit.scoreboard.ScoreboardManager;
- import org.bukkit.util.CachedServerIcon;
- 
- import com.avaje.ebean.config.ServerConfig;
-+import org.bukkit.inventory.ItemFactory;
- 
- /**
-  * Represents the Bukkit core, for version and Server singleton handling
-@@ -183,7 +182,6 @@ public final class Bukkit {
+@@ -197,7 +197,6 @@ public final class Bukkit {
      /**
       * @see Server#getPlayer(String name)
       */
@@ -198,7 +173,7 @@ index dafea2e..e3cecdb 100644
      public static Player getPlayer(String name) {
          return server.getPlayer(name);
      }
-@@ -191,7 +189,6 @@ public final class Bukkit {
+@@ -205,7 +204,6 @@ public final class Bukkit {
      /**
       * @see Server#matchPlayer(String name)
       */
@@ -206,50 +181,14 @@ index dafea2e..e3cecdb 100644
      public static List<Player> matchPlayer(String name) {
          return server.matchPlayer(name);
      }
-@@ -313,7 +310,7 @@ public final class Bukkit {
+@@ -447,7 +445,6 @@ public final class Bukkit {
      /**
-      * @see Server#dispatchCommand(CommandSender sender, String commandLine)
+      * @see Server#getPlayerExact(String name)
       */
--    public static boolean dispatchCommand(CommandSender sender, String commandLine) throws CommandException {
-+    public static boolean dispatchCommand(CommandSender sender, String commandLine) {
-         return server.dispatchCommand(sender, commandLine);
+-    @Deprecated
+     public static Player getPlayerExact(String name) {
+         return server.getPlayerExact(name);
      }
- 
-@@ -602,7 +599,7 @@ public final class Bukkit {
-     /**
-      * @see Server#createInventory(InventoryHolder owner, int size)
-      */
--    public static Inventory createInventory(InventoryHolder owner, int size) throws IllegalArgumentException {
-+    public static Inventory createInventory(InventoryHolder owner, int size) {
-         return server.createInventory(owner, size);
-     }
- 
-@@ -610,7 +607,7 @@ public final class Bukkit {
-      * @see Server#createInventory(InventoryHolder owner, int size, String
-      *     title)
-      */
--    public static Inventory createInventory(InventoryHolder owner, int size, String title) throws IllegalArgumentException {
-+    public static Inventory createInventory(InventoryHolder owner, int size, String title) {
-         return server.createInventory(owner, size, title);
-     }
- 
-@@ -701,14 +698,14 @@ public final class Bukkit {
-     /**
-      * @see Server#loadServerIcon(File)
-      */
--    public static CachedServerIcon loadServerIcon(File file) throws IllegalArgumentException, Exception {
-+    public static CachedServerIcon loadServerIcon(File file) throws Exception {
-         return server.loadServerIcon(file);
-     }
- 
-     /**
-      * @see Server#loadServerIcon(BufferedImage)
-      */
--    public static CachedServerIcon loadServerIcon(BufferedImage image) throws IllegalArgumentException, Exception {
-+    public static CachedServerIcon loadServerIcon(BufferedImage image) throws Exception {
-         return server.loadServerIcon(image);
-     }
- 
 diff --git a/src/main/java/org/bukkit/Effect.java b/src/main/java/org/bukkit/Effect.java
 index 2474a2d..9964203 100644
 --- a/src/main/java/org/bukkit/Effect.java
@@ -512,10 +451,10 @@ index 2474a2d..9964203 100644
 +    public enum Type {SOUND, VISUAL, PARTICLE}
  }
 diff --git a/src/main/java/org/bukkit/Server.java b/src/main/java/org/bukkit/Server.java
-index 3c4d541..fbc8b87 100644
+index e14e9f1..14c8a8a 100644
 --- a/src/main/java/org/bukkit/Server.java
 +++ b/src/main/java/org/bukkit/Server.java
-@@ -268,23 +268,17 @@ public interface Server extends PluginMessageRecipient {
+@@ -308,23 +308,17 @@ public interface Server extends PluginMessageRecipient {
       * <p>
       * This method may not return objects for offline players.
       *
@@ -539,7 +478,7 @@ index 3c4d541..fbc8b87 100644
      public Player getPlayerExact(String name);
  
      /**
-@@ -294,12 +288,9 @@ public interface Server extends PluginMessageRecipient {
+@@ -334,12 +328,9 @@ public interface Server extends PluginMessageRecipient {
       * This list is not sorted in any particular order. If an exact match is
       * found, the returned list will only contain a single result.
       *
@@ -2025,92 +1964,6 @@ index 0000000..dd3f58c
 +        return handlers;
 +    }
 +}
-diff --git a/src/test/java/org/bukkit/BukkitMirrorTest.java b/src/test/java/org/bukkit/BukkitMirrorTest.java
-index 219788f..5728e42 100644
---- a/src/test/java/org/bukkit/BukkitMirrorTest.java
-+++ b/src/test/java/org/bukkit/BukkitMirrorTest.java
-@@ -1,75 +1,19 @@
- package org.bukkit;
- 
--import static org.hamcrest.Matchers.*;
- import static org.junit.Assert.*;
- 
- import java.lang.reflect.Method;
- import java.lang.reflect.Modifier;
--import java.util.Arrays;
--import java.util.List;
- 
--import org.junit.Before;
- import org.junit.Test;
--import org.junit.runner.RunWith;
--import org.junit.runners.Parameterized;
--import org.junit.runners.Parameterized.Parameter;
--import org.junit.runners.Parameterized.Parameters;
- 
--import com.google.common.base.Function;
--import com.google.common.collect.Lists;
--
--@RunWith(Parameterized.class)
- public class BukkitMirrorTest {
--
--    @Parameters(name="{index}: {1}")
--    public static List<Object[]> data() {
--        return Lists.transform(Arrays.asList(Server.class.getDeclaredMethods()), new Function<Method, Object[]>() {
--            @Override
--            public Object[] apply(Method input) {
--                return new Object[] {
--                    input,
--                    input.toGenericString().substring("public abstract ".length()).replace("(", "{").replace(")", "}")
--                    };
--            }
--        });
--    }
--
--    @Parameter(0)
--    public Method server;
--
--    @Parameter(1)
--    public String name;
--
--    private Method bukkit;
--
--    @Before
--    public void makeBukkit() throws Throwable {
--        bukkit = Bukkit.class.getDeclaredMethod(server.getName(), server.getParameterTypes());
--    }
--
--    @Test
--    public void isStatic() throws Throwable {
--        assertThat(Modifier.isStatic(bukkit.getModifiers()), is(true));
--    }
--
--    @Test
--    public void isDeprecated() throws Throwable {
--        assertThat(bukkit.isAnnotationPresent(Deprecated.class), is(server.isAnnotationPresent(Deprecated.class)));
--    }
--
--    @Test
--    public void returnType() throws Throwable {
--        assertThat(bukkit.getReturnType(), is((Object) server.getReturnType()));
--        assertThat(bukkit.getGenericReturnType(), is(server.getGenericReturnType()));
--    }
--
--    @Test
--    public void parameterTypes() throws Throwable {
--        assertThat(bukkit.getGenericParameterTypes(), is(server.getGenericParameterTypes()));
--    }
--
-     @Test
--    public void declaredException() throws Throwable {
--        assertThat(bukkit.getGenericExceptionTypes(), is(server.getGenericExceptionTypes()));
-+    public final void test() throws NoSuchMethodException {
-+        Method[] serverMethods = Server.class.getDeclaredMethods();
-+        for(Method method : serverMethods) {
-+            Method mirrorMethod = Bukkit.class.getDeclaredMethod(method.getName(), method.getParameterTypes());
-+            assertTrue("Bukkit." + method.getName() + " must be static!", Modifier.isStatic(mirrorMethod.getModifiers()));
-+        }
-     }
- }
 diff --git a/src/test/java/org/bukkit/EffectTest.java b/src/test/java/org/bukkit/EffectTest.java
 index 08aa71d..5217aec 100644
 --- a/src/test/java/org/bukkit/EffectTest.java

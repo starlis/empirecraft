@@ -1,0 +1,108 @@
+From 3f47942fe138756275e03a6b213450afe1af5617 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Sat, 22 Mar 2014 23:52:54 -0400
+Subject: [PATCH] ZombieReinforcementEvent
+
+Control when a zombie reinforcement event should occur (modify chance)
+also makes it run on all difficulty levels
+---
+ .../customevents/ZombieReinforcementEvent.java     | 53 ++++++++++++++++++++++
+ .../java/net/minecraft/server/EntityZombie.java    | 15 +++++-
+ 2 files changed, 67 insertions(+), 1 deletion(-)
+ create mode 100644 src/main/java/com/empireminecraft/customevents/ZombieReinforcementEvent.java
+
+diff --git a/src/main/java/com/empireminecraft/customevents/ZombieReinforcementEvent.java b/src/main/java/com/empireminecraft/customevents/ZombieReinforcementEvent.java
+new file mode 100644
+index 0000000..af0dc16
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/customevents/ZombieReinforcementEvent.java
+@@ -0,0 +1,53 @@
++package com.empireminecraft.customevents;
++
++import org.bukkit.craftbukkit.entity.CraftEntity;
++import org.bukkit.entity.LivingEntity;
++import org.bukkit.event.Cancellable;
++import org.bukkit.event.HandlerList;
++import org.bukkit.event.entity.EntityEvent;
++
++public class ZombieReinforcementEvent extends EntityEvent implements Cancellable {
++    private static final HandlerList handlers = new HandlerList();
++    private final LivingEntity attacker;
++    private double chance;
++
++    public ZombieReinforcementEvent(
++        CraftEntity entity, CraftEntity livingEntity, double chance) {
++        super(entity);
++        attacker = (LivingEntity) livingEntity;
++        this.chance = chance;
++    }
++
++
++    public LivingEntity getAttacker() {
++        return attacker;
++    }
++
++    public double getChance() {
++        return chance;
++    }
++
++    public void setChance(double chance) {
++        this.chance = chance;
++    }
++
++    public HandlerList getHandlers() {
++        return handlers;
++    }
++
++    public static HandlerList getHandlerList() {
++        return handlers;
++    }
++
++    private boolean cancelled = false;
++
++    @Override
++    public boolean isCancelled() {
++        return cancelled;
++    }
++
++    @Override
++    public void setCancelled(boolean cancel) {
++        cancelled = cancel;
++    }
++}
+diff --git a/src/main/java/net/minecraft/server/EntityZombie.java b/src/main/java/net/minecraft/server/EntityZombie.java
+index 6cb5b14..c3ca47c 100644
+--- a/src/main/java/net/minecraft/server/EntityZombie.java
++++ b/src/main/java/net/minecraft/server/EntityZombie.java
+@@ -6,6 +6,7 @@ import java.util.UUID;
+ 
+ 
+ //CraftBukkit start
++import com.empireminecraft.customevents.ZombieReinforcementEvent;
+ import org.bukkit.craftbukkit.entity.CraftLivingEntity;
+ import org.bukkit.event.entity.CreatureSpawnEvent;
+ import org.bukkit.event.entity.EntityCombustByEntityEvent;
+@@ -174,7 +175,19 @@ public class EntityZombie extends EntityMonster {
+                 entityliving = (EntityLiving) damagesource.getEntity();
+             }
+ 
+-            if (entityliving != null && this.world.difficulty == EnumDifficulty.HARD && (double) this.random.nextFloat() < this.getAttributeInstance(bp).getValue()) {
++            // EMC start
++            boolean spawnReinforcements = false;
++            if (entityliving != null) {
++                final double chance = this.getAttributeInstance(bp).getValue();
++                ZombieReinforcementEvent event = new ZombieReinforcementEvent(
++                    this.getBukkitEntity(),
++                    entityliving.getBukkitEntity(), chance);
++                if (event.callEvent()) {
++                    spawnReinforcements = this.random.nextFloat() < event.getChance();
++                }
++            }
++            if (spawnReinforcements) {
++            // EMC end
+                 int i = MathHelper.floor(this.locX);
+                 int j = MathHelper.floor(this.locY);
+                 int k = MathHelper.floor(this.locZ);
+-- 
+1.9.1
+
