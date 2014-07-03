@@ -1,6 +1,6 @@
 package net.minecraft.server;
 
-import io.netty.buffer.ByteBuf;
+import net.minecraft.util.io.netty.buffer.ByteBuf;
 
 public class PacketPlayOutCustomPayload extends Packet {
 

@@ -7,7 +7,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
-import com.google.common.collect.Maps;
+import net.minecraft.util.com.google.common.collect.Maps;
 
 public class AttributeModifiable implements AttributeInstance {
 

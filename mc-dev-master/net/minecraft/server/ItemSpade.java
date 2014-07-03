@@ -2,7 +2,7 @@ package net.minecraft.server;
 
 import java.util.Set;
 
-import com.google.common.collect.Sets;
+import net.minecraft.util.com.google.common.collect.Sets;
 
 public class ItemSpade extends ItemTool {
 

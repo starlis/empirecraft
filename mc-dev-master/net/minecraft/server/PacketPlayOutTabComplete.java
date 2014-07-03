@@ -1,6 +1,6 @@
 package net.minecraft.server;
 
-import org.apache.commons.lang3.ArrayUtils;
+import net.minecraft.util.org.apache.commons.lang3.ArrayUtils;
 
 public class PacketPlayOutTabComplete extends Packet {
 

@@ -1,6 +1,6 @@
 package net.minecraft.server;
 
-import com.google.gson.JsonElement;
+import net.minecraft.util.com.google.gson.JsonElement;
 
 public interface IJsonStatistic {
 

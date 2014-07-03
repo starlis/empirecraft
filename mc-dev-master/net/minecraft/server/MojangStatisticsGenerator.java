@@ -10,7 +10,7 @@ import java.util.Map;
 import java.util.Timer;
 import java.util.UUID;
 
-import com.google.common.collect.Maps;
+import net.minecraft.util.com.google.common.collect.Maps;
 
 public class MojangStatisticsGenerator {
 

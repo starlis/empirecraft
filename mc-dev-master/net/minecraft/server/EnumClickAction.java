@@ -1,7 +1,7 @@
 package net.minecraft.server;
 
 import java.util.Map;
-import com.google.common.collect.Maps;
+import net.minecraft.util.com.google.common.collect.Maps;
 
 public enum EnumClickAction {
 

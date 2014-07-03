@@ -6,7 +6,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 
-import com.google.common.collect.Sets;
+import net.minecraft.util.com.google.common.collect.Sets;
 
 public class AttributeMapServer extends AttributeMapBase {
 

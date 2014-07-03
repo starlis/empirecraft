@@ -3,7 +3,7 @@ package net.minecraft.server;
 import java.security.PrivateKey;
 import javax.crypto.SecretKey;
 
-import io.netty.buffer.ByteBuf;
+import net.minecraft.util.io.netty.buffer.ByteBuf;
 
 public class PacketLoginInEncryptionBegin extends Packet {
 
