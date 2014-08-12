@@ -1,0 +1,450 @@
+From a0b1d91ca0ecab4e68bd7b8d77f14f5d0dde4507 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Mon, 11 Aug 2014 02:55:52 -0400
+Subject: [PATCH] Optimize TileEntity Ticking
+
+Re-organizes the servers TileEntity Tick List to be bucketed by chunks and type.
+
+This allows the server to skip buckets of Tile Entities that is known to
+not have any tick function (half of them), skipping time spent iterating
+them and checking if they are valid and in a loaded chunk. In other words,
+a lot of "meta" time wasted on tile entities that would never do anything anyways.
+
+By also storing the TileEntity by chunks, we can check that a chunk is "valid" once,
+and only iterate valid Chunks, skipping checking the chunks state for every TileEntity.
+
+This cuts out a massive amount of checks revolving around TileEntity ticking.
+Servers with large amounts of TileEntity should see significant improvement.
+
+Finally, this then spreads out the ticking of reduced-rate TileEntities so that they
+do not all tick on the same tick, distributing the load of some TileEntities like Chest.
+---
+ src/main/java/net/minecraft/server/Chunk.java      |   5 +-
+ src/main/java/net/minecraft/server/TileEntity.java |   6 +
+ .../net/minecraft/server/TileEntityBeacon.java     |   4 +-
+ .../java/net/minecraft/server/TileEntityChest.java |   2 +-
+ .../net/minecraft/server/TileEntityEnderChest.java |   2 +-
+ .../minecraft/server/TileEntityLightDetector.java  |   2 +-
+ src/main/java/net/minecraft/server/World.java      |   8 +-
+ .../java/org/spigotmc/ChunkTileEntityList.java     | 154 +++++++++++++++++++++
+ .../java/org/spigotmc/WorldTileEntityList.java     | 105 ++++++++++++++
+ 9 files changed, 277 insertions(+), 11 deletions(-)
+ create mode 100644 src/main/java/org/spigotmc/ChunkTileEntityList.java
+ create mode 100644 src/main/java/org/spigotmc/WorldTileEntityList.java
+
+diff --git a/src/main/java/net/minecraft/server/Chunk.java b/src/main/java/net/minecraft/server/Chunk.java
+index dc4536d..7b485a8 100644
+--- a/src/main/java/net/minecraft/server/Chunk.java
++++ b/src/main/java/net/minecraft/server/Chunk.java
+@@ -28,6 +28,7 @@ public class Chunk {
+     public final int locX;
+     public final int locZ;
+     private boolean w;
++    public org.spigotmc.ChunkTileEntityList tileEntityTickList; // Spigot
+     public Map tileEntities;
+     public List[] entitySlices;
+     public boolean done;
+@@ -76,6 +77,7 @@ public class Chunk {
+         this.b = new int[256];
+         this.c = new boolean[256];
+         this.tileEntities = new HashMap();
++        tileEntityTickList = new org.spigotmc.ChunkTileEntityList(world); // Spigot
+         this.x = 4096;
+         this.entitySlices = new List[16];
+         this.world = world;
+@@ -809,9 +811,8 @@ public class Chunk {
+                     h.getHandle().closeInventory();
+                 }
+             }
++            // this.world.a(tileentity); // Handled by Improved Tick List (Only loaded chunks iterate)
+             // Spigot End
+-
+-            this.world.a(tileentity);
+         }
+ 
+         for (int i = 0; i < this.entitySlices.length; ++i) {
+diff --git a/src/main/java/net/minecraft/server/TileEntity.java b/src/main/java/net/minecraft/server/TileEntity.java
+index 9edbc11..38defcd 100644
+--- a/src/main/java/net/minecraft/server/TileEntity.java
++++ b/src/main/java/net/minecraft/server/TileEntity.java
+@@ -56,6 +56,12 @@ public class TileEntity {
+             }
+         }
+     }
++
++    // Optimized TileEntity Tick changes
++    private static int tileEntityCounter = 0;
++    public boolean isAdded = false;
++    public int tileId = tileEntityCounter++;
++
+     // Spigot end
+ 
+     public TileEntity() {}
+diff --git a/src/main/java/net/minecraft/server/TileEntityBeacon.java b/src/main/java/net/minecraft/server/TileEntityBeacon.java
+index fbc7874..bb20efb 100644
+--- a/src/main/java/net/minecraft/server/TileEntityBeacon.java
++++ b/src/main/java/net/minecraft/server/TileEntityBeacon.java
+@@ -45,10 +45,10 @@ public class TileEntityBeacon extends TileEntity implements IInventory {
+     public TileEntityBeacon() {}
+ 
+     public void h() {
+-        if (this.world.getTime() % 80L == 0L) {
++        // if (this.world.getTime() % 80L == 0L) { // Spigot - controlled by Improved Tick handling
+             this.y();
+             this.x();
+-        }
++        // } // Spigot
+     }
+ 
+     private void x() {
+diff --git a/src/main/java/net/minecraft/server/TileEntityChest.java b/src/main/java/net/minecraft/server/TileEntityChest.java
+index 4f45dba..f1332f0 100644
+--- a/src/main/java/net/minecraft/server/TileEntityChest.java
++++ b/src/main/java/net/minecraft/server/TileEntityChest.java
+@@ -255,7 +255,7 @@ public class TileEntityChest extends TileEntity implements IInventory {
+         ++this.ticks;
+         float f;
+ 
+-        if (!this.world.isStatic && this.o != 0 && (this.ticks + this.x + this.y + this.z) % 200 == 0) {
++        if (!this.world.isStatic && this.o != 0 && (this.ticks + this.x + this.y + this.z) % 10 == 0) { // Spigot Reduced 200 -> 10 interval due to reduced tick rate from Improved Tick Handling
+             this.o = 0;
+             f = 5.0F;
+             List list = this.world.a(EntityHuman.class, AxisAlignedBB.a((double) ((float) this.x - f), (double) ((float) this.y - f), (double) ((float) this.z - f), (double) ((float) (this.x + 1) + f), (double) ((float) (this.y + 1) + f), (double) ((float) (this.z + 1) + f)));
+diff --git a/src/main/java/net/minecraft/server/TileEntityEnderChest.java b/src/main/java/net/minecraft/server/TileEntityEnderChest.java
+index 83fcbc1..9702bbb 100644
+--- a/src/main/java/net/minecraft/server/TileEntityEnderChest.java
++++ b/src/main/java/net/minecraft/server/TileEntityEnderChest.java
+@@ -11,7 +11,7 @@ public class TileEntityEnderChest extends TileEntity {
+ 
+     public void h() {
+         super.h();
+-        if (++this.k % 20 * 4 == 0) {
++        if (++this.k % 4 == 0) {  // Spigot Reduced (20 * 4) -> 4 interval due to reduced tick rate from Improved Tick Handling
+             this.world.playNote(this.x, this.y, this.z, Blocks.ENDER_CHEST, 1, this.j);
+         }
+ 
+diff --git a/src/main/java/net/minecraft/server/TileEntityLightDetector.java b/src/main/java/net/minecraft/server/TileEntityLightDetector.java
+index 143cffb..5397bdd 100644
+--- a/src/main/java/net/minecraft/server/TileEntityLightDetector.java
++++ b/src/main/java/net/minecraft/server/TileEntityLightDetector.java
+@@ -5,7 +5,7 @@ public class TileEntityLightDetector extends TileEntity {
+     public TileEntityLightDetector() {}
+ 
+     public void h() {
+-        if (this.world != null && !this.world.isStatic && this.world.getTime() % 20L == 0L) {
++        if (this.world != null && !this.world.isStatic /*&& this.world.getTime() % 20L == 0L*/) { // Spigot - interval controlled by Improved Tick Handling
+             this.h = this.q();
+             if (this.h instanceof BlockDaylightDetector) {
+                 ((BlockDaylightDetector) this.h).e(this.world, this.x, this.y, this.z);
+diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
+index b9c89b6..f89b2ce 100644
+--- a/src/main/java/net/minecraft/server/World.java
++++ b/src/main/java/net/minecraft/server/World.java
+@@ -58,7 +58,7 @@ public abstract class World implements IBlockAccess {
+     };
+     // Spigot end
+     protected List f = new ArrayList();
+-    public Set tileEntityList = new HashSet(); // CraftBukkit - ArrayList -> HashSet
++    public Set tileEntityList = new org.spigotmc.WorldTileEntityList(this); // CraftBukkit - ArrayList -> HashSet
+     private List a = new ArrayList();
+     private List b = new ArrayList();
+     public List players = new ArrayList();
+@@ -1505,7 +1505,7 @@ public abstract class World implements IBlockAccess {
+             }
+             // Spigot end
+ 
+-            if (!tileentity.r() && tileentity.o() && this.isLoaded(tileentity.x, tileentity.y, tileentity.z)) {
++            if (!tileentity.r() && tileentity.o() /*&& this.isLoaded(tileentity.x, tileentity.y, tileentity.z)*/) { // Spigot - remove isLoaded check - done by the iterator per chunk
+                 try {
+                     tileentity.tickTimer.startTiming(); // Spigot
+                     tileentity.h();
+@@ -1529,13 +1529,13 @@ public abstract class World implements IBlockAccess {
+ 
+             if (tileentity.r()) {
+                 iterator.remove();
+-                if (this.isChunkLoaded(tileentity.x >> 4, tileentity.z >> 4)) {
++                // if (this.isChunkLoaded(tileentity.x >> 4, tileentity.z >> 4)) { // Spigot - will always be loaded
+                     Chunk chunk = this.getChunkAt(tileentity.x >> 4, tileentity.z >> 4);
+ 
+                     if (chunk != null) {
+                         chunk.f(tileentity.x & 15, tileentity.y, tileentity.z & 15);
+                     }
+-                }
++                // } // Spigot
+             }
+         }
+ 
+diff --git a/src/main/java/org/spigotmc/ChunkTileEntityList.java b/src/main/java/org/spigotmc/ChunkTileEntityList.java
+new file mode 100644
+index 0000000..a76fc06
+--- /dev/null
++++ b/src/main/java/org/spigotmc/ChunkTileEntityList.java
+@@ -0,0 +1,154 @@
++package org.spigotmc;
++
++import com.google.common.collect.ArrayListMultimap;
++import com.google.common.collect.Multimap;
++import com.google.common.collect.Maps;
++import net.minecraft.server.*;
++import net.minecraft.util.gnu.trove.map.hash.TObjectIntHashMap;
++
++import java.util.Collection;
++import java.util.Iterator;
++import java.util.List;
++import java.util.Map;
++
++public class ChunkTileEntityList {
++    private final Map<Class<? extends TileEntity>, Multimap<Integer, TileEntity>> tickList = Maps.newHashMap();
++
++    private static final TObjectIntHashMap<Class<? extends TileEntity>> tileEntityTickIntervals =
++        new TObjectIntHashMap<Class<? extends TileEntity>>() {{
++            // Use 0 for no ticking
++            // These TE's have empty tick methods, doing nothing. Never bother ticking them.
++            for (Class<? extends TileEntity> ignored : new Class[]{
++                TileEntityRecordPlayer.class,
++                TileEntityDispenser.class,
++                TileEntityDropper.class,
++                TileEntitySign.class,
++                TileEntityNote.class,
++                TileEntityEnderPortal.class,
++                TileEntityCommand.class,
++                TileEntitySkull.class,
++                TileEntityComparator.class,
++                TileEntityFlowerPot.class
++            }) {
++                put(ignored, 0);
++            }
++
++            // does findPlayer lookup, so this helps performance to slow down
++            put(TileEntityChest.class, 20);
++            put(TileEntityEnderChest.class, 20);
++            put(TileEntityEnchantTable.class, 20);
++
++            // Slow things down that players won't notice due to craftbukkit "wall time" patches.
++            put(TileEntityFurnace.class, 10);
++            put(TileEntityBrewingStand.class, 10);
++
++            // Vanilla controlled values - These are checks already done in vanilla, so don't tick on ticks we know
++            // won't do anything anyways
++            put(TileEntityBeacon.class, 80);
++            put(TileEntityLightDetector.class, 20);
++        }};
++
++    public static Integer getInterval(Class<? extends TileEntity> cls) {
++        Integer tickInterval = tileEntityTickIntervals.get(cls);
++        return tickInterval != null ? tickInterval : 1;
++    }
++
++    private final World world;
++
++    public ChunkTileEntityList(World world) {
++        this.world = world;
++    }
++
++    public Iterator iterator() {
++        return new ChunkTileEntityIterator();
++    }
++
++    public boolean add(TileEntity entity) {
++        entity.isAdded = true;
++        int bucket = getBucketId(entity);
++        Multimap<Integer, TileEntity> typeBucket = getBucket(entity);
++        return typeBucket.put(bucket, entity);
++    }
++
++    public boolean remove(TileEntity entity) {
++        if (!entity.isAdded) {
++            return false;
++        }
++        entity.isAdded = false;
++        int bucket = getBucketId(entity);
++        Multimap<Integer, TileEntity> typeBucket = getBucket(entity);
++        return typeBucket.remove(bucket, entity);
++    }
++
++    private Multimap<Integer, TileEntity> getBucket(TileEntity entity) {
++        final Class<? extends TileEntity> cls = entity.getClass();
++
++        Multimap<Integer, TileEntity> typeBucket = tickList.get(cls);
++        if (typeBucket == null) {
++            typeBucket = ArrayListMultimap.create();
++            tickList.put(cls, typeBucket);
++        }
++        return typeBucket;
++    }
++
++    private static int getBucketId(TileEntity entity) {
++        Integer interval = getInterval(entity.getClass());
++        if (interval < 1) {
++            interval = 1; // Prevent divide by zero errors.
++        }
++        return entity.tileId % interval;
++    }
++
++    private class ChunkTileEntityIterator implements Iterator<TileEntity> {
++        private Iterator<Map.Entry<Class<? extends TileEntity>, Multimap<Integer, TileEntity>>> typeIterator;
++        private Map.Entry<Class<? extends TileEntity>, Multimap<Integer, TileEntity>> curType = null;
++        private Iterator<TileEntity> listIterator = null;
++
++        private ChunkTileEntityIterator() {
++            typeIterator = tickList.entrySet().iterator();
++            nextType();
++        }
++
++        private boolean nextType() {
++            if (typeIterator.hasNext()) {
++                curType = typeIterator.next();
++
++                final Multimap<Integer, TileEntity> buckets = curType.getValue();
++
++                final Integer interval = getInterval(curType.getKey());
++                int bucket = (int) (world.getTime() % interval);
++                final Collection<TileEntity> tileList = buckets.get(bucket);
++                if (tileList != null && !tileList.isEmpty()) {
++                    listIterator = tileList.iterator();
++                } else {
++                    listIterator = null;
++                }
++                return true;
++            } else {
++                curType = null;
++                listIterator = null;
++                return false;
++            }
++        }
++
++        @Override
++        public boolean hasNext() {
++            do {
++                if (listIterator != null && listIterator.hasNext()) {
++                    return true;
++                }
++            } while (nextType());
++            return false;
++        }
++
++        @Override
++        public TileEntity next() {
++            return listIterator.next();
++        }
++
++        @Override
++        public void remove() {
++            listIterator.remove();
++        }
++    }
++}
+diff --git a/src/main/java/org/spigotmc/WorldTileEntityList.java b/src/main/java/org/spigotmc/WorldTileEntityList.java
+new file mode 100644
+index 0000000..8da8f4f
+--- /dev/null
++++ b/src/main/java/org/spigotmc/WorldTileEntityList.java
+@@ -0,0 +1,105 @@
++package org.spigotmc;
++
++import com.google.common.collect.Sets;
++import net.minecraft.server.Chunk;
++import net.minecraft.server.TileEntity;
++import net.minecraft.server.World;
++import net.minecraft.server.WorldServer;
++
++import java.util.HashSet;
++import java.util.Iterator;
++import java.util.Set;
++
++public class WorldTileEntityList extends HashSet<TileEntity> {
++    private final Set<ChunkTileEntityList> tickList = Sets.newHashSet();
++    private final WorldServer world;
++
++    public WorldTileEntityList(World world) {
++        this.world = (WorldServer) world;
++    }
++
++    /**
++     * Adds the TileEntity to the tick list only if it is expected to tick
++     */
++    @Override
++    public boolean add(TileEntity entity) {
++        if (entity.isAdded) {
++            return false;
++        }
++
++        if (ChunkTileEntityList.getInterval(entity.getClass()) > 0) {
++            Chunk chunk = world.getChunkIfLoaded(entity.x >> 4, entity.z >> 4);
++            return chunk != null && chunk.tileEntityTickList.add(entity);
++        }
++        return false;
++    }
++
++    @Override
++    public boolean remove(Object o) {
++        if (!(o instanceof TileEntity)) {
++            return false;
++        }
++        TileEntity entity = (TileEntity) o;
++        Chunk chunk = world.getChunkIfLoaded(entity.x >> 4, entity.z >> 4);
++        if (chunk != null) {
++            return chunk.tileEntityTickList.remove(entity);
++        }
++        return true;
++    }
++
++    @Override
++    public Iterator iterator() {
++        return new WorldTileEntityIterator();
++    }
++
++    @Override
++    public boolean contains(Object o) {
++        return o instanceof TileEntity && ((TileEntity) o).isAdded;
++    }
++
++    private class WorldTileEntityIterator implements Iterator<TileEntity> {
++        private Iterator<Chunk> chunkIterator;
++        private Iterator<TileEntity> chunkTileEntityListIterator;
++
++        protected WorldTileEntityIterator() {
++            chunkIterator = world.chunkProviderServer.chunks.values().iterator();
++            nextChunk();
++        }
++
++        private boolean nextChunk() {
++            if (chunkIterator.hasNext()) {
++                final Chunk chunk = chunkIterator.next();
++                // Skip chunks queued for unload, and save isLoaded checks
++                if (!world.chunkProviderServer.unloadQueue.contains(chunk.locX, chunk.locZ)) {
++                    chunkTileEntityListIterator = chunk.tileEntityTickList.iterator();
++                } else {
++                    chunkTileEntityListIterator = null;
++                }
++                return true;
++            } else {
++                chunkTileEntityListIterator = null;
++                return false;
++            }
++        }
++
++        @Override
++        public boolean hasNext() {
++            do {
++                if (chunkTileEntityListIterator != null && chunkTileEntityListIterator.hasNext()) {
++                    return true;
++                }
++            } while (nextChunk());
++            return false;
++        }
++
++        @Override
++        public TileEntity next() {
++            return chunkTileEntityListIterator.next();
++        }
++
++        @Override
++        public void remove() {
++            chunkTileEntityListIterator.remove();
++        }
++    }
++}
+-- 
+1.9.1
+
