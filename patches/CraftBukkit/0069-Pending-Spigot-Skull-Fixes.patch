@@ -1,0 +1,238 @@
+From 7ff213d445904e8428267434fe644c75f6c534d3 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Thu, 14 Aug 2014 18:30:39 -0400
+Subject: [PATCH] Pending Spigot Skull Fixes
+
+---
+ src/main/java/net/minecraft/server/ItemStack.java  | 53 +++++++++++++++++++++
+ .../java/net/minecraft/server/TileEntitySkull.java | 55 +++++++++++++++-------
+ .../craftbukkit/inventory/CraftMetaSkull.java      | 30 +++++++++++-
+ 3 files changed, 119 insertions(+), 19 deletions(-)
+
+diff --git a/src/main/java/net/minecraft/server/ItemStack.java b/src/main/java/net/minecraft/server/ItemStack.java
+index 35cc8a5..2c569b3 100644
+--- a/src/main/java/net/minecraft/server/ItemStack.java
++++ b/src/main/java/net/minecraft/server/ItemStack.java
+@@ -209,6 +209,57 @@ public final class ItemStack {
+ 
+         return nbttagcompound;
+     }
++        // Spigot start - make sure the tag is given the full gameprofile if it's a skull (async lookup)
++        public void validateSkullSkin()
++        {
++                if ( this.item == Items.SKULL && this.getData() == 3 )
++                    {
++                            String owner;
++                    if ( this.tag.hasKeyOfType( "SkullOwner", 8 ) )
++                        {
++                                owner = this.tag.getString( "SkullOwner" );
++                    } else if ( this.tag.hasKeyOfType( "SkullOwner", 10 ) )
++                        {
++                                net.minecraft.util.com.mojang.authlib.GameProfile profile = GameProfileSerializer.a( this.tag.getCompound( "SkullOwner" ) );
++                        if ( profile == null || !profile.getProperties().isEmpty() )
++                            {
++                                    return;
++                        } else
++                        {
++                                owner = profile.getName();
++                        }
++                    } else
++                    {
++                            return;
++                    }
++
++                        final String finalOwner = owner;
++                    TileEntitySkull.executor.execute( new Runnable()
++                        {
++                            @Override
++                        public void run()
++                            {
++
++                                    final net.minecraft.util.com.mojang.authlib.GameProfile profile = TileEntitySkull.skinCache.getIfPresent( finalOwner.toLowerCase() );
++                            if ( profile != null )
++                                {
++                                        MinecraftServer.getServer().processQueue.add( new Runnable()
++                                            {
++                                                @Override
++                                    public void run()
++                                        {
++                                            NBTTagCompound nbtProfile = new NBTTagCompound();
++                                        GameProfileSerializer.a( nbtProfile, profile );
++                                        ItemStack.this.tag.set( "SkullOwner", nbtProfile );
++                                    }
++                                } );
++                            }
++                        }
++                    } );
++                }
++            }
++            // Spigot end
++
+ 
+     public void c(NBTTagCompound nbttagcompound) {
+         this.item = Item.d(nbttagcompound.getShort("id"));
+@@ -225,6 +276,7 @@ public final class ItemStack {
+         if (nbttagcompound.hasKeyOfType("tag", 10)) {
+             // CraftBukkit - make defensive copy as this data may be coming from the save thread
+             this.tag = (NBTTagCompound) nbttagcompound.getCompound("tag").clone();
++            validateSkullSkin();// Spigot
+         }
+     }
+ 
+@@ -475,6 +527,7 @@ public final class ItemStack {
+ 
+     public void setTag(NBTTagCompound nbttagcompound) {
+         this.tag = nbttagcompound;
++        validateSkullSkin();// Spigot
+     }
+ 
+     public String getName() {
+diff --git a/src/main/java/net/minecraft/server/TileEntitySkull.java b/src/main/java/net/minecraft/server/TileEntitySkull.java
+index 255e0de..7c01002 100644
+--- a/src/main/java/net/minecraft/server/TileEntitySkull.java
++++ b/src/main/java/net/minecraft/server/TileEntitySkull.java
+@@ -2,6 +2,9 @@ package net.minecraft.server;
+ 
+ import java.util.UUID;
+ 
++import com.google.common.cache.Cache;
++import com.google.common.cache.CacheBuilder;
++import com.google.common.cache.CacheLoader;
+ import net.minecraft.util.com.google.common.collect.Iterables;
+ import net.minecraft.util.com.mojang.authlib.GameProfile;
+ import net.minecraft.util.com.mojang.authlib.properties.Property;
+@@ -9,6 +12,8 @@ import net.minecraft.util.com.mojang.authlib.properties.Property;
+ // Spigot start
+ import java.util.concurrent.Executor;
+ import java.util.concurrent.Executors;
++import java.util.concurrent.TimeUnit;
++
+ import com.google.common.util.concurrent.ThreadFactoryBuilder;
+ import net.minecraft.util.com.mojang.authlib.Agent;
+ // Spigot end
+@@ -19,11 +24,39 @@ public class TileEntitySkull extends TileEntity {
+     private int i;
+     private GameProfile j = null;
+     // Spigot start
+-    private static final Executor executor = Executors.newFixedThreadPool(3,
++    public static final Executor executor = Executors.newFixedThreadPool(3,
+             new ThreadFactoryBuilder()
+                     .setNameFormat("Head Conversion Thread - %1$d")
+                     .build()
+     );
++    public static final Cache<String, GameProfile> skinCache = CacheBuilder.newBuilder()
++         .maximumSize( 5000 )
++     .expireAfterAccess( 60, TimeUnit.MINUTES )
++     .build( new CacheLoader<String, GameProfile>()
++     {
++         @Override
++         public GameProfile load(String key) throws Exception
++             {
++             GameProfile[] profiles = new GameProfile[1];
++             GameProfileLookup gameProfileLookup = new GameProfileLookup(profiles);
++            
++                 MinecraftServer.getServer().getGameProfileRepository().findProfilesByNames(new String[] { key }, Agent.MINECRAFT, gameProfileLookup);
++             if (!MinecraftServer.getServer().getOnlineMode() && profiles[0] == null) {
++                 UUID uuid = EntityHuman.a(new GameProfile(null, key));
++                 GameProfile profile = new GameProfile(uuid, key);
++                
++                     gameProfileLookup.onProfileLookupSucceeded(profile);
++                 }
++
++                 GameProfile profile = profiles[0];
++                 Property property = Iterables.getFirst(profile.getProperties().get("textures"), null);
++
++                 if (property == null) {
++                     profile = MinecraftServer.getServer().av().fillProfileProperties(profile, true);
++                 }
++                 return profile;
++             }
++         } );
+     // Spigot end
+ 
+     public TileEntitySkull() {}
+@@ -37,6 +70,7 @@ public class TileEntitySkull extends TileEntity {
+ 
+             GameProfileSerializer.a(nbttagcompound1, this.j);
+             nbttagcompound.set("Owner", nbttagcompound1);
++            nbttagcompound.setString("ExtraType", nbttagcompound1.getString("Name")); // Spigot
+         }
+     }
+ 
+@@ -85,24 +119,9 @@ public class TileEntitySkull extends TileEntity {
+                 executor.execute(new Runnable() {
+                     @Override
+                     public void run() {
+-                        GameProfile[] profiles = new GameProfile[1];
+-                        GameProfileLookup gameProfileLookup = new GameProfileLookup(profiles);
+-
+-                        MinecraftServer.getServer().getGameProfileRepository().findProfilesByNames(new String[] { name }, Agent.MINECRAFT, gameProfileLookup);
+-                        if (!MinecraftServer.getServer().getOnlineMode() && profiles[0] == null) {
+-                            UUID uuid = EntityHuman.a(new GameProfile(null, name));
+-                            GameProfile profile = new GameProfile(uuid, name);
+-
+-                            gameProfileLookup.onProfileLookupSucceeded(profile);
+-                        }
+-
+-                        GameProfile profile = profiles[0];
++                        
++                        GameProfile profile = skinCache.getIfPresent(name.toLowerCase());
+                         if (profile != null) {
+-                            Property property = Iterables.getFirst(profile.getProperties().get("textures"), null);
+-
+-                            if (property == null) {
+-                                profile = MinecraftServer.getServer().av().fillProfileProperties(profile, true);
+-                            }
+ 
+                             final GameProfile finalProfile = profile;
+                             MinecraftServer.getServer().processQueue.add(new Runnable() {
+diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaSkull.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaSkull.java
+index 2fe1000..3e34239 100644
+--- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaSkull.java
++++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaSkull.java
+@@ -46,13 +46,41 @@ class CraftMetaSkull extends CraftMetaItem implements SkullMeta {
+     }
+ 
+     @Override
+-    void applyToItem(NBTTagCompound tag) {
++    void applyToItem(final NBTTagCompound tag) {
+         super.applyToItem(tag);
+ 
+         if (hasOwner()) {
+             NBTTagCompound owner = new NBTTagCompound();
+             GameProfileSerializer.a(owner, profile);
+             tag.set(SKULL_OWNER.NBT, owner);
++            // Spigot start - do an async lookup of the profile.
++            // Unfortunately there is not way to refresh the holding
++            // inventory, so that responsibility is left to the user.
++            net.minecraft.server.TileEntitySkull.executor.execute( new Runnable()
++            {
++                @Override
++                public void run()
++                {
++
++                    final GameProfile profile = net.minecraft.server.TileEntitySkull.skinCache.getIfPresent( CraftMetaSkull.this.profile.getName().toLowerCase() );
++                    if ( profile != null )
++                    {
++                        MinecraftServer.getServer().processQueue.add( new Runnable()
++                        {
++                            @Override
++                            public void run()
++                            {
++                                NBTTagCompound owner = new NBTTagCompound();
++                                GameProfileSerializer.a( owner, profile );
++                                tag.set( SKULL_OWNER.NBT, owner );
++                            }
++                        } );
++                    }
++                }
++            } );
++            // Spigot end
++            tag.set( SKULL_OWNER.NBT, owner );
++
+         }
+     }
+ 
+-- 
+1.9.1
+
