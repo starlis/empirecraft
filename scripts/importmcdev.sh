@@ -34,6 +34,8 @@ import NBTTagList
 import EntityAnimal
 import PathfinderGoalNearestAttackableTarget
 import EnchantmentManager
+import TileEntityEnderChest
+import TileEntityLightDetector
 #weird bug
 import EmptyClass
 import EnchantmentModifierProtection
