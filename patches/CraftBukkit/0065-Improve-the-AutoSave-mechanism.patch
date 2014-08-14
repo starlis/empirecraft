@@ -1,0 +1,67 @@
+From c029c780d33294e8c6a9a3310f6f5aeaf03a04cf Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Tue, 12 Aug 2014 23:50:41 -0400
+Subject: [PATCH] Improve the AutoSave mechanism
+
+Only save modified chunks, or chunks with entities after 4 auto save passes
+---
+ src/main/java/net/minecraft/server/Chunk.java           | 2 +-
+ src/main/java/net/minecraft/server/MinecraftServer.java | 3 ++-
+ src/main/java/org/bukkit/craftbukkit/CraftWorld.java    | 7 ++++++-
+ 3 files changed, 9 insertions(+), 3 deletions(-)
+
+diff --git a/src/main/java/net/minecraft/server/Chunk.java b/src/main/java/net/minecraft/server/Chunk.java
+index dc4536d..21fd12e 100644
+--- a/src/main/java/net/minecraft/server/Chunk.java
++++ b/src/main/java/net/minecraft/server/Chunk.java
+@@ -901,7 +901,7 @@ public class Chunk {
+             if (this.o && this.world.getTime() != this.p || this.n) {
+                 return true;
+             }
+-        } else if (this.o && this.world.getTime() >= this.p + 600L) {
++        } else if (this.o && this.world.getTime() >= this.p + MinecraftServer.getServer().autosavePeriod * 4) { // Spigot - Only save if we've passed 2 auto save intervals without modification
+             return true;
+         }
+ 
+diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
+index 7ab7415..f56aac7 100644
+--- a/src/main/java/net/minecraft/server/MinecraftServer.java
++++ b/src/main/java/net/minecraft/server/MinecraftServer.java
+@@ -603,9 +603,10 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+             // Spigot Start
+             // We replace this with saving each individual world as this.saveChunks(...) is broken,
+             // and causes the main thread to sleep for random amounts of time depending on chunk activity
++            // Also pass flag to only save modified chunks
+             server.playerCommandState = true;
+             for (World world : worlds) {
+-                world.getWorld().save();
++                world.getWorld().save(false);
+             }
+             server.playerCommandState = false;
+             // this.saveChunks(true);
+diff --git a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
+index 3b3c6c5..a2505ce 100644
+--- a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
++++ b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
+@@ -723,12 +723,17 @@ public class CraftWorld implements World {
+     }
+ 
+     public void save() {
++    // Spigot start
++        save(true);
++    }
++    public void save(boolean forceSave) {
++    // Spigot end
+         this.server.checkSaveState();
+         try {
+             boolean oldSave = world.savingDisabled;
+ 
+             world.savingDisabled = false;
+-            world.save(true, null);
++            world.save(forceSave, null); // Spigot
+ 
+             world.savingDisabled = oldSave;
+         } catch (ExceptionWorldConflict ex) {
+-- 
+1.9.1
+

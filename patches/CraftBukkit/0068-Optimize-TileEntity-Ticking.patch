@@ -1,4 +1,4 @@
-From a0b1d91ca0ecab4e68bd7b8d77f14f5d0dde4507 Mon Sep 17 00:00:00 2001
+From c55f7c1b09764d3e6deffba7afa3d4b8e04f46ae Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Mon, 11 Aug 2014 02:55:52 -0400
 Subject: [PATCH] Optimize TileEntity Ticking
@@ -27,13 +27,13 @@ do not all tick on the same tick, distributing the load of some TileEntities lik
  .../minecraft/server/TileEntityLightDetector.java  |   2 +-
  src/main/java/net/minecraft/server/World.java      |   8 +-
  .../java/org/spigotmc/ChunkTileEntityList.java     | 154 +++++++++++++++++++++
- .../java/org/spigotmc/WorldTileEntityList.java     | 105 ++++++++++++++
- 9 files changed, 277 insertions(+), 11 deletions(-)
+ .../java/org/spigotmc/WorldTileEntityList.java     | 110 +++++++++++++++
+ 9 files changed, 282 insertions(+), 11 deletions(-)
  create mode 100644 src/main/java/org/spigotmc/ChunkTileEntityList.java
  create mode 100644 src/main/java/org/spigotmc/WorldTileEntityList.java
 
 diff --git a/src/main/java/net/minecraft/server/Chunk.java b/src/main/java/net/minecraft/server/Chunk.java
-index dc4536d..7b485a8 100644
+index 21fd12e..013d02d 100644
 --- a/src/main/java/net/minecraft/server/Chunk.java
 +++ b/src/main/java/net/minecraft/server/Chunk.java
 @@ -28,6 +28,7 @@ public class Chunk {
@@ -176,7 +176,7 @@ index b9c89b6..f89b2ce 100644
  
 diff --git a/src/main/java/org/spigotmc/ChunkTileEntityList.java b/src/main/java/org/spigotmc/ChunkTileEntityList.java
 new file mode 100644
-index 0000000..a76fc06
+index 0000000..c42cbc4
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/ChunkTileEntityList.java
 @@ -0,0 +1,154 @@
@@ -198,7 +198,7 @@ index 0000000..a76fc06
 +
 +    private static final TObjectIntHashMap<Class<? extends TileEntity>> tileEntityTickIntervals =
 +        new TObjectIntHashMap<Class<? extends TileEntity>>() {{
-+            // Use 0 for no ticking
++            // Use -1 for no ticking
 +            // These TE's have empty tick methods, doing nothing. Never bother ticking them.
 +            for (Class<? extends TileEntity> ignored : new Class[]{
 +                TileEntityRecordPlayer.class,
@@ -212,7 +212,7 @@ index 0000000..a76fc06
 +                TileEntityComparator.class,
 +                TileEntityFlowerPot.class
 +            }) {
-+                put(ignored, 0);
++                put(ignored, -1);
 +            }
 +
 +            // does findPlayer lookup, so this helps performance to slow down
@@ -230,9 +230,9 @@ index 0000000..a76fc06
 +            put(TileEntityLightDetector.class, 20);
 +        }};
 +
-+    public static Integer getInterval(Class<? extends TileEntity> cls) {
-+        Integer tickInterval = tileEntityTickIntervals.get(cls);
-+        return tickInterval != null ? tickInterval : 1;
++    public static int getInterval(Class<? extends TileEntity> cls) {
++        int tickInterval = tileEntityTickIntervals.get(cls);
++        return tickInterval != 0 ? tickInterval : 1;
 +    }
 +
 +    private final World world;
@@ -336,10 +336,10 @@ index 0000000..a76fc06
 +}
 diff --git a/src/main/java/org/spigotmc/WorldTileEntityList.java b/src/main/java/org/spigotmc/WorldTileEntityList.java
 new file mode 100644
-index 0000000..8da8f4f
+index 0000000..ca0e42c
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/WorldTileEntityList.java
-@@ -0,0 +1,105 @@
+@@ -0,0 +1,110 @@
 +package org.spigotmc;
 +
 +import com.google.common.collect.Sets;
@@ -348,6 +348,7 @@ index 0000000..8da8f4f
 +import net.minecraft.server.World;
 +import net.minecraft.server.WorldServer;
 +
++import java.util.Collection;
 +import java.util.HashSet;
 +import java.util.Iterator;
 +import java.util.Set;
@@ -400,17 +401,21 @@ index 0000000..8da8f4f
 +    }
 +
 +    private class WorldTileEntityIterator implements Iterator<TileEntity> {
-+        private Iterator<Chunk> chunkIterator;
++        private final Chunk[] chunks;
++        private final int chunkCount;
++        private int currentChunk;
 +        private Iterator<TileEntity> chunkTileEntityListIterator;
 +
 +        protected WorldTileEntityIterator() {
-+            chunkIterator = world.chunkProviderServer.chunks.values().iterator();
++            Collection<Chunk> values = world.chunkProviderServer.chunks.values();
++            chunkCount = values.size();
++            chunks = values.toArray(new Chunk[chunkCount]);
 +            nextChunk();
 +        }
 +
 +        private boolean nextChunk() {
-+            if (chunkIterator.hasNext()) {
-+                final Chunk chunk = chunkIterator.next();
++            if (currentChunk < chunkCount) {
++                final Chunk chunk = chunks[currentChunk++];
 +                // Skip chunks queued for unload, and save isLoaded checks
 +                if (!world.chunkProviderServer.unloadQueue.contains(chunk.locX, chunk.locZ)) {
 +                    chunkTileEntityListIterator = chunk.tileEntityTickList.iterator();
