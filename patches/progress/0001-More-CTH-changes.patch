@@ -1,0 +1,122 @@
+From 3d9b4fdff02269bbfb09f9fb7b336010956104d1 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Tue, 19 Aug 2014 23:26:20 -0400
+Subject: [PATCH] More CTH changes
+
+---
+ .../java/org/spigotmc/CustomTimingsHandler.java    | 34 ++++++++++++----------
+ 1 file changed, 18 insertions(+), 16 deletions(-)
+
+diff --git a/src/main/java/org/spigotmc/CustomTimingsHandler.java b/src/main/java/org/spigotmc/CustomTimingsHandler.java
+index 33c5cc1..2654788 100644
+--- a/src/main/java/org/spigotmc/CustomTimingsHandler.java
++++ b/src/main/java/org/spigotmc/CustomTimingsHandler.java
+@@ -1,14 +1,11 @@
+ package org.spigotmc;
+ 
+ import org.bukkit.command.defaults.TimingsCommand;
+-import org.bukkit.event.HandlerList;
+-import org.bukkit.plugin.Plugin;
+-import org.bukkit.plugin.RegisteredListener;
+-import org.bukkit.plugin.TimedRegisteredListener;
++import org.bukkit.plugin.PluginManager;
++
+ import java.io.PrintStream;
+ import java.util.Collection;
+ import java.util.HashSet;
+-import java.util.List;
+ import java.util.Queue;
+ import java.util.concurrent.ConcurrentLinkedQueue;
+ 
+@@ -21,6 +18,7 @@ import org.bukkit.World;
+ public class CustomTimingsHandler
+ {
+ 
++    private static final PluginManager pluginManager = Bukkit.getPluginManager();
+     private static final Collection<CustomTimingsHandler> ALL_HANDLERS = new HashSet<CustomTimingsHandler>();
+     private static Queue<CustomTimingsHandler> BAKED_HANDLERS = new ConcurrentLinkedQueue<CustomTimingsHandler>(); // EMC
+     /*========================================================================*/
+@@ -30,8 +28,11 @@ public class CustomTimingsHandler
+     private long start = 0;
+     private long timingDepth = 0;
+     private long totalTime = 0;
+-    private long curTickTotal = 0;
++    private long curSecTotal = 0;
++    private long curSecCount = 0;
+     private long violations = 0;
++    private long vioCount = 0;
++    private long vioTotalTime = 0;
+ 
+     public CustomTimingsHandler(String name)
+     {
+@@ -83,7 +84,7 @@ public class CustomTimingsHandler
+      */
+     public static void reload()
+     {
+-        if ( Bukkit.getPluginManager().useTimings() )
++        if ( pluginManager.useTimings() )
+         {
+             for ( CustomTimingsHandler timings : BAKED_HANDLERS )
+             {
+@@ -99,15 +100,15 @@ public class CustomTimingsHandler
+      */
+     public static void tick()
+     {
+-        if ( Bukkit.getPluginManager().useTimings() )
++        if ( pluginManager.useTimings() )
+         {
+             for ( CustomTimingsHandler timings : BAKED_HANDLERS )
+             {
+-                if ( timings.curTickTotal > 50000000 )
++                if ( timings.curSecTotal > 1000000000)
+                 {
+-                    timings.violations += Math.ceil( timings.curTickTotal / 50000000 );
++                    timings.violations += Math.ceil( timings.curSecTotal / 1000000000);
+                 }
+-                timings.curTickTotal = 0;
++                timings.curSecTotal = 0;
+                 timings.timingDepth = 0; // incase reset messes this up
+             }
+         }
+@@ -119,7 +120,7 @@ public class CustomTimingsHandler
+     public void startTiming()
+     {
+         // If second condtion fails we are already timing
+-        if ( Bukkit.getPluginManager().useTimings() && ++timingDepth == 1 )
++        if ( pluginManager.useTimings() && ++timingDepth == 1 )
+         {
+             start = System.nanoTime();
+             if ( parent != null && ++parent.timingDepth == 1 )
+@@ -134,16 +135,17 @@ public class CustomTimingsHandler
+      */
+     public void stopTiming()
+     {
+-        if ( Bukkit.getPluginManager().useTimings() )
++        if ( pluginManager.useTimings() )
+         {
+             if ( --timingDepth != 0 || start == 0 )
+             {
+                 return;
+             }
+-            long diff = System.nanoTime() - start;
++            final long diff = System.nanoTime() - start;
+             totalTime += diff;
+-            curTickTotal += diff;
++            curSecTotal += diff;
+             count++;
++            curSecCount++;
+             start = 0;
+             if ( parent != null )
+             {
+@@ -159,7 +161,7 @@ public class CustomTimingsHandler
+     {
+         count = 0;
+         violations = 0;
+-        curTickTotal = 0;
++        curSecTotal = 0;
+         totalTime = 0;
+         start = 0;
+         timingDepth = 0;
+-- 
+1.9.1
+
