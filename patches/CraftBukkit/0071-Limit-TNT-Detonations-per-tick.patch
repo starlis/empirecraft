@@ -1,0 +1,56 @@
+From 93c0465632be1095f78a0ebc1f5428386643e8b8 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Wed, 20 Aug 2014 18:12:32 -0400
+Subject: [PATCH] Limit TNT Detonations per tick
+
+This gives a per-world control on how much TNT will be processed per-tick,
+preventing a massive TNT detonation from lagging out the server.
+---
+ src/main/java/net/minecraft/server/EntityTNTPrimed.java | 1 +
+ src/main/java/net/minecraft/server/WorldServer.java     | 1 +
+ src/main/java/org/spigotmc/SpigotWorldConfig.java       | 7 +++++++
+ 3 files changed, 9 insertions(+)
+
+diff --git a/src/main/java/net/minecraft/server/EntityTNTPrimed.java b/src/main/java/net/minecraft/server/EntityTNTPrimed.java
+index a442cb1..e898378 100644
+--- a/src/main/java/net/minecraft/server/EntityTNTPrimed.java
++++ b/src/main/java/net/minecraft/server/EntityTNTPrimed.java
+@@ -42,6 +42,7 @@ public class EntityTNTPrimed extends Entity {
+     }
+ 
+     public void h() {
++        if (world.spigotConfig.currentPrimedTnt++ > world.spigotConfig.maxTntTicksPerTick) { return; } // Spigot
+         this.lastX = this.locX;
+         this.lastY = this.locY;
+         this.lastZ = this.locZ;
+diff --git a/src/main/java/net/minecraft/server/WorldServer.java b/src/main/java/net/minecraft/server/WorldServer.java
+index 9319345..6c9440e 100644
+--- a/src/main/java/net/minecraft/server/WorldServer.java
++++ b/src/main/java/net/minecraft/server/WorldServer.java
+@@ -514,6 +514,7 @@ public class WorldServer extends World {
+         }
+ 
+         super.tickEntities();
++        spigotConfig.currentPrimedTnt = 0; // Spigot
+     }
+ 
+     public void i() {
+diff --git a/src/main/java/org/spigotmc/SpigotWorldConfig.java b/src/main/java/org/spigotmc/SpigotWorldConfig.java
+index a81b7c9..71f1f08 100644
+--- a/src/main/java/org/spigotmc/SpigotWorldConfig.java
++++ b/src/main/java/org/spigotmc/SpigotWorldConfig.java
+@@ -317,4 +317,11 @@ public class SpigotWorldConfig
+     {
+         witherSpawnSoundRadius = getInt( "wither-spawn-sound-radius", 0 );
+     }
++
++    public int currentPrimedTnt = 0;
++    public int maxTntTicksPerTick;
++    private void maxTntPerTick() {
++        maxTntTicksPerTick = getInt( "max-tnt-per-tick", 4 );
++        log( "Max TNT Explosions: " + maxTntTicksPerTick );
++    }
+ }
+-- 
+1.9.1
+
