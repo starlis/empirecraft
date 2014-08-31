@@ -1,7 +1,7 @@
-From 99e938f15ec2590b89462d3daea8fe3ba8af01be Mon Sep 17 00:00:00 2001
+From d151ec48afc3e7073015e351b8ff6bc5ea51c585 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Sun, 24 Aug 2014 21:35:11 -0400
-Subject: [PATCH]  Optimize TileEntity Ticking
+Subject: [PATCH] Optimize TileEntity Ticking
 
 Re-organizes the servers TileEntity Tick List to be bucketed based on their tick interval.
 
@@ -10,8 +10,11 @@ We now will not even store a Tile Entity that is known to not have any tick func
 and in a loaded chunk. In other words, a lot of "meta" time wasted on tile entities
 that would never do anything anyways.
 
-Then by reducing chests to 1 in 20 ticks, we cut out 95% of isLoaded checks and findPlayer
-calls on chests, and 100% of the checks for Signs, the 2 most popular Tile Entities.
+This also removes the need to ever tick Chests, by moving their sounds to the actual open/close
+events.
+This means a 100% removal of ticking for Chests and Signs, the 2 most popular Tile Entities.
+
+Removing the 2 most popular TileEntities also improves unload performance.
 
 This cuts out a massive amount of checks revolving around TileEntity ticking.
 Servers with large amounts of TileEntities should see significant improvement.
@@ -19,18 +22,35 @@ Servers with large amounts of TileEntities should see significant improvement.
 Finally, this then spreads out the ticking of reduced-rate TileEntities so that they
 do not all tick on the same tick, distributing the load of some TileEntities like Chest.
 ---
- src/main/java/net/minecraft/server/TileEntity.java |   6 +
+ src/main/java/net/minecraft/server/Chunk.java      |   5 +
+ src/main/java/net/minecraft/server/TileEntity.java |   7 +
  .../net/minecraft/server/TileEntityBeacon.java     |   4 +-
- .../java/net/minecraft/server/TileEntityChest.java |   2 +-
- .../net/minecraft/server/TileEntityEnderChest.java |   2 +-
+ .../java/net/minecraft/server/TileEntityChest.java |  14 +-
+ .../net/minecraft/server/TileEntityEnderChest.java |  13 +-
  .../minecraft/server/TileEntityLightDetector.java  |   2 +-
  src/main/java/net/minecraft/server/World.java      |   2 +-
- .../java/org/spigotmc/WorldTileEntityList.java     | 173 +++++++++++++++++++++
- 7 files changed, 185 insertions(+), 6 deletions(-)
+ .../java/org/spigotmc/WorldTileEntityList.java     | 177 +++++++++++++++++++++
+ 8 files changed, 210 insertions(+), 14 deletions(-)
  create mode 100644 src/main/java/org/spigotmc/WorldTileEntityList.java
 
+diff --git a/src/main/java/net/minecraft/server/Chunk.java b/src/main/java/net/minecraft/server/Chunk.java
+index 21fd12e..e2f3afd 100644
+--- a/src/main/java/net/minecraft/server/Chunk.java
++++ b/src/main/java/net/minecraft/server/Chunk.java
+@@ -809,6 +809,11 @@ public class Chunk {
+                     h.getHandle().closeInventory();
+                 }
+             }
++            // These need to tick on unload as they have been reduced to only tick once every 10 ticks.
++            // And unloading them outside of the 1 in every tick window will skew their cook time.
++            if ( tileentity instanceof TileEntityBrewingStand || tileentity instanceof TileEntityFurnace) {
++                tileentity.tick();
++            }
+             // Spigot End
+ 
+             this.world.a(tileentity);
 diff --git a/src/main/java/net/minecraft/server/TileEntity.java b/src/main/java/net/minecraft/server/TileEntity.java
-index 9edbc11..38defcd 100644
+index 9edbc11..cd9f372 100644
 --- a/src/main/java/net/minecraft/server/TileEntity.java
 +++ b/src/main/java/net/minecraft/server/TileEntity.java
 @@ -56,6 +56,12 @@ public class TileEntity {
@@ -46,6 +66,14 @@ index 9edbc11..38defcd 100644
      // Spigot end
  
      public TileEntity() {}
+@@ -100,6 +106,7 @@ public class TileEntity {
+         }
+     }
+ 
++    public void tick() { h(); } // Spigot - obfuscation helper
+     public void h() {}
+ 
+     public static TileEntity c(NBTTagCompound nbttagcompound) {
 diff --git a/src/main/java/net/minecraft/server/TileEntityBeacon.java b/src/main/java/net/minecraft/server/TileEntityBeacon.java
 index fbc7874..bb20efb 100644
 --- a/src/main/java/net/minecraft/server/TileEntityBeacon.java
@@ -64,7 +92,7 @@ index fbc7874..bb20efb 100644
  
      private void x() {
 diff --git a/src/main/java/net/minecraft/server/TileEntityChest.java b/src/main/java/net/minecraft/server/TileEntityChest.java
-index 4f45dba..f1332f0 100644
+index 4f45dba..0bb09ff 100644
 --- a/src/main/java/net/minecraft/server/TileEntityChest.java
 +++ b/src/main/java/net/minecraft/server/TileEntityChest.java
 @@ -255,7 +255,7 @@ public class TileEntityChest extends TileEntity implements IInventory {
@@ -72,22 +100,113 @@ index 4f45dba..f1332f0 100644
          float f;
  
 -        if (!this.world.isStatic && this.o != 0 && (this.ticks + this.x + this.y + this.z) % 200 == 0) {
-+        if (!this.world.isStatic && this.o != 0 && (this.ticks + this.x + this.y + this.z) % 10 == 0) { // Spigot Reduced 200 -> 10 interval due to reduced tick rate from Improved Tick Handling
++        if (!this.world.isStatic && this.o != 0 && this.ticks % 10 == 0) { // Spigot Reduced 200 -> 10 interval due to reduced tick rate from Improved Tick Handling and removed the xyz as its already done for us.
              this.o = 0;
              f = 5.0F;
              List list = this.world.a(EntityHuman.class, AxisAlignedBB.a((double) ((float) this.x - f), (double) ((float) this.y - f), (double) ((float) this.z - f), (double) ((float) (this.x + 1) + f), (double) ((float) (this.y + 1) + f), (double) ((float) (this.z + 1) + f)));
+@@ -275,10 +275,12 @@ public class TileEntityChest extends TileEntity implements IInventory {
+         }
+ 
+         this.n = this.m;
+-        f = 0.1F;
++    } // Spigot
++    private void sendSounds(boolean isOpen) { // Spigot
++        float f = 0.1F; // Spigot
+         double d0;
+ 
+-        if (this.o > 0 && this.m == 0.0F && this.i == null && this.k == null) {
++        if (isOpen && this.o == 1) { // Spigot - only send on first player
+             double d1 = (double) this.x + 0.5D;
+ 
+             d0 = (double) this.z + 0.5D;
+@@ -293,7 +295,7 @@ public class TileEntityChest extends TileEntity implements IInventory {
+             this.world.makeSound(d1, (double) this.y + 0.5D, d0, "random.chestopen", 0.5F, this.world.random.nextFloat() * 0.1F + 0.9F);
+         }
+ 
+-        if (this.o == 0 && this.m > 0.0F || this.o > 0 && this.m < 1.0F) {
++        if (!isOpen && this.o == 0) { // Spigot - only check player count
+             float f1 = this.m;
+ 
+             if (this.o > 0) {
+@@ -308,7 +310,7 @@ public class TileEntityChest extends TileEntity implements IInventory {
+ 
+             float f2 = 0.5F;
+ 
+-            if (this.m < f2 && f1 >= f2 && this.i == null && this.k == null) {
++            if (true || this.m < f2 && f1 >= f2 && this.i == null && this.k == null) { // Spigot - always send in this event
+                 d0 = (double) this.x + 0.5D;
+                 double d2 = (double) this.z + 0.5D;
+ 
+@@ -347,6 +349,7 @@ public class TileEntityChest extends TileEntity implements IInventory {
+ 
+         ++this.o;
+         if (this.world == null) return; // CraftBukkit
++        sendSounds(true); // Spigot
+         this.world.playNote(this.x, this.y, this.z, this.q(), 1, this.o);
+ 
+         // CraftBukkit start - Call redstone event
+@@ -370,6 +373,7 @@ public class TileEntityChest extends TileEntity implements IInventory {
+             --this.o;
+             if (this.world == null) return; // CraftBukkit
+             this.world.playNote(this.x, this.y, this.z, this.q(), 1, this.o);
++            sendSounds(false); // Spigot
+ 
+             // CraftBukkit start - Call redstone event
+             if (this.q() == Blocks.TRAPPED_CHEST) {
 diff --git a/src/main/java/net/minecraft/server/TileEntityEnderChest.java b/src/main/java/net/minecraft/server/TileEntityEnderChest.java
-index 83fcbc1..9702bbb 100644
+index 83fcbc1..f410f7c 100644
 --- a/src/main/java/net/minecraft/server/TileEntityEnderChest.java
 +++ b/src/main/java/net/minecraft/server/TileEntityEnderChest.java
-@@ -11,7 +11,7 @@ public class TileEntityEnderChest extends TileEntity {
+@@ -11,22 +11,23 @@ public class TileEntityEnderChest extends TileEntity {
  
      public void h() {
          super.h();
 -        if (++this.k % 20 * 4 == 0) {
-+        if (++this.k % 4 == 0) {  // Spigot Reduced (20 * 4) -> 4 interval due to reduced tick rate from Improved Tick Handling
++        if (true) { // Spigot Rate controlled by Improved Tick Handling
              this.world.playNote(this.x, this.y, this.z, Blocks.ENDER_CHEST, 1, this.j);
          }
+-
++    } // Spigot
++    private void sendSounds(boolean isOpen) { // Spigot
+         this.i = this.a;
+         float f = 0.1F;
+         double d0;
+ 
+-        if (this.j > 0 && this.a == 0.0F) {
++        if (isOpen && this.j == 1) { // Spigot - send only on open when == 1
+             double d1 = (double) this.x + 0.5D;
+ 
+             d0 = (double) this.z + 0.5D;
+             this.world.makeSound(d1, (double) this.y + 0.5D, d0, "random.chestopen", 0.5F, this.world.random.nextFloat() * 0.1F + 0.9F);
+         }
+ 
+-        if (this.j == 0 && this.a > 0.0F || this.j > 0 && this.a < 1.0F) {
++        if (!isOpen && this.j == 0) { // Spigot - Send on close when == 0
+             float f1 = this.a;
+ 
+             if (this.j > 0) {
+@@ -41,7 +42,7 @@ public class TileEntityEnderChest extends TileEntity {
+ 
+             float f2 = 0.5F;
+ 
+-            if (this.a < f2 && f1 >= f2) {
++            if (true || this.a < f2 && f1 >= f2) { // Spigot - Always send
+                 d0 = (double) this.x + 0.5D;
+                 double d2 = (double) this.z + 0.5D;
+ 
+@@ -70,11 +71,13 @@ public class TileEntityEnderChest extends TileEntity {
+ 
+     public void a() {
+         ++this.j;
++        sendSounds(true); // Spigot
+         this.world.playNote(this.x, this.y, this.z, Blocks.ENDER_CHEST, 1, this.j);
+     }
+ 
+     public void b() {
+         --this.j;
++        sendSounds(false); // Spigot
+         this.world.playNote(this.x, this.y, this.z, Blocks.ENDER_CHEST, 1, this.j);
+     }
  
 diff --git a/src/main/java/net/minecraft/server/TileEntityLightDetector.java b/src/main/java/net/minecraft/server/TileEntityLightDetector.java
 index 143cffb..5397bdd 100644
@@ -117,10 +236,10 @@ index 9c88a71..1aa770d 100644
      public List players = new ArrayList();
 diff --git a/src/main/java/org/spigotmc/WorldTileEntityList.java b/src/main/java/org/spigotmc/WorldTileEntityList.java
 new file mode 100644
-index 0000000..b6355e8
+index 0000000..d9a32d4
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/WorldTileEntityList.java
-@@ -0,0 +1,173 @@
+@@ -0,0 +1,177 @@
 +package org.spigotmc;
 +
 +import com.google.common.collect.ArrayListMultimap;
@@ -149,22 +268,26 @@ index 0000000..b6355e8
 +                TileEntityCommand.class,
 +                TileEntitySkull.class,
 +                TileEntityComparator.class,
-+                TileEntityFlowerPot.class
++                TileEntityFlowerPot.class,
++                TileEntityChest.class, // Been optimized to not need to tick
 +            }) {
 +                put(ignored, -1);
 +            }
 +
-+            // does findPlayer lookup, so this helps performance to slow down
-+            put(TileEntityChest.class, 20);
-+            put(TileEntityEnderChest.class, 20);
-+            put(TileEntityEnchantTable.class, 20);
++            put(TileEntityEnderChest.class, 80); // Been optimized to not need to tick every tick, only needs per 80
++            put(TileEntityEnchantTable.class, 20); // Just plays glyph animations, once per second is un-noticeable
 +
 +            // Slow things down that players won't notice due to craftbukkit "wall time" patches.
-+            put(TileEntityFurnace.class, 10);
-+            put(TileEntityBrewingStand.class, 10);
++            // Anything on this list must be made to tick in Chunk.removeEntities() and must be safe to tick
++            // off of the schedule defined here. (Furnace and Brewing Stands are both safe)
++            // Disabled for now as it causes issues
++            //put(TileEntityFurnace.class, 10);
++            //put(TileEntityBrewingStand.class, 10);
 +
 +            // Vanilla controlled values - These are checks already done in vanilla, so don't tick on ticks we know
 +            // won't do anything anyways
++            // Any block slowed down must understand that it might not tick on its proper schedule
++            // when a chunk is unloaded. These 2 are safe for that regard since vanilla has the same effect.
 +            put(TileEntityBeacon.class, 80);
 +            put(TileEntityLightDetector.class, 20);
 +        }};

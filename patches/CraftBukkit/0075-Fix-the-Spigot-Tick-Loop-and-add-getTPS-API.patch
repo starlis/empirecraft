@@ -1,0 +1,77 @@
+From 527ce91667370cf6695a7af62fc40113d630bb6a Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Wed, 27 Aug 2014 23:05:37 -0400
+Subject: [PATCH] Fix the Spigot Tick Loop and add getTPS API
+
+---
+ src/main/java/net/minecraft/server/MinecraftServer.java | 17 +++++++++++++----
+ src/main/java/org/bukkit/craftbukkit/CraftServer.java   | 14 ++++++++++++++
+ 2 files changed, 27 insertions(+), 4 deletions(-)
+
+diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
+index b7421d0..49fad46 100644
+--- a/src/main/java/net/minecraft/server/MinecraftServer.java
++++ b/src/main/java/net/minecraft/server/MinecraftServer.java
+@@ -110,6 +110,7 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+     // Spigot start
+     private static final int TPS = 20;
+     private static final int TICK_TIME = 1000000000 / TPS;
++    private static final long MAX_CATCHUP_BUFFER = TICK_TIME * TPS * 60L;
+     private static final int SAMPLE_INTERVAL = 100;
+     public final double[] recentTps = new double[ 3 ];
+     // Spigot end
+@@ -465,16 +466,24 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+ 
+                 // Spigot start
+                 Arrays.fill( recentTps, 20 );
+-                long lastTick = System.nanoTime(), catchupTime = 0, curTime, wait, tickSection = lastTick;
++                long lastTick = System.nanoTime() - TICK_TIME, catchupTime = 0, curTime, wait, tickSection = lastTick;
+                 while (this.isRunning) {
+                     curTime = System.nanoTime();
+-                    wait = TICK_TIME - (curTime - lastTick) - catchupTime;
++                    wait = TICK_TIME - (curTime - lastTick);
++                    if (wait > 0) {
++                        if (wait < catchupTime) {
++                            catchupTime -= wait;
++                            wait = 0;
++                        } else if (catchupTime > 2000000) {
++                            wait -= catchupTime;
++                            catchupTime -= catchupTime;
++                        }
++                    }
+                     if (wait > 0) {
+                         Thread.sleep(wait / 1000000);
+-                        catchupTime = 0;
+                         continue;
+                     } else {
+-                        catchupTime = Math.min(1000000000, Math.abs(wait));
++                        catchupTime = Math.min(MAX_CATCHUP_BUFFER, catchupTime + Math.abs(wait));
+                     }
+ 
+                     if ( MinecraftServer.currentTick++ % SAMPLE_INTERVAL == 0 )
+diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
+index aa76cec..aa7ae40 100644
+--- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
++++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
+@@ -1832,4 +1832,18 @@ public final class CraftServer implements Server {
+     public UnsafeValues getUnsafe() {
+         return CraftMagicNumbers.INSTANCE;
+     }
++
++    private final Spigot spigot = new Spigot()
++    {
++        @Override
++        public double[] getTPS()
++        {
++            return MinecraftServer.getServer().recentTps;
++        }
++    };
++
++    public Spigot spigot()
++    {
++        return spigot;
++    }
+ }
+-- 
+1.9.1
+
