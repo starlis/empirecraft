@@ -1,27 +1,30 @@
-From 1e2953045a6de4f96a91ce0263f79dc3d04f83ff Mon Sep 17 00:00:00 2001
+From 96be5c4ac64c9df4f0eb672ea9a97af87450d717 Mon Sep 17 00:00:00 2001
 From: md_5 <md_5@bigpond.com>
-Date: Wed, 2 Jul 2014 21:32:16 -0400
+Date: Fri, 5 Sep 2014 18:31:24 -0400
 Subject: [PATCH] Spigot
 
 ---
  README.md                                          |   8 +-
  pom.xml                                            |  49 ++---
- src/main/java/org/bukkit/Bukkit.java               |   3 -
- src/main/java/org/bukkit/Effect.java               | 201 ++++++++++++++++++++-
- src/main/java/org/bukkit/Server.java               |   9 -
+ src/main/java/org/bukkit/Bukkit.java               |   9 +-
+ src/main/java/org/bukkit/Effect.java               | 206 ++++++++++++++++++++-
+ src/main/java/org/bukkit/Server.java               |  20 +-
  src/main/java/org/bukkit/World.java                |  74 ++++++++
+ src/main/java/org/bukkit/command/Command.java      |   3 +
+ .../java/org/bukkit/command/SimpleCommandMap.java  |   4 +
  .../bukkit/command/defaults/PluginsCommand.java    |   8 +
- .../org/bukkit/command/defaults/ReloadCommand.java |   9 +
+ .../org/bukkit/command/defaults/ReloadCommand.java |   8 +
  .../org/bukkit/command/defaults/TellCommand.java   |  12 ++
  .../bukkit/command/defaults/TestForCommand.java    |  12 ++
- .../bukkit/command/defaults/TimingsCommand.java    | 112 +++++++++++-
+ .../bukkit/command/defaults/TimingsCommand.java    | 137 +++++++++++++-
+ .../bukkit/command/defaults/WhitelistCommand.java  |   2 +-
  .../org/bukkit/conversations/BooleanPrompt.java    |   3 +-
  .../org/bukkit/conversations/Conversation.java     |   7 +
  .../bukkit/conversations/ConversationContext.java  |   8 +
  src/main/java/org/bukkit/entity/Arrow.java         |  16 ++
  src/main/java/org/bukkit/entity/Entity.java        |  18 ++
  .../java/org/bukkit/entity/LightningStrike.java    |  17 ++
- src/main/java/org/bukkit/entity/Player.java        |  73 ++++++++
+ src/main/java/org/bukkit/entity/Player.java        |  77 +++++++-
  .../bukkit/event/entity/CreatureSpawnEvent.java    |  32 +---
  .../org/bukkit/event/entity/EntitySpawnEvent.java  |  45 +++++
  .../org/bukkit/event/entity/ItemSpawnEvent.java    |  40 +---
@@ -29,19 +32,19 @@ Subject: [PATCH] Spigot
  .../event/inventory/InventoryClickEvent.java       |  16 ++
  .../bukkit/event/player/PlayerItemDamageEvent.java |  54 ++++++
  .../org/bukkit/event/player/PlayerLoginEvent.java  |  27 ++-
- .../org/bukkit/plugin/SimplePluginManager.java     |   1 +
- .../org/bukkit/plugin/TimedRegisteredListener.java |  21 ++-
- .../org/bukkit/plugin/java/JavaPluginLoader.java   |   2 +-
+ .../java/org/bukkit/inventory/meta/ItemMeta.java   |  28 +++
+ .../org/bukkit/plugin/SimplePluginManager.java     |  13 ++
+ .../org/bukkit/plugin/java/JavaPluginLoader.java   |  12 +-
+ .../org/bukkit/plugin/java/PluginClassLoader.java  |  26 ++-
  .../bukkit/plugin/messaging/StandardMessenger.java |  10 +-
  src/main/java/org/bukkit/scoreboard/Score.java     |  11 ++
  src/main/java/org/bukkit/scoreboard/Team.java      |  36 ++++
- .../java/org/spigotmc/CustomTimingsHandler.java    | 175 ++++++++++++++++++
+ .../java/org/spigotmc/CustomTimingsHandler.java    | 165 +++++++++++++++++
  .../spigotmc/event/entity/EntityDismountEvent.java |  39 ++++
  .../spigotmc/event/entity/EntityMountEvent.java    |  52 ++++++
  .../event/player/PlayerSpawnLocationEvent.java     |  50 +++++
  src/test/java/org/bukkit/EffectTest.java           |   6 +-
- .../bukkit/plugin/TimedRegisteredListenerTest.java |   1 -
- 37 files changed, 1137 insertions(+), 142 deletions(-)
+ 40 files changed, 1240 insertions(+), 142 deletions(-)
  create mode 100644 src/main/java/org/bukkit/event/entity/EntitySpawnEvent.java
  create mode 100644 src/main/java/org/bukkit/event/entity/SpawnerSpawnEvent.java
  create mode 100644 src/main/java/org/bukkit/event/player/PlayerItemDamageEvent.java
@@ -71,7 +74,7 @@ index a51766e..1905b8d 100644
  Compilation
  -----------
 diff --git a/pom.xml b/pom.xml
-index dcf7ed3..fc62bbf 100644
+index 4c5937a..0c9f243 100644
 --- a/pom.xml
 +++ b/pom.xml
 @@ -1,42 +1,21 @@
@@ -81,7 +84,7 @@ index dcf7ed3..fc62bbf 100644
 -    <artifactId>bukkit</artifactId>
 +    <groupId>org.spigotmc</groupId>
 +    <artifactId>spigot-api</artifactId>
-     <version>1.7.9-R0.3-SNAPSHOT</version>
+     <version>1.7.10-R0.1-SNAPSHOT</version>
 -    <name>Bukkit</name>
 -    <url>http://www.bukkit.org</url>
 +    <name>Spigot-API</name>
@@ -162,7 +165,7 @@ index dcf7ed3..fc62bbf 100644
  
          <!-- testing -->
 diff --git a/src/main/java/org/bukkit/Bukkit.java b/src/main/java/org/bukkit/Bukkit.java
-index 1eaf92d..b693257 100644
+index 1eaf92d..b85a699 100644
 --- a/src/main/java/org/bukkit/Bukkit.java
 +++ b/src/main/java/org/bukkit/Bukkit.java
 @@ -197,7 +197,6 @@ public final class Bukkit {
@@ -181,7 +184,15 @@ index 1eaf92d..b693257 100644
      public static List<Player> matchPlayer(String name) {
          return server.matchPlayer(name);
      }
-@@ -447,7 +445,6 @@ public final class Bukkit {
+@@ -301,6 +299,7 @@ public final class Bukkit {
+      */
+     public static void reload() {
+         server.reload();
++        org.spigotmc.CustomTimingsHandler.reload(); // Spigot
+     }
+ 
+     /**
+@@ -447,7 +446,6 @@ public final class Bukkit {
      /**
       * @see Server#getPlayerExact(String name)
       */
@@ -189,8 +200,18 @@ index 1eaf92d..b693257 100644
      public static Player getPlayerExact(String name) {
          return server.getPlayerExact(name);
      }
+@@ -747,4 +745,9 @@ public final class Bukkit {
+     public static UnsafeValues getUnsafe() {
+         return server.getUnsafe();
+     }
++
++    public static Server.Spigot spigot()
++    {
++        return server.spigot();
++    }
+ }
 diff --git a/src/main/java/org/bukkit/Effect.java b/src/main/java/org/bukkit/Effect.java
-index 2474a2d..9964203 100644
+index 2474a2d..37f29e2 100644
 --- a/src/main/java/org/bukkit/Effect.java
 +++ b/src/main/java/org/bukkit/Effect.java
 @@ -5,6 +5,7 @@ import java.util.Map;
@@ -201,7 +222,7 @@ index 2474a2d..9964203 100644
  import org.bukkit.potion.Potion;
  
  /**
-@@ -79,27 +80,183 @@ public enum Effect {
+@@ -79,27 +80,188 @@ public enum Effect {
      /**
       * The flames seen on a mobspawner; a visual effect.
       */
@@ -332,6 +353,11 @@ index 2474a2d..9964203 100644
 +     */
 +    HAPPY_VILLAGER("happyVillager", Type.PARTICLE),
 +    /**
++     * The smoke particles that appears on blazes, minecarts
++     * with furnaces and fire
++     */
++    LARGE_SMOKE("largesmoke", Type.PARTICLE),
++    /**
 +     * The particles generated when a tool breaks.
 +     * This particle requires a Material so that the client can select the correct texture.
 +     */
@@ -389,7 +415,7 @@ index 2474a2d..9964203 100644
       * @deprecated Magic value
       */
      @Deprecated
-@@ -108,6 +265,15 @@ public enum Effect {
+@@ -108,6 +270,15 @@ public enum Effect {
      }
  
      /**
@@ -405,7 +431,7 @@ index 2474a2d..9964203 100644
       * @return The type of the effect.
       */
      public Type getType() {
-@@ -115,8 +281,7 @@ public enum Effect {
+@@ -115,8 +286,7 @@ public enum Effect {
      }
  
      /**
@@ -415,7 +441,7 @@ index 2474a2d..9964203 100644
       */
      public Class<?> getData() {
          return this.data;
-@@ -136,12 +301,32 @@ public enum Effect {
+@@ -136,12 +306,32 @@ public enum Effect {
  
      static {
          for (Effect effect : values()) {
@@ -451,7 +477,7 @@ index 2474a2d..9964203 100644
 +    public enum Type {SOUND, VISUAL, PARTICLE}
  }
 diff --git a/src/main/java/org/bukkit/Server.java b/src/main/java/org/bukkit/Server.java
-index e14e9f1..14c8a8a 100644
+index e14e9f1..f861214 100644
 --- a/src/main/java/org/bukkit/Server.java
 +++ b/src/main/java/org/bukkit/Server.java
 @@ -308,23 +308,17 @@ public interface Server extends PluginMessageRecipient {
@@ -491,6 +517,22 @@ index e14e9f1..14c8a8a 100644
      public List<Player> matchPlayer(String name);
  
      /**
+@@ -916,4 +907,15 @@ public interface Server extends PluginMessageRecipient {
+      */
+     @Deprecated
+     UnsafeValues getUnsafe();
++
++    public class Spigot
++    {
++
++        public org.bukkit.configuration.file.YamlConfiguration getConfig()
++        {
++            throw new UnsupportedOperationException( "Not supported yet." );
++        }
++    }
++
++    Spigot spigot();
+ }
 diff --git a/src/main/java/org/bukkit/World.java b/src/main/java/org/bukkit/World.java
 index 9bf2c41..ab73174 100644
 --- a/src/main/java/org/bukkit/World.java
@@ -576,6 +618,54 @@ index 9bf2c41..ab73174 100644
      /**
       * Represents various map environment types that a world may be
       */
+diff --git a/src/main/java/org/bukkit/command/Command.java b/src/main/java/org/bukkit/command/Command.java
+index 87c33d9..31e4f66 100644
+--- a/src/main/java/org/bukkit/command/Command.java
++++ b/src/main/java/org/bukkit/command/Command.java
+@@ -31,6 +31,7 @@ public abstract class Command {
+     protected String usageMessage;
+     private String permission;
+     private String permissionMessage;
++    public org.spigotmc.CustomTimingsHandler timings; // Spigot
+ 
+     protected Command(String name) {
+         this(name, "", "/" + name, new ArrayList<String>());
+@@ -44,6 +45,7 @@ public abstract class Command {
+         this.usageMessage = usageMessage;
+         this.aliases = aliases;
+         this.activeAliases = new ArrayList<String>(aliases);
++        this.timings = new org.spigotmc.CustomTimingsHandler("** Command: " + name); // Spigot
+     }
+ 
+     /**
+@@ -200,6 +202,7 @@ public abstract class Command {
+     public boolean setLabel(String name) {
+         this.nextLabel = name;
+         if (!isRegistered()) {
++            this.timings = new org.spigotmc.CustomTimingsHandler("** Command: " + name); // Spigot
+             this.label = name;
+             return true;
+         }
+diff --git a/src/main/java/org/bukkit/command/SimpleCommandMap.java b/src/main/java/org/bukkit/command/SimpleCommandMap.java
+index d75380c..f15b95d 100644
+--- a/src/main/java/org/bukkit/command/SimpleCommandMap.java
++++ b/src/main/java/org/bukkit/command/SimpleCommandMap.java
+@@ -176,11 +176,15 @@ public class SimpleCommandMap implements CommandMap {
+         }
+ 
+         try {
++            target.timings.startTiming(); // Spigot
+             // Note: we don't return the result of target.execute as thats success / failure, we return handled (true) or not handled (false)
+             target.execute(sender, sentCommandLabel, Arrays_copyOfRange(args, 1, args.length));
++            target.timings.stopTiming(); // Spigot
+         } catch (CommandException ex) {
++            target.timings.stopTiming(); // Spigot
+             throw ex;
+         } catch (Throwable ex) {
++            target.timings.stopTiming(); // Spigot
+             throw new CommandException("Unhandled exception executing '" + commandLine + "' in " + target, ex);
+         }
+ 
 diff --git a/src/main/java/org/bukkit/command/defaults/PluginsCommand.java b/src/main/java/org/bukkit/command/defaults/PluginsCommand.java
 index b888da1..e21d167 100644
 --- a/src/main/java/org/bukkit/command/defaults/PluginsCommand.java
@@ -594,16 +684,10 @@ index b888da1..e21d167 100644
 +    // Spigot End
  }
 diff --git a/src/main/java/org/bukkit/command/defaults/ReloadCommand.java b/src/main/java/org/bukkit/command/defaults/ReloadCommand.java
-index fb3c90f..16dfdbd 100644
+index fb3c90f..a08ae80 100644
 --- a/src/main/java/org/bukkit/command/defaults/ReloadCommand.java
 +++ b/src/main/java/org/bukkit/command/defaults/ReloadCommand.java
-@@ -20,9 +20,18 @@ public class ReloadCommand extends BukkitCommand {
-     public boolean execute(CommandSender sender, String currentAlias, String[] args) {
-         if (!testPermission(sender)) return true;
- 
-+        org.spigotmc.CustomTimingsHandler.reload(); // Spigot: TODO: Why is this here?
-         Bukkit.reload();
-         Command.broadcastCommandMessage(sender, ChatColor.GREEN + "Reload complete.");
+@@ -25,4 +25,12 @@ public class ReloadCommand extends BukkitCommand {
  
          return true;
      }
@@ -659,10 +743,10 @@ index c9ac1ce..a687fef 100644
 +    // Spigot End
  }
 diff --git a/src/main/java/org/bukkit/command/defaults/TimingsCommand.java b/src/main/java/org/bukkit/command/defaults/TimingsCommand.java
-index 05cfcb0..69d629c 100644
+index 05cfcb0..7907021 100644
 --- a/src/main/java/org/bukkit/command/defaults/TimingsCommand.java
 +++ b/src/main/java/org/bukkit/command/defaults/TimingsCommand.java
-@@ -19,30 +19,61 @@ import org.bukkit.util.StringUtil;
+@@ -19,23 +19,101 @@ import org.bukkit.util.StringUtil;
  
  import com.google.common.collect.ImmutableList;
  
@@ -673,20 +757,89 @@ index 05cfcb0..69d629c 100644
 +import java.net.URL;
 +import java.net.URLEncoder;
 +import java.util.logging.Level;
++
++import org.bukkit.command.RemoteConsoleCommandSender;
++import org.bukkit.plugin.SimplePluginManager;
++import org.spigotmc.CustomTimingsHandler;
 +// Spigot end
 +
  public class TimingsCommand extends BukkitCommand {
-     private static final List<String> TIMINGS_SUBCOMMANDS = ImmutableList.of("merged", "reset", "separate");
+-    private static final List<String> TIMINGS_SUBCOMMANDS = ImmutableList.of("merged", "reset", "separate");
++    private static final List<String> TIMINGS_SUBCOMMANDS = ImmutableList.of("report", "reset", "on", "off", "paste"); // Spigot
 +    public static long timingStart = 0; // Spigot
  
      public TimingsCommand(String name) {
          super(name);
-         this.description = "Records timings for all plugin events";
+-        this.description = "Records timings for all plugin events";
 -        this.usageMessage = "/timings <reset|merged|separate>";
-+        this.usageMessage = "/timings <reset|merged|separate|on|off> [paste]"; // Spigot
++        this.description = "Manages Spigot Timings data to see performance of the server."; // Spigot
++        this.usageMessage = "/timings <reset|report|on|off|paste>"; // Spigot
          this.setPermission("bukkit.command.timings");
      }
  
++    // Spigot start - redesigned Timings Command
++    public void executeSpigotTimings(CommandSender sender, String[] args) {
++        if ( "on".equals( args[0] ) )
++        {
++            ( (SimplePluginManager) Bukkit.getPluginManager() ).useTimings( true );
++            CustomTimingsHandler.reload();
++            sender.sendMessage( "Enabled Timings & Reset" );
++            return;
++        } else if ( "off".equals( args[0] ) )
++        {
++            ( (SimplePluginManager) Bukkit.getPluginManager() ).useTimings( false );
++            sender.sendMessage( "Disabled Timings" );
++            return;
++        }
++
++        if ( !Bukkit.getPluginManager().useTimings() )
++        {
++            sender.sendMessage( "Please enable timings by typing /timings on" );
++            return;
++        }
++
++        boolean paste = "paste".equals( args[0] );
++        if ("reset".equals(args[0])) {
++            CustomTimingsHandler.reload();
++            sender.sendMessage("Timings reset");
++        } else if ("merged".equals(args[0]) || "report".equals(args[0]) || paste) {
++            long sampleTime = System.nanoTime() - timingStart;
++            int index = 0;
++            File timingFolder = new File("timings");
++            timingFolder.mkdirs();
++            File timings = new File(timingFolder, "timings.txt");
++            ByteArrayOutputStream bout = ( paste ) ? new ByteArrayOutputStream() : null;
++            while (timings.exists()) timings = new File(timingFolder, "timings" + (++index) + ".txt");
++            PrintStream fileTimings = null;
++            try {
++                fileTimings = ( paste ) ? new PrintStream( bout ) : new PrintStream( timings );
++
++                CustomTimingsHandler.printTimings(fileTimings);
++                fileTimings.println( "Sample time " + sampleTime + " (" + sampleTime / 1E9 + "s)" );
++
++                fileTimings.println( "<spigotConfig>" );
++                fileTimings.println( Bukkit.spigot().getConfig().saveToString() );
++                fileTimings.println( "</spigotConfig>" );
++
++                if ( paste )
++                {
++                    new PasteThread( sender, bout ).start();
++                    return;
++                }
++
++                sender.sendMessage("Timings written to " + timings.getPath());
++                sender.sendMessage( "Paste contents of file into form at http://www.spigotmc.org/go/timings to read results." );
++
++            } catch (IOException e) {
++            } finally {
++                if (fileTimings != null) {
++                    fileTimings.close();
++                }
++            }
++        }
++    }
++    // Spigot end
++
      @Override
      public boolean execute(CommandSender sender, String currentAlias, String[] args) {
          if (!testPermission(sender)) return true;
@@ -695,101 +848,11 @@ index 05cfcb0..69d629c 100644
              sender.sendMessage(ChatColor.RED + "Usage: " + usageMessage);
              return false;
          }
--        if (!sender.getServer().getPluginManager().useTimings()) {
-+        /*if (!sender.getServer().getPluginManager().useTimings()) {
++        if (true) { executeSpigotTimings(sender, args); return true; } // Spigot
+         if (!sender.getServer().getPluginManager().useTimings()) {
              sender.sendMessage("Please enable timings by setting \"settings.plugin-profiling\" to true in bukkit.yml");
              return true;
-+        }*/
-+
-+        // Spigot start - dynamic enable
-+        if ( "on".equals( args[0] ) )
-+        {
-+            // ( (org.bukkit.plugin.SimplePluginManager) Bukkit.getPluginManager() ).useTimings( true );
-+            sender.sendMessage( ChatColor.RED + "This command is disabled as it does not produce accurate results. Please enable plugin-profiling in bukkit.yml and restart." );
-+            sender.sendMessage( ChatColor.RED + "Please see http://www.spigotmc.org/wiki/disabled-timings-on-command/ for further information." );
-+        } else if ( "off".equals( args[0] ) )
-+        {
-+            sender.sendMessage( ChatColor.RED + "This command is disabled as it does not produce accurate results. Please disable plugin-profiling in bukkit.yml and restart." );
-+            sender.sendMessage( ChatColor.RED + "Please see http://www.spigotmc.org/wiki/disabled-timings-on-command/ for further information." );
-         }
-+        // Spigot end
- 
-         boolean separate = "separate".equals(args[0]);
--        if ("reset".equals(args[0])) {
-+        boolean paste = "paste".equals( args[0] ); // Spigot
-+        if ("on".equals(args[0]) || "reset".equals(args[0])) { // Spigot
-+            // Spigot start
-+            if ( !"on".equals( args[0] ) && !Bukkit.getPluginManager().useTimings() )
-+            {
-+                sender.sendMessage( "Please enable timings by typing /timings on" );
-+                return true;
-+            }
-+            // Spigot end
-             for (HandlerList handlerList : HandlerList.getHandlerLists()) {
-                 for (RegisteredListener listener : handlerList.getRegisteredListeners()) {
-                     if (listener instanceof TimedRegisteredListener) {
-@@ -50,20 +81,30 @@ public class TimingsCommand extends BukkitCommand {
-                     }
-                 }
-             }
-+            // Spigot start
-+            org.spigotmc.CustomTimingsHandler.reload();
-+            timingStart = System.nanoTime();
-             sender.sendMessage("Timings reset");
--        } else if ("merged".equals(args[0]) || separate) {
--
-+        } else if ("merged".equals(args[0]) || separate || paste) {
-+            if ( !Bukkit.getPluginManager().useTimings() )
-+            {
-+                sender.sendMessage( "Please enable timings by typing /timings on" );
-+                return true;
-+            }
-+            long sampleTime = System.nanoTime() - timingStart;
-+            // Spigot end
-             int index = 0;
-             int pluginIdx = 0;
-             File timingFolder = new File("timings");
-             timingFolder.mkdirs();
-             File timings = new File(timingFolder, "timings.txt");
-             File names = null;
-+            ByteArrayOutputStream bout = ( paste ) ? new ByteArrayOutputStream() : null; // Spigot
-             while (timings.exists()) timings = new File(timingFolder, "timings" + (++index) + ".txt");
-             PrintStream fileTimings = null;
-             PrintStream fileNames = null;
-             try {
--                fileTimings = new PrintStream(timings);
-+                fileTimings = ( paste ) ? new PrintStream( bout ) : new PrintStream( timings );
-                 if (separate) {
-                     names = new File(timingFolder, "names" + index + ".txt");
-                     fileNames = new PrintStream(names);
-@@ -86,13 +127,25 @@ public class TimingsCommand extends BukkitCommand {
-                             totalTime += time;
-                             Class<? extends Event> eventClass = trl.getEventClass();
-                             if (count > 0 && eventClass != null) {
--                                fileTimings.println("    " + eventClass.getSimpleName() + (trl.hasMultiple() ? " (and sub-classes)" : "") + " Time: " + time + " Count: " + count + " Avg: " + avg);
-+                                fileTimings.println("    " + eventClass.getSimpleName() + (trl.hasMultiple() ? " (and sub-classes)" : "") + " Time: " + time + " Count: " + count + " Avg: " + avg + " Violations: " + trl.violations); // Spigot
-                             }
-                         }
-                     }
-                     fileTimings.println("    Total time " + totalTime + " (" + totalTime / 1000000000 + "s)");
-                 }
-+
-+                // Spigot start
-+                org.spigotmc.CustomTimingsHandler.printTimings(fileTimings);
-+                fileTimings.println( "Sample time " + sampleTime + " (" + sampleTime / 1E9 + "s)" ); // Spigot
-+                // Spigot start
-+                if ( paste )
-+                {
-+                    new PasteThread( sender, bout ).start();
-+                    return true;
-+                }
-+                // Spigot end
-                 sender.sendMessage("Timings written to " + timings.getPath());
-+                sender.sendMessage( "Paste contents of file into form at http://aikar.co/timings.php to read results." );
-                 if (separate) sender.sendMessage("Names written to " + names.getPath());
-             } catch (IOException e) {
-             } finally {
-@@ -118,4 +171,47 @@ public class TimingsCommand extends BukkitCommand {
+@@ -118,4 +196,55 @@ public class TimingsCommand extends BukkitCommand {
          }
          return ImmutableList.of();
      }
@@ -806,6 +869,15 @@ index 05cfcb0..69d629c 100644
 +            super( "Timings paste thread" );
 +            this.sender = sender;
 +            this.bout = bout;
++        }
++
++        @Override
++        public synchronized void start() {
++            if (sender instanceof RemoteConsoleCommandSender) {
++                run();
++            } else {
++                super.start();
++            }
 +        }
 +
 +        @Override
@@ -826,8 +898,7 @@ index 05cfcb0..69d629c 100644
 +
 +                String location = con.getHeaderField( "Location" );
 +                String pasteID = location.substring( "http://paste.ubuntu.com/".length(), location.length() - 1 );
-+                sender.sendMessage( ChatColor.GREEN + "Your timings have been pasted to " + location );
-+                sender.sendMessage( ChatColor.GREEN + "You can view the results at http://aikar.co/timings.php?url=" + pasteID );
++                sender.sendMessage( ChatColor.GREEN + "View timings results can be viewed at http://www.spigotmc.org/go/timings?url=" + pasteID );
 +            } catch ( IOException ex )
 +            {
 +                sender.sendMessage( ChatColor.RED + "Error pasting timings, check your console for more information" );
@@ -837,6 +908,19 @@ index 05cfcb0..69d629c 100644
 +    }
 +    // Spigot end
  }
+diff --git a/src/main/java/org/bukkit/command/defaults/WhitelistCommand.java b/src/main/java/org/bukkit/command/defaults/WhitelistCommand.java
+index b3fa4f8..6559b33 100644
+--- a/src/main/java/org/bukkit/command/defaults/WhitelistCommand.java
++++ b/src/main/java/org/bukkit/command/defaults/WhitelistCommand.java
+@@ -104,7 +104,7 @@ public class WhitelistCommand extends VanillaCommand {
+         } else if (args.length == 2) {
+             if (args[0].equalsIgnoreCase("add")) {
+                 List<String> completions = new ArrayList<String>();
+-                for (OfflinePlayer player : Bukkit.getOfflinePlayers()) {
++                for (OfflinePlayer player : Bukkit.getOnlinePlayers()) { // Spigot - well maybe sometimes you haven't turned the whitelist on just yet.
+                     String name = player.getName();
+                     if (StringUtil.startsWithIgnoreCase(name, args[1]) && !player.isWhitelisted()) {
+                         completions.add(name);
 diff --git a/src/main/java/org/bukkit/conversations/BooleanPrompt.java b/src/main/java/org/bukkit/conversations/BooleanPrompt.java
 index 3f2c97f..81ef78c 100644
 --- a/src/main/java/org/bukkit/conversations/BooleanPrompt.java
@@ -926,10 +1010,10 @@ index e49eef0..e7a32f7 100644
 +    Spigot spigot();
  }
 diff --git a/src/main/java/org/bukkit/entity/Entity.java b/src/main/java/org/bukkit/entity/Entity.java
-index 396ea20..294e80b 100644
+index a60172d..5a1e895 100644
 --- a/src/main/java/org/bukkit/entity/Entity.java
 +++ b/src/main/java/org/bukkit/entity/Entity.java
-@@ -291,4 +291,22 @@ public interface Entity extends Metadatable {
+@@ -295,4 +295,22 @@ public interface Entity extends Metadatable {
       * @return The current vehicle.
       */
      public Entity getVehicle();
@@ -979,10 +1063,22 @@ index c8b5154..1ed4ac9 100644
 +    Spigot spigot();
  }
 diff --git a/src/main/java/org/bukkit/entity/Player.java b/src/main/java/org/bukkit/entity/Player.java
-index fe8a0bd..37c8a58 100644
+index fe8a0bd..b2ad5b7 100644
 --- a/src/main/java/org/bukkit/entity/Player.java
 +++ b/src/main/java/org/bukkit/entity/Player.java
-@@ -1035,4 +1035,77 @@ public interface Player extends HumanEntity, Conversable, CommandSender, Offline
+@@ -333,10 +333,8 @@ public interface Player extends HumanEntity, Conversable, CommandSender, Offline
+     /**
+      * Forces an update of the player's entire inventory.
+      *
+-     * @deprecated This method should not be relied upon as it is a temporary
+-     *     work-around for a larger, more complicated issue.
+      */
+-    @Deprecated
++    //@Deprecated // Spigot - undeprecate
+     public void updateInventory();
+ 
+     /**
+@@ -1035,4 +1033,77 @@ public interface Player extends HumanEntity, Conversable, CommandSender, Offline
       * @see Player#setHealthScaled(boolean)
       */
      public double getHealthScale();
@@ -1437,11 +1533,69 @@ index b74b7b8..081e994 100644
      /**
       * Gets the current result of the login, as an enum
       *
+diff --git a/src/main/java/org/bukkit/inventory/meta/ItemMeta.java b/src/main/java/org/bukkit/inventory/meta/ItemMeta.java
+index 397ba11..9ae3e4c 100644
+--- a/src/main/java/org/bukkit/inventory/meta/ItemMeta.java
++++ b/src/main/java/org/bukkit/inventory/meta/ItemMeta.java
+@@ -124,6 +124,34 @@ public interface ItemMeta extends Cloneable, ConfigurationSerializable {
+     */
+     boolean hasConflictingEnchant(Enchantment ench);
+ 
++    // Spigot start
++    public class Spigot
++    {
++
++        /**
++         * Sets the unbreakable tag
++         *
++         * @param unbreakable true if set unbreakable
++         */
++        public void setUnbreakable(boolean unbreakable)
++        {
++            throw new UnsupportedOperationException( "Not supported yet." );
++        }
++
++        /**
++         * Return if the unbreakable tag is true
++         *
++         * @return true if the unbreakable tag is true
++         */
++        public boolean isUnbreakable()
++        {
++            throw new UnsupportedOperationException( "Not supported yet." );
++        }
++    }
++
++    Spigot spigot();
++    // Spigot end
++
+     @SuppressWarnings("javadoc")
+     ItemMeta clone();
+ }
 diff --git a/src/main/java/org/bukkit/plugin/SimplePluginManager.java b/src/main/java/org/bukkit/plugin/SimplePluginManager.java
-index d2fe422..1d51908 100644
+index d2fe422..0b53084 100644
 --- a/src/main/java/org/bukkit/plugin/SimplePluginManager.java
 +++ b/src/main/java/org/bukkit/plugin/SimplePluginManager.java
-@@ -295,6 +295,7 @@ public final class SimplePluginManager implements PluginManager {
+@@ -132,6 +132,18 @@ public final class SimplePluginManager implements PluginManager {
+             try {
+                 description = loader.getPluginDescription(file);
+                 String name = description.getName();
++                // Spigot Start
++                if ( name.equalsIgnoreCase( "Orebfuscator" ) )
++                {
++                    server.getLogger().log( Level.WARNING, "Skipping loading of Orebfuscator as it does not work with Spigot 1.8 builds!" );
++                    continue;
++                }
++                if ( name.equalsIgnoreCase( "EchoPet" ) )
++                {
++                    server.getLogger().log( Level.WARNING, "Skipping loading of EchoPet as it does not work with Spigot 1.8 builds!" );
++                    continue;
++                }
++                // Spigot End
+                 if (name.equalsIgnoreCase("bukkit") || name.equalsIgnoreCase("minecraft") || name.equalsIgnoreCase("mojang")) {
+                     server.getLogger().log(Level.SEVERE, "Could not load '" + file.getPath() + "' in folder '" + directory.getPath() + "': Restricted Name");
+                     continue;
+@@ -295,6 +307,7 @@ public final class SimplePluginManager implements PluginManager {
              }
          }
  
@@ -1449,72 +1603,102 @@ index d2fe422..1d51908 100644
          return result.toArray(new Plugin[result.size()]);
      }
  
-diff --git a/src/main/java/org/bukkit/plugin/TimedRegisteredListener.java b/src/main/java/org/bukkit/plugin/TimedRegisteredListener.java
-index e09234c..ab2c65e 100644
---- a/src/main/java/org/bukkit/plugin/TimedRegisteredListener.java
-+++ b/src/main/java/org/bukkit/plugin/TimedRegisteredListener.java
-@@ -11,6 +11,10 @@ import org.bukkit.event.Listener;
- public class TimedRegisteredListener extends RegisteredListener {
-     private int count;
-     private long totalTime;
-+    // Spigot start
-+    public long curTickTotal = 0;
-+    public long violations = 0;
-+    // Spigot end
-     private Class<? extends Event> eventClass;
-     private boolean multiple = false;
- 
-@@ -20,6 +24,13 @@ public class TimedRegisteredListener extends RegisteredListener {
- 
-     @Override
-     public void callEvent(Event event) throws EventException {
-+        // Spigot start
-+        if ( org.bukkit.Bukkit.getServer() != null && !org.bukkit.Bukkit.getServer().getPluginManager().useTimings() )
-+        {
-+            super.callEvent( event );
-+            return;
-+        }
-+        // Spigot end
-         if (event.isAsynchronous()) {
-             super.callEvent(event);
-             return;
-@@ -34,7 +45,11 @@ public class TimedRegisteredListener extends RegisteredListener {
-         }
-         long start = System.nanoTime();
-         super.callEvent(event);
--        totalTime += System.nanoTime() - start;
-+        // Spigot start
-+        long diff = System.nanoTime() - start;
-+        curTickTotal += diff;
-+        totalTime += diff;
-+        // Spigot end
-     }
- 
-     private static Class<?> getCommonSuperclass(Class<?> class1, Class<?> class2) {
-@@ -50,6 +65,10 @@ public class TimedRegisteredListener extends RegisteredListener {
-     public void reset() {
-         count = 0;
-         totalTime = 0;
-+        // Spigot start
-+        curTickTotal = 0;
-+        violations = 0;
-+        // Spigot end
-     }
- 
-     /**
 diff --git a/src/main/java/org/bukkit/plugin/java/JavaPluginLoader.java b/src/main/java/org/bukkit/plugin/java/JavaPluginLoader.java
-index b178c0d..a1639f8 100644
+index b178c0d..f8ef65b 100644
 --- a/src/main/java/org/bukkit/plugin/java/JavaPluginLoader.java
 +++ b/src/main/java/org/bukkit/plugin/java/JavaPluginLoader.java
-@@ -297,7 +297,7 @@ public final class JavaPluginLoader implements PluginLoader {
+@@ -39,6 +39,7 @@ import org.bukkit.plugin.PluginLoader;
+ import org.bukkit.plugin.RegisteredListener;
+ import org.bukkit.plugin.TimedRegisteredListener;
+ import org.bukkit.plugin.UnknownDependencyException;
++import org.spigotmc.CustomTimingsHandler; // Spigot
+ import org.yaml.snakeyaml.error.YAMLException;
+ 
+ /**
+@@ -47,8 +48,9 @@ import org.yaml.snakeyaml.error.YAMLException;
+ public final class JavaPluginLoader implements PluginLoader {
+     final Server server;
+     private final Pattern[] fileFilters = new Pattern[] { Pattern.compile("\\.jar$"), };
+-    private final Map<String, Class<?>> classes = new HashMap<String, Class<?>>();
++    private final Map<String, Class<?>> classes = new java.util.concurrent.ConcurrentHashMap<String, Class<?>>(); // Spigot
+     private final Map<String, PluginClassLoader> loaders = new LinkedHashMap<String, PluginClassLoader>();
++    public static final CustomTimingsHandler pluginParentTimer = new CustomTimingsHandler("** Plugins"); // Spigot
+ 
+     /**
+      * This class was not meant to be constructed explicitly
+@@ -283,13 +285,19 @@ public final class JavaPluginLoader implements PluginLoader {
+                 }
+             }
+ 
++            final CustomTimingsHandler timings = new CustomTimingsHandler("Plugin: " + plugin.getDescription().getFullName() + " Event: " + listener.getClass().getName() + "::" + method.getName()+"("+eventClass.getSimpleName()+")", pluginParentTimer); // Spigot
+             EventExecutor executor = new EventExecutor() {
+                 public void execute(Listener listener, Event event) throws EventException {
+                     try {
+                         if (!eventClass.isAssignableFrom(event.getClass())) {
+                             return;
+                         }
++                        // Spigot start
++                        boolean isAsync = event.isAsynchronous();
++                        if (!isAsync) timings.startTiming();
+                         method.invoke(listener, event);
++                        if (!isAsync) timings.stopTiming();
++                        // Spigot end
+                     } catch (InvocationTargetException ex) {
+                         throw new EventException(ex.getCause());
+                     } catch (Throwable t) {
+@@ -297,7 +305,7 @@ public final class JavaPluginLoader implements PluginLoader {
                      }
                  }
              };
 -            if (useTimings) {
-+            if (true) { // Spigot - TRL handles useTimings check now
++            if (false) { // Spigot - RL handles useTimings check now
                  eventSet.add(new TimedRegisteredListener(listener, executor, eh.priority(), plugin, eh.ignoreCancelled()));
              } else {
                  eventSet.add(new RegisteredListener(listener, executor, eh.priority(), plugin, eh.ignoreCancelled()));
+diff --git a/src/main/java/org/bukkit/plugin/java/PluginClassLoader.java b/src/main/java/org/bukkit/plugin/java/PluginClassLoader.java
+index 13f8633..4cffa13 100644
+--- a/src/main/java/org/bukkit/plugin/java/PluginClassLoader.java
++++ b/src/main/java/org/bukkit/plugin/java/PluginClassLoader.java
+@@ -17,7 +17,7 @@ import org.bukkit.plugin.PluginDescriptionFile;
+  */
+ final class PluginClassLoader extends URLClassLoader {
+     private final JavaPluginLoader loader;
+-    private final Map<String, Class<?>> classes = new HashMap<String, Class<?>>();
++    private final Map<String, Class<?>> classes = new java.util.concurrent.ConcurrentHashMap<String, Class<?>>(); // Spigot
+     private final PluginDescriptionFile description;
+     private final File dataFolder;
+     private final File file;
+@@ -25,6 +25,30 @@ final class PluginClassLoader extends URLClassLoader {
+     private JavaPlugin pluginInit;
+     private IllegalStateException pluginState;
+ 
++    // Spigot Start
++    static
++    {
++        try
++        {
++            java.lang.reflect.Method method = ClassLoader.class.getDeclaredMethod( "registerAsParallelCapable" );
++            if ( method != null )
++            {
++                boolean oldAccessible = method.isAccessible();
++                method.setAccessible( true );
++                method.invoke( null );
++                method.setAccessible( oldAccessible );
++                org.bukkit.Bukkit.getLogger().log( java.util.logging.Level.INFO, "Set PluginClassLoader as parallel capable" );
++            }
++        } catch ( NoSuchMethodException ex )
++        {
++            // Ignore
++        } catch ( Exception ex )
++        {
++            org.bukkit.Bukkit.getLogger().log( java.util.logging.Level.WARNING, "Error setting PluginClassLoader as parallel capable", ex );
++        }
++    }
++    // Spigot End
++    
+     PluginClassLoader(final JavaPluginLoader loader, final ClassLoader parent, final PluginDescriptionFile description, final File dataFolder, final File file) throws InvalidPluginException, MalformedURLException {
+         super(new URL[] {file.toURI().toURL()}, parent);
+         Validate.notNull(loader, "Loader cannot be null");
 diff --git a/src/main/java/org/bukkit/plugin/messaging/StandardMessenger.java b/src/main/java/org/bukkit/plugin/messaging/StandardMessenger.java
 index a906f8d..4c171e8 100644
 --- a/src/main/java/org/bukkit/plugin/messaging/StandardMessenger.java
@@ -1626,12 +1810,13 @@ index 50c6f76..b90b9c3 100644
  }
 diff --git a/src/main/java/org/spigotmc/CustomTimingsHandler.java b/src/main/java/org/spigotmc/CustomTimingsHandler.java
 new file mode 100644
-index 0000000..9fca481
+index 0000000..8d98297
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/CustomTimingsHandler.java
-@@ -0,0 +1,175 @@
+@@ -0,0 +1,165 @@
 +package org.spigotmc;
 +
++import org.bukkit.command.defaults.TimingsCommand;
 +import org.bukkit.event.HandlerList;
 +import org.bukkit.plugin.Plugin;
 +import org.bukkit.plugin.RegisteredListener;
@@ -1639,6 +1824,10 @@ index 0000000..9fca481
 +import java.io.PrintStream;
 +import java.util.Collection;
 +import java.util.HashSet;
++import java.util.List;
++import java.util.Queue;
++import java.util.concurrent.ConcurrentLinkedQueue;
++
 +import org.bukkit.Bukkit;
 +import org.bukkit.World;
 +
@@ -1648,8 +1837,7 @@ index 0000000..9fca481
 +public class CustomTimingsHandler
 +{
 +
-+    private static final Collection<CustomTimingsHandler> ALL_HANDLERS = new HashSet<CustomTimingsHandler>();
-+    private static CustomTimingsHandler[] BAKED_HANDLERS;
++    private static Queue<CustomTimingsHandler> HANDLERS = new ConcurrentLinkedQueue<CustomTimingsHandler>();
 +    /*========================================================================*/
 +    private final String name;
 +    private final CustomTimingsHandler parent;
@@ -1669,8 +1857,7 @@ index 0000000..9fca481
 +    {
 +        this.name = name;
 +        this.parent = parent;
-+        ALL_HANDLERS.add( this );
-+        BAKED_HANDLERS = ALL_HANDLERS.toArray( new CustomTimingsHandler[ ALL_HANDLERS.size() ] );
++        HANDLERS.add( this );
 +    }
 +
 +    /**
@@ -1681,7 +1868,7 @@ index 0000000..9fca481
 +    public static void printTimings(PrintStream printStream)
 +    {
 +        printStream.println( "Minecraft" );
-+        for ( CustomTimingsHandler timings : BAKED_HANDLERS )
++        for ( CustomTimingsHandler timings : HANDLERS )
 +        {
 +            long time = timings.totalTime;
 +            long count = timings.count;
@@ -1712,11 +1899,12 @@ index 0000000..9fca481
 +    {
 +        if ( Bukkit.getPluginManager().useTimings() )
 +        {
-+            for ( CustomTimingsHandler timings : BAKED_HANDLERS )
++            for ( CustomTimingsHandler timings : HANDLERS )
 +            {
 +                timings.reset();
 +            }
 +        }
++        TimingsCommand.timingStart = System.nanoTime();
 +    }
 +
 +    /**
@@ -1727,7 +1915,7 @@ index 0000000..9fca481
 +    {
 +        if ( Bukkit.getPluginManager().useTimings() )
 +        {
-+            for ( CustomTimingsHandler timings : BAKED_HANDLERS )
++            for ( CustomTimingsHandler timings : HANDLERS )
 +            {
 +                if ( timings.curTickTotal > 50000000 )
 +                {
@@ -1735,22 +1923,6 @@ index 0000000..9fca481
 +                }
 +                timings.curTickTotal = 0;
 +                timings.timingDepth = 0; // incase reset messes this up
-+            }
-+
-+            for ( Plugin plugin : Bukkit.getPluginManager().getPlugins() )
-+            {
-+                for ( RegisteredListener listener : HandlerList.getRegisteredListeners( plugin ) )
-+                {
-+                    if ( listener instanceof TimedRegisteredListener )
-+                    {
-+                        TimedRegisteredListener timings = (TimedRegisteredListener) listener;
-+                        if ( timings.curTickTotal > 50000000 )
-+                        {
-+                            timings.violations += Math.ceil( timings.curTickTotal / 50000000 );
-+                        }
-+                        timings.curTickTotal = 0;
-+                    }
-+                }
 +            }
 +        }
 +    }
@@ -1803,6 +1975,8 @@ index 0000000..9fca481
 +        violations = 0;
 +        curTickTotal = 0;
 +        totalTime = 0;
++        start = 0;
++        timingDepth = 0;
 +    }
 +}
 diff --git a/src/main/java/org/spigotmc/event/entity/EntityDismountEvent.java b/src/main/java/org/spigotmc/event/entity/EntityDismountEvent.java
@@ -1981,18 +2155,6 @@ index 08aa71d..5217aec 100644
          }
      }
  }
-diff --git a/src/test/java/org/bukkit/plugin/TimedRegisteredListenerTest.java b/src/test/java/org/bukkit/plugin/TimedRegisteredListenerTest.java
-index b206b1f..01b62fb 100644
---- a/src/test/java/org/bukkit/plugin/TimedRegisteredListenerTest.java
-+++ b/src/test/java/org/bukkit/plugin/TimedRegisteredListenerTest.java
-@@ -15,7 +15,6 @@ import org.junit.Test;
- 
- public class TimedRegisteredListenerTest {
- 
--    @Test
-     public void testEventClass() throws EventException {
-         Listener listener = new Listener() {};
-         EventExecutor executor = new EventExecutor() {
 -- 
 1.9.1
 
