@@ -1,4 +1,4 @@
-From 281c51776707fa30bb8acfddcea437026d2e2ef7 Mon Sep 17 00:00:00 2001
+From 2c3419ec49401a3b4447f47b520a0794a84b8f3b Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Wed, 12 Mar 2014 23:10:04 -0400
 Subject: [PATCH] LivingEntityArmorProtectEvent
@@ -6,13 +6,13 @@ Subject: [PATCH] LivingEntityArmorProtectEvent
 To control if armor should protect entity, how much if so, and how much item damage to give.
 ---
  .../LivingEntityArmorProtectEvent.java             | 89 ++++++++++++++++++++++
- .../java/net/minecraft/server/EntityLiving.java    | 10 +++
- 2 files changed, 99 insertions(+)
+ .../java/net/minecraft/server/EntityLiving.java    |  6 ++
+ 2 files changed, 95 insertions(+)
  create mode 100644 src/main/java/com/empireminecraft/customevents/LivingEntityArmorProtectEvent.java
 
 diff --git a/src/main/java/com/empireminecraft/customevents/LivingEntityArmorProtectEvent.java b/src/main/java/com/empireminecraft/customevents/LivingEntityArmorProtectEvent.java
 new file mode 100644
-index 0000000..8605fa1
+index 0000000..7d48bbc
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/customevents/LivingEntityArmorProtectEvent.java
 @@ -0,0 +1,89 @@
@@ -63,7 +63,7 @@ index 0000000..8605fa1
 +    }
 +
 +    public float getArmorProtectionPct() {
-+        return armorProtectionPct;
++        return isCancelled() ? 1F : armorProtectionPct;
 +    }
 +
 +    public void setArmorProtectionPct(float armorProtectionPct) {
@@ -106,38 +106,29 @@ index 0000000..8605fa1
 +
 +}
 diff --git a/src/main/java/net/minecraft/server/EntityLiving.java b/src/main/java/net/minecraft/server/EntityLiving.java
-index eae0227..8bd0039 100644
+index 59a2bf0..a47864a 100644
 --- a/src/main/java/net/minecraft/server/EntityLiving.java
 +++ b/src/main/java/net/minecraft/server/EntityLiving.java
-@@ -9,6 +9,7 @@ import java.util.UUID;
+@@ -17,6 +17,7 @@ import org.bukkit.event.entity.EntityRegainHealthEvent;
+ // CraftBukkit end
  
- // CraftBukkit start
- import java.util.ArrayList;
+ import org.bukkit.craftbukkit.SpigotTimings; // Spigot
 +import com.empireminecraft.customevents.LivingEntityArmorProtectEvent; // EMC
- import org.bukkit.craftbukkit.SpigotTimings;
- import org.bukkit.craftbukkit.event.CraftEventFactory;
- import org.bukkit.event.entity.EntityDamageEvent;
-@@ -924,11 +925,20 @@ public abstract class EntityLiving extends Entity {
  
-     protected float b(DamageSource damagesource, float f) {
+ public abstract class EntityLiving extends Entity {
+ 
+@@ -927,6 +928,11 @@ public abstract class EntityLiving extends Entity {
+     protected float applyArmorModifier(DamageSource damagesource, float f) {
          if (!damagesource.ignoresArmor()) {
-+            // EMC start - implement own logic.
-+            // this.aU(); = Armor Value - 2 above this method
-+            LivingEntityArmorProtectEvent event = new LivingEntityArmorProtectEvent(damagesource, this, f, this.aU());
-+            if (!event.callEvent()) {
-+                return f;
-+            }
-+            f *= event.getArmorProtectionPct();
-+            /*
-             int i = 25 - this.aU();
+             int i = 25 - this.aV();
++            // EMC start
++            LivingEntityArmorProtectEvent event = new LivingEntityArmorProtectEvent(damagesource, this, f, 25 - i);
++            event.callEvent();
++            if (true) return f * event.getArmorProtectionPct();
++            // EMC end
              float f1 = f * (float) i;
  
-             // this.h(f); // CraftBukkit - Moved into d(DamageSource, float)
-             f = f1 / 25.0F;
-+            */ // EMC end
-         }
- 
-         return f;
+             // this.damageArmor(f); // CraftBukkit - Moved into d(DamageSource, float)
 -- 
 1.9.1
 
