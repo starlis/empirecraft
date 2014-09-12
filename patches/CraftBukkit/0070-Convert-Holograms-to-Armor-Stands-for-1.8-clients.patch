@@ -1,25 +1,25 @@
-From 766139a2a3469232f216122dcfa8c9ca490c4adb Mon Sep 17 00:00:00 2001
+From 64d14f21929c8d5a8dcb3207e0be15c2d9e6571d Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Thu, 11 Sep 2014 20:52:05 -0400
 Subject: [PATCH] Convert Holograms to Armor Stands for 1.8 clients
 
 Lets Holograms work on 1.7 and 1.8 using 2 diff types
 ---
- .../com/empireminecraft/cbmisc/CBMiscUtils.java    | 68 ++++++++++++++++++++++
- .../java/net/minecraft/server/DataWatcher.java     | 12 +++-
- .../server/PacketPlayOutAttachEntity.java          | 38 ++++++++++++
+ .../com/empireminecraft/cbmisc/CBMiscUtils.java    | 59 ++++++++++++++++++++++
+ .../java/net/minecraft/server/DataWatcher.java     | 12 ++++-
+ .../server/PacketPlayOutAttachEntity.java          | 38 ++++++++++++++
  .../server/PacketPlayOutEntityMetadata.java        |  8 ++-
  .../minecraft/server/PacketPlayOutSpawnEntity.java |  2 +
- .../server/PacketPlayOutSpawnEntityLiving.java     |  8 ++-
- .../net/minecraft/server/PlayerConnection.java     |  3 +
- 7 files changed, 133 insertions(+), 6 deletions(-)
+ .../server/PacketPlayOutSpawnEntityLiving.java     |  8 +--
+ .../net/minecraft/server/PlayerConnection.java     |  3 ++
+ 7 files changed, 124 insertions(+), 6 deletions(-)
  create mode 100644 src/main/java/net/minecraft/server/PacketPlayOutAttachEntity.java
 
 diff --git a/src/main/java/com/empireminecraft/cbmisc/CBMiscUtils.java b/src/main/java/com/empireminecraft/cbmisc/CBMiscUtils.java
-index aac3902..8661d43 100644
+index aac3902..114da0c 100644
 --- a/src/main/java/com/empireminecraft/cbmisc/CBMiscUtils.java
 +++ b/src/main/java/com/empireminecraft/cbmisc/CBMiscUtils.java
-@@ -1,9 +1,19 @@
+@@ -1,9 +1,20 @@
  package com.empireminecraft.cbmisc;
  
 +import com.empireminecraft.metaapi.MetaApi;
@@ -29,6 +29,7 @@ index aac3902..8661d43 100644
  import net.minecraft.server.EntityDamageSource;
  import net.minecraft.server.EntityDamageSourceIndirect;
 +import net.minecraft.server.EntityHorse;
++import net.minecraft.server.EntityWitherSkull;
 +import net.minecraft.server.MathHelper;
 +import net.minecraft.server.Packet;
 +import net.minecraft.server.PacketPlayOutAttachEntity;
@@ -39,7 +40,7 @@ index aac3902..8661d43 100644
  import org.bukkit.craftbukkit.event.CraftEventFactory;
  import org.bukkit.entity.Projectile;
  import org.bukkit.entity.ThrownPotion;
-@@ -55,4 +65,62 @@ public class CBMiscUtils {
+@@ -55,4 +66,52 @@ public class CBMiscUtils {
              }
          }
      }
@@ -70,22 +71,12 @@ index aac3902..8661d43 100644
 +            PacketPlayOutSpawnEntityLiving ple = (PacketPlayOutSpawnEntityLiving) packet;
 +            if (isHolo(ple.entityLiving) && ple.entityLiving instanceof EntityHorse) {
 +                ple.b = 30; // Armor Stand
-+                ple.d = MathHelper.floor((ple.entityLiving.locY-56.7) * 32.0D);
++                ple.d = MathHelper.floor((ple.entityLiving.getBukkitEntity().getLocation().getY()-56.7) * 32.0D);
 +                ple.l = convertToAS(ple.l);
-+            } else {
-+                // Fix datawatcher for name
-+                ple.l = ple.l.clone();
-+                DataWatcher data = ple.l;
-+                data.delObject(2);
-+                data.delObject(3);
-+                data.a(2, data.getObject(10));
-+                data.a(3, data.getObject(11));
-+                data.delObject(10);
-+                data.delObject(11);
 +            }
 +        } else if (packet instanceof PacketPlayOutSpawnEntity) {
 +            PacketPlayOutSpawnEntity pe = (PacketPlayOutSpawnEntity) packet;
-+            if (isHolo(pe.entity.passenger)) {
++            if (isHolo(pe.entity) && pe.entity instanceof EntityWitherSkull) {
 +                return null;
 +            }
 +        } else if (packet instanceof PacketPlayOutEntityMetadata) {
