@@ -1,2 +1,2 @@
-git clone github.com:starlis/EMC-Bukkit
-git clone github.com:starlis/EMC-CraftBukkit
+git clone git@github.com:starlis/EMC-Bukkit
+git clone git@github.com:starlis/EMC-CraftBukkit
