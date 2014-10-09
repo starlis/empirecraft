@@ -18,7 +18,7 @@ function applyPatch {
 	cd $basedir
     fi
     if [ ! -d "$basedir/EMC-$what" ]; then
-        git clone github.com:starlis/EMC-$what EMC-$what
+        git clone git.starlis.com:starlis/EMC-$what EMC-$what
     fi
     cd $basedir/$what
     git branch -f upstream
