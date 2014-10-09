@@ -1,0 +1,282 @@
+From 52ec669caac6235750a460a1ba87f95b22319dd6 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Thu, 11 Sep 2014 20:52:05 -0400
+Subject: [PATCH] Convert Holograms to Armor Stands for 1.8 clients
+
+Lets Holograms work on 1.7 and 1.8 using 2 diff types
+---
+ .../com/empireminecraft/cbmisc/CBMiscUtils.java    | 59 ++++++++++++++++++++++
+ .../java/net/minecraft/server/DataWatcher.java     | 12 ++++-
+ .../server/PacketPlayOutAttachEntity.java          | 38 ++++++++++++++
+ .../server/PacketPlayOutEntityMetadata.java        |  8 ++-
+ .../minecraft/server/PacketPlayOutSpawnEntity.java |  2 +
+ .../server/PacketPlayOutSpawnEntityLiving.java     |  8 +--
+ .../net/minecraft/server/PlayerConnection.java     |  3 ++
+ 7 files changed, 124 insertions(+), 6 deletions(-)
+ create mode 100644 src/main/java/net/minecraft/server/PacketPlayOutAttachEntity.java
+
+diff --git a/src/main/java/com/empireminecraft/cbmisc/CBMiscUtils.java b/src/main/java/com/empireminecraft/cbmisc/CBMiscUtils.java
+index aac3902..114da0c 100644
+--- a/src/main/java/com/empireminecraft/cbmisc/CBMiscUtils.java
++++ b/src/main/java/com/empireminecraft/cbmisc/CBMiscUtils.java
+@@ -1,9 +1,20 @@
+ package com.empireminecraft.cbmisc;
+ 
++import com.empireminecraft.metaapi.MetaApi;
+ import net.minecraft.server.DamageSource;
++import net.minecraft.server.DataWatcher;
+ import net.minecraft.server.Entity;
+ import net.minecraft.server.EntityDamageSource;
+ import net.minecraft.server.EntityDamageSourceIndirect;
++import net.minecraft.server.EntityHorse;
++import net.minecraft.server.EntityWitherSkull;
++import net.minecraft.server.MathHelper;
++import net.minecraft.server.Packet;
++import net.minecraft.server.PacketPlayOutAttachEntity;
++import net.minecraft.server.PacketPlayOutEntityMetadata;
++import net.minecraft.server.PacketPlayOutSpawnEntity;
++import net.minecraft.server.PacketPlayOutSpawnEntityLiving;
++import net.minecraft.server.PlayerConnection;
+ import org.bukkit.craftbukkit.event.CraftEventFactory;
+ import org.bukkit.entity.Projectile;
+ import org.bukkit.entity.ThrownPotion;
+@@ -55,4 +66,52 @@ public class CBMiscUtils {
+             }
+         }
+     }
++
++    static DataWatcher convertToAS(DataWatcher old) {
++        DataWatcher data = new DataWatcher(old.a);
++
++        data.a(0, Byte.valueOf((byte) 32)); // invisible = 0x20
++        data.a(1, Short.valueOf((short) 300));
++        data.a(2, old.getString(2));
++        data.a(3, old.getObject(3));
++
++        data.a(7, Integer.valueOf(0));
++        data.a(8, Byte.valueOf((byte) 0));
++        data.a(9, Byte.valueOf((byte) 0));
++        data.a(6, Float.valueOf(1.0F));
++
++        data.a(10, Byte.valueOf((byte) 8)); // 8 = nograv
++        return data;
++    }
++    public static boolean isHolo(Entity entity) {
++        return entity != null && MetaApi.hasEntityMeta(entity.getBukkitEntity(), "holoId");
++    }
++    public static Packet checkHologram(Packet packet, PlayerConnection conn) {
++        if (!conn.is18) return packet;
++
++        if (packet instanceof PacketPlayOutSpawnEntityLiving) {
++            PacketPlayOutSpawnEntityLiving ple = (PacketPlayOutSpawnEntityLiving) packet;
++            if (isHolo(ple.entityLiving) && ple.entityLiving instanceof EntityHorse) {
++                ple.b = 30; // Armor Stand
++                ple.d = MathHelper.floor((ple.entityLiving.getBukkitEntity().getLocation().getY()-56.7) * 32.0D);
++                ple.l = convertToAS(ple.l);
++            }
++        } else if (packet instanceof PacketPlayOutSpawnEntity) {
++            PacketPlayOutSpawnEntity pe = (PacketPlayOutSpawnEntity) packet;
++            if (isHolo(pe.entity) && pe.entity instanceof EntityWitherSkull) {
++                return null;
++            }
++        } else if (packet instanceof PacketPlayOutEntityMetadata) {
++            PacketPlayOutEntityMetadata pm = (PacketPlayOutEntityMetadata) packet;
++            if (isHolo(pm.data.a) && pm.data.a instanceof EntityHorse) {
++               packet = new PacketPlayOutEntityMetadata(pm.a, convertToAS(pm.data), pm.flag);
++            }
++        } else if (packet instanceof PacketPlayOutAttachEntity) {
++            PacketPlayOutAttachEntity pae = (PacketPlayOutAttachEntity) packet;
++            if (isHolo(pae.vehicle)) {
++                return null;
++            }
++        }
++        return packet;
++    }
+ }
+diff --git a/src/main/java/net/minecraft/server/DataWatcher.java b/src/main/java/net/minecraft/server/DataWatcher.java
+index 96e40ec..418bed5 100644
+--- a/src/main/java/net/minecraft/server/DataWatcher.java
++++ b/src/main/java/net/minecraft/server/DataWatcher.java
+@@ -13,7 +13,7 @@ import org.spigotmc.ProtocolData; // Spigot - protocol patch
+ 
+ public class DataWatcher {
+ 
+-    private final Entity a;
++    public final Entity a; // EMC
+     private boolean b = true;
+     // Spigot Start
+     private static final net.minecraft.util.gnu.trove.map.TObjectIntMap classToId = new net.minecraft.util.gnu.trove.map.hash.TObjectIntHashMap( 10, 0.5f, -1 );
+@@ -95,6 +95,15 @@ public class DataWatcher {
+     }
+ 
+     // Spigot start - protocol patch
++    public Object delObject(int i) {return dataValues.remove(i);} // EMC
++    public Object getObject(int i) {return i(i).b();} // EMC
++    public DataWatcher clone() {
++        DataWatcher n = new DataWatcher(a);
++        for (int i : dataValues.keys()) {
++            n.a(i, getObject(i));
++        }
++        return n;
++    }
+     public ProtocolData.DualByte getDualByte(int i) {
+         return (ProtocolData.DualByte) this.i(i).b();
+     }
+@@ -263,6 +272,7 @@ public class DataWatcher {
+         int i = (type << 5 | watchableobject.a() & 31) & 255;
+ 
+         packetdataserializer.writeByte(i);
++
+         switch (type) {
+         case 0:
+             if ( watchableobject.b() instanceof ProtocolData.DualByte )
+diff --git a/src/main/java/net/minecraft/server/PacketPlayOutAttachEntity.java b/src/main/java/net/minecraft/server/PacketPlayOutAttachEntity.java
+new file mode 100644
+index 0000000..60a16dc
+--- /dev/null
++++ b/src/main/java/net/minecraft/server/PacketPlayOutAttachEntity.java
+@@ -0,0 +1,38 @@
++package net.minecraft.server;
++
++public class PacketPlayOutAttachEntity extends Packet {
++
++    private int a;
++    private int b;
++    private int c;
++
++    public Entity vehicle; // EMC
++    public PacketPlayOutAttachEntity() {}
++
++    public PacketPlayOutAttachEntity(int i, Entity entity, Entity entity1) {
++        vehicle = entity1; // EMC
++        this.a = i;
++        this.b = entity.getId();
++        this.c = entity1 != null ? entity1.getId() : -1;
++    }
++
++    public void a(PacketDataSerializer packetdataserializer) {
++        this.b = packetdataserializer.readInt();
++        this.c = packetdataserializer.readInt();
++        this.a = packetdataserializer.readUnsignedByte();
++    }
++
++    public void b(PacketDataSerializer packetdataserializer) {
++        packetdataserializer.writeInt(this.b);
++        packetdataserializer.writeInt(this.c);
++        packetdataserializer.writeByte(this.a);
++    }
++
++    public void a(PacketPlayOutListener packetplayoutlistener) {
++        packetplayoutlistener.a(this);
++    }
++
++    public void handle(PacketListener packetlistener) {
++        this.a((PacketPlayOutListener) packetlistener);
++    }
++}
+diff --git a/src/main/java/net/minecraft/server/PacketPlayOutEntityMetadata.java b/src/main/java/net/minecraft/server/PacketPlayOutEntityMetadata.java
+index c937f59..89b591e 100644
+--- a/src/main/java/net/minecraft/server/PacketPlayOutEntityMetadata.java
++++ b/src/main/java/net/minecraft/server/PacketPlayOutEntityMetadata.java
+@@ -4,12 +4,16 @@ import java.util.List;
+ 
+ public class PacketPlayOutEntityMetadata extends Packet {
+ 
+-    private int a;
+-    private List b;
++    public int a; // EMC
++    public boolean flag; // EMC
++    public  List b; // EMC
++    public DataWatcher data; // EMC
+ 
+     public PacketPlayOutEntityMetadata() {}
+ 
+     public PacketPlayOutEntityMetadata(int i, DataWatcher datawatcher, boolean flag) {
++        this.data = datawatcher; // EMC
++        this.flag = flag; // EMC
+         this.a = i;
+         if (flag) {
+             this.b = datawatcher.c();
+diff --git a/src/main/java/net/minecraft/server/PacketPlayOutSpawnEntity.java b/src/main/java/net/minecraft/server/PacketPlayOutSpawnEntity.java
+index dcf1204..dfb4ab8 100644
+--- a/src/main/java/net/minecraft/server/PacketPlayOutSpawnEntity.java
++++ b/src/main/java/net/minecraft/server/PacketPlayOutSpawnEntity.java
+@@ -14,6 +14,7 @@ public class PacketPlayOutSpawnEntity extends Packet {
+     private int j;
+     private int k;
+ 
++    public Entity entity; // EMC
+     public PacketPlayOutSpawnEntity() {}
+ 
+     public PacketPlayOutSpawnEntity(Entity entity, int i) {
+@@ -21,6 +22,7 @@ public class PacketPlayOutSpawnEntity extends Packet {
+     }
+ 
+     public PacketPlayOutSpawnEntity(Entity entity, int i, int j) {
++        this.entity = entity; // EMC
+         this.a = entity.getId();
+         this.b = MathHelper.floor(entity.locX * 32.0D);
+         this.c = MathHelper.floor(entity.locY * 32.0D);
+diff --git a/src/main/java/net/minecraft/server/PacketPlayOutSpawnEntityLiving.java b/src/main/java/net/minecraft/server/PacketPlayOutSpawnEntityLiving.java
+index 98b4d97..a2eee15 100644
+--- a/src/main/java/net/minecraft/server/PacketPlayOutSpawnEntityLiving.java
++++ b/src/main/java/net/minecraft/server/PacketPlayOutSpawnEntityLiving.java
+@@ -5,9 +5,9 @@ import java.util.List;
+ public class PacketPlayOutSpawnEntityLiving extends Packet {
+ 
+     private int a;
+-    private int b;
++    public int b; // EMC
+     private int c;
+-    private int d;
++    public int d; // EMC
+     private int e;
+     private int f;
+     private int g;
+@@ -15,12 +15,14 @@ public class PacketPlayOutSpawnEntityLiving extends Packet {
+     private byte i;
+     private byte j;
+     private byte k;
+-    private DataWatcher l;
++    public DataWatcher l; // EMC
+     private List m;
++    public EntityLiving entityLiving; // EMC
+ 
+     public PacketPlayOutSpawnEntityLiving() {}
+ 
+     public PacketPlayOutSpawnEntityLiving(EntityLiving entityliving) {
++        this.entityLiving = entityliving; // EMC
+         this.a = entityliving.getId();
+         this.b = (byte) EntityTypes.a(entityliving);
+         this.c = entityliving.as.a(entityliving.locX);
+diff --git a/src/main/java/net/minecraft/server/PlayerConnection.java b/src/main/java/net/minecraft/server/PlayerConnection.java
+index 926f60b..dec3162 100644
+--- a/src/main/java/net/minecraft/server/PlayerConnection.java
++++ b/src/main/java/net/minecraft/server/PlayerConnection.java
+@@ -80,6 +80,7 @@ public class PlayerConnection implements PacketPlayInListener {
+     private double q;
+     public boolean checkMovement = true; // CraftBukkit - private -> public
+     private boolean processedDisconnect; // CraftBukkit - added
++    public boolean is18; // EMC
+ 
+     public PlayerConnection(MinecraftServer minecraftserver, NetworkManager networkmanager, EntityPlayer entityplayer) {
+         this.minecraftServer = minecraftserver;
+@@ -90,6 +91,7 @@ public class PlayerConnection implements PacketPlayInListener {
+ 
+         // CraftBukkit start - add fields and methods
+         this.server = minecraftserver.server;
++        this.is18 = NetworkManager.a( networkManager ).attr( NetworkManager.protocolVersion ).get() >= 17; // EMC
+     }
+ 
+     private final org.bukkit.craftbukkit.CraftServer server;
+@@ -793,6 +795,7 @@ public class PlayerConnection implements PacketPlayInListener {
+             }
+         }
+ 
++        packet = com.empireminecraft.cbmisc.CBMiscUtils.checkHologram(packet, this); // EMC
+         // CraftBukkit start
+         if (packet == null) {
+             return;
+-- 
+1.9.1
+

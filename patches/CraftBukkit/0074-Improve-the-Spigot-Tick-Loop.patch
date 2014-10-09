@@ -1,0 +1,65 @@
+From 0e86bb4a2579db42959234ed5fb47fe6fcab9dc6 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Wed, 27 Aug 2014 23:05:37 -0400
+Subject: [PATCH] Improve the Spigot Tick Loop
+
+Improves how the catchup buffer is handled, allowing it to roll both ways
+increasing the effeciency of the thread sleep so it only will sleep once.
+
+Also increases the buffer of the catchup to ensure server stays at 20 TPS unless extreme conditions
+---
+ .../java/net/minecraft/server/MinecraftServer.java | 25 ++++++++++++++++------
+ 1 file changed, 18 insertions(+), 7 deletions(-)
+
+diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
+index 17a48e6..d3ec287 100644
+--- a/src/main/java/net/minecraft/server/MinecraftServer.java
++++ b/src/main/java/net/minecraft/server/MinecraftServer.java
+@@ -110,6 +110,7 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+     // Spigot start
+     private static final int TPS = 20;
+     private static final int TICK_TIME = 1000000000 / TPS;
++    private static final long MAX_CATCHUP_BUFFER = TICK_TIME * TPS * 60L;
+     private static final int SAMPLE_INTERVAL = 100;
+     public final double[] recentTps = new double[ 3 ];
+     // Spigot end
+@@ -465,19 +466,29 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+                 this.a(this.q);
+ 
+                 // Spigot start
+-                Arrays.fill( recentTps, 20 );
+-                long lastTick = System.nanoTime(), catchupTime = 0, curTime, wait, tickSection = lastTick;
++                long start = System.nanoTime(), lastTick = start - TICK_TIME, catchupTime = 0, curTime, wait, tickSection = start;
+                 while (this.isRunning) {
+                     curTime = System.nanoTime();
+-                    wait = TICK_TIME - (curTime - lastTick) - catchupTime;
++                    wait = TICK_TIME - (curTime - lastTick);
++                    if (wait > 0) {
++                        if (catchupTime < 2E6) {
++                            wait += Math.abs(catchupTime);
++                        }
++                        if (wait < catchupTime) {
++                            catchupTime -= wait;
++                            wait = 0;
++                        } else if (catchupTime > 2E6) {
++                            wait -= catchupTime;
++                            catchupTime -= catchupTime;
++                        }
++                    }
+                     if (wait > 0) {
+                         Thread.sleep(wait / 1000000);
+-                        catchupTime = 0;
+-                        continue;
+-                    } else {
+-                        catchupTime = Math.min(1000000000, Math.abs(wait));
++                        wait = TICK_TIME - (curTime - lastTick);
+                     }
+ 
++                    catchupTime = Math.min(MAX_CATCHUP_BUFFER, catchupTime - wait);
++
+                     if ( MinecraftServer.currentTick++ % SAMPLE_INTERVAL == 0 )
+                     {
+                         double currentTps = 1E9 / ( curTime - tickSection ) * SAMPLE_INTERVAL;
+-- 
+1.9.1
+
