@@ -36,7 +36,6 @@ import PathfinderGoalNearestAttackableTarget
 import EnchantmentManager
 import TileEntityEnderChest
 import TileEntityLightDetector
-import RemoteControlSession
 #weird bug
 import EmptyClass
 import EnchantmentModifierProtection
