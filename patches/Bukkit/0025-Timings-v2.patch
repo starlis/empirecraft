@@ -1,4 +1,4 @@
-From 0970fcbb0b753713f989b43e214b812aa034d238 Mon Sep 17 00:00:00 2001
+From ec136be32c83dfa9d6f1f2e2a89a1d804ccd6709 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Wed, 8 Oct 2014 19:16:12 -0400
 Subject: [PATCH] Timings v2
@@ -32,16 +32,16 @@ Adds many other new Timings API for controlling Timings settings and generating 
  .../org/spigotmc/timings/TimedEventExecutor.java   |  69 ++++
  src/main/java/org/spigotmc/timings/Timing.java     |  72 ++++
  src/main/java/org/spigotmc/timings/TimingData.java | 105 ++++++
- .../java/org/spigotmc/timings/TimingHandler.java   | 190 +++++++++++
+ .../java/org/spigotmc/timings/TimingHandler.java   | 191 +++++++++++
  .../java/org/spigotmc/timings/TimingHistory.java   | 271 ++++++++++++++++
  .../org/spigotmc/timings/TimingHistoryEntry.java   |  59 ++++
  .../org/spigotmc/timings/TimingIdentifier.java     | 102 ++++++
- src/main/java/org/spigotmc/timings/Timings.java    | 267 +++++++++++++++
+ src/main/java/org/spigotmc/timings/Timings.java    | 273 ++++++++++++++++
  .../java/org/spigotmc/timings/TimingsCommand.java  | 110 +++++++
  .../java/org/spigotmc/timings/TimingsExport.java   | 361 +++++++++++++++++++++
  .../java/org/spigotmc/timings/TimingsManager.java  | 196 +++++++++++
  .../org/spigotmc/timings/UnsafeTimingHandler.java  |  51 +++
- 26 files changed, 2069 insertions(+), 306 deletions(-)
+ 26 files changed, 2076 insertions(+), 306 deletions(-)
  create mode 100644 src/main/java/org/spigotmc/timings/FullServerTickHandler.java
  create mode 100644 src/main/java/org/spigotmc/timings/NullTimingHandler.java
  create mode 100644 src/main/java/org/spigotmc/timings/TimedEventExecutor.java
@@ -1105,10 +1105,10 @@ index 0000000..677b597
 +}
 diff --git a/src/main/java/org/spigotmc/timings/TimingHandler.java b/src/main/java/org/spigotmc/timings/TimingHandler.java
 new file mode 100644
-index 0000000..a9d087f
+index 0000000..bf9b065
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/timings/TimingHandler.java
-@@ -0,0 +1,190 @@
+@@ -0,0 +1,191 @@
 +/*
 + * This file is licensed under the MIT License (MIT).
 + *
@@ -1251,6 +1251,7 @@ index 0000000..a9d087f
 +        }
 +        if (groupHandler != null) {
 +            groupHandler.addDiff(diff);
++            groupHandler.children.get(id).add(diff);
 +        }
 +    }
 +
@@ -1751,10 +1752,10 @@ index 0000000..69ed2b0
 +}
 diff --git a/src/main/java/org/spigotmc/timings/Timings.java b/src/main/java/org/spigotmc/timings/Timings.java
 new file mode 100644
-index 0000000..dae5c82
+index 0000000..f023d55
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/timings/Timings.java
-@@ -0,0 +1,267 @@
+@@ -0,0 +1,273 @@
 +/*
 + * This file is licensed under the MIT License (MIT).
 + *
@@ -1965,6 +1966,12 @@ index 0000000..dae5c82
 +    public static void setHistoryLength(int length) {
 +        // Cap at 12 History Frames, 1 hour at 5 minute frames.
 +        int maxLength = historyInterval * MAX_HISTORY_FRAMES;
++        // For special cases of servers with special permission to bypass the max.
++        // This max helps keep data file sizes reasonable for processing on Aikar's Timing parser side.
++        // Setting this will not help you bypass the max unless Aikar has added an exception on the API side.
++        if (System.getProperty("timings.bypassMax") != null) {
++            maxLength = Integer.MAX_VALUE;
++        }
 +        historyLength = Math.max(Math.min(maxLength, length), historyInterval);
 +        Queue<TimingHistory> oldQueue = TimingsManager.HISTORY;
 +        int frames = (getHistoryLength() / getHistoryInterval());
