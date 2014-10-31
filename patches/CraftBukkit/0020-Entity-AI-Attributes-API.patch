@@ -1,4 +1,4 @@
-From f19b54779de287c8b1a5338ab90c6f6c9f66cea5 Mon Sep 17 00:00:00 2001
+From 1da7fd7865cba2a1d2ae48ebce0033e89fa5569f Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Fri, 31 May 2013 22:40:25 -0400
 Subject: [PATCH] Entity AI / Attributes API
@@ -7,14 +7,15 @@ This gives us control over some Entity AI
 Also API for Attributes
 This will be expanded as future needs.
 ---
- .../empireminecraft/entityai/AttributesAPI.java    |  47 +++++++++
- .../com/empireminecraft/entityai/EntityAIApi.java  | 115 +++++++++++++++++++++
+ .../empireminecraft/entityai/AttributesAPI.java    |  47 ++++++++
+ .../com/empireminecraft/entityai/EntityAIApi.java  | 118 +++++++++++++++++++++
  .../empireminecraft/entityai/EntityMoveApi.java    |  61 +++++++++++
  .../net/minecraft/server/AttributesAccessor.java   |  39 +++++++
  src/main/java/net/minecraft/server/Entity.java     |  15 ++-
  .../java/net/minecraft/server/EntityAnimal.java    |   2 +-
  .../java/net/minecraft/server/EntityCreature.java  |   4 +-
  .../net/minecraft/server/EntityInsentient.java     |   7 +-
+ src/main/java/net/minecraft/server/EntityItem.java |   3 +-
  .../java/net/minecraft/server/EntityLiving.java    |   1 +
  .../java/net/minecraft/server/EntityMonster.java   |   1 +
  .../net/minecraft/server/PathfinderAccessor.java   |  10 ++
@@ -22,7 +23,7 @@ This will be expanded as future needs.
  .../minecraft/server/PathfinderGoalSelector.java   |   4 +-
  .../net/minecraft/server/PathfinderGoalTarget.java |   2 +-
  src/main/java/net/minecraft/server/World.java      |   1 +
- 15 files changed, 303 insertions(+), 14 deletions(-)
+ 16 files changed, 308 insertions(+), 15 deletions(-)
  create mode 100644 src/main/java/com/empireminecraft/entityai/AttributesAPI.java
  create mode 100644 src/main/java/com/empireminecraft/entityai/EntityAIApi.java
  create mode 100644 src/main/java/com/empireminecraft/entityai/EntityMoveApi.java
@@ -84,18 +85,17 @@ index 0000000..2c7a83b
 +}
 diff --git a/src/main/java/com/empireminecraft/entityai/EntityAIApi.java b/src/main/java/com/empireminecraft/entityai/EntityAIApi.java
 new file mode 100644
-index 0000000..a6e973c
+index 0000000..8d6e703
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/entityai/EntityAIApi.java
-@@ -0,0 +1,115 @@
+@@ -0,0 +1,118 @@
 +package com.empireminecraft.entityai;
 +
 +import net.minecraft.server.*;
 +import net.minecraft.server.Entity;
-+import org.bukkit.craftbukkit.entity.CraftAnimals;
-+import org.bukkit.craftbukkit.entity.CraftEntity;
-+import org.bukkit.craftbukkit.entity.CraftCreature;
++import org.bukkit.craftbukkit.entity.*;
 +import org.bukkit.entity.*;
++import org.bukkit.entity.Item;
 +
 +import java.util.ArrayList;
 +import java.util.List;
@@ -108,6 +108,10 @@ index 0000000..a6e973c
 +     */
 +    public static boolean isEntityDisabled(org.bukkit.entity.Entity entity) {
 +        return ((CraftEntity) entity).getHandle().isDisabled;
++    }
++    public static void setItemCanDespawn(Item item, boolean canDespawn) {
++        final Entity handle = ((CraftEntity) item).getHandle();
++        ((net.minecraft.server.EntityItem) handle).canDespawn = canDespawn;
 +    }
 +
 +    /**
@@ -486,6 +490,27 @@ index 617f7d4..eb83ed5 100644
          return groupdataentity;
      }
  
+diff --git a/src/main/java/net/minecraft/server/EntityItem.java b/src/main/java/net/minecraft/server/EntityItem.java
+index a61e91a..55d589f 100644
+--- a/src/main/java/net/minecraft/server/EntityItem.java
++++ b/src/main/java/net/minecraft/server/EntityItem.java
+@@ -12,6 +12,7 @@ public class EntityItem extends Entity {
+     private static final Logger d = LogManager.getLogger();
+     public int age;
+     public int pickupDelay;
++    public boolean canDespawn = true; // EMC
+     private int e;
+     private String f;
+     private String g;
+@@ -125,7 +126,7 @@ public class EntityItem extends Entity {
+             // Spigot end
+ 
+             // ++this.age; // CraftBukkit - Moved up
+-            if (!this.world.isStatic && this.age >= world.spigotConfig.itemDespawnRate) { // Spigot
++            if (canDespawn && !this.world.isStatic && this.age >= world.spigotConfig.itemDespawnRate) { // Spigot // EMC
+                 // CraftBukkit start - fire ItemDespawnEvent
+                 if (org.bukkit.craftbukkit.event.CraftEventFactory.callItemDespawnEvent(this).isCancelled()) {
+                     this.age = 0;
 diff --git a/src/main/java/net/minecraft/server/EntityLiving.java b/src/main/java/net/minecraft/server/EntityLiving.java
 index 546b952..a11793d 100644
 --- a/src/main/java/net/minecraft/server/EntityLiving.java
