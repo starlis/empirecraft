@@ -1,4 +1,4 @@
-From ac00a630780520510ca73add04e66445eda10422 Mon Sep 17 00:00:00 2001
+From 80adc751e61cfa7e11d7e28a3a6e9c46320b0392 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Mon, 4 Mar 2013 23:35:02 -0500
 Subject: [PATCH] Persistent Meta API
@@ -7,14 +7,14 @@ This adds an API for getting and setting PERSISTENT Metadata
 Meta data can be stored on Worlds, Entities, Chunks and at a Block level.
 Meta is is provided in a simple Map/List setup and does not expose raw NBT access.
 ---
- .../java/com/empireminecraft/metaapi/MetaApi.java  | 216 +++++++++++++++
+ .../java/com/empireminecraft/metaapi/MetaApi.java  | 216 ++++++++++++++
  src/main/java/net/minecraft/server/Chunk.java      |   1 +
  .../net/minecraft/server/ChunkRegionLoader.java    |   2 +
  src/main/java/net/minecraft/server/Entity.java     |   3 +
- .../java/net/minecraft/server/MetaApiAccessor.java | 296 +++++++++++++++++++++
+ .../java/net/minecraft/server/MetaApiAccessor.java | 313 +++++++++++++++++++++
  src/main/java/net/minecraft/server/NBTTagList.java |  13 +-
  .../java/net/minecraft/server/WorldNBTStorage.java |   5 +
- 7 files changed, 534 insertions(+), 2 deletions(-)
+ 7 files changed, 551 insertions(+), 2 deletions(-)
  create mode 100644 src/main/java/com/empireminecraft/metaapi/MetaApi.java
  create mode 100644 src/main/java/net/minecraft/server/MetaApiAccessor.java
 
@@ -302,10 +302,10 @@ index dea5e19..7da7b94 100644
                  this.motX = 0.0D;
 diff --git a/src/main/java/net/minecraft/server/MetaApiAccessor.java b/src/main/java/net/minecraft/server/MetaApiAccessor.java
 new file mode 100644
-index 0000000..0658a91
+index 0000000..8a7a690
 --- /dev/null
 +++ b/src/main/java/net/minecraft/server/MetaApiAccessor.java
-@@ -0,0 +1,296 @@
+@@ -0,0 +1,313 @@
 +package net.minecraft.server;
 +
 +import org.bukkit.craftbukkit.CraftChunk;
@@ -314,11 +314,25 @@ index 0000000..0658a91
 +import org.bukkit.craftbukkit.inventory.CraftItemStack;
 +
 +import java.util.*;
++import java.util.zip.ZipEntry;
 +
 +import static com.empireminecraft.metaapi.MetaApi.*;
 +
 +public class MetaApiAccessor {
++    private static class ChunkCoordinates extends net.minecraft.server.ChunkCoordinates {
++        private ChunkCoordinates(int i, int j, int k) {
++            super(i, j, k);
++        }
 +
++        @Override
++        public int hashCode() {
++            int result = 3;
++            result = 31 * result + x;
++            result = 31 * result + y;
++            result = 31 * result + z;
++            return result;
++        }
++    }
 +    public static MetaMap getWorldMetaMap(CraftWorld world) {
 +        return ((WorldNBTStorage)world.getHandle().dataManager).metaMap;
 +    }
@@ -352,6 +366,9 @@ index 0000000..0658a91
 +     */
 +    public static MetaMap getBlockMetaMap(ChunkMeta meta, int x, int y, int z, boolean isWrite) {
 +        ChunkCoordinates coords = new ChunkCoordinates(x, y,  z);
++        if (!isWrite && !meta.containsKey(coords)) {
++            return null;
++        }
 +        MetaMap ret = meta.get(coords);
 +        if (ret == null) {
 +            if (isWrite) {
