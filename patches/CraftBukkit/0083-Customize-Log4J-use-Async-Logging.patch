@@ -1,0 +1,74 @@
+From f96e398726ac07810b1aa955dbe07e77f772c0b7 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Thu, 13 Nov 2014 19:24:30 -0500
+Subject: [PATCH] Customize Log4J, use Async Logging
+
+Switch to Async logging
+Disruptor is needed to make all logs async
+---
+ pom.xml                                        | 5 +++++
+ src/main/java/org/bukkit/craftbukkit/Main.java | 1 +
+ src/main/resources/log4j2.xml                  | 8 ++++----
+ 3 files changed, 10 insertions(+), 4 deletions(-)
+
+diff --git a/pom.xml b/pom.xml
+index 797f554..c110c1f 100644
+--- a/pom.xml
++++ b/pom.xml
+@@ -69,6 +69,11 @@
+       <version>2.1.0</version>
+       <scope>compile</scope>
+     </dependency>
++    <dependency>
++      <groupId>com.lmax</groupId>
++      <artifactId>disruptor</artifactId>
++      <version>3.0.1</version>
++    </dependency>
+     <!-- json-smart -->
+     <dependency>
+       <groupId>net.minidev</groupId>
+diff --git a/src/main/java/org/bukkit/craftbukkit/Main.java b/src/main/java/org/bukkit/craftbukkit/Main.java
+index b5db950..8e08e96 100644
+--- a/src/main/java/org/bukkit/craftbukkit/Main.java
++++ b/src/main/java/org/bukkit/craftbukkit/Main.java
+@@ -22,6 +22,7 @@ public class Main {
+     public static boolean useConsole = true;
+ 
+     public static void main(String[] args) throws Exception {
++        System.setProperty("Log4jContextSelector", "org.apache.logging.log4j.core.async.AsyncLoggerContextSelector"); // EMC
+         // Spigot Start
+         File lock = new File( ".update-lock" );
+         if ( !new File( "update-lock" ).exists() && !lock.exists()  && System.getProperty( "IReallyKnowWhatIAmDoingThisUpdate") == null && false) // E<C
+diff --git a/src/main/resources/log4j2.xml b/src/main/resources/log4j2.xml
+index 65c09a8..c6f2b28 100644
+--- a/src/main/resources/log4j2.xml
++++ b/src/main/resources/log4j2.xml
+@@ -2,13 +2,13 @@
+ <Configuration status="WARN" packages="net.minecraft.util.com.mojang.util">
+     <Appenders>
+         <Console name="WINDOWS_COMPAT" target="SYSTEM_OUT"></Console>
+-        <Queue name="TerminalConsole">
++        <Queue name="TerminalConsole" immediateFlush="false">
+             <PatternLayout pattern="[%d{HH:mm:ss} %level]: %msg%n" />
+         </Queue>
+-        <RollingRandomAccessFile name="File" fileName="logs/latest.log" filePattern="logs/%d{yyyy-MM-dd}-%i.log.gz">
++        <RollingRandomAccessFile name="File" fileName="logs/latest.log" filePattern="logs/%d{yyyy-MM-dd}-%i.log.gz" immediateFlush="false">
+             <PatternLayout pattern="[%d{HH:mm:ss}] [%t/%level]: %msg%n" />
+             <Policies>
+-                <TimeBasedTriggeringPolicy />
++                <!--TimeBasedTriggeringPolicy /-->
+                 <OnStartupTriggeringPolicy />
+             </Policies>
+         </RollingRandomAccessFile>
+@@ -19,7 +19,7 @@
+                 <MarkerFilter marker="NETWORK_PACKETS" onMatch="DENY" onMismatch="NEUTRAL" />
+             </filters>
+             <AppenderRef ref="WINDOWS_COMPAT" level="info"/>
+-            <AppenderRef ref="File"/>
++            <AppenderRef ref="File" level="info" />
+             <AppenderRef ref="TerminalConsole" level="info"/>
+         </Root>
+     </Loggers>
+-- 
+1.9.1
+
