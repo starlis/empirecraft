@@ -1,4 +1,4 @@
-From 7a60673c1a59efc1b8e600a8862a60299ccc06ce Mon Sep 17 00:00:00 2001
+From 41a0c68e55263021d2d8cf0c32146b850c641e37 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Wed, 8 Oct 2014 19:51:28 -0400
 Subject: [PATCH] Ensure commands are not ran async
@@ -13,21 +13,19 @@ This change will synchronize the command execution back to the main thread, caus
 big slowdown in execution but throwing an exception at same time to raise awareness
 that it is happening so that plugin authors can fix their code to stop executing commands async.
 ---
- .../net/minecraft/server/PlayerConnection.java     | 26 +++++++++++++++++++++-
- .../java/org/bukkit/craftbukkit/CraftServer.java   | 22 ++++++++++++++++++
- 2 files changed, 47 insertions(+), 1 deletion(-)
+ .../net/minecraft/server/PlayerConnection.java     | 23 ++++++++++++++++++++++
+ .../java/org/bukkit/craftbukkit/CraftServer.java   | 22 +++++++++++++++++++++
+ 2 files changed, 45 insertions(+)
 
 diff --git a/src/main/java/net/minecraft/server/PlayerConnection.java b/src/main/java/net/minecraft/server/PlayerConnection.java
-index 489bddd..7b4833a 100644
+index 489bddd..be8eb78 100644
 --- a/src/main/java/net/minecraft/server/PlayerConnection.java
 +++ b/src/main/java/net/minecraft/server/PlayerConnection.java
-@@ -964,7 +964,31 @@ public class PlayerConnection implements PacketPlayInListener {
-             return;
+@@ -965,6 +965,29 @@ public class PlayerConnection implements PacketPlayInListener {
          }
  
--        if (!async && s.startsWith("/")) {
-+        // Spigot Start
-+        if (s.startsWith("/")) {
+         if (!async && s.startsWith("/")) {
++            // Spigot Start
 +            if (!org.bukkit.Bukkit.isPrimaryThread()) {
 +                final String fCommandLine = s;
 +                MinecraftServer.getLogger().log(org.apache.logging.log4j.Level.ERROR, "Command Dispatched Async: " + fCommandLine);
@@ -49,8 +47,7 @@ index 489bddd..7b4833a 100644
 +                    throw new RuntimeException("Exception processing chat command", e.getCause());
 +                }
 +            }
-+        //if (!async && s.startsWith("/")) {
-+        // Spigot End
++            // Spigot End
              this.handleCommand(s);
          } else if (this.player.getChatFlags() == EnumChatVisibility.SYSTEM) {
              // Do nothing, this is coming from a plugin
