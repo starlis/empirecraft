@@ -1,4 +1,4 @@
-From affbb99abb7a765fd7f5341d9a1b9d1cb6ca9c06 Mon Sep 17 00:00:00 2001
+From 2003e980d03d2034e4b3bbfb871ff186cebfb43b Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Sat, 20 Sep 2014 15:54:22 -0400
 Subject: [PATCH] Timings v2
@@ -11,6 +11,7 @@ Subject: [PATCH] Timings v2
  .../net/minecraft/server/PlayerConnection.java     |  11 +-
  src/main/java/net/minecraft/server/TileEntity.java |   5 +-
  src/main/java/net/minecraft/server/World.java      |  19 ++-
+ .../java/net/minecraft/server/WorldServer.java     |  14 +-
  .../java/org/bukkit/craftbukkit/CraftServer.java   |   9 +-
  .../java/org/bukkit/craftbukkit/SpigotTimings.java | 173 ---------------------
  .../org/bukkit/craftbukkit/entity/CraftPlayer.java |   6 +
@@ -20,8 +21,8 @@ Subject: [PATCH] Timings v2
  src/main/java/org/spigotmc/ActivationRange.java    |   1 +
  src/main/java/org/spigotmc/SpigotConfig.java       |  38 +++++
  .../java/org/spigotmc/timings/SpigotTimings.java   | 106 +++++++++++++
- .../org/spigotmc/timings/WorldTimingsHandler.java  |  63 ++++++++
- 17 files changed, 263 insertions(+), 241 deletions(-)
+ .../org/spigotmc/timings/WorldTimingsHandler.java  |  69 ++++++++
+ 18 files changed, 279 insertions(+), 245 deletions(-)
  delete mode 100644 src/main/java/org/bukkit/craftbukkit/SpigotTimings.java
  create mode 100644 src/main/java/org/spigotmc/timings/SpigotTimings.java
  create mode 100644 src/main/java/org/spigotmc/timings/WorldTimingsHandler.java
@@ -258,7 +259,7 @@ index be88024..f0b9ce5 100644
      private static Map i = new HashMap();
      private static Map j = new HashMap();
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index 4e4af2e..1927f23 100644
+index 6188997..7fa5995 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
 @@ -16,7 +16,6 @@ import org.bukkit.Bukkit;
@@ -342,7 +343,7 @@ index 4e4af2e..1927f23 100644
  
          this.initializeHoppers(); // Spigot - Initializes hoppers which have been added recently.
          Iterator iterator = this.tileEntityList.iterator();
-@@ -1628,7 +1632,6 @@ public abstract class World implements IBlockAccess {
+@@ -1627,7 +1631,6 @@ public abstract class World implements IBlockAccess {
              entity.ticksLived++;
              entity.inactiveTick();
          } else {
@@ -350,15 +351,15 @@ index 4e4af2e..1927f23 100644
              // CraftBukkit end
              entity.S = entity.locX;
              entity.T = entity.locY;
-@@ -1637,6 +1640,7 @@ public abstract class World implements IBlockAccess {
+@@ -1636,6 +1639,7 @@ public abstract class World implements IBlockAccess {
              entity.lastPitch = entity.pitch;
-             if (flag && entity.ag) {
+             if (flag && entity.ag && !entity.isDisabled) { // EMC
                  ++entity.ticksLived;
 +                ++org.spigotmc.timings.TimingHistory.activatedEntityTicks; // Spigot
                  if (entity.vehicle != null) {
                      entity.ab();
                  } else {
-@@ -1691,7 +1695,6 @@ public abstract class World implements IBlockAccess {
+@@ -1690,7 +1694,6 @@ public abstract class World implements IBlockAccess {
                      entity.passenger = null;
                  }
              }
@@ -366,6 +367,72 @@ index 4e4af2e..1927f23 100644
          }
      }
  
+diff --git a/src/main/java/net/minecraft/server/WorldServer.java b/src/main/java/net/minecraft/server/WorldServer.java
+index 8f596af..503862c 100644
+--- a/src/main/java/net/minecraft/server/WorldServer.java
++++ b/src/main/java/net/minecraft/server/WorldServer.java
+@@ -207,13 +207,13 @@ public class WorldServer extends World {
+ 
+         timings.doChunkUnload.stopTiming(); // Spigot
+         this.methodProfiler.c("tickPending");
+-        timings.doTickPending.startTiming(); // Spigot
++        timings.scheduledBlocks.startTiming(); // Spigot
+         this.a(false);
+-        timings.doTickPending.stopTiming(); // Spigot
++        timings.scheduledBlocks.stopTiming(); // Spigot
+         this.methodProfiler.c("tickBlocks");
+-        timings.doTickTiles.startTiming(); // Spigot
++        timings.chunkTicks.startTiming(); // Spigot
+         this.g();
+-        timings.doTickTiles.stopTiming(); // Spigot
++        timings.chunkTicks.stopTiming(); // Spigot
+         this.methodProfiler.c("chunkMap");
+         timings.doChunkMap.startTiming(); // Spigot
+         this.manager.flush();
+@@ -409,6 +409,7 @@ public class WorldServer extends World {
+             }
+ 
+             this.methodProfiler.c("tickBlocks");
++            timings.chunkTicksBlocks.startTiming(); // Spigot
+             ChunkSection[] achunksection = chunk.getSections();
+ 
+             j1 = achunksection.length;
+@@ -435,6 +436,7 @@ public class WorldServer extends World {
+                     }
+                 }
+             }
++            timings.chunkTicksBlocks.stopTiming(); // Spigot
+ 
+             this.methodProfiler.b();
+         }
+@@ -539,6 +541,7 @@ public class WorldServer extends World {
+ 
+             this.methodProfiler.a("cleaning");
+ 
++            timings.scheduledBlocksCleanup.startTiming(); // Spigot
+             NextTickListEntry nextticklistentry;
+ 
+             for (int j = 0; j < i; ++j) {
+@@ -551,9 +554,11 @@ public class WorldServer extends World {
+                 this.M.remove(nextticklistentry);
+                 this.V.add(nextticklistentry);
+             }
++            timings.scheduledBlocksCleanup.stopTiming(); // Spigot
+ 
+             this.methodProfiler.b();
+             this.methodProfiler.a("ticking");
++            timings.scheduledBlocksTicking.startTiming(); // Spigot
+             Iterator iterator = this.V.iterator();
+ 
+             while (iterator.hasNext()) {
+@@ -587,6 +592,7 @@ public class WorldServer extends World {
+                     this.a(nextticklistentry.a, nextticklistentry.b, nextticklistentry.c, nextticklistentry.a(), 0);
+                 }
+             }
++            timings.scheduledBlocksTicking.stopTiming(); // Spigot
+ 
+             this.methodProfiler.b();
+             this.V.clear();
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 index a018a23..b95b3f4 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
@@ -723,7 +790,7 @@ index e52ef47..bd0b887 100644
          this.value = value;
      }
 diff --git a/src/main/java/org/spigotmc/ActivationRange.java b/src/main/java/org/spigotmc/ActivationRange.java
-index 045ab4a..7ca5c5a 100644
+index e26a569..f69cc65 100644
 --- a/src/main/java/org/spigotmc/ActivationRange.java
 +++ b/src/main/java/org/spigotmc/ActivationRange.java
 @@ -28,6 +28,7 @@ import net.minecraft.server.MinecraftServer;
@@ -912,10 +979,10 @@ index 0000000..495846d
 +}
 diff --git a/src/main/java/org/spigotmc/timings/WorldTimingsHandler.java b/src/main/java/org/spigotmc/timings/WorldTimingsHandler.java
 new file mode 100644
-index 0000000..36f4e16
+index 0000000..e1c7987
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/timings/WorldTimingsHandler.java
-@@ -0,0 +1,63 @@
+@@ -0,0 +1,69 @@
 +package org.spigotmc.timings;
 +
 +import net.minecraft.server.World;
@@ -927,8 +994,11 @@ index 0000000..36f4e16
 +    public final Timing mobSpawn;
 +    public final Timing doChunkUnload;
 +    public final Timing doPortalForcer;
-+    public final Timing doTickPending;
-+    public final Timing doTickTiles;
++    public final Timing scheduledBlocks;
++    public final Timing scheduledBlocksCleanup;
++    public final Timing scheduledBlocksTicking;
++    public final Timing chunkTicks;
++    public final Timing chunkTicksBlocks;
 +    public final Timing doVillages;
 +    public final Timing doChunkMap;
 +    public final Timing doChunkGC;
@@ -954,8 +1024,11 @@ index 0000000..36f4e16
 +
 +        mobSpawn = Timings.ofSafe(name + "mobSpawn");
 +        doChunkUnload = Timings.ofSafe(name + "doChunkUnload");
-+        doTickPending = Timings.ofSafe(name + "doTickPending");
-+        doTickTiles = Timings.ofSafe(name + "doTickTiles");
++        scheduledBlocks = Timings.ofSafe(name + "Scheduled Blocks");
++        scheduledBlocksCleanup = Timings.ofSafe(name + "Scheduled Blocks - Cleanup");
++        scheduledBlocksTicking = Timings.ofSafe(name + "Scheduled Blocks - Ticking");
++        chunkTicks = Timings.ofSafe(name + "Chunk Ticks");
++        chunkTicksBlocks = Timings.ofSafe(name + "Chunk Ticks - Blocks");
 +        doVillages = Timings.ofSafe(name + "doVillages");
 +        doChunkMap = Timings.ofSafe(name + "doChunkMap");
 +        doSounds = Timings.ofSafe(name + "doSounds");
