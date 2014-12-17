@@ -43,6 +43,8 @@ import EnchantmentModifierDamage
 import EnchantmentModifierThorns
 import EnchantmentModifierArthropods
 
+import ItemSnowball
+
 cd $basedir
 git add mc-dev-master --all
 echo -e "Updating mc-dev\n\n$MODLOG" | git commit mc-dev-master -F -
