@@ -8,6 +8,7 @@ while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symli
 done
 . $(dirname $SOURCE)/init.sh
 
+PS1="$"
 echo "Rebuilding patch files from current fork state..."
 
 function savePatches {
