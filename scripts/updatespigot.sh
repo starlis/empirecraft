@@ -12,7 +12,7 @@ mkdir -p Spigot
 cd Spigot
 
 wget -N https://hub.spigotmc.org/jenkins/job/BuildTools/lastSuccessfulBuild/artifact/target/BuildTools.jar
-#java -jar ../BuildTools.jar --skip-compile --disable-certificate-check --dev
+java -jar ../BuildTools.jar --skip-compile --disable-certificate-check --dev
 cd ../
 scripts/importmcdev.sh
 

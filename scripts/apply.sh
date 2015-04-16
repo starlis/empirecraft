@@ -8,36 +8,38 @@ while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symli
 done
 . $(dirname $SOURCE)/init.sh
 PS1="$"
+
 echo "Rebuilding Forked projects.... "
 function applyPatch {
-    what=$1
-    cd $basedir
-    if [ ! -f "$basedir/Bukkit/pom.xml" ]; then
-	cd ..
-	git submodule update --init
+	what=EMC-$1
+
 	cd $basedir
-    fi
-    if [ ! -d "$basedir/EMC-$what" ]; then
-        git clone git.starlis.com:starlis/EMC-$what EMC-$what
-    fi
-    cd $basedir/$what
-    git branch -f upstream
-    cd $basedir/EMC-$what
-    echo "Synchronizing EMC-$what/master to $what/master"
-    git remote rm upstream > /dev/null 2>&1
-    git remote add upstream ../$what >/dev/null 2>&1
-    git checkout master >/dev/null 2>&1
-    git fetch upstream >/dev/null 2>&1
-    git reset --hard upstream/upstream >/dev/null
-    echo "  Applying patches to EMC-$what..."
-    git am -3 $basedir/patches/$what/*.patch
-    if [ "$?" != "0" ]; then
-        echo "  Something did not apply cleanly to EMC-$what. "
-        echo "  Please review above details and finish the apply then"
-        echo "  save the changes with rebuildpatches.sh"
-    else
-        echo "  Patches applied cleanly to EMC-$what"
-    fi
+	if [ ! -d Spigot/Spigot/$2 ]; then
+		mkdir -p Spigot/Spigot/
+		echo "Cloning $2"
+		git clone git@git.starlis.com:starlis/$2 Spigot/Spigot/$2
+	fi
+	if [ ! -d $what ]; then
+		git clone git@git.starlis.com:starlis/$what $what
+	fi
+	cd $basedir/$what
+	echo "Synchronizing $what/master to $2/master"
+	git remote rm upstream > /dev/null 2>&1
+	git remote add upstream $basedir/Spigot/Spigot/$2 >/dev/null 2>&1
+	git checkout master >/dev/null 2>&1
+	git fetch upstream >/dev/null 2>&1
+	git am --abort
+	git clean -f
+	git reset --hard upstream/master >/dev/null
+	echo "  Applying patches to $what..."
+	git am -3 $basedir/patches/$1/*.patch
+	if [ "$?" != "0" ]; then
+		echo "  Something did not apply cleanly to $what. "
+		echo "  Please review above details and finish the apply then"
+		echo "  save the changes with rebuildpatches.sh"
+	else
+		echo "  Patches applied cleanly to $what"
+	fi
 }
-applyPatch Bukkit
-applyPatch CraftBukkit
+applyPatch Bukkit Spigot-API
+applyPatch CraftBukkit Spigot-Server
