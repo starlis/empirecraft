@@ -8,23 +8,20 @@ while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symli
 done
 . $(dirname $SOURCE)/init.sh
 
-
-scripts/updatemcdev.sh
 nms="net/minecraft/server"
 export MODLOG=""
 cd $basedir
+decompile=$(ls -lat Spigot/work/ | grep decompile | head -n 1 | awk '{print $9}')
+
 function import {
 	file="${1}.java"
-	target="$basedir/EMC-CraftBukkit/src/main/java/$nms/$file"
-	base="$basedir/mc-dev-master/$nms/$file"
+	target="$basedir/Spigot/Spigot/Spigot-Server/src/main/java/$nms/$file"
+	base="$basedir/Spigot/work/$decompile/$nms/$file"
 
 	if [[ ! -f "$target" ]]; then
 		export MODLOG="$MODLOG  Imported $file from mc-dev\n";
 		echo "Copying $base to $target"
-		mv "$base" "$target"
-	elif [[ -f "$base" ]]; then
-		export MODLOG="$MODLOG  Removed $file from mc-dev\n";
-		rm -f "$base"
+		cp "$base" "$target"
 	fi
 }
 
@@ -37,14 +34,22 @@ import EnchantmentManager
 import TileEntityEnderChest
 import TileEntityLightDetector
 #weird bug
-import EmptyClass
-import EnchantmentModifierProtection
-import EnchantmentModifierDamage
-import EnchantmentModifierThorns
-import EnchantmentModifierArthropods
+#import EmptyClass
+#import EnchantmentModifierProtection
+#import EnchantmentModifierDamage
+#import EnchantmentModifierThorns
+#import EnchantmentModifierArthropods
 
 import ItemSnowball
 
-cd $basedir
-git add mc-dev-master --all
-echo -e "Updating mc-dev\n\n$MODLOG" | git commit mc-dev-master -F -
+(
+	cd Spigot/Spigot/Spigot-Server/
+	git add src -A
+	lastlog=$(git log -1 --oneline)
+	amend=""
+	if [[ "$lastlog" = *"EMC-Extra mc-dev Imports"* ]]; then
+		amend="--amend"
+		echo "Amending last commit"
+	fi
+	echo -e "EMC-Extra mc-dev Imports\n\n$MODLOG" | git commit src $amend -F -
+)

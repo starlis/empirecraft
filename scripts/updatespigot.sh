@@ -8,31 +8,13 @@ while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symli
 done
 . $(dirname $SOURCE)/init.sh
 
-function update {
-    target=$1
-    cd $basedir/$target
-    git branch -f upstream
-    cd $basedir/EMC-$target
-    git co spigot
-    git fetch spigot
+mkdir -p Spigot
+cd Spigot
 
-    git reset --hard spigot/master
+wget -N https://hub.spigotmc.org/jenkins/job/BuildTools/lastSuccessfulBuild/artifact/target/BuildTools.jar
+#java -jar ../BuildTools.jar --skip-compile --disable-certificate-check --dev
+cd ../
+scripts/importmcdev.sh
 
-    #git fetch origin
-    #git reset --hard origin/spigot
-    git fetch upstream
-    git reset --soft upstream/upstream
-    if [[ $1 == "CraftBukkit" ]]; then
-        $basedir/scripts/importmcdev.sh
-    fi
-    git add .
-    git commit -a --author="md_5 <md_5@bigpond.com>" -m "Spigot" > /dev/null
-    git format-patch --stdout HEAD^ > ../patches/$target/0001-Spigot.patch
-    git co master
-    cd $basedir/patches/$target
-    git add 0001-Spigot.patch
-    cleanupPatches $basedir/patches/$target
-}
-
-update Bukkit
-update CraftBukkit
+pushRepo Spigot/Spigot/Spigot-API git@git.starlis.com:starlis/Spigot-API master
+pushRepo Spigot/Spigot/Spigot-Server git@git.starlis.com:starlis/Spigot-Server master

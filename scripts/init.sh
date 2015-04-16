@@ -7,7 +7,7 @@ emccb=$basedir/EMC-CraftBukkit
 
 
 function cleanupPatches {
-    cd $1
+    cd "$1"
     for patch in *.patch; do
         gitver=$(tail -n 2 $patch | grep -ve "^$" | tail -n 1)
         diffs=$(git diff --staged $patch | grep -E "^(\+|\-)" | grep -Ev "(From [a-z0-9]{32,}|\-\-\- a|\+\+\+ b|.index|Date\: )")
@@ -23,4 +23,13 @@ function cleanupPatches {
             git checkout -- $patch >/dev/null
         fi
     done
+}
+function pushRepo {
+	echo "push - $1 - $(pwd)"
+	(
+		cd "$1"
+		git remote rm emc-push > /dev/null 2>&1
+		git remote add emc-push $2 >/dev/null 2>&1
+		git push emc-push $3 -f
+	)
 }
