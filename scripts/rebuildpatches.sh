@@ -10,13 +10,13 @@ done
 
 PS1="$"
 echo "Rebuilding patch files from current fork state..."
-
+spigotVer=$(cat current-spigot)
 function savePatches {
     what=$1
-    cd $basedir/EMC-$what/
+    cd $basedir/$what/
     rm $basedir/patches/$2/*.patch
     git co master
-    git format-patch --quiet -N -o $basedir/patches/$2 upstream/upstream
+    git format-patch --quiet -N -o $basedir/patches/$2 $spigotVer
     cd $basedir
     git add --ignore-removal $basedir/patches/$2
     cleanupPatches $basedir/patches/$2/
