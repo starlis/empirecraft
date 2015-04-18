@@ -32,7 +32,7 @@ function applyPatch {
 	git clean -f
 	git reset --hard upstream/master >/dev/null
 	echo "  Applying patches to $what..."
-	git am -3 $basedir/patches/$1/*.patch
+	git am -3 $basedir/patches/$3/*.patch
 	if [ "$?" != "0" ]; then
 		echo "  Something did not apply cleanly to $what. "
 		echo "  Please review above details and finish the apply then"
@@ -41,5 +41,5 @@ function applyPatch {
 		echo "  Patches applied cleanly to $what"
 	fi
 }
-applyPatch Bukkit Spigot-API
-applyPatch CraftBukkit Spigot-Server
+applyPatch Bukkit Spigot-API bukkit
+applyPatch CraftBukkit Spigot-Server craftbukkit

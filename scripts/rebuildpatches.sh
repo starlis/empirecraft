@@ -14,15 +14,14 @@ echo "Rebuilding patch files from current fork state..."
 function savePatches {
     what=$1
     cd $basedir/EMC-$what/
-    rm $basedir/patches/$what/*.patch
+    rm $basedir/patches/$2/*.patch
     git co master
-    git format-patch --quiet -N -o $basedir/patches/$what upstream/upstream
+    git format-patch --quiet -N -o $basedir/patches/$2 upstream/upstream
     cd $basedir
-    git add --ignore-removal $basedir/patches/$what
-    cleanupPatches $basedir/patches/$what/
-    echo "  Patches saved for $what to patches/$what"
-    
+    git add --ignore-removal $basedir/patches/$2
+    cleanupPatches $basedir/patches/$2/
+    echo "  Patches saved for $what to patches/$2"
 }
 
-savePatches Bukkit
-savePatches CraftBukkit
+savePatches Bukkit bukkit
+savePatches CraftBukkit craftbukkit
