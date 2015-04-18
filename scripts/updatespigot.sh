@@ -11,8 +11,10 @@ done
 mkdir -p Spigot
 cd Spigot
 
-wget -N https://hub.spigotmc.org/jenkins/job/BuildTools/lastSuccessfulBuild/artifact/target/BuildTools.jar
-java -jar BuildTools.jar --skip-compile --disable-certificate-check
+if [[ "$@" == *--update* ]]; then
+	wget -N https://hub.spigotmc.org/jenkins/job/BuildTools/lastSuccessfulBuild/artifact/target/BuildTools.jar
+	java -jar BuildTools.jar --skip-compile --disable-certificate-check
+fi
 
 #get all 4 revisions
 bukkitVer=$(gethead Bukkit)
@@ -20,6 +22,9 @@ crafftbukkitVer=$(gethead CraftBukkit)
 apiVer=$(gethead Spigot/Spigot-API)
 serverVer=$(gethead Spigot/Spigot-Server)
 spigotVer=$(gethead Spigot)
+cd Spigot/Spigot-Server
+mcVer=$(mvn org.apache.maven.plugins:maven-help-plugin:2.1.1:evaluate -Dexpression=project.version | sed -n -e '/^\[.*\]/ !{ /^[0-9]/ { p; q } }')
+
 basedir
 . scripts/importmcdev.sh
 
@@ -27,7 +32,7 @@ basedir
 cd Spigot/Spigot
 
 version=$(echo -e "Bukkit: $bukkitVer\nCraftBukkit: $crafftbukkitVer\nSpigot: $spigotVer\nmc-dev:$importedmcdev")
-tag=$(echo -e "$version" | sha1sum | awk '{print $1}')
+tag="$mcVer-$(echo -e $version | sha1sum | awk '{print $1}')"
 
 function tag {
 (
