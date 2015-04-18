@@ -12,9 +12,34 @@ mkdir -p Spigot
 cd Spigot
 
 wget -N https://hub.spigotmc.org/jenkins/job/BuildTools/lastSuccessfulBuild/artifact/target/BuildTools.jar
-java -jar ../BuildTools.jar --skip-compile --disable-certificate-check --dev
-cd ../
-scripts/importmcdev.sh
+java -jar BuildTools.jar --skip-compile --disable-certificate-check
 
-pushRepo Spigot/Spigot/Spigot-API git@git.starlis.com:starlis/Spigot-API master
-pushRepo Spigot/Spigot/Spigot-Server git@git.starlis.com:starlis/Spigot-Server master
+#get all 4 revisions
+bukkitVer=$(gethead Bukkit)
+crafftbukkitVer=$(gethead CraftBukkit)
+apiVer=$(gethead Spigot/Spigot-API)
+serverVer=$(gethead Spigot/Spigot-Server)
+spigotVer=$(gethead Spigot)
+basedir
+. scripts/importmcdev.sh
+
+
+cd Spigot/Spigot
+
+version=$(echo -e "Bukkit: $bukkitVer\nCraftBukkit: $crafftbukkitVer\nSpigot: $spigotVer\nmc-dev:$importedmcdev")
+tag=$(echo -e "$version" | sha1sum | awk '{print $1}')
+
+function tag {
+(
+	cd $1
+	pwd
+	echo -e "$(date)\n\n$version" | git tag -a "$tag" -F - 2>/dev/null
+)
+}
+echo "Tagging as $tag"
+echo -e "$version"
+tag Spigot-API
+tag Spigot-Server
+echo "$tag" > $basedir/current-spigot
+pushRepo Spigot-API git@bitbucket.org:starlis/Spigot-API $tag
+pushRepo Spigot-Server git@bitbucket.org:starlis/Spigot-Server $tag

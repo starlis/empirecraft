@@ -12,8 +12,9 @@ nms="net/minecraft/server"
 export MODLOG=""
 cd $basedir
 decompile=$(ls -lat Spigot/work/ | grep decompile | head -n 1 | awk '{print $9}')
-
+export importedmcdev=""
 function import {
+	export importedmcdev="$importedmcdev $1"
 	file="${1}.java"
 	target="$basedir/Spigot/Spigot/Spigot-Server/src/main/java/$nms/$file"
 	base="$basedir/Spigot/work/$decompile/$nms/$file"

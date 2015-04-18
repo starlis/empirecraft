@@ -17,10 +17,10 @@ function applyPatch {
 	if [ ! -d Spigot/Spigot/$2 ]; then
 		mkdir -p Spigot/Spigot/
 		echo "Cloning $2"
-		git clone git@git.starlis.com:starlis/$2 Spigot/Spigot/$2
+		git clone git@bitbucket.org:starlis/$2 Spigot/Spigot/$2
 	fi
 	if [ ! -d $what ]; then
-		git clone git@git.starlis.com:starlis/$what $what
+		git clone git@bitbucket.org:starlis/$what $what
 	fi
 	cd $basedir/$what
 	echo "Synchronizing $what/master to $2/master"
