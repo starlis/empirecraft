@@ -9,28 +9,28 @@ done
 . $(dirname $SOURCE)/init.sh
 PS1="$"
 
+spigotVer=$(cat current-spigot)
 echo "Rebuilding Forked projects.... "
 function applyPatch {
-	what=EMC-$1
+	what=$1
 
 	cd $basedir
-	if [ ! -d Spigot/Spigot/$2 ]; then
-		mkdir -p Spigot/Spigot/
-		echo "Cloning $2"
-		git clone git@bitbucket.org:starlis/$2 Spigot/Spigot/$2
-	fi
 	if [ ! -d $what ]; then
-		git clone git@bitbucket.org:starlis/$what $what
+		git clone git@bitbucket.org:starlis/$2 $what
 	fi
 	cd $basedir/$what
-	echo "Synchronizing $what/master to $2/master"
+	echo "Synchronizing $what/master to $2/$spigotVer"
+	git remote rm origin > /dev/null 2>&1
+	git remote add origin git@bitbucket.org:starlis/$what >/dev/null 2>&1
 	git remote rm upstream > /dev/null 2>&1
-	git remote add upstream $basedir/Spigot/Spigot/$2 >/dev/null 2>&1
+	git remote add upstream git@bitbucket.org:starlis/$2 >/dev/null 2>&1
+
 	git checkout master >/dev/null 2>&1
-	git fetch upstream >/dev/null 2>&1
+	git fetch --all --tags
 	git am --abort
 	git clean -f
-	git reset --hard upstream/master >/dev/null
+
+	git reset --hard "$spigotVer" >/dev/null
 	echo "  Applying patches to $what..."
 	git am -3 $basedir/patches/$3/*.patch
 	if [ "$?" != "0" ]; then
@@ -41,5 +41,5 @@ function applyPatch {
 		echo "  Patches applied cleanly to $what"
 	fi
 }
-applyPatch Bukkit Spigot-API bukkit
-applyPatch CraftBukkit Spigot-Server craftbukkit
+applyPatch EmpireCraftAPI Spigot-API bukkit
+applyPatch EmpireCraft Spigot-Server craftbukkit
