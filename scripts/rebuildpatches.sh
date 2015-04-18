@@ -23,5 +23,5 @@ function savePatches {
     echo "  Patches saved for $what to patches/$2"
 }
 
-savePatches Bukkit bukkit
-savePatches CraftBukkit craftbukkit
+savePatches EmpireCraft-API bukkit
+savePatches EmpireCraft-Server craftbukkit

@@ -41,5 +41,5 @@ function applyPatch {
 		echo "  Patches applied cleanly to $what"
 	fi
 }
-applyPatch EmpireCraftAPI Spigot-API bukkit
-applyPatch EmpireCraft Spigot-Server craftbukkit
+applyPatch EmpireCraft-API Spigot-API bukkit
+applyPatch EmpireCraft-Server Spigot-Server craftbukkit
