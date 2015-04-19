@@ -1,36 +1,26 @@
-From 2637200d1e77c20317932e5f3aea2a9bf5f587cc Mon Sep 17 00:00:00 2001
+From bcf0b3eee517ab9a4dfb7ead05d6a9dc772c17c2 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Thu, 29 Nov 2012 10:48:07 -0500
 Subject: [PATCH] Mob Spawning Events
 
 Add 2 events for better control of mob spawning (Natural and Spawners) This allows us a much more powerful control over spawning and improve performance
 ---
- .../net/minecraft/server/MobSpawnerAbstract.java   | 20 ++++++-
- .../java/net/minecraft/server/SpawnerCreature.java | 13 +++++
+ .../net/minecraft/server/MobSpawnerAbstract.java   | 15 +++++
+ .../java/net/minecraft/server/SpawnerCreature.java |  8 +++
  .../org/bukkit/event/entity/SpawnTickEvent.java    | 62 +++++++++++++++++++++
  .../bukkit/event/entity/SpawnerInitiateEvent.java  | 65 ++++++++++++++++++++++
- 4 files changed, 159 insertions(+), 1 deletion(-)
+ 4 files changed, 150 insertions(+)
  create mode 100644 src/main/java/org/bukkit/event/entity/SpawnTickEvent.java
  create mode 100644 src/main/java/org/bukkit/event/entity/SpawnerInitiateEvent.java
 
 diff --git a/src/main/java/net/minecraft/server/MobSpawnerAbstract.java b/src/main/java/net/minecraft/server/MobSpawnerAbstract.java
-index bb6b3d5..51c8e85 100644
+index df71db5..9b077ea 100644
 --- a/src/main/java/net/minecraft/server/MobSpawnerAbstract.java
 +++ b/src/main/java/net/minecraft/server/MobSpawnerAbstract.java
-@@ -9,6 +9,8 @@ import java.util.List;
- import org.bukkit.craftbukkit.event.CraftEventFactory;
- import org.bukkit.event.entity.CreatureSpawnEvent;
- import org.bukkit.event.entity.SpawnerSpawnEvent;
-+import org.bukkit.Bukkit; // EMC
-+import org.bukkit.event.entity.SpawnerInitiateEvent; // EMC
- // CraftBukkit end
+@@ -53,6 +53,21 @@ public abstract class MobSpawnerAbstract {
+         BlockPosition blockposition = this.b();
  
- public abstract class MobSpawnerAbstract {
-@@ -46,7 +48,23 @@ public abstract class MobSpawnerAbstract {
-     }
- 
-     public boolean f() {
--        return this.a().findNearbyPlayer((double) this.b() + 0.5D, (double) this.c() + 0.5D, (double) this.d() + 0.5D, (double) this.requiredPlayerRange) != null;
+         return this.a().isPlayerNearby((double) blockposition.getX() + 0.5D, (double) blockposition.getY() + 0.5D, (double) blockposition.getZ() + 0.5D, (double) this.requiredPlayerRange);
 +        // EMC start - Add in SpawnerInitiateEvent
 +        final World world = this.a();
 +        final int x = this.b();
@@ -44,49 +34,30 @@ index bb6b3d5..51c8e85 100644
 +            return false;
 +        }
 +        org.bukkit.Location loc = new org.bukkit.Location(world.getWorld(), x, y, z);
-+        SpawnerInitiateEvent event = new SpawnerInitiateEvent(this.mobName, world.getWorld(), loc, entity.getBukkitEntity());
-+        Bukkit.getPluginManager().callEvent(event);
-+        return !event.isCancelled();
++        return new org.bukkit.event.entity.SpawnerInitiateEvent(this.mobName, world.getWorld(), loc, entity.getBukkitEntity()).callEvent();
 +        // EMC end
      }
  
-     public void g() {
+     public void c() {
 diff --git a/src/main/java/net/minecraft/server/SpawnerCreature.java b/src/main/java/net/minecraft/server/SpawnerCreature.java
-index 3f0dd70..7572d73 100644
+index aeb0a44..92ab775 100644
 --- a/src/main/java/net/minecraft/server/SpawnerCreature.java
 +++ b/src/main/java/net/minecraft/server/SpawnerCreature.java
-@@ -5,11 +5,15 @@ import java.util.HashMap;
- import java.util.Iterator;
- import java.util.List;
- import java.util.Random;
-+import org.bukkit.Bukkit;
-+import org.bukkit.craftbukkit.CraftChunk;
+@@ -63,6 +63,14 @@ public final class SpawnerCreature {
+                     b0 = ( b0 > 8 ) ? 8 : b0;
+                     // Spigot End
  
- // CraftBukkit start
- import org.bukkit.craftbukkit.util.LongHash;
- import org.bukkit.craftbukkit.util.LongObjectHashMap;
-+import org.bukkit.event.Cancellable;
- import org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason;
-+import org.bukkit.event.entity.SpawnTickEvent;
- // CraftBukkit end
- 
- public final class SpawnerCreature {
-@@ -65,6 +69,15 @@ public final class SpawnerCreature {
-                 b0 = ( b0 > 8 ) ? 8 : b0;
-                 // Spigot End
- 
-+                // EMC start - SpawnTickEvent
-+                SpawnTickEvent event = new SpawnTickEvent(worldserver.getWorld(), b0, entityhuman.getBukkitEntity());
-+                Bukkit.getPluginManager().callEvent(event);
-+                if (event.isCancelled()) {
-+                    continue;
-+                }
-+                b0 = event.getSpawnRadius();
-+                // EMC end
++                    // EMC start - SpawnTickEvent
++                    org.bukkit.event.entity.SpawnTickEvent event = new org.bukkit.event.entity.SpawnTickEvent(worldserver.getWorld(), b0, entityhuman.getBukkitEntity());
++                    if (!event.callEvent()) {
++                        continue;
++                    }
++                    b0 = event.getSpawnRadius();
++                    // EMC end
 +
-                 for (int l = -b0; l <= b0; ++l) {
                      for (int i1 = -b0; i1 <= b0; ++i1) {
-                         boolean flag3 = l == -b0 || l == b0 || i1 == -b0 || i1 == b0;
+                         for (k = -b0; k <= b0; ++k) {
+                             boolean flag3 = i1 == -b0 || i1 == b0 || k == -b0 || k == b0;
 diff --git a/src/main/java/org/bukkit/event/entity/SpawnTickEvent.java b/src/main/java/org/bukkit/event/entity/SpawnTickEvent.java
 new file mode 100644
 index 0000000..64e0311
@@ -227,5 +198,5 @@ index 0000000..3dac565
 +    }
 +}
 -- 
-1.8.3.2
+1.9.1
 
