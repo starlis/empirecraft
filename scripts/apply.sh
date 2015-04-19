@@ -31,6 +31,8 @@ function applyPatch {
 	git clean -f
 
 	git reset --hard "$spigotVer" >/dev/null
+	git branch -D upstream 2>/dev/null
+	git branch upstream
 	echo "  Applying patches to $what..."
 	git am -3 $basedir/patches/$3/*.patch
 	if [ "$?" != "0" ]; then

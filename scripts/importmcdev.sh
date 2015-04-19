@@ -35,13 +35,7 @@ import EnchantmentManager
 import TileEntityEnderChest
 import TileEntityLightDetector
 import PathfinderGoalArrowAttack
-#weird bug
-#import EmptyClass
-#import EnchantmentModifierProtection
-#import EnchantmentModifierDamage
-#import EnchantmentModifierThorns
-#import EnchantmentModifierArthropods
-
+import PathfinderGoalTarget
 import ItemSnowball
 
 (

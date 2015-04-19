@@ -16,12 +16,12 @@ function savePatches {
     cd $basedir/$what/
     mkdir -p $basedir/patches/$2
     rm $basedir/patches/$2/*.patch 2>/dev/null
-    git format-patch --quiet -N -o $basedir/patches/$2 $spigotVer
+    git format-patch --quiet -N -o $basedir/patches/$2 upstream
     cd $basedir
     git add -A $basedir/patches/$2
     cleanupPatches $basedir/patches/$2/
     echo "  Patches saved for $what to patches/$2"
 }
 
-#savePatches EmpireCraft-API bukkit
+savePatches EmpireCraft-API bukkit
 savePatches EmpireCraft-Server craftbukkit
