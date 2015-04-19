@@ -1,4 +1,4 @@
-From 80adc751e61cfa7e11d7e28a3a6e9c46320b0392 Mon Sep 17 00:00:00 2001
+From c3fdddc0d8a9712651f24f121aba6fcc3cc0ff3d Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Mon, 4 Mar 2013 23:35:02 -0500
 Subject: [PATCH] Persistent Meta API
@@ -12,15 +12,15 @@ Meta is is provided in a simple Map/List setup and does not expose raw NBT acces
  .../net/minecraft/server/ChunkRegionLoader.java    |   2 +
  src/main/java/net/minecraft/server/Entity.java     |   3 +
  .../java/net/minecraft/server/MetaApiAccessor.java | 313 +++++++++++++++++++++
- src/main/java/net/minecraft/server/NBTTagList.java |  13 +-
+ src/main/java/net/minecraft/server/NBTTagList.java |  11 +-
  .../java/net/minecraft/server/WorldNBTStorage.java |   5 +
- 7 files changed, 551 insertions(+), 2 deletions(-)
+ 7 files changed, 550 insertions(+), 1 deletion(-)
  create mode 100644 src/main/java/com/empireminecraft/metaapi/MetaApi.java
  create mode 100644 src/main/java/net/minecraft/server/MetaApiAccessor.java
 
 diff --git a/src/main/java/com/empireminecraft/metaapi/MetaApi.java b/src/main/java/com/empireminecraft/metaapi/MetaApi.java
 new file mode 100644
-index 0000000..21f1a6f
+index 0000000..6507c06
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/metaapi/MetaApi.java
 @@ -0,0 +1,216 @@
@@ -55,7 +55,7 @@ index 0000000..21f1a6f
 +    public static <T> T getWorldMeta(World world, String key, T def) {
 +        final MetaMap worldMetaMap = getWorldMetaMap(world);
 +        T ret = worldMetaMap != null && !worldMetaMap.isEmpty() ? (T) worldMetaMap.get(key) : null;
-+        return ret != null ? ret : null;
++        return ret != null ? ret : def;
 +    }
 +
 +    public static boolean hasWorldMeta(World world, String key) {
@@ -86,7 +86,7 @@ index 0000000..21f1a6f
 +    public static <T> T getEntityMeta(Entity entity, String key, T def) {
 +        final MetaMap entityMetaMap = getEntityMetaMap(entity, false);
 +        T ret = entityMetaMap != null && !entityMetaMap.isEmpty() ? (T) entityMetaMap.get(key) : null;
-+        return ret != null ? ret : null;
++        return ret != null ? ret : def;
 +    }
 +
 +    public static boolean hasEntityMeta(Entity entity, String key) {
@@ -122,7 +122,7 @@ index 0000000..21f1a6f
 +    public static <T> T getChunkMeta(Chunk chunk, String key, T def) {
 +        final MetaMap chunkMetaMap = getChunkMetaMap(chunk, false);
 +        T ret = chunkMetaMap != null && !chunkMetaMap.isEmpty() ? (T) getChunkMetaMap(chunk, false).get(key) : null;
-+        return ret != null ? ret : null;
++        return ret != null ? ret : def;
 +    }
 +
 +    public static <T> T setChunkMeta(Chunk chunk, String key, Object val) {
@@ -153,7 +153,7 @@ index 0000000..21f1a6f
 +    public static <T> T getBlockMeta(Location loc, String key, T def) {
 +        final MetaMap blockMetaMap = getBlockMetaMap(loc, false);
 +        T ret = blockMetaMap != null && !blockMetaMap.isEmpty() ? (T) blockMetaMap.get(key) : null;
-+        return ret != null ? ret : null;
++        return ret != null ? ret : def;
 +    }
 +
 +    public static <T> T setBlockMeta(Location loc, String key, Object val) {
@@ -241,50 +241,50 @@ index 0000000..21f1a6f
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/Chunk.java b/src/main/java/net/minecraft/server/Chunk.java
-index 0423ee9..be49b66 100644
+index d5922fe..58e9a9f 100644
 --- a/src/main/java/net/minecraft/server/Chunk.java
 +++ b/src/main/java/net/minecraft/server/Chunk.java
-@@ -98,6 +98,7 @@ public class Chunk {
+@@ -101,6 +101,7 @@ public class Chunk {
  
      public org.bukkit.Chunk bukkitChunk;
      public boolean mustSave;
 +    public MetaApiAccessor.ChunkMeta chunkMeta = new MetaApiAccessor.ChunkMeta(); // EMC
      // CraftBukkit end
  
-     public Chunk(World world, Block[] ablock, int i, int j) {
+     public Chunk(World world, ChunkSnapshot chunksnapshot, int i, int j) {
 diff --git a/src/main/java/net/minecraft/server/ChunkRegionLoader.java b/src/main/java/net/minecraft/server/ChunkRegionLoader.java
-index 59fe8ac..15d66ac 100644
+index 5c0ab6c..b3e2b14 100644
 --- a/src/main/java/net/minecraft/server/ChunkRegionLoader.java
 +++ b/src/main/java/net/minecraft/server/ChunkRegionLoader.java
-@@ -205,6 +205,7 @@ public class ChunkRegionLoader implements IChunkLoader, IAsyncChunkSaver {
+@@ -210,6 +210,7 @@ public class ChunkRegionLoader implements IChunkLoader, IAsyncChunkSaver {
          nbttagcompound.setByte("V", (byte) 1);
          nbttagcompound.setInt("xPos", chunk.locX);
          nbttagcompound.setInt("zPos", chunk.locZ);
 +        MetaApiAccessor.saveChunkMetaNbt(nbttagcompound, chunk); // EMC
          nbttagcompound.setLong("LastUpdate", world.getTime());
-         nbttagcompound.setIntArray("HeightMap", chunk.heightMap);
-         nbttagcompound.setBoolean("TerrainPopulated", chunk.done);
-@@ -306,6 +307,7 @@ public class ChunkRegionLoader implements IChunkLoader, IAsyncChunkSaver {
+         nbttagcompound.setIntArray("HeightMap", chunk.q());
+         nbttagcompound.setBoolean("TerrainPopulated", chunk.isDone());
+@@ -335,6 +336,7 @@ public class ChunkRegionLoader implements IChunkLoader, IAsyncChunkSaver {
          Chunk chunk = new Chunk(world, i, j);
  
-         chunk.heightMap = nbttagcompound.getIntArray("HeightMap");
+         chunk.a(nbttagcompound.getIntArray("HeightMap"));
 +        MetaApiAccessor.loadChunkMetaNbt(nbttagcompound, chunk); // EMC
-         chunk.done = nbttagcompound.getBoolean("TerrainPopulated");
-         chunk.lit = nbttagcompound.getBoolean("LightPopulated");
-         chunk.s = nbttagcompound.getLong("InhabitedTime");
+         chunk.d(nbttagcompound.getBoolean("TerrainPopulated"));
+         chunk.e(nbttagcompound.getBoolean("LightPopulated"));
+         chunk.c(nbttagcompound.getLong("InhabitedTime"));
 diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
-index dea5e19..7da7b94 100644
+index d6bef0b..38c2dc6 100644
 --- a/src/main/java/net/minecraft/server/Entity.java
 +++ b/src/main/java/net/minecraft/server/Entity.java
-@@ -34,6 +34,7 @@ import org.bukkit.plugin.PluginManager;
- public abstract class Entity {
+@@ -35,6 +35,7 @@ import org.bukkit.plugin.PluginManager;
+ public abstract class Entity implements ICommandListener {
  
      // CraftBukkit start
 +    public com.empireminecraft.metaapi.MetaApi.MetaMap metaMap = null; // EMC
      private static final int CURRENT_LEVEL = 2;
      static boolean isLevelAtLeast(NBTTagCompound tag, int level) {
          return tag.hasKey("Bukkit.updateLevel") && tag.getInt("Bukkit.updateLevel") >= level;
-@@ -1106,6 +1107,7 @@ public abstract class Entity {
+@@ -1174,6 +1175,7 @@ public abstract class Entity implements ICommandListener {
                  this.yaw = 0;
              }
  
@@ -292,14 +292,14 @@ index dea5e19..7da7b94 100644
              if (Float.isNaN(this.pitch)) {
                  this.pitch = 0;
              }
-@@ -1153,6 +1155,7 @@ public abstract class Entity {
+@@ -1232,6 +1234,7 @@ public abstract class Entity implements ICommandListener {
              this.motX = nbttaglist1.d(0);
              this.motY = nbttaglist1.d(1);
              this.motZ = nbttaglist1.d(2);
 +            MetaApiAccessor.loadEntityMeta(this, nbttagcompound); // EMC
+ 
              /* CraftBukkit start - Moved section down
              if (Math.abs(this.motX) > 10.0D) {
-                 this.motX = 0.0D;
 diff --git a/src/main/java/net/minecraft/server/MetaApiAccessor.java b/src/main/java/net/minecraft/server/MetaApiAccessor.java
 new file mode 100644
 index 0000000..8a7a690
@@ -620,15 +620,15 @@ index 0000000..8a7a690
 +    public static class ChunkMeta extends HashMap<ChunkCoordinates, MetaMap> {}
 +}
 diff --git a/src/main/java/net/minecraft/server/NBTTagList.java b/src/main/java/net/minecraft/server/NBTTagList.java
-index 5b35cf4..96411fc 100644
+index 2c12297..eb04f83 100644
 --- a/src/main/java/net/minecraft/server/NBTTagList.java
 +++ b/src/main/java/net/minecraft/server/NBTTagList.java
-@@ -9,7 +9,16 @@ import java.util.List;
- 
+@@ -12,7 +12,16 @@ import org.apache.logging.log4j.Logger;
  public class NBTTagList extends NBTBase {
  
--    private List list = new ArrayList();
-+    public List list = new ArrayList(); // EMC
+     private static final Logger b = LogManager.getLogger();
+-    private List<NBTBase> list = Lists.newArrayList();
++    public List<NBTBase> list = Lists.newArrayList(); // EMC
 +    // EMC start
 +    public NBTBase getBase(int i) {
 +        if (i >= 0 && i < this.list.size()) {
@@ -641,24 +641,11 @@ index 5b35cf4..96411fc 100644
      private byte type = 0;
  
      public NBTTagList() {}
-@@ -24,11 +33,11 @@ public class NBTTagList extends NBTBase {
-         try { // EMC
-         dataoutput.writeByte(this.type);
-         dataoutput.writeInt(this.list.size());
--        } catch (IOException e) {e.printStackTrace();} // EMC
- 
-         for (int i = 0; i < this.list.size(); ++i) {
-             ((NBTBase) this.list.get(i)).write(dataoutput);
-         }
-+        } catch (IOException e) {e.printStackTrace();} // EMC
-     }
- 
-     void load(DataInput datainput, int i, NBTReadLimiter nbtreadlimiter) {
 diff --git a/src/main/java/net/minecraft/server/WorldNBTStorage.java b/src/main/java/net/minecraft/server/WorldNBTStorage.java
-index 141248e..b1c0ea3 100644
+index 007846a..4acc8bd 100644
 --- a/src/main/java/net/minecraft/server/WorldNBTStorage.java
 +++ b/src/main/java/net/minecraft/server/WorldNBTStorage.java
-@@ -15,6 +15,7 @@ import org.apache.logging.log4j.Logger;
+@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
  // CraftBukkit start
  import java.util.UUID;
  
@@ -666,31 +653,31 @@ index 141248e..b1c0ea3 100644
  import org.bukkit.craftbukkit.entity.CraftPlayer;
  // CraftBukkit end
  
-@@ -27,6 +28,7 @@ public class WorldNBTStorage implements IDataManager, IPlayerFileData {
-     private final long sessionId = MinecraftServer.ar();
+@@ -26,6 +27,7 @@ public class WorldNBTStorage implements IDataManager, IPlayerFileData {
+     private final long sessionId = MinecraftServer.ay();
      private final String f;
      private UUID uuid = null; // CraftBukkit
 +    public MetaApi.MetaMap metaMap = new MetaApi.MetaMap(); // EMC
  
-     public WorldNBTStorage(File file1, String s, boolean flag) {
-         this.baseDir = new File(file1, s);
-@@ -92,6 +94,7 @@ public class WorldNBTStorage implements IDataManager, IPlayerFileData {
+     public WorldNBTStorage(File file, String s, boolean flag) {
+         this.baseDir = new File(file, s);
+@@ -93,6 +95,7 @@ public class WorldNBTStorage implements IDataManager, IPlayerFileData {
              try {
-                 nbttagcompound = NBTCompressedStreamTools.a((InputStream) (new FileInputStream(file1)));
+                 nbttagcompound = NBTCompressedStreamTools.a((InputStream) (new FileInputStream(file)));
                  nbttagcompound1 = nbttagcompound.getCompound("Data");
 +                MetaApiAccessor.loadWorldMeta(this, nbttagcompound1); // EMC
                  return new WorldData(nbttagcompound1);
              } catch (Exception exception) {
                  exception.printStackTrace();
-@@ -103,6 +106,7 @@ public class WorldNBTStorage implements IDataManager, IPlayerFileData {
+@@ -104,6 +107,7 @@ public class WorldNBTStorage implements IDataManager, IPlayerFileData {
              try {
-                 nbttagcompound = NBTCompressedStreamTools.a((InputStream) (new FileInputStream(file1)));
+                 nbttagcompound = NBTCompressedStreamTools.a((InputStream) (new FileInputStream(file)));
                  nbttagcompound1 = nbttagcompound.getCompound("Data");
 +                MetaApiAccessor.loadWorldMeta(this, nbttagcompound1); // EMC
                  return new WorldData(nbttagcompound1);
              } catch (Exception exception1) {
                  exception1.printStackTrace();
-@@ -116,6 +120,7 @@ public class WorldNBTStorage implements IDataManager, IPlayerFileData {
+@@ -117,6 +121,7 @@ public class WorldNBTStorage implements IDataManager, IPlayerFileData {
          NBTTagCompound nbttagcompound1 = worlddata.a(nbttagcompound);
          NBTTagCompound nbttagcompound2 = new NBTTagCompound();
  

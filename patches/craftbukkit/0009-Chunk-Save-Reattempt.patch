@@ -1,4 +1,4 @@
-From 57a92dbcee741141ac3b60502ab025c68354a5aa Mon Sep 17 00:00:00 2001
+From d7c5e1e8a2d282bf881cb3302fd1722cedfcec54 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Mon, 4 Mar 2013 23:46:10 -0500
 Subject: [PATCH] Chunk Save Reattempt
@@ -10,16 +10,16 @@ We commonly have "Stream Closed" errors on chunk saving, so this code should re-
  2 files changed, 7 insertions(+), 3 deletions(-)
 
 diff --git a/src/main/java/net/minecraft/server/ChunkRegionLoader.java b/src/main/java/net/minecraft/server/ChunkRegionLoader.java
-index 15d66ac..93312ab 100644
+index b3e2b14..08e8309 100644
 --- a/src/main/java/net/minecraft/server/ChunkRegionLoader.java
 +++ b/src/main/java/net/minecraft/server/ChunkRegionLoader.java
-@@ -174,11 +174,14 @@ public class ChunkRegionLoader implements IChunkLoader, IAsyncChunkSaver {
+@@ -178,11 +178,14 @@ public class ChunkRegionLoader implements IChunkLoader, IAsyncChunkSaver {
          }
  
-         if (pendingchunktosave != null) {
+         if (chunkregionloader_pendingchunktosave != null) {
 +            int attempts = 0; while (attempts++ < 5) { // EMC
              try {
-                 this.a(pendingchunktosave);
+                 this.a(chunkregionloader_pendingchunktosave);
 +                break; // EMC
              } catch (Exception exception) {
 -                exception.printStackTrace();
@@ -30,11 +30,11 @@ index 15d66ac..93312ab 100644
  
          return true;
 diff --git a/src/main/java/net/minecraft/server/RegionFile.java b/src/main/java/net/minecraft/server/RegionFile.java
-index 9cd34a4..17c79a1 100644
+index 32dfa8d..6375c6a 100644
 --- a/src/main/java/net/minecraft/server/RegionFile.java
 +++ b/src/main/java/net/minecraft/server/RegionFile.java
-@@ -177,7 +177,7 @@ public class RegionFile {
-         return this.d(i, j) ? null : new DataOutputStream(new DeflaterOutputStream(new ChunkBuffer(this, i, j)));
+@@ -180,7 +180,7 @@ public class RegionFile {
+         return this.d(i, j) ? null : new DataOutputStream(new DeflaterOutputStream(new RegionFile.ChunkBuffer(i, j)));
      }
  
 -    protected synchronized void a(int i, int j, byte[] abyte, int k) {
@@ -42,16 +42,16 @@ index 9cd34a4..17c79a1 100644
          try {
              int l = this.e(i, j);
              int i1 = l >> 8;
-@@ -246,7 +246,8 @@ public class RegionFile {
+@@ -249,7 +249,8 @@ public class RegionFile {
  
-             this.b(i, j, (int) (MinecraftServer.ar() / 1000L));
+             this.b(i, j, (int) (MinecraftServer.ay() / 1000L));
          } catch (IOException ioexception) {
 -            ioexception.printStackTrace();
 +            //ioexception.printStackTrace(); // EMC
 +            throw (Exception) ioexception; // EMC - we want the upper try/catch to retry this
          }
-     }
  
+     }
 -- 
 1.9.1
 
