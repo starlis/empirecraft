@@ -34,6 +34,7 @@ import PathfinderGoalNearestAttackableTarget
 import EnchantmentManager
 import TileEntityEnderChest
 import TileEntityLightDetector
+import PathfinderGoalArrowAttack
 #weird bug
 #import EmptyClass
 #import EnchantmentModifierProtection
