@@ -1,4 +1,4 @@
-From 78abef8aa2fe570611d13f90257fc4c9418fd119 Mon Sep 17 00:00:00 2001
+From eb041164bc7eebfc114b0ba68cd73229368d4a34 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Fri, 22 Aug 2014 22:37:02 -0400
 Subject: [PATCH] Track TNT Source Block
@@ -13,55 +13,55 @@ This will either be:
 Useful for storing who is likely responsible for igniting TNT.
 ---
  src/main/java/net/minecraft/server/BlockTNT.java   |  7 ++++--
- .../net/minecraft/server/DispenseBehaviorTNT.java  |  2 +-
+ .../net/minecraft/server/DispenserRegistry.java    |  2 +-
  .../java/net/minecraft/server/EntityTNTPrimed.java | 26 ++++++++++++++++++++--
  .../java/org/bukkit/craftbukkit/CraftWorld.java    |  3 ++-
  .../bukkit/craftbukkit/entity/CraftTNTPrimed.java  |  1 +
  5 files changed, 33 insertions(+), 6 deletions(-)
 
 diff --git a/src/main/java/net/minecraft/server/BlockTNT.java b/src/main/java/net/minecraft/server/BlockTNT.java
-index 35bf1a3..bb52611 100644
+index 40c0a87..9fc1eea 100644
 --- a/src/main/java/net/minecraft/server/BlockTNT.java
 +++ b/src/main/java/net/minecraft/server/BlockTNT.java
-@@ -30,7 +30,9 @@ public class BlockTNT extends Block {
+@@ -29,7 +29,9 @@ public class BlockTNT extends Block {
  
-     public void wasExploded(World world, int i, int j, int k, Explosion explosion) {
-         if (!world.isStatic) {
--            EntityTNTPrimed entitytntprimed = new EntityTNTPrimed(world, (double) ((float) i + 0.5F), (double) ((float) j + 0.5F), (double) ((float) k + 0.5F), explosion.c());
+     public void wasExploded(World world, BlockPosition blockposition, Explosion explosion) {
+         if (!world.isClientSide) {
+-            EntityTNTPrimed entitytntprimed = new EntityTNTPrimed(world, (double) ((float) blockposition.getX() + 0.5F), (double) blockposition.getY(), (double) ((float) blockposition.getZ() + 0.5F), explosion.c());
 +
-+            org.bukkit.Location loc = explosion.source instanceof EntityTNTPrimed ? ((EntityTNTPrimed) explosion.source).sourceLoc : new org.bukkit.Location(world.getWorld(), i, j, k); // Spigot
-+            EntityTNTPrimed entitytntprimed = new EntityTNTPrimed(loc, world, (double) ((float) i + 0.5F), (double) ((float) j + 0.5F), (double) ((float) k + 0.5F), explosion.c());
++            org.bukkit.Location loc = explosion.source instanceof EntityTNTPrimed ? ((EntityTNTPrimed) explosion.source).sourceLoc : new org.bukkit.Location(world.getWorld(), blockposition.getX(), blockposition.getY(), blockposition.getZ()); // Spigot
++            EntityTNTPrimed entitytntprimed = new EntityTNTPrimed(loc, world, (double) ((float) blockposition.getX() + 0.5F), (double) blockposition.getY(), (double) ((float) blockposition.getZ() + 0.5F), explosion.c());
  
              entitytntprimed.fuseTicks = world.random.nextInt(entitytntprimed.fuseTicks / 4) + entitytntprimed.fuseTicks / 8;
              world.addEntity(entitytntprimed);
-@@ -44,7 +46,8 @@ public class BlockTNT extends Block {
-     public void a(World world, int i, int j, int k, int l, EntityLiving entityliving) {
-         if (!world.isStatic) {
-             if ((l & 1) == 1) {
--                EntityTNTPrimed entitytntprimed = new EntityTNTPrimed(world, (double) ((float) i + 0.5F), (double) ((float) j + 0.5F), (double) ((float) k + 0.5F), entityliving);
-+                org.bukkit.Location loc = new org.bukkit.Location(world.getWorld(), i, j, k); // Spigot
-+                EntityTNTPrimed entitytntprimed = new EntityTNTPrimed(loc, world, (double) ((float) i + 0.5F), (double) ((float) j + 0.5F), (double) ((float) k + 0.5F), entityliving); // Spigot - add loc
+@@ -43,7 +45,8 @@ public class BlockTNT extends Block {
+     public void a(World world, BlockPosition blockposition, IBlockData iblockdata, EntityLiving entityliving) {
+         if (!world.isClientSide) {
+             if (((Boolean) iblockdata.get(BlockTNT.EXPLODE)).booleanValue()) {
+-                EntityTNTPrimed entitytntprimed = new EntityTNTPrimed(world, (double) ((float) blockposition.getX() + 0.5F), (double) blockposition.getY(), (double) ((float) blockposition.getZ() + 0.5F), entityliving);
++                org.bukkit.Location loc = new org.bukkit.Location(world.getWorld(), blockposition.getX(), blockposition.getY(), blockposition.getZ()); // Spigot
++                EntityTNTPrimed entitytntprimed = new EntityTNTPrimed(loc, world, (double) ((float) blockposition.getX() + 0.5F), (double) blockposition.getY(), (double) ((float) blockposition.getZ() + 0.5F), entityliving); // Spigot - add loc
  
                  world.addEntity(entitytntprimed);
                  world.makeSound(entitytntprimed, "game.tnt.primed", 1.0F, 1.0F);
-diff --git a/src/main/java/net/minecraft/server/DispenseBehaviorTNT.java b/src/main/java/net/minecraft/server/DispenseBehaviorTNT.java
-index d949339..db171ef 100644
---- a/src/main/java/net/minecraft/server/DispenseBehaviorTNT.java
-+++ b/src/main/java/net/minecraft/server/DispenseBehaviorTNT.java
-@@ -42,7 +42,7 @@ final class DispenseBehaviorTNT extends DispenseBehaviorItem {
-             }
-         }
+diff --git a/src/main/java/net/minecraft/server/DispenserRegistry.java b/src/main/java/net/minecraft/server/DispenserRegistry.java
+index 4d1c04e..c26e530 100644
+--- a/src/main/java/net/minecraft/server/DispenserRegistry.java
++++ b/src/main/java/net/minecraft/server/DispenserRegistry.java
+@@ -540,7 +540,7 @@ public class DispenserRegistry {
+                     }
+                 }
  
--        EntityTNTPrimed entitytntprimed = new EntityTNTPrimed(world, event.getVelocity().getX(), event.getVelocity().getY(), event.getVelocity().getZ(), (EntityLiving) null);
-+        EntityTNTPrimed entitytntprimed = new EntityTNTPrimed(block.getLocation(), world, event.getVelocity().getX(), event.getVelocity().getY(), event.getVelocity().getZ(), (EntityLiving) null); // Spigot
-         // CraftBukkit end
+-                EntityTNTPrimed entitytntprimed = new EntityTNTPrimed(world, event.getVelocity().getX(), event.getVelocity().getY(), event.getVelocity().getZ(), (EntityLiving) null);
++                EntityTNTPrimed entitytntprimed = new EntityTNTPrimed(new org.bukkit.Location(world.getWorld(), blockposition.getX(), blockposition.getY(), blockposition.getZ()), world, event.getVelocity().getX(), event.getVelocity().getY(), event.getVelocity().getZ(), (EntityLiving) null); // EMC
+                 // CraftBukkit end
  
-         world.addEntity(entitytntprimed);
+                 world.addEntity(entitytntprimed);
 diff --git a/src/main/java/net/minecraft/server/EntityTNTPrimed.java b/src/main/java/net/minecraft/server/EntityTNTPrimed.java
-index 2214660..dc1bf5f 100644
+index 2d22327..c95b85f 100644
 --- a/src/main/java/net/minecraft/server/EntityTNTPrimed.java
 +++ b/src/main/java/net/minecraft/server/EntityTNTPrimed.java
-@@ -8,16 +8,23 @@ public class EntityTNTPrimed extends Entity {
+@@ -8,15 +8,22 @@ public class EntityTNTPrimed extends Entity {
      private EntityLiving source;
      public float yield = 4; // CraftBukkit - add field
      public boolean isIncendiary = false; // CraftBukkit - add field
@@ -76,8 +76,7 @@ index 2214660..dc1bf5f 100644
          super(world);
 +        sourceLoc = loc; // Spigot
          this.k = true;
-         this.a(0.98F, 0.98F);
-         this.height = this.length / 2.0F;
+         this.setSize(0.98F, 0.98F);
      }
  
 -    public EntityTNTPrimed(World world, double d0, double d1, double d2, EntityLiving entityliving) {
@@ -87,7 +86,7 @@ index 2214660..dc1bf5f 100644
          this.setPosition(d0, d1, d2);
          float f = (float) (Math.random() * 3.1415927410125732D * 2.0D);
  
-@@ -87,10 +94,25 @@ public class EntityTNTPrimed extends Entity {
+@@ -88,10 +95,25 @@ public class EntityTNTPrimed extends Entity {
  
      protected void b(NBTTagCompound nbttagcompound) {
          nbttagcompound.setByte("Fuse", (byte) this.fuseTicks);
@@ -114,10 +113,10 @@ index 2214660..dc1bf5f 100644
  
      public EntityLiving getSource() {
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
-index 7db401b..8368007 100644
+index f8e5a02..4e4937a 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
-@@ -1083,7 +1083,8 @@ public class CraftWorld implements World {
+@@ -1130,7 +1130,8 @@ public class CraftWorld implements World {
                  throw new IllegalArgumentException("Cannot spawn hanging entity for " + clazz.getName() + " at " + location);
              }
          } else if (TNTPrimed.class.isAssignableFrom(clazz)) {
