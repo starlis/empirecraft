@@ -1,0 +1,35 @@
+From 180a22c8317ed19b2d7a2d5340694ff89920bf26 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Fri, 14 Nov 2014 23:58:17 -0500
+Subject: [PATCH] Store proper position for vehicles
+
+Vehicles could end up saved in a different chunk than their Passenger due to the method that
+moves the entities from 1 chunk not being called yet (during tick).
+
+If the passenger is being saved, ensure the vehicle is saved with the same x/z coordinate.
+---
+ src/main/java/net/minecraft/server/Entity.java | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
+index 78847f3..153337b 100644
+--- a/src/main/java/net/minecraft/server/Entity.java
++++ b/src/main/java/net/minecraft/server/Entity.java
+@@ -1120,7 +1120,13 @@ public abstract class Entity {
+ 
+     public void e(NBTTagCompound nbttagcompound) {
+         try {
+-            nbttagcompound.set("Pos", this.a(new double[] { this.locX, this.locY + (double) this.V, this.locZ}));
++            // EMC start
++            Entity pass = this;
++            while (pass.passenger != null) {
++                pass = pass.passenger;
++            }
++            nbttagcompound.set("Pos", this.a(pass.locX, this.locY + (double) this.V, pass.locZ));
++            // EMC end
+             nbttagcompound.set("Motion", this.a(new double[] { this.motX, this.motY, this.motZ}));
+ 
+             // CraftBukkit start - Checking for NaN pitch/yaw and resetting to zero
+-- 
+1.9.1
+

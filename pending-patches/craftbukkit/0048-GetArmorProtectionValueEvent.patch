@@ -1,0 +1,149 @@
+From f8cfe82bd5e079b70e2f091a2c1aa0275f554d32 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Sun, 16 Mar 2014 18:09:41 -0400
+Subject: [PATCH] GetArmorProtectionValueEvent
+
+Lets plugins control how much protection value an item should provide.
+
+Allows dynamic protection values and nullifying ability.
+---
+ .../customevents/GetArmorProtectionValueEvent.java | 47 ++++++++++++++++++++++
+ .../net/minecraft/server/EntityInsentient.java     |  7 +++-
+ .../java/net/minecraft/server/EntityLiving.java    |  4 +-
+ .../java/net/minecraft/server/PlayerInventory.java |  5 ++-
+ 4 files changed, 59 insertions(+), 4 deletions(-)
+ create mode 100644 src/main/java/com/empireminecraft/customevents/GetArmorProtectionValueEvent.java
+
+diff --git a/src/main/java/com/empireminecraft/customevents/GetArmorProtectionValueEvent.java b/src/main/java/com/empireminecraft/customevents/GetArmorProtectionValueEvent.java
+new file mode 100644
+index 0000000..50f0d6d
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/customevents/GetArmorProtectionValueEvent.java
+@@ -0,0 +1,47 @@
++package com.empireminecraft.customevents;
++
++import net.minecraft.server.ItemArmor;
++import org.bukkit.craftbukkit.inventory.CraftItemStack;
++import org.bukkit.event.Event;
++import org.bukkit.event.HandlerList;
++import org.bukkit.inventory.ItemStack;
++
++public class GetArmorProtectionValueEvent extends Event {
++    private final ItemStack item;
++    private int armorProtectionValue;
++
++    public static int GetArmorProtectionValue(net.minecraft.server.ItemStack item, int orig) {
++        if (!(item.getItem() instanceof ItemArmor)) {
++            return 0;
++        }
++        GetArmorProtectionValueEvent event = new GetArmorProtectionValueEvent(item, orig);
++        event.callEvent();
++        return event.getArmorProtectionValue();
++    }
++    private GetArmorProtectionValueEvent(net.minecraft.server.ItemStack item, int orig) {
++        this.item = CraftItemStack.asCraftMirror(item);
++        this.armorProtectionValue = orig;
++    }
++
++    public int getArmorProtectionValue() {
++        return armorProtectionValue;
++    }
++
++    public void setArmorProtectionValue(int armorProtectionValue) {
++        this.armorProtectionValue = armorProtectionValue;
++    }
++
++    private static final HandlerList handlers = new HandlerList();
++
++    public HandlerList getHandlers() {
++        return handlers;
++    }
++
++    public static HandlerList getHandlerList() {
++        return handlers;
++    }
++
++    public ItemStack getItem() {
++        return item;
++    }
++}
+diff --git a/src/main/java/net/minecraft/server/EntityInsentient.java b/src/main/java/net/minecraft/server/EntityInsentient.java
+index eb83ed5..0669f0a 100644
+--- a/src/main/java/net/minecraft/server/EntityInsentient.java
++++ b/src/main/java/net/minecraft/server/EntityInsentient.java
+@@ -5,9 +5,12 @@ import java.util.List;
+ import java.util.UUID;
+ 
+ // CraftBukkit start
++import com.empireminecraft.customevents.GetArmorProtectionValueEvent;
+ import org.bukkit.craftbukkit.event.CraftEventFactory;
+ import org.bukkit.event.entity.EntityUnleashEvent;
+ import org.bukkit.event.entity.EntityUnleashEvent.UnleashReason;
++
++import static com.empireminecraft.customevents.GetArmorProtectionValueEvent.GetArmorProtectionValue;
+ // CraftBukkit end
+ 
+ public abstract class EntityInsentient extends EntityLiving {
+@@ -329,10 +332,10 @@ public abstract class EntityInsentient extends EntityLiving {
+                                 ItemArmor itemarmor = (ItemArmor) itemstack.getItem();
+                                 ItemArmor itemarmor1 = (ItemArmor) itemstack1.getItem();
+ 
+-                                if (itemarmor.c == itemarmor1.c) {
++                                if (GetArmorProtectionValue(itemstack, itemarmor.c) == GetArmorProtectionValue(itemstack1, itemarmor1.c)) { // EMC
+                                     flag = itemstack.getData() > itemstack1.getData() || itemstack.hasTag() && !itemstack1.hasTag();
+                                 } else {
+-                                    flag = itemarmor.c > itemarmor1.c;
++                                    flag = GetArmorProtectionValue(itemstack, itemarmor.c) > GetArmorProtectionValue(itemstack1, itemarmor1.c); // EMC
+                                 }
+                             } else {
+                                 flag = false;
+diff --git a/src/main/java/net/minecraft/server/EntityLiving.java b/src/main/java/net/minecraft/server/EntityLiving.java
+index a47864a..83ee97a 100644
+--- a/src/main/java/net/minecraft/server/EntityLiving.java
++++ b/src/main/java/net/minecraft/server/EntityLiving.java
+@@ -14,6 +14,8 @@ import org.bukkit.craftbukkit.event.CraftEventFactory;
+ import org.bukkit.event.entity.EntityDamageEvent;
+ import org.bukkit.event.entity.EntityDamageEvent.DamageModifier;
+ import org.bukkit.event.entity.EntityRegainHealthEvent;
++
++import static com.empireminecraft.customevents.GetArmorProtectionValueEvent.GetArmorProtectionValue;
+ // CraftBukkit end
+ 
+ import org.bukkit.craftbukkit.SpigotTimings; // Spigot
+@@ -914,7 +916,7 @@ public abstract class EntityLiving extends Entity {
+             ItemStack itemstack = aitemstack[k];
+ 
+             if (itemstack != null && itemstack.getItem() instanceof ItemArmor) {
+-                int l = ((ItemArmor) itemstack.getItem()).c;
++                int l = GetArmorProtectionValue(itemstack, ((ItemArmor) itemstack.getItem()).c); // EMC
+ 
+                 i += l;
+             }
+diff --git a/src/main/java/net/minecraft/server/PlayerInventory.java b/src/main/java/net/minecraft/server/PlayerInventory.java
+index 1c77300..f28027b 100644
+--- a/src/main/java/net/minecraft/server/PlayerInventory.java
++++ b/src/main/java/net/minecraft/server/PlayerInventory.java
+@@ -5,8 +5,11 @@ import java.util.concurrent.Callable;
+ // CraftBukkit start
+ import java.util.List;
+ 
++import com.empireminecraft.customevents.GetArmorProtectionValueEvent;
+ import org.bukkit.craftbukkit.entity.CraftHumanEntity;
+ import org.bukkit.entity.HumanEntity;
++
++import static com.empireminecraft.customevents.GetArmorProtectionValueEvent.GetArmorProtectionValue;
+ // CraftBukkit end
+ 
+ public class PlayerInventory implements IInventory {
+@@ -433,7 +436,7 @@ public class PlayerInventory implements IInventory {
+ 
+         for (int j = 0; j < this.armor.length; ++j) {
+             if (this.armor[j] != null && this.armor[j].getItem() instanceof ItemArmor) {
+-                int k = ((ItemArmor) this.armor[j].getItem()).c;
++                int k = GetArmorProtectionValue(this.armor[j], ((ItemArmor) this.armor[j].getItem()).c); // EMC
+ 
+                 i += k;
+             }
+-- 
+1.9.1
+

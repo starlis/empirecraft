@@ -1,0 +1,57 @@
+From 57a92dbcee741141ac3b60502ab025c68354a5aa Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Mon, 4 Mar 2013 23:46:10 -0500
+Subject: [PATCH] Chunk Save Reattempt
+
+We commonly have "Stream Closed" errors on chunk saving, so this code should re-try to save the chunk in the event of failure and hopefully prevent rollbacks.
+---
+ src/main/java/net/minecraft/server/ChunkRegionLoader.java | 5 ++++-
+ src/main/java/net/minecraft/server/RegionFile.java        | 5 +++--
+ 2 files changed, 7 insertions(+), 3 deletions(-)
+
+diff --git a/src/main/java/net/minecraft/server/ChunkRegionLoader.java b/src/main/java/net/minecraft/server/ChunkRegionLoader.java
+index 15d66ac..93312ab 100644
+--- a/src/main/java/net/minecraft/server/ChunkRegionLoader.java
++++ b/src/main/java/net/minecraft/server/ChunkRegionLoader.java
+@@ -174,11 +174,14 @@ public class ChunkRegionLoader implements IChunkLoader, IAsyncChunkSaver {
+         }
+ 
+         if (pendingchunktosave != null) {
++            int attempts = 0; while (attempts++ < 5) { // EMC
+             try {
+                 this.a(pendingchunktosave);
++                break; // EMC
+             } catch (Exception exception) {
+-                exception.printStackTrace();
++                //exception.printStackTrace(); // EMC
+             }
++            try {Thread.sleep(10);} catch (InterruptedException e) {e.printStackTrace();} } // EMC
+         }
+ 
+         return true;
+diff --git a/src/main/java/net/minecraft/server/RegionFile.java b/src/main/java/net/minecraft/server/RegionFile.java
+index 9cd34a4..17c79a1 100644
+--- a/src/main/java/net/minecraft/server/RegionFile.java
++++ b/src/main/java/net/minecraft/server/RegionFile.java
+@@ -177,7 +177,7 @@ public class RegionFile {
+         return this.d(i, j) ? null : new DataOutputStream(new DeflaterOutputStream(new ChunkBuffer(this, i, j)));
+     }
+ 
+-    protected synchronized void a(int i, int j, byte[] abyte, int k) {
++    protected synchronized void a(int i, int j, byte[] abyte, int k) throws Exception { // EMC - Add exception
+         try {
+             int l = this.e(i, j);
+             int i1 = l >> 8;
+@@ -246,7 +246,8 @@ public class RegionFile {
+ 
+             this.b(i, j, (int) (MinecraftServer.ar() / 1000L));
+         } catch (IOException ioexception) {
+-            ioexception.printStackTrace();
++            //ioexception.printStackTrace(); // EMC
++            throw (Exception) ioexception; // EMC - we want the upper try/catch to retry this
+         }
+     }
+ 
+-- 
+1.9.1
+
