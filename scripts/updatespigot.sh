@@ -23,7 +23,7 @@ apiVer=$(gethead Spigot/Spigot-API)
 serverVer=$(gethead Spigot/Spigot-Server)
 spigotVer=$(gethead Spigot)
 cd Spigot/Spigot-Server
-mcVer=$(mvn org.apache.maven.plugins:maven-help-plugin:2.1.1:evaluate -Dexpression=project.version | sed -n -e '/^\[.*\]/ !{ /^[0-9]/ { p; q } }')
+mcVer=$(mvn -o org.apache.maven.plugins:maven-help-plugin:2.1.1:evaluate -Dexpression=project.version | sed -n -e '/^\[.*\]/ !{ /^[0-9]/ { p; q } }')
 
 basedir
 . scripts/importmcdev.sh
