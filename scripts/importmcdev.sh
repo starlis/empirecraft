@@ -38,6 +38,7 @@ import PathfinderGoalArrowAttack
 import PathfinderGoalTarget
 import ItemSnowball
 import ItemBookAndQuill
+import PacketPlayOutPlayerInfo
 
 (
 	cd Spigot/Spigot/Spigot-Server/
