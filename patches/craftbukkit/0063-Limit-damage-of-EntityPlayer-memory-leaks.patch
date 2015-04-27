@@ -1,4 +1,4 @@
-From 134b41c52a1700e6e8e40042a999d37188aaaffb Mon Sep 17 00:00:00 2001
+From 5e7f0fd8997672c230de527fc08d8258678f2e53 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Mon, 15 Sep 2014 21:36:25 -0400
 Subject: [PATCH] Limit damage of EntityPlayer memory leaks
@@ -15,52 +15,51 @@ of the bug to the level one would expect of a Minecraft Server of memory leaks a
  2 files changed, 6 insertions(+), 2 deletions(-)
 
 diff --git a/src/main/java/net/minecraft/server/NetworkManager.java b/src/main/java/net/minecraft/server/NetworkManager.java
-index 4506494..f7d55c7 100644
+index 6003bad..a722973 100644
 --- a/src/main/java/net/minecraft/server/NetworkManager.java
 +++ b/src/main/java/net/minecraft/server/NetworkManager.java
-@@ -42,6 +42,8 @@ public class NetworkManager extends SimpleChannelInboundHandler {
-     private final boolean j;
-     private final Queue k = Queues.newConcurrentLinkedQueue();
-     private final Queue l = Queues.newConcurrentLinkedQueue();
+@@ -63,6 +63,8 @@ public class NetworkManager extends SimpleChannelInboundHandler<Packet> {
+     private final EnumProtocolDirection h;
+     private final Queue<NetworkManager.QueuedPacket> i = Queues.newConcurrentLinkedQueue();
+     private final ReentrantReadWriteLock j = new ReentrantReadWriteLock();
 +    public void clearQueues() { k.clear(); l.clear(); } // Spigot
 +    EntityPlayer player; // Spigot
-     private Channel m;
+     public Channel k; // CraftBukkit - public, PAIL: Rename channel
      // Spigot Start
-     public SocketAddress n;
-@@ -128,7 +130,7 @@ public class NetworkManager extends SimpleChannelInboundHandler {
-         if (this.m != null && this.m.isOpen()) {
-             this.i();
-             this.b(packet, agenericfuturelistener);
+     public SocketAddress l;
+@@ -140,7 +142,7 @@ public class NetworkManager extends SimpleChannelInboundHandler<Packet> {
+         if (this.g()) {
+             this.m();
+             this.a(packet, (GenericFutureListener[]) null);
 -        } else {
 +        } else if (player != null && !player.playerConnection.processedDisconnect) { // Spigot
-             this.l.add(new QueuedPacket(packet, agenericfuturelistener));
-         }
-     }
+             this.j.writeLock().lock();
+ 
+             try {
 diff --git a/src/main/java/net/minecraft/server/PlayerConnection.java b/src/main/java/net/minecraft/server/PlayerConnection.java
-index dec3162..9567862 100644
+index 0965792..f1754a1 100644
 --- a/src/main/java/net/minecraft/server/PlayerConnection.java
 +++ b/src/main/java/net/minecraft/server/PlayerConnection.java
-@@ -79,10 +79,11 @@ public class PlayerConnection implements PacketPlayInListener {
-     private double z;
+@@ -82,9 +82,10 @@ public class PlayerConnection implements PacketListenerPlayIn, IUpdatePlayerList
+     private double p;
      private double q;
-     public boolean checkMovement = true; // CraftBukkit - private -> public
+     private boolean checkMovement = true;
 -    private boolean processedDisconnect; // CraftBukkit - added
 +    public boolean processedDisconnect; // CraftBukkit - added // Spigot - private -> public
-     public boolean is18; // EMC
  
      public PlayerConnection(MinecraftServer minecraftserver, NetworkManager networkmanager, EntityPlayer entityplayer) {
 +        networkmanager.player = entityplayer; // Spigot
          this.minecraftServer = minecraftserver;
          this.networkManager = networkmanager;
          networkmanager.a((PacketListener) this);
-@@ -744,6 +745,7 @@ public class PlayerConnection implements PacketPlayInListener {
+@@ -852,6 +853,7 @@ public class PlayerConnection implements PacketListenerPlayIn, IUpdatePlayerList
          if ((quitMessage != null) && (quitMessage.length() > 0)) {
              this.minecraftServer.getPlayerList().sendMessage(CraftChatMessage.fromString(quitMessage));
          }
 +        this.player.playerConnection.networkManager.clearQueues(); // Spigot
          // CraftBukkit end
-         if (this.minecraftServer.N() && this.player.getName().equals(this.minecraftServer.M())) {
-             c.info("Stopping singleplayer server as player logged out");
+         if (this.minecraftServer.S() && this.player.getName().equals(this.minecraftServer.R())) {
+             PlayerConnection.c.info("Stopping singleplayer server as player logged out");
 -- 
 1.9.1
 
