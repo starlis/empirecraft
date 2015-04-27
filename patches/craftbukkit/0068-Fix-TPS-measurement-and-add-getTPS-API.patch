@@ -1,4 +1,4 @@
-From 20084dbccd51d4dbd07bcca6f4ab7623b1727565 Mon Sep 17 00:00:00 2001
+From 365589f5a632f626e7bd617bf1d76c43fa8ca034 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Wed, 26 Mar 2014 16:31:36 -0400
 Subject: [PATCH] Fix TPS measurement and add getTPS API
@@ -14,10 +14,10 @@ Thanks to @chickeneer for the math wizardry for figuring this out!
  3 files changed, 70 insertions(+), 24 deletions(-)
 
 diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
-index 48bff8e..384aba1 100644
+index a989683..e8a3a83 100644
 --- a/src/main/java/net/minecraft/server/MinecraftServer.java
 +++ b/src/main/java/net/minecraft/server/MinecraftServer.java
-@@ -102,18 +102,11 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+@@ -118,18 +118,11 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
      public org.bukkit.command.ConsoleCommandSender console;
      public org.bukkit.command.RemoteConsoleCommandSender remoteConsole;
      public ConsoleReader reader;
@@ -35,9 +35,9 @@ index 48bff8e..384aba1 100644
 -    public final double[] recentTps = new double[ 3 ];
 -    // Spigot end
  
-     public MinecraftServer(OptionSet options, Proxy proxy) { // CraftBukkit - signature file -> OptionSet
-         net.minecraft.util.io.netty.util.ResourceLeakDetector.setEnabled( false ); // Spigot - disable
-@@ -450,12 +443,53 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+     public MinecraftServer(OptionSet options, Proxy proxy, File file1) {
+         io.netty.util.ResourceLeakDetector.setEnabled( false ); // Spigot - disable
+@@ -520,12 +513,53 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
      }
  
      // Spigot Start
@@ -95,7 +95,7 @@ index 48bff8e..384aba1 100644
      public void run() {
          try {
              if (this.init()) {
-@@ -490,12 +524,13 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+@@ -560,12 +594,13 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
  
                      catchupTime = Math.min(MAX_CATCHUP_BUFFER, catchupTime - wait);
  
@@ -115,12 +115,12 @@ index 48bff8e..384aba1 100644
                      }
                      lastTick = curTime;
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-index b95b3f4..667e6ca 100644
+index 0177263..f81187a 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-@@ -1852,6 +1852,15 @@ public final class CraftServer implements Server {
-         {
-             return org.spigotmc.SpigotConfig.config;
+@@ -1735,6 +1735,15 @@ public final class CraftServer implements Server {
+                 player.spigot().sendMessage(components);
+             }
          }
 +
 +        @Override
@@ -135,13 +135,13 @@ index b95b3f4..667e6ca 100644
  
      public Spigot spigot()
 diff --git a/src/main/java/org/spigotmc/TicksPerSecondCommand.java b/src/main/java/org/spigotmc/TicksPerSecondCommand.java
-index 2b8343d..43cc5fc 100644
+index be2e31d..164f0fd 100644
 --- a/src/main/java/org/spigotmc/TicksPerSecondCommand.java
 +++ b/src/main/java/org/spigotmc/TicksPerSecondCommand.java
 @@ -3,6 +3,8 @@ package org.spigotmc;
  import com.google.common.base.Joiner;
  import net.minecraft.server.MinecraftServer;
- import net.minecraft.util.com.google.common.collect.Iterables;
+ import com.google.common.collect.Iterables;
 +import org.apache.commons.lang.StringUtils;
 +import org.bukkit.Bukkit;
  import org.bukkit.ChatColor;
