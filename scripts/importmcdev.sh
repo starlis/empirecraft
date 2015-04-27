@@ -37,6 +37,7 @@ import TileEntityLightDetector
 import PathfinderGoalArrowAttack
 import PathfinderGoalTarget
 import ItemSnowball
+import ItemBookAndQuill
 
 (
 	cd Spigot/Spigot/Spigot-Server/
