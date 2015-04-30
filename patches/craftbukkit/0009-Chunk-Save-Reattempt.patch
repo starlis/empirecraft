@@ -1,54 +1,53 @@
-From d7c5e1e8a2d282bf881cb3302fd1722cedfcec54 Mon Sep 17 00:00:00 2001
+From d115b62dc1445f40fa14fcd87a74989548de65d7 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Mon, 4 Mar 2013 23:46:10 -0500
 Subject: [PATCH] Chunk Save Reattempt
 
 We commonly have "Stream Closed" errors on chunk saving, so this code should re-try to save the chunk in the event of failure and hopefully prevent rollbacks.
 ---
- src/main/java/net/minecraft/server/ChunkRegionLoader.java | 5 ++++-
- src/main/java/net/minecraft/server/RegionFile.java        | 5 +++--
- 2 files changed, 7 insertions(+), 3 deletions(-)
+ src/main/java/net/minecraft/server/ChunkRegionLoader.java | 6 +++++-
+ src/main/java/net/minecraft/server/RegionFile.java        | 3 ++-
+ 2 files changed, 7 insertions(+), 2 deletions(-)
 
 diff --git a/src/main/java/net/minecraft/server/ChunkRegionLoader.java b/src/main/java/net/minecraft/server/ChunkRegionLoader.java
-index b3e2b14..08e8309 100644
+index b3e2b14..5e79b47 100644
 --- a/src/main/java/net/minecraft/server/ChunkRegionLoader.java
 +++ b/src/main/java/net/minecraft/server/ChunkRegionLoader.java
-@@ -178,11 +178,14 @@ public class ChunkRegionLoader implements IChunkLoader, IAsyncChunkSaver {
+@@ -178,11 +178,15 @@ public class ChunkRegionLoader implements IChunkLoader, IAsyncChunkSaver {
          }
  
          if (chunkregionloader_pendingchunktosave != null) {
-+            int attempts = 0; while (attempts++ < 5) { // EMC
++            int attempts = 0; Exception laste = null; while (attempts++ < 5) { // EMC
              try {
                  this.a(chunkregionloader_pendingchunktosave);
-+                break; // EMC
++                laste = null; break; // EMC
              } catch (Exception exception) {
 -                exception.printStackTrace();
-+                //exception.printStackTrace(); // EMC
++                laste = exception; // EMC
              }
 +            try {Thread.sleep(10);} catch (InterruptedException e) {e.printStackTrace();} } // EMC
++            if (laste != null) { laste.printStackTrace(); } // EMC
          }
  
          return true;
 diff --git a/src/main/java/net/minecraft/server/RegionFile.java b/src/main/java/net/minecraft/server/RegionFile.java
-index 32dfa8d..6375c6a 100644
+index 32dfa8d..ad85778 100644
 --- a/src/main/java/net/minecraft/server/RegionFile.java
 +++ b/src/main/java/net/minecraft/server/RegionFile.java
-@@ -180,7 +180,7 @@ public class RegionFile {
-         return this.d(i, j) ? null : new DataOutputStream(new DeflaterOutputStream(new RegionFile.ChunkBuffer(i, j)));
-     }
+@@ -1,6 +1,7 @@
+ package net.minecraft.server;
  
--    protected synchronized void a(int i, int j, byte[] abyte, int k) {
-+    protected synchronized void a(int i, int j, byte[] abyte, int k) throws Exception { // EMC - Add exception
-         try {
-             int l = this.e(i, j);
-             int i1 = l >> 8;
-@@ -249,7 +249,8 @@ public class RegionFile {
+ import com.google.common.collect.Lists;
++
+ import java.io.BufferedInputStream;
+ import java.io.ByteArrayInputStream;
+ import java.io.ByteArrayOutputStream;
+@@ -249,7 +250,7 @@ public class RegionFile {
  
              this.b(i, j, (int) (MinecraftServer.ay() / 1000L));
          } catch (IOException ioexception) {
 -            ioexception.printStackTrace();
-+            //ioexception.printStackTrace(); // EMC
-+            throw (Exception) ioexception; // EMC - we want the upper try/catch to retry this
++            org.spigotmc.SneakyThrow.sneaky(ioexception); // EMC - we want the upper try/catch to retry this
          }
  
      }

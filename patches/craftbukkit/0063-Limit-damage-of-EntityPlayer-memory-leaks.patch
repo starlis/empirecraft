@@ -1,4 +1,4 @@
-From 5e7f0fd8997672c230de527fc08d8258678f2e53 Mon Sep 17 00:00:00 2001
+From c7f4fed3dd3619d9758c3f6301f5da9b39ba3807 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Mon, 15 Sep 2014 21:36:25 -0400
 Subject: [PATCH] Limit damage of EntityPlayer memory leaks
@@ -10,19 +10,22 @@ never be processed. These packets themselves then hold on to lots of other refer
 This change does not prevent plugins from leaking EntityPlayer references, but will drastically reduce the impact
 of the bug to the level one would expect of a Minecraft Server of memory leaks anyways.
 ---
- src/main/java/net/minecraft/server/NetworkManager.java   | 4 +++-
+ src/main/java/net/minecraft/server/NetworkManager.java   | 6 ++++--
  src/main/java/net/minecraft/server/PlayerConnection.java | 4 +++-
- 2 files changed, 6 insertions(+), 2 deletions(-)
+ 2 files changed, 7 insertions(+), 3 deletions(-)
 
 diff --git a/src/main/java/net/minecraft/server/NetworkManager.java b/src/main/java/net/minecraft/server/NetworkManager.java
-index 6003bad..a722973 100644
+index 6003bad..2ad9152 100644
 --- a/src/main/java/net/minecraft/server/NetworkManager.java
 +++ b/src/main/java/net/minecraft/server/NetworkManager.java
-@@ -63,6 +63,8 @@ public class NetworkManager extends SimpleChannelInboundHandler<Packet> {
+@@ -61,8 +61,10 @@ public class NetworkManager extends SimpleChannelInboundHandler<Packet> {
+         }
+     };
      private final EnumProtocolDirection h;
-     private final Queue<NetworkManager.QueuedPacket> i = Queues.newConcurrentLinkedQueue();
+-    private final Queue<NetworkManager.QueuedPacket> i = Queues.newConcurrentLinkedQueue();
++    private final Queue<NetworkManager.QueuedPacket> i = Queues.newConcurrentLinkedQueue(); public void clearQueue() { i.clear(); } // Spigot - add clearQueues // PAIL: Rename queue
++
      private final ReentrantReadWriteLock j = new ReentrantReadWriteLock();
-+    public void clearQueues() { k.clear(); l.clear(); } // Spigot
 +    EntityPlayer player; // Spigot
      public Channel k; // CraftBukkit - public, PAIL: Rename channel
      // Spigot Start
@@ -37,7 +40,7 @@ index 6003bad..a722973 100644
  
              try {
 diff --git a/src/main/java/net/minecraft/server/PlayerConnection.java b/src/main/java/net/minecraft/server/PlayerConnection.java
-index 0965792..f1754a1 100644
+index 0965792..4c5d5af 100644
 --- a/src/main/java/net/minecraft/server/PlayerConnection.java
 +++ b/src/main/java/net/minecraft/server/PlayerConnection.java
 @@ -82,9 +82,10 @@ public class PlayerConnection implements PacketListenerPlayIn, IUpdatePlayerList
@@ -56,7 +59,7 @@ index 0965792..f1754a1 100644
          if ((quitMessage != null) && (quitMessage.length() > 0)) {
              this.minecraftServer.getPlayerList().sendMessage(CraftChatMessage.fromString(quitMessage));
          }
-+        this.player.playerConnection.networkManager.clearQueues(); // Spigot
++        this.player.playerConnection.networkManager.clearQueue(); // Spigot
          // CraftBukkit end
          if (this.minecraftServer.S() && this.player.getName().equals(this.minecraftServer.R())) {
              PlayerConnection.c.info("Stopping singleplayer server as player logged out");

@@ -1,4 +1,4 @@
-From c3fdddc0d8a9712651f24f121aba6fcc3cc0ff3d Mon Sep 17 00:00:00 2001
+From d9d26a2ebe25f6a23ec50d81ceb942931eadc809 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Mon, 4 Mar 2013 23:35:02 -0500
 Subject: [PATCH] Persistent Meta API
@@ -7,14 +7,14 @@ This adds an API for getting and setting PERSISTENT Metadata
 Meta data can be stored on Worlds, Entities, Chunks and at a Block level.
 Meta is is provided in a simple Map/List setup and does not expose raw NBT access.
 ---
- .../java/com/empireminecraft/metaapi/MetaApi.java  | 216 ++++++++++++++
+ .../java/com/empireminecraft/metaapi/MetaApi.java  | 216 +++++++++++++++
  src/main/java/net/minecraft/server/Chunk.java      |   1 +
  .../net/minecraft/server/ChunkRegionLoader.java    |   2 +
  src/main/java/net/minecraft/server/Entity.java     |   3 +
- .../java/net/minecraft/server/MetaApiAccessor.java | 313 +++++++++++++++++++++
+ .../java/net/minecraft/server/MetaApiAccessor.java | 299 +++++++++++++++++++++
  src/main/java/net/minecraft/server/NBTTagList.java |  11 +-
  .../java/net/minecraft/server/WorldNBTStorage.java |   5 +
- 7 files changed, 550 insertions(+), 1 deletion(-)
+ 7 files changed, 536 insertions(+), 1 deletion(-)
  create mode 100644 src/main/java/com/empireminecraft/metaapi/MetaApi.java
  create mode 100644 src/main/java/net/minecraft/server/MetaApiAccessor.java
 
@@ -302,10 +302,10 @@ index d6bef0b..38c2dc6 100644
              if (Math.abs(this.motX) > 10.0D) {
 diff --git a/src/main/java/net/minecraft/server/MetaApiAccessor.java b/src/main/java/net/minecraft/server/MetaApiAccessor.java
 new file mode 100644
-index 0000000..8a7a690
+index 0000000..4e19514
 --- /dev/null
 +++ b/src/main/java/net/minecraft/server/MetaApiAccessor.java
-@@ -0,0 +1,313 @@
+@@ -0,0 +1,299 @@
 +package net.minecraft.server;
 +
 +import org.bukkit.craftbukkit.CraftChunk;
@@ -319,20 +319,6 @@ index 0000000..8a7a690
 +import static com.empireminecraft.metaapi.MetaApi.*;
 +
 +public class MetaApiAccessor {
-+    private static class ChunkCoordinates extends net.minecraft.server.ChunkCoordinates {
-+        private ChunkCoordinates(int i, int j, int k) {
-+            super(i, j, k);
-+        }
-+
-+        @Override
-+        public int hashCode() {
-+            int result = 3;
-+            result = 31 * result + x;
-+            result = 31 * result + y;
-+            result = 31 * result + z;
-+            return result;
-+        }
-+    }
 +    public static MetaMap getWorldMetaMap(CraftWorld world) {
 +        return ((WorldNBTStorage)world.getHandle().dataManager).metaMap;
 +    }
@@ -365,7 +351,7 @@ index 0000000..8a7a690
 +     * @return
 +     */
 +    public static MetaMap getBlockMetaMap(ChunkMeta meta, int x, int y, int z, boolean isWrite) {
-+        ChunkCoordinates coords = new ChunkCoordinates(x, y,  z);
++        BlockPosition coords = new BlockPosition(x, y,  z);
 +        if (!isWrite && !meta.containsKey(coords)) {
 +            return null;
 +        }
@@ -434,8 +420,8 @@ index 0000000..8a7a690
 +     */
 +    static void saveChunkMetaNbt(NBTTagCompound cmp, Chunk chunk) {
 +        NBTTagCompound meta = new NBTTagCompound();
-+        for (Map.Entry<ChunkCoordinates, MetaMap> entry : chunk.chunkMeta.entrySet()) {
-+            ChunkCoordinates coords = entry.getKey();
++        for (Map.Entry<BlockPosition, MetaMap> entry : chunk.chunkMeta.entrySet()) {
++            BlockPosition coords = entry.getKey();
 +            MetaMap list = entry.getValue();
 +            NBTTagCompound metalist = getCompoundFromMetaMap(list);
 +            if (!metalist.isEmpty()) {
@@ -584,23 +570,23 @@ index 0000000..8a7a690
 +    }
 +
 +    /**
-+     * Translates ChunkCoordinates to a String form
++     * Translates BlockPosition to a String form
 +     * @param coords
 +     * @return
 +     */
-+    static String getCoordAsStr(ChunkCoordinates coords) {
++    static String getCoordAsStr(BlockPosition coords) {
 +        if (coords == null) {
 +            return null;
 +        }
-+        return "" + coords.x + ":" + coords.y + ":" + coords.z;
++        return "" + coords.getX() + ":" + coords.getY() + ":" + coords.getY();
 +    }
 +
 +    /**
-+     * Parses a string into ChunkCoordinates
++     * Parses a string into BlockPosition
 +     * @param loc
 +     * @return
 +     */
-+    static ChunkCoordinates getStrAsCoord(String loc) {
++    static BlockPosition getStrAsCoord(String loc) {
 +        if (loc != null)  {
 +            String[] args = loc.split(":", 3);
 +            if (args.length == 3) {
@@ -608,7 +594,7 @@ index 0000000..8a7a690
 +                    int x = (int) Math.floor(Float.parseFloat(args[0]));
 +                    int y = (int) Math.floor(Float.parseFloat(args[1]));
 +                    int z = (int) Math.floor(Float.parseFloat(args[2]));
-+                    return new ChunkCoordinates(x, y, z);
++                    return new BlockPosition(x, y, z);
 +                } catch (NumberFormatException e) {
 +
 +                }
@@ -617,7 +603,7 @@ index 0000000..8a7a690
 +        return null;
 +    }
 +
-+    public static class ChunkMeta extends HashMap<ChunkCoordinates, MetaMap> {}
++    public static class ChunkMeta extends HashMap<BlockPosition, MetaMap> {}
 +}
 diff --git a/src/main/java/net/minecraft/server/NBTTagList.java b/src/main/java/net/minecraft/server/NBTTagList.java
 index 2c12297..eb04f83 100644
