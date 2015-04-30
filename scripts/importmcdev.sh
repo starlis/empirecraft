@@ -26,6 +26,14 @@ function import {
 	fi
 }
 
+(
+	cd Spigot/Spigot/Spigot-Server/
+	lastlog=$(git log -1 --oneline)
+	if [[ "$lastlog" = *"EMC-Extra mc-dev Imports"* ]]; then
+		git reset --hard HEAD^
+	fi
+)
+
 import ServerStatisticManager
 import RemoteControlListener
 import NBTTagList
@@ -38,16 +46,9 @@ import PathfinderGoalArrowAttack
 import PathfinderGoalTarget
 import ItemSnowball
 import ItemBookAndQuill
-import PacketPlayOutPlayerInfo
 
 (
 	cd Spigot/Spigot/Spigot-Server/
 	git add src -A
-	lastlog=$(git log -1 --oneline)
-	amend=""
-	if [[ "$lastlog" = *"EMC-Extra mc-dev Imports"* ]]; then
-		amend="--amend"
-		echo "Amending last commit"
-	fi
-	echo -e "EMC-Extra mc-dev Imports\n\n$MODLOG" | git commit src $amend -F -
+	echo -e "EMC-Extra mc-dev Imports\n\n$MODLOG" | git commit src -F -
 )

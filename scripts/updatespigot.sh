@@ -37,15 +37,24 @@ tag="$mcVer-$(echo -e $version | sha1sum | awk '{print $1}')"
 function tag {
 (
 	cd $1
-	pwd
+	if [ "$2" == "1" ]; then
+		git tag -d "$tag" 2>/dev/null
+	fi
 	echo -e "$(date)\n\n$version" | git tag -a "$tag" -F - 2>/dev/null
 )
 }
 echo "Tagging as $tag"
 echo -e "$version"
-tag Spigot-API
-tag Spigot-Server
+
+forcetag=0
+if [ "$(cat $basedir/current-spigot)" != "$tag" ]; then
+	forcetag=1
+fi
+
+tag Spigot-API $forcetag
+tag Spigot-Server $forcetag
+
 echo "$tag" > $basedir/current-spigot
 pushRepo Spigot-API git@bitbucket.org:starlis/Spigot-API $tag
 pushRepo Spigot-Server git@bitbucket.org:starlis/Spigot-Server $tag
-scripts/generatesources
+$basedir/scripts/generatesources
