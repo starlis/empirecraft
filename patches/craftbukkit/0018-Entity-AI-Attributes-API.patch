@@ -1,4 +1,4 @@
-From 0eee4a5b8aaeb48f934836ed78fed71500e073b8 Mon Sep 17 00:00:00 2001
+From 9df6609e37b842be41bd923c6f471191cd00a1b6 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Fri, 31 May 2013 22:40:25 -0400
 Subject: [PATCH] Entity AI / Attributes API
@@ -7,29 +7,27 @@ This gives us control over some Entity AI
 Also API for Attributes
 This will be expanded as future needs.
 ---
- .../empireminecraft/entityai/AttributesAPI.java    |  47 ++++++++
- .../com/empireminecraft/entityai/EntityAIApi.java  | 121 +++++++++++++++++++++
- .../empireminecraft/entityai/EntityMoveApi.java    |  61 +++++++++++
+ .../empireminecraft/entityai/AttributesAPI.java    |  47 +++++++++
+ .../com/empireminecraft/entityai/EntityAIApi.java  | 112 +++++++++++++++++++++
+ .../empireminecraft/entityai/EntityMoveApi.java    |  64 ++++++++++++
  .../net/minecraft/server/AttributesAccessor.java   |  39 +++++++
  src/main/java/net/minecraft/server/Entity.java     |  14 ++-
  .../java/net/minecraft/server/EntityAnimal.java    |   2 +
- .../java/net/minecraft/server/EntityCreature.java  |   1 +
+ .../net/minecraft/server/EntityGoalAccessor.java   |  24 +++++
  .../net/minecraft/server/EntityInsentient.java     |   1 +
  src/main/java/net/minecraft/server/EntityItem.java |   3 +-
  .../java/net/minecraft/server/EntityLiving.java    |   3 +-
- .../java/net/minecraft/server/EntityMonster.java   |   1 +
- .../net/minecraft/server/PathfinderAccessor.java   |  10 ++
  .../server/PathfinderGoalArrowAttack.java          |   8 +-
  .../minecraft/server/PathfinderGoalSelector.java   |   4 +-
  .../net/minecraft/server/PathfinderGoalTarget.java |   2 +-
  src/main/java/net/minecraft/server/World.java      |   2 +-
  src/main/java/org/spigotmc/ActivationRange.java    |   1 +
- 17 files changed, 308 insertions(+), 12 deletions(-)
+ 15 files changed, 314 insertions(+), 12 deletions(-)
  create mode 100644 src/main/java/com/empireminecraft/entityai/AttributesAPI.java
  create mode 100644 src/main/java/com/empireminecraft/entityai/EntityAIApi.java
  create mode 100644 src/main/java/com/empireminecraft/entityai/EntityMoveApi.java
  create mode 100644 src/main/java/net/minecraft/server/AttributesAccessor.java
- create mode 100644 src/main/java/net/minecraft/server/PathfinderAccessor.java
+ create mode 100644 src/main/java/net/minecraft/server/EntityGoalAccessor.java
 
 diff --git a/src/main/java/com/empireminecraft/entityai/AttributesAPI.java b/src/main/java/com/empireminecraft/entityai/AttributesAPI.java
 new file mode 100644
@@ -86,10 +84,10 @@ index 0000000..2c7a83b
 +}
 diff --git a/src/main/java/com/empireminecraft/entityai/EntityAIApi.java b/src/main/java/com/empireminecraft/entityai/EntityAIApi.java
 new file mode 100644
-index 0000000..df094f3
+index 0000000..6324f15
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/entityai/EntityAIApi.java
-@@ -0,0 +1,121 @@
+@@ -0,0 +1,112 @@
 +package com.empireminecraft.entityai;
 +
 +import net.minecraft.server.*;
@@ -149,18 +147,9 @@ index 0000000..df094f3
 +        check.addAll(entity.targetSelector.b);
 +        check.addAll(entity.targetSelector.c);
 +
-+
-+        entity.peaceful = true;
-+
 +        for (Object o : check) {
-+            PathfinderGoal goal = PathfinderAccessor.getPathfinderGoal(o);
-+            if (goal instanceof PathfinderGoalMeleeAttack ||
-+                goal instanceof PathfinderGoalArrowAttack ||
-+                goal instanceof PathfinderGoalMoveThroughVillage ||
-+                goal instanceof PathfinderGoalBreakDoor ||
-+                goal instanceof PathfinderGoalNearestAttackableTarget ||
-+                goal instanceof PathfinderGoalHurtByTarget) {
-+
++            PathfinderGoal goal = EntityGoalAccessor.getPathfinderGoal(o);
++            if (EntityGoalAccessor.isHostileGoal(goal)) {
 +                entity.goalSelector.b.remove(o);
 +                entity.goalSelector.c.remove(o);
 +                entity.targetSelector.b.remove(o);
@@ -185,7 +174,7 @@ index 0000000..df094f3
 +        setTargetRange(monster, range);
 +        EntityMonster entity = (EntityMonster) ((CraftEntity)monster).getHandle();
 +        for (Object o : entity.goalSelector.b) {
-+            PathfinderGoal goal = PathfinderAccessor.getPathfinderGoal(o);
++            PathfinderGoal goal = EntityGoalAccessor.getPathfinderGoal(o);
 +            if (goal instanceof PathfinderGoalArrowAttack) {
 +                ((PathfinderGoalArrowAttack) goal).i = range;
 +                ((PathfinderGoalArrowAttack) goal).j = range*range;
@@ -196,7 +185,7 @@ index 0000000..df094f3
 +    public static void setArrowAttackSpeed(Monster monster, Integer min, Integer max) {
 +        EntityMonster entity = (EntityMonster) ((CraftEntity)monster).getHandle();
 +        for (Object o : entity.goalSelector.b) {
-+            PathfinderGoal goal = PathfinderAccessor.getPathfinderGoal(o);
++            PathfinderGoal goal = EntityGoalAccessor.getPathfinderGoal(o);
 +            if (goal instanceof PathfinderGoalArrowAttack) {
 +                if (min != null) {
 +                    ((PathfinderGoalArrowAttack) goal).g = min;
@@ -213,10 +202,10 @@ index 0000000..df094f3
 +}
 diff --git a/src/main/java/com/empireminecraft/entityai/EntityMoveApi.java b/src/main/java/com/empireminecraft/entityai/EntityMoveApi.java
 new file mode 100644
-index 0000000..f8f5268
+index 0000000..fd44df1
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/entityai/EntityMoveApi.java
-@@ -0,0 +1,61 @@
+@@ -0,0 +1,64 @@
 +package com.empireminecraft.entityai;
 +
 +import net.minecraft.server.EntityCreature;
@@ -229,13 +218,16 @@ index 0000000..f8f5268
 +import org.bukkit.entity.LivingEntity;
 +
 +public class EntityMoveApi {
++    private static PathEntity getPathEntity(Creature entity) {
++        return ((CraftCreature) entity).getHandle().getNavigation().j();
++    }
 +    public static boolean hasEntityPath(Creature entity) {
-+        final PathEntity pathEntity = ((CraftCreature) entity).getHandle().pathEntity;
++        final PathEntity pathEntity = getPathEntity(entity);
 +        return (pathEntity != null);
 +    }
 +    public static Location getEntityPathDestination(Creature entity) {
 +
-+        final PathEntity pathEntity = ((CraftCreature) entity).getHandle().pathEntity;
++        final PathEntity pathEntity = getPathEntity(entity);
 +        if (pathEntity == null) {
 +            return null;
 +        }
@@ -258,7 +250,7 @@ index 0000000..f8f5268
 +                loc.getBlockZ());
 +        }
 +
-+        handle.setPathEntity(path);
++        handle.getNavigation().a(path, 1);
 +        handle.onGround = onGround;
 +        return path != null;
 +    }
@@ -273,14 +265,14 @@ index 0000000..f8f5268
 +            path = handle.getNavigation().a(((CraftLivingEntity)target).getHandle());
 +        }
 +
-+        handle.setPathEntity(path);
++        handle.getNavigation().a(path, 1);
 +        handle.onGround = onGround;
 +        return path != null;
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/AttributesAccessor.java b/src/main/java/net/minecraft/server/AttributesAccessor.java
 new file mode 100644
-index 0000000..ed3bb6a
+index 0000000..d886b45
 --- /dev/null
 +++ b/src/main/java/net/minecraft/server/AttributesAccessor.java
 @@ -0,0 +1,39 @@
@@ -294,7 +286,7 @@ index 0000000..ed3bb6a
 +import java.util.HashMap;
 +
 +public class AttributesAccessor {
-+    public static final IAttribute targetRange = (new AttributeRanged("generic.targetRange", 16.0D, 0.0D, 2048.0D)).a("Target Range"); // EMC
++    public static final IAttribute targetRange = (new AttributeRanged(null, "generic.targetRange", 16.0D, 0.0D, 2048.0D)).a("Target Range");
 +
 +    static final HashMap<AttributesAPI.Attribute, IAttribute> attributeMap = Maps.newHashMap();
 +    static {
@@ -432,18 +424,36 @@ index a831529..a3e8f4b 100644
      private EntityHuman bo;
  
      public EntityAnimal(World world) {
-diff --git a/src/main/java/net/minecraft/server/EntityCreature.java b/src/main/java/net/minecraft/server/EntityCreature.java
-index 5ea36f7..47ce390 100644
---- a/src/main/java/net/minecraft/server/EntityCreature.java
-+++ b/src/main/java/net/minecraft/server/EntityCreature.java
-@@ -14,6 +14,7 @@ public abstract class EntityCreature extends EntityInsentient {
-     private float b;
-     private PathfinderGoal c;
-     private boolean bm;
-+    public boolean peaceful = false; // EMC
- 
-     public EntityCreature(World world) {
-         super(world);
+diff --git a/src/main/java/net/minecraft/server/EntityGoalAccessor.java b/src/main/java/net/minecraft/server/EntityGoalAccessor.java
+new file mode 100644
+index 0000000..99051b9
+--- /dev/null
++++ b/src/main/java/net/minecraft/server/EntityGoalAccessor.java
+@@ -0,0 +1,24 @@
++package net.minecraft.server;
++
++public class EntityGoalAccessor {
++    public static PathfinderGoal getPathfinderGoal(Object object) {
++        if (object instanceof PathfinderGoalSelector.PathfinderGoalSelectorItem) {
++            return ((PathfinderGoalSelector.PathfinderGoalSelectorItem) object).a;
++        }
++        return null;
++    }
++
++    public static boolean isHostileGoal(PathfinderGoal goal) {
++        if (goal instanceof PathfinderGoalMeleeAttack ||
++            goal instanceof PathfinderGoalOcelotAttack ||
++            goal instanceof EntityBlaze.PathfinderGoalBlazeFireball ||
++            goal instanceof PathfinderGoalArrowAttack ||
++            goal instanceof PathfinderGoalMoveThroughVillage ||
++            goal instanceof PathfinderGoalBreakDoor ||
++            goal instanceof PathfinderGoalNearestAttackableTarget ||
++            goal instanceof PathfinderGoalHurtByTarget) {
++            return true;
++        }
++        return false;
++    }
++}
 diff --git a/src/main/java/net/minecraft/server/EntityInsentient.java b/src/main/java/net/minecraft/server/EntityInsentient.java
 index 9621ce0..fb3ec4a 100644
 --- a/src/main/java/net/minecraft/server/EntityInsentient.java
@@ -498,34 +508,6 @@ index 99b120a..9673f3a 100644
          this.getAttributeMap().b(GenericAttributes.d);
      }
  
-diff --git a/src/main/java/net/minecraft/server/EntityMonster.java b/src/main/java/net/minecraft/server/EntityMonster.java
-index f86c641..e29df10 100644
---- a/src/main/java/net/minecraft/server/EntityMonster.java
-+++ b/src/main/java/net/minecraft/server/EntityMonster.java
-@@ -61,6 +61,7 @@ public abstract class EntityMonster extends EntityCreature implements IMonster {
-     }
- 
-     public boolean r(Entity entity) {
-+        if (peaceful) return false; // EMC
-         float f = (float) this.getAttributeInstance(GenericAttributes.e).getValue();
-         int i = 0;
- 
-diff --git a/src/main/java/net/minecraft/server/PathfinderAccessor.java b/src/main/java/net/minecraft/server/PathfinderAccessor.java
-new file mode 100644
-index 0000000..b60836f
---- /dev/null
-+++ b/src/main/java/net/minecraft/server/PathfinderAccessor.java
-@@ -0,0 +1,10 @@
-+package net.minecraft.server;
-+
-+public class PathfinderAccessor {
-+    public static PathfinderGoal getPathfinderGoal(Object object) {
-+        if (object instanceof PathfinderGoalSelector.PathfinderGoalSelectorItem) {
-+            return ((PathfinderGoalSelector.PathfinderGoalSelectorItem) object).a;
-+        }
-+        return null;
-+    }
-+}
 diff --git a/src/main/java/net/minecraft/server/PathfinderGoalArrowAttack.java b/src/main/java/net/minecraft/server/PathfinderGoalArrowAttack.java
 index 42ee4e7..e9e0f75 100644
 --- a/src/main/java/net/minecraft/server/PathfinderGoalArrowAttack.java
