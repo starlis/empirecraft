@@ -1,154 +1,22 @@
-From 7099f3b2213c3ff579192f8e803d852bdb3bc717 Mon Sep 17 00:00:00 2001
+From 508ff2fbd621ff440b2146b30f64c0ab641bb591 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Wed, 8 Oct 2014 19:02:16 -0400
 Subject: [PATCH] Add Utility Classes
 
 Provides Utility classes for Spigot and plugins to use.
 
-EvictingQueue: Backport of Guava v15 Class.
 JSONUtil: Provides utility methods for building json-simple documents.
 LoadingMap: Create a map with an auto loader to auto load on .get() if missing, similar to a LoadingCache.
 MRUMapCache: Caches most recently used key/value for faster lookups on on 1 or 2 key maps.
 ---
- src/main/java/org/spigotmc/util/EvictingQueue.java | 123 ++++++++
- src/main/java/org/spigotmc/util/JSONUtil.java      | 123 ++++++++
- src/main/java/org/spigotmc/util/LoadingMap.java    | 332 +++++++++++++++++++++
- src/main/java/org/spigotmc/util/MRUMapCache.java   | 100 +++++++
- 4 files changed, 678 insertions(+)
- create mode 100644 src/main/java/org/spigotmc/util/EvictingQueue.java
+ src/main/java/org/spigotmc/util/JSONUtil.java    | 123 +++++++++
+ src/main/java/org/spigotmc/util/LoadingMap.java  | 332 +++++++++++++++++++++++
+ src/main/java/org/spigotmc/util/MRUMapCache.java | 100 +++++++
+ 3 files changed, 555 insertions(+)
  create mode 100644 src/main/java/org/spigotmc/util/JSONUtil.java
  create mode 100644 src/main/java/org/spigotmc/util/LoadingMap.java
  create mode 100644 src/main/java/org/spigotmc/util/MRUMapCache.java
 
-diff --git a/src/main/java/org/spigotmc/util/EvictingQueue.java b/src/main/java/org/spigotmc/util/EvictingQueue.java
-new file mode 100644
-index 0000000..c01e3a0
---- /dev/null
-+++ b/src/main/java/org/spigotmc/util/EvictingQueue.java
-@@ -0,0 +1,123 @@
-+/*
-+ * Copyright (C) 2012 The Guava Authors
-+ *
-+ * Licensed under the Apache License, Version 2.0 (the "License");
-+ * you may not use this file except in compliance with the License.
-+ * You may obtain a copy of the License at
-+ *
-+ * http://www.apache.org/licenses/LICENSE-2.0
-+ *
-+ * Unless required by applicable law or agreed to in writing, software
-+ * distributed under the License is distributed on an "AS IS" BASIS,
-+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-+ * See the License for the specific language governing permissions and
-+ * limitations under the License.
-+ */
-+
-+package org.spigotmc.util;
-+
-+import static com.google.common.base.Preconditions.checkArgument;
-+import static com.google.common.base.Preconditions.checkNotNull;
-+
-+import com.google.common.collect.ForwardingQueue;
-+
-+import java.io.Serializable;
-+import java.util.ArrayDeque;
-+import java.util.Collection;
-+import java.util.Queue;
-+
-+/**
-+ * A non-blocking queue which automatically evicts elements from the head of the queue when
-+ * attempting to add new elements onto the queue and it is full.
-+ *
-+ * <p>An evicting queue must be configured with a maximum size. Each time an element is added
-+ * to a full queue, the queue automatically removes its head element. This is different from
-+ * conventional bounded queues, which either block or reject new elements when full.
-+ *
-+ * <p>This class is not thread-safe, and does not accept null elements.
-+ *
-+ * @author Kurt Alfred Kluever
-+ * @since 15.0
-+ */
-+public final class EvictingQueue<E> extends ForwardingQueue<E> implements Serializable {
-+
-+    private final Queue<E> delegate;
-+
-+    final int maxSize;
-+
-+    private EvictingQueue(int maxSize) {
-+        checkArgument(maxSize >= 0, "maxSize (%s) must >= 0", maxSize);
-+        this.delegate = new ArrayDeque<E>(maxSize);
-+        this.maxSize = maxSize;
-+    }
-+
-+    /**
-+     * Creates and returns a new evicting queue that will hold up to {@code maxSize} elements.
-+     *
-+     * <p>When {@code maxSize} is zero, elements will be evicted immediately after being added to the
-+     * queue.
-+     */
-+    public static <E> EvictingQueue<E> create(int maxSize) {
-+        return new EvictingQueue<E>(maxSize);
-+    }
-+
-+    /**
-+     * Returns the number of additional elements that this queue can accept without evicting;
-+     * zero if the queue is currently full.
-+     *
-+     * @since 16.0
-+     */
-+    public int remainingCapacity() {
-+        return maxSize - size();
-+    }
-+
-+    @Override protected Queue<E> delegate() {
-+        return delegate;
-+    }
-+
-+    /**
-+     * Adds the given element to this queue. If the queue is currently full, the element at the head
-+     * of the queue is evicted to make room.
-+     *
-+     * @return {@code true} always
-+     */
-+    @Override public boolean offer(E e) {
-+        return add(e);
-+    }
-+
-+    /**
-+     * Adds the given element to this queue. If the queue is currently full, the element at the head
-+     * of the queue is evicted to make room.
-+     *
-+     * @return {@code true} always
-+     */
-+    @Override public boolean add(E e) {
-+        checkNotNull(e);  // check before removing
-+        if (maxSize == 0) {
-+            return true;
-+        }
-+        if (size() == maxSize) {
-+            delegate.remove();
-+        }
-+        delegate.add(e);
-+        return true;
-+    }
-+
-+    @Override public boolean addAll(Collection<? extends E> collection) {
-+        return standardAddAll(collection);
-+    }
-+
-+    @Override
-+    public boolean contains(Object object) {
-+        return delegate().contains(checkNotNull(object));
-+    }
-+
-+    @Override
-+    public boolean remove(Object object) {
-+        return delegate().remove(checkNotNull(object));
-+    }
-+
-+    // TODO(user): Do we want to checkNotNull each element in containsAll, removeAll, and retainAll?
-+
-+    private static final long serialVersionUID = 0L;
-+}
 diff --git a/src/main/java/org/spigotmc/util/JSONUtil.java b/src/main/java/org/spigotmc/util/JSONUtil.java
 new file mode 100644
 index 0000000..134fb2d
