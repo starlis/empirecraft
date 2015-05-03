@@ -1,0 +1,116 @@
+From cc25d3c2a5b8f76d7ac32c33da90e66e80cc9b5f Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Sun, 3 May 2015 01:57:31 -0400
+Subject: [PATCH] Villager Trading Changes
+
+---
+ .../java/net/minecraft/server/EntityVillager.java  | 40 +++++++++++++++++++---
+ .../java/net/minecraft/server/MerchantRecipe.java  |  5 +--
+ 2 files changed, 39 insertions(+), 6 deletions(-)
+
+diff --git a/src/main/java/net/minecraft/server/EntityVillager.java b/src/main/java/net/minecraft/server/EntityVillager.java
+index 6c98be9..2d2fe9c 100644
+--- a/src/main/java/net/minecraft/server/EntityVillager.java
++++ b/src/main/java/net/minecraft/server/EntityVillager.java
+@@ -17,8 +17,8 @@ public class EntityVillager extends EntityAgeable implements IMerchant, NPC {
+     private boolean bu;
+     private int riches;
+     private String bw;
+-    private int bx;
+-    private int by;
++    private int bx;public int getCareer() { return bx; } // EMC
++    private int by;public int getCareerLevel() { return by; } // EMC
+     private boolean bz;
+     private boolean bA;
+     public InventorySubcontainer inventory;
+@@ -28,6 +28,35 @@ public class EntityVillager extends EntityAgeable implements IMerchant, NPC {
+         this(world, 0);
+     }
+ 
++    // EMC start
++    public boolean shouldReset(MerchantRecipe recipe) {
++        recipe.triggeredReset = true;
++        final MerchantRecipeList offers = getOffers(null);
++        int locked = 0;
++        for (MerchantRecipe offer : offers) {
++            if (offer.uses >= offer.maxUses) {
++                locked++;
++            }
++        }
++        return recipe.uses == 1 || offers.size() < 6 || locked >= 2;
++    }
++    public void convertTrades(MerchantRecipeList list) {
++        if (list != null && !list.isEmpty() && getCareer() == 0 && getCareerLevel() == 0) {
++            int oldCount = list.size();
++            System.out.println("Converting Villager at " + world.getWorld().getName()+":"+locX+","+locY+","+locZ+" with " + oldCount + " trades");
++            list.clear();
++            int i = 0;
++            int lastSize = -1;
++            while (list.size() < oldCount && i++ < 10 && lastSize != list.size()) {
++                System.out.println("Adding Trade " + i);
++                lastSize = list.size();
++                addTrade();
++            }
++            System.out.println("Now has " + list.size() + " trades");
++        }
++    }
++    // EMC end
++
+     public EntityVillager(World world, int i) {
+         super(world);
+         this.inventory = new InventorySubcontainer("Items", false, 8, (CraftVillager) this.getBukkitEntity()); // CraftBukkit add argument
+@@ -107,8 +136,9 @@ public class EntityVillager extends EntityAgeable implements IMerchant, NPC {
+                         MerchantRecipe merchantrecipe = (MerchantRecipe) iterator.next();
+ 
+                         if (merchantrecipe.h()) {
++                            if (merchantrecipe.triggeredReset) { merchantrecipe.triggeredReset = false; continue; } // EMC
+                             merchantrecipe.a(this.random.nextInt(6) + this.random.nextInt(6) + 2);
+-                        }
++                        } else { merchantrecipe.triggeredReset = false; } // EMC
+                     }
+ 
+                     this.cw();
+@@ -183,6 +213,7 @@ public class EntityVillager extends EntityAgeable implements IMerchant, NPC {
+             NBTTagCompound nbttagcompound1 = nbttagcompound.getCompound("Offers");
+ 
+             this.br = new MerchantRecipeList(nbttagcompound1);
++            convertTrades(this.br); // EMC
+         }
+ 
+         NBTTagList nbttaglist = nbttagcompound.getList("Inventory", 10);
+@@ -333,7 +364,7 @@ public class EntityVillager extends EntityAgeable implements IMerchant, NPC {
+ 
+         if (merchantrecipe.e() == 1 || this.random.nextInt(5) == 0) {
+             this.bs = 40;
+-            this.bt = true;
++            this.bt = shouldReset(merchantrecipe); // EMC
+             this.bu = true;
+             if (this.tradingPlayer != null) {
+                 this.bw = this.tradingPlayer.getName();
+@@ -374,6 +405,7 @@ public class EntityVillager extends EntityAgeable implements IMerchant, NPC {
+         return this.br;
+     }
+ 
++    private void addTrade() { cw(); } // EMC
+     private void cw() {
+         EntityVillager.IMerchantRecipeOption[][][] aentityvillager_imerchantrecipeoption = EntityVillager.bC[this.getProfession()];
+ 
+diff --git a/src/main/java/net/minecraft/server/MerchantRecipe.java b/src/main/java/net/minecraft/server/MerchantRecipe.java
+index 99958c6..44f8657 100644
+--- a/src/main/java/net/minecraft/server/MerchantRecipe.java
++++ b/src/main/java/net/minecraft/server/MerchantRecipe.java
+@@ -5,8 +5,9 @@ public class MerchantRecipe {
+     private ItemStack buyingItem1;
+     private ItemStack buyingItem2;
+     private ItemStack sellingItem;
+-    private int uses;
+-    private int maxUses;
++    public int uses; // EMC
++    public int maxUses; // EMC
++    public boolean triggeredReset = false; // EMC
+     private boolean rewardExp;
+ 
+     public MerchantRecipe(NBTTagCompound nbttagcompound) {
+-- 
+1.9.1
+
