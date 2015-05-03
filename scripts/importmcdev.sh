@@ -46,6 +46,7 @@ import PathfinderGoalArrowAttack
 import PathfinderGoalTarget
 import ItemSnowball
 import ItemBookAndQuill
+import MerchantRecipe
 
 (
 	cd Spigot/Spigot/Spigot-Server/
