@@ -1,2 +1,2 @@
-git clone git@github.com:starlis/EMC-Bukkit
-git clone git@github.com:starlis/EMC-CraftBukkit
+git clone git@bitbucket.org:starlis/EmpireCraft-API
+git clone git@bitbucket.org:starlis/EmpireCraft-Server
