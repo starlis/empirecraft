@@ -8,9 +8,9 @@ while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symli
 done
 . $(dirname $SOURCE)/init.sh
 
-cd $basedir/EMC-Bukkit
+cd $basedir/EmpireCraft-API
 git co master
-git push origin -f
-cd $basedir/EMC-CraftBukkit
+git push origin master -f -u
+cd $basedir/EmpireCraft-Server
 git co master
-git push origin -f
+git push origin master -f -u
