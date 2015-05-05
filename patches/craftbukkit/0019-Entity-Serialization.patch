@@ -1,22 +1,22 @@
-From b0cf965060552b7ca6cc3f44d88a75e80b4690c3 Mon Sep 17 00:00:00 2001
+From 7c89a8e6ad9faff136d0575f975eba656e399a54 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Fri, 12 Jul 2013 18:58:19 -0400
 Subject: [PATCH] Entity Serialization
 
 Allow serializing an Entity to raw NBT, and to get an Entity object without spawning it into the world.
 ---
- .../cbmisc/EntitySerialization.java                | 70 ++++++++++++++++++++++
+ .../cbmisc/EntitySerialization.java                | 58 ++++++++++++++++++++++
  src/main/java/net/minecraft/server/Entity.java     |  1 +
  .../org/bukkit/craftbukkit/entity/CraftEntity.java | 10 ++++
- 3 files changed, 81 insertions(+)
+ 3 files changed, 69 insertions(+)
  create mode 100644 src/main/java/com/empireminecraft/cbmisc/EntitySerialization.java
 
 diff --git a/src/main/java/com/empireminecraft/cbmisc/EntitySerialization.java b/src/main/java/com/empireminecraft/cbmisc/EntitySerialization.java
 new file mode 100644
-index 0000000..5a1a6be
+index 0000000..508b62c
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/cbmisc/EntitySerialization.java
-@@ -0,0 +1,70 @@
+@@ -0,0 +1,58 @@
 +package com.empireminecraft.cbmisc;
 +
 +import net.minecraft.server.*;
@@ -31,6 +31,8 @@ index 0000000..5a1a6be
 +import java.io.DataOutput;
 +import java.io.DataOutputStream;
 +import java.io.IOException;
++import java.io.InputStream;
++import java.io.OutputStream;
 +import java.util.zip.GZIPOutputStream;
 +
 +public class EntitySerialization {
@@ -47,25 +49,16 @@ index 0000000..5a1a6be
 +    private static byte[] NBTToBytes(NBTTagCompound nbttagcompound) {
 +        ByteArrayOutputStream bytearrayoutputstream = new ByteArrayOutputStream();
 +
-+        DataOutputStream dataoutputstream = null;
 +        try {
-+            dataoutputstream = new DataOutputStream(new GZIPOutputStream(bytearrayoutputstream));
-+            NBTCompressedStreamTools.a(nbttagcompound, (DataOutput) dataoutputstream);
++            NBTCompressedStreamTools.a(nbttagcompound, bytearrayoutputstream);
 +        } catch (IOException ignored) {
 +            return null;
-+        } finally {
-+            try {
-+                if (dataoutputstream != null) {
-+                    dataoutputstream.close();
-+                }
-+            } catch (IOException e) {
-+            }
 +        }
 +
 +        return bytearrayoutputstream.toByteArray();
 +    }
 +    private static NBTTagCompound readNBT(ByteArrayInputStream datainputstream) throws IOException {
-+        return NBTCompressedStreamTools.a((DataInput) datainputstream, NBTReadLimiter.a);
++        return NBTCompressedStreamTools.a((InputStream) new DataInputStream(datainputstream));
 +    }
 +
 +    public static Entity deserializeEntity(byte[] data, org.bukkit.World world) {
@@ -78,11 +71,6 @@ index 0000000..5a1a6be
 +            cmp = readNBT(stream);
 +        } catch (IOException e) {
 +            return null;
-+        } finally {
-+            try {
-+                stream.close();
-+            } catch (IOException e) {
-+            }
 +        }
 +        return EntityTypes.a(cmp, ((CraftWorld) world).getHandle()).getBukkitEntity();
 +    }
