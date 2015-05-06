@@ -1,0 +1,112 @@
+From a9bd36469e21c827f55615ea9ff088e99e4c576b Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Sun, 16 Mar 2014 20:44:46 -0400
+Subject: [PATCH] EntityKnockbackEvent
+
+Control knockback power of entity attacks
+---
+ .../customevents/EntityKnockbackEvent.java         | 43 ++++++++++++++++++++++
+ .../net/minecraft/server/EnchantmentManager.java   |  9 ++++-
+ .../java/net/minecraft/server/EntityHuman.java     |  2 +-
+ .../java/net/minecraft/server/EntityMonster.java   |  2 +-
+ 4 files changed, 52 insertions(+), 4 deletions(-)
+ create mode 100644 src/main/java/com/empireminecraft/customevents/EntityKnockbackEvent.java
+
+diff --git a/src/main/java/com/empireminecraft/customevents/EntityKnockbackEvent.java b/src/main/java/com/empireminecraft/customevents/EntityKnockbackEvent.java
+new file mode 100644
+index 0000000..5e10e24
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/customevents/EntityKnockbackEvent.java
+@@ -0,0 +1,43 @@
++package com.empireminecraft.customevents;
++
++import org.bukkit.entity.LivingEntity;
++import org.bukkit.event.Event;
++import org.bukkit.event.HandlerList;
++
++public class EntityKnockbackEvent extends Event {
++    private final LivingEntity attackingEntity;
++    private final LivingEntity targetEntity;
++    private int level;
++
++    public EntityKnockbackEvent(LivingEntity attackingEntity, LivingEntity targetEntity, int level) {
++        this.attackingEntity = attackingEntity;
++        this.targetEntity = targetEntity;
++        this.level = level;
++    }
++
++    public LivingEntity getAttackingEntity() {
++        return attackingEntity;
++    }
++
++    public LivingEntity getTargetEntity() {
++        return targetEntity;
++    }
++
++    public int getLevel() {
++        return level;
++    }
++
++    public void setLevel(int level) {
++        this.level = level;
++    }
++
++    private static final HandlerList handlers = new HandlerList();
++
++    public HandlerList getHandlers() {
++        return handlers;
++    }
++
++    public static HandlerList getHandlerList() {
++        return handlers;
++    }
++}
+diff --git a/src/main/java/net/minecraft/server/EnchantmentManager.java b/src/main/java/net/minecraft/server/EnchantmentManager.java
+index 32f5a3e..5dfabc8 100644
+--- a/src/main/java/net/minecraft/server/EnchantmentManager.java
++++ b/src/main/java/net/minecraft/server/EnchantmentManager.java
+@@ -190,8 +190,13 @@ public class EnchantmentManager {
+         // Spigot end
+     }
+ 
+-    public static int a(EntityLiving entityliving) {
+-        return getEnchantmentLevel(Enchantment.KNOCKBACK.id, entityliving.bA());
++    public static int getKnockbackEnchantmentLevel(EntityLiving entityliving, Entity target) { // EMC - rename and add target
++        // EMC start
++        int level = getEnchantmentLevel(Enchantment.KNOCKBACK.id, entityliving.bA());
++        com.empireminecraft.customevents.EntityKnockbackEvent event = new com.empireminecraft.customevents.EntityKnockbackEvent((org.bukkit.entity.LivingEntity) entityliving.getBukkitEntity(), (org.bukkit.entity.LivingEntity) entityliving.getBukkitEntity(), level);
++        event.callEvent();
++        return event.getLevel();
++        // EMC end
+     }
+ 
+     public static int getFireAspectEnchantmentLevel(EntityLiving entityliving) {
+diff --git a/src/main/java/net/minecraft/server/EntityHuman.java b/src/main/java/net/minecraft/server/EntityHuman.java
+index c13f068..0c719e1 100644
+--- a/src/main/java/net/minecraft/server/EntityHuman.java
++++ b/src/main/java/net/minecraft/server/EntityHuman.java
+@@ -967,7 +967,7 @@ public abstract class EntityHuman extends EntityLiving {
+                     f1 = EnchantmentManager.a(this.bA(), EnumMonsterType.UNDEFINED);
+                 }
+ 
+-                int i = b0 + EnchantmentManager.a((EntityLiving) this);
++                int i = b0 + EnchantmentManager.getKnockbackEnchantmentLevel((EntityLiving) this, entity); // EMC
+ 
+                 if (this.isSprinting()) {
+                     ++i;
+diff --git a/src/main/java/net/minecraft/server/EntityMonster.java b/src/main/java/net/minecraft/server/EntityMonster.java
+index f86c641..3b8005c 100644
+--- a/src/main/java/net/minecraft/server/EntityMonster.java
++++ b/src/main/java/net/minecraft/server/EntityMonster.java
+@@ -66,7 +66,7 @@ public abstract class EntityMonster extends EntityCreature implements IMonster {
+ 
+         if (entity instanceof EntityLiving) {
+             f += EnchantmentManager.a(this.bA(), ((EntityLiving) entity).getMonsterType());
+-            i += EnchantmentManager.a((EntityLiving) this);
++            i += EnchantmentManager.getKnockbackEnchantmentLevel((EntityLiving) this, entity); // EMC
+         }
+ 
+         boolean flag = entity.damageEntity(DamageSource.mobAttack(this), f);
+-- 
+1.9.1
+
