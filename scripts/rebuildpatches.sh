@@ -25,3 +25,5 @@ function savePatches {
 
 savePatches EmpireCraft-API bukkit
 savePatches EmpireCraft-Server craftbukkit
+
+$basedir/scripts/push.sh
