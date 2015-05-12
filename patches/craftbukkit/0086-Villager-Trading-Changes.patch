@@ -1,15 +1,15 @@
-From 23740199b40e279dcac47cbdfeb62773ceb86895 Mon Sep 17 00:00:00 2001
+From 30c4e84010af220e0eb0a46e41b500f610521763 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Sun, 3 May 2015 01:57:31 -0400
 Subject: [PATCH] Villager Trading Changes
 
 ---
- .../java/net/minecraft/server/EntityVillager.java  | 73 ++++++++++++++++++++--
- .../java/net/minecraft/server/MerchantRecipe.java  |  4 +-
- 2 files changed, 70 insertions(+), 7 deletions(-)
+ .../java/net/minecraft/server/EntityVillager.java  | 88 ++++++++++++++++++++--
+ .../java/net/minecraft/server/MerchantRecipe.java  |  6 +-
+ 2 files changed, 86 insertions(+), 8 deletions(-)
 
 diff --git a/src/main/java/net/minecraft/server/EntityVillager.java b/src/main/java/net/minecraft/server/EntityVillager.java
-index 6c98be9..0ca4df7 100644
+index 6c98be9..fb05678 100644
 --- a/src/main/java/net/minecraft/server/EntityVillager.java
 +++ b/src/main/java/net/minecraft/server/EntityVillager.java
 @@ -17,8 +17,8 @@ public class EntityVillager extends EntityAgeable implements IMerchant, NPC {
@@ -23,7 +23,7 @@ index 6c98be9..0ca4df7 100644
      private boolean bz;
      private boolean bA;
      public InventorySubcontainer inventory;
-@@ -28,6 +28,67 @@ public class EntityVillager extends EntityAgeable implements IMerchant, NPC {
+@@ -28,6 +28,82 @@ public class EntityVillager extends EntityAgeable implements IMerchant, NPC {
          this(world, 0);
      }
  
@@ -48,7 +48,10 @@ index 6c98be9..0ca4df7 100644
 +        return recipe.uses == 1 || offers.size() < 5 || locked > 1 || (locked == 1 && recipe.uses < recipe.maxUses);
 +    }
 +    public void convertTrades(MerchantRecipeList list) {
-+        if (list != null && !list.isEmpty() && getCareer() == 0 && getCareerLevel() == 0) {
++        if (list == null) {
++            return;
++        }
++        if (!list.isEmpty() && getCareer() == 0 && getCareerLevel() == 0) {
 +            int oldCount = list.size();
 +            System.out.println("Converting Villager at " + world.getWorld().getName()+":"+locX+","+locY+","+locZ+" with " + oldCount + " trades");
 +
@@ -76,31 +79,43 @@ index 6c98be9..0ca4df7 100644
 +        }
 +        int unlocked = 0;
 +        for (MerchantRecipe oldTrade : list) {
++            if (oldTrade.maxUses - oldTrade.uses > 15 ) {
++                oldTrade.maxUses = oldTrade.uses + 15; // Repair damage from bug
++            }
 +            if (oldTrade.uses < oldTrade.maxUses) {
 +                unlocked++;
 +            }
 +        }
-+        if (unlocked < 4) {
++        if (unlocked < 4 && list.size() >= 6) {
 +            for (MerchantRecipe oldTrade : list) {
-+                oldTrade.maxUses += 5;
++                boostRecipe(oldTrade);
 +            }
 +        }
++    }
++    private void boostRecipe(MerchantRecipe recipe) {
++        int lower = 3;
++        int upper = 6;
++        if (recipe.sellingItem.getBukkitStack().getType() == org.bukkit.Material.ENCHANTED_BOOK) {
++            upper = 2;
++            lower = 5;
++        }
++        recipe.maxUses += random.nextInt(upper + 4) + random.nextInt(upper) + lower;
 +    }
 +    // EMC end
 +
      public EntityVillager(World world, int i) {
          super(world);
          this.inventory = new InventorySubcontainer("Items", false, 8, (CraftVillager) this.getBukkitEntity()); // CraftBukkit add argument
-@@ -107,7 +168,7 @@ public class EntityVillager extends EntityAgeable implements IMerchant, NPC {
+@@ -107,7 +183,7 @@ public class EntityVillager extends EntityAgeable implements IMerchant, NPC {
                          MerchantRecipe merchantrecipe = (MerchantRecipe) iterator.next();
  
                          if (merchantrecipe.h()) {
 -                            merchantrecipe.a(this.random.nextInt(6) + this.random.nextInt(6) + 2);
-+                            merchantrecipe.a(this.random.nextInt(10) + this.random.nextInt(6) + 3); // EMC - bump 6 to 10 and 2 to 3
++                            boostRecipe(merchantrecipe); // EMC
                          }
                      }
  
-@@ -183,6 +244,7 @@ public class EntityVillager extends EntityAgeable implements IMerchant, NPC {
+@@ -183,6 +259,7 @@ public class EntityVillager extends EntityAgeable implements IMerchant, NPC {
              NBTTagCompound nbttagcompound1 = nbttagcompound.getCompound("Offers");
  
              this.br = new MerchantRecipeList(nbttagcompound1);
@@ -108,7 +123,7 @@ index 6c98be9..0ca4df7 100644
          }
  
          NBTTagList nbttaglist = nbttagcompound.getList("Inventory", 10);
-@@ -331,9 +393,9 @@ public class EntityVillager extends EntityAgeable implements IMerchant, NPC {
+@@ -331,9 +408,9 @@ public class EntityVillager extends EntityAgeable implements IMerchant, NPC {
          this.makeSound("mob.villager.yes", this.bB(), this.bC());
          int i = 3 + this.random.nextInt(4);
  
@@ -120,7 +135,7 @@ index 6c98be9..0ca4df7 100644
              this.bu = true;
              if (this.tradingPlayer != null) {
                  this.bw = this.tradingPlayer.getName();
-@@ -374,6 +436,7 @@ public class EntityVillager extends EntityAgeable implements IMerchant, NPC {
+@@ -374,6 +451,7 @@ public class EntityVillager extends EntityAgeable implements IMerchant, NPC {
          return this.br;
      }
  
@@ -129,15 +144,17 @@ index 6c98be9..0ca4df7 100644
          EntityVillager.IMerchantRecipeOption[][][] aentityvillager_imerchantrecipeoption = EntityVillager.bC[this.getProfession()];
  
 diff --git a/src/main/java/net/minecraft/server/MerchantRecipe.java b/src/main/java/net/minecraft/server/MerchantRecipe.java
-index 99958c6..43acea8 100644
+index 99958c6..04c2f9e 100644
 --- a/src/main/java/net/minecraft/server/MerchantRecipe.java
 +++ b/src/main/java/net/minecraft/server/MerchantRecipe.java
-@@ -5,8 +5,8 @@ public class MerchantRecipe {
+@@ -4,9 +4,9 @@ public class MerchantRecipe {
+ 
      private ItemStack buyingItem1;
      private ItemStack buyingItem2;
-     private ItemStack sellingItem;
+-    private ItemStack sellingItem;
 -    private int uses;
 -    private int maxUses;
++    public ItemStack sellingItem; // EMC
 +    public int uses; // EMC
 +    public int maxUses; // EMC
      private boolean rewardExp;
