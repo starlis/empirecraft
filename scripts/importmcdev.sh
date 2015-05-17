@@ -48,6 +48,8 @@ import ItemSnowball
 import ItemBookAndQuill
 import MerchantRecipe
 import CommandStop
+import WorldGenMonument
+import BlockSponge
 
 (
 	cd Spigot/Spigot/Spigot-Server/
