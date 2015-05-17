@@ -57,4 +57,3 @@ tag Spigot-Server $forcetag
 echo "$tag" > $basedir/current-spigot
 pushRepo Spigot-API git@bitbucket.org:starlis/Spigot-API $tag
 pushRepo Spigot-Server git@bitbucket.org:starlis/Spigot-Server $tag
-$basedir/scripts/generatesources

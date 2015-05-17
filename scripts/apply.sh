@@ -45,3 +45,5 @@ function applyPatch {
 }
 applyPatch EmpireCraft-API Spigot-API bukkit
 applyPatch EmpireCraft-Server Spigot-Server craftbukkit
+basedir
+scripts/generatesources
