@@ -1,0 +1,64 @@
+From afa9e237060256fed2ea9fff23b9bac87a9e8d58 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Thu, 14 Aug 2014 18:23:33 -0400
+Subject: [PATCH] Add Player.spigot().getFishingHook() API
+
+---
+ src/main/java/net/minecraft/server/EntityFishingHook.java    | 6 +++---
+ src/main/java/net/minecraft/server/ItemFishingRod.java       | 3 ++-
+ src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java | 8 ++++++++
+ 3 files changed, 13 insertions(+), 4 deletions(-)
+
+diff --git a/src/main/java/net/minecraft/server/EntityFishingHook.java b/src/main/java/net/minecraft/server/EntityFishingHook.java
+index 503e78a..18e2aa7 100644
+--- a/src/main/java/net/minecraft/server/EntityFishingHook.java
++++ b/src/main/java/net/minecraft/server/EntityFishingHook.java
+@@ -457,9 +457,9 @@ public class EntityFishingHook extends Entity {
+             }
+             // CraftBukkit end
+ 
+-            this.die();
+-            this.owner.hookedFish = null;
+-            return b0;
++            // this.die(); // Spigot - move to after damage event
++            // this.owner.hookedFish = null; // Spigot - moved to after damage event
++            return b0 == 0 ? - 1 : b0; // Spigot - use -1 to represent "0 but kill entity"
+         }
+     }
+ 
+diff --git a/src/main/java/net/minecraft/server/ItemFishingRod.java b/src/main/java/net/minecraft/server/ItemFishingRod.java
+index 050a504..688243e 100644
+--- a/src/main/java/net/minecraft/server/ItemFishingRod.java
++++ b/src/main/java/net/minecraft/server/ItemFishingRod.java
+@@ -14,7 +14,8 @@ public class ItemFishingRod extends Item {
+         if (entityhuman.hookedFish != null) {
+             int i = entityhuman.hookedFish.l();
+ 
+-            itemstack.damage(i, entityhuman);
++            itemstack.damage(Math.max(0, i), entityhuman); // Spigot - Ignore -1 return using Math.max
++            if (i != 0) { entityhuman.hookedFish.die(); } // Spigot - removed from e(), and 0 = cancelled
+             entityhuman.bw();
+         } else {
+             // CraftBukkit start
+diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
+index 62d1bc5..38dfa90 100644
+--- a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
++++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
+@@ -1358,6 +1358,14 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+     {
+ 
+         @Override
++        public org.bukkit.entity.Fish getFishingHook() {
++            if (getHandle().hookedFish == null) {
++                return null;
++            }
++            return (org.bukkit.entity.Fish) getHandle().hookedFish.getBukkitEntity();
++        }
++
++        @Override
+         public InetSocketAddress getRawAddress()
+         {
+             return (InetSocketAddress) getHandle().playerConnection.networkManager.getRawAddress();
+-- 
+1.9.1
+

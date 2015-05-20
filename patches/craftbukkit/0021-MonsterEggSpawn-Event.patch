@@ -1,0 +1,143 @@
+From d1a4e21f53e3aa5ab9eb02ffaea60c57af5db1de Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Sat, 20 Jul 2013 22:40:56 -0400
+Subject: [PATCH] MonsterEggSpawn Event
+
+Get the itemstack used to spawn an entity
+---
+ .../customevents/MonsterEggSpawnEvent.java         | 63 ++++++++++++++++++++++
+ .../java/net/minecraft/server/ItemMonsterEgg.java  | 26 ++++++++-
+ 2 files changed, 87 insertions(+), 2 deletions(-)
+ create mode 100644 src/main/java/com/empireminecraft/customevents/MonsterEggSpawnEvent.java
+
+diff --git a/src/main/java/com/empireminecraft/customevents/MonsterEggSpawnEvent.java b/src/main/java/com/empireminecraft/customevents/MonsterEggSpawnEvent.java
+new file mode 100644
+index 0000000..013c381
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/customevents/MonsterEggSpawnEvent.java
+@@ -0,0 +1,63 @@
++package com.empireminecraft.customevents;
++
++
++import org.bukkit.entity.HumanEntity;
++import org.bukkit.entity.LivingEntity;
++import org.bukkit.entity.Player;
++import org.bukkit.event.Cancellable;
++import org.bukkit.event.Event;
++import org.bukkit.event.HandlerList;
++import org.bukkit.inventory.ItemStack;
++
++public class MonsterEggSpawnEvent extends Event implements Cancellable {
++    private static final HandlerList handlers = new HandlerList();
++    private boolean canceled;
++
++
++    private final Player player;
++    LivingEntity entity;
++    final ItemStack item;
++
++    public MonsterEggSpawnEvent(HumanEntity player, LivingEntity entity, ItemStack item) {
++        this.player = (Player) player;
++        this.entity = entity;
++        this.item = item;
++    }
++
++    public Player getPlayer() {
++        return player;
++    }
++
++    public LivingEntity getEntity() {
++        return entity;
++    }
++
++    public void setEntity(LivingEntity entity) {
++        if (entity == null) {
++            canceled = true;
++            return;
++        }
++        this.entity = entity;
++    }
++
++    public ItemStack getItem() {
++        return item;
++    }
++
++    public boolean isCancelled() {
++        return canceled;
++    }
++
++    public void setCancelled(boolean cancel) {
++        canceled = cancel;
++    }
++
++    public HandlerList getHandlers() {
++        return handlers;
++    }
++
++    public static HandlerList getHandlerList() {
++        return handlers;
++    }
++
++}
+diff --git a/src/main/java/net/minecraft/server/ItemMonsterEgg.java b/src/main/java/net/minecraft/server/ItemMonsterEgg.java
+index 5b65af9..dd2a444 100644
+--- a/src/main/java/net/minecraft/server/ItemMonsterEgg.java
++++ b/src/main/java/net/minecraft/server/ItemMonsterEgg.java
+@@ -51,7 +51,7 @@ public class ItemMonsterEgg extends Item {
+                 d0 = 0.5D;
+             }
+ 
+-            Entity entity = a(world, itemstack.getData(), (double) blockposition.getX() + 0.5D, (double) blockposition.getY() + d0, (double) blockposition.getZ() + 0.5D);
++            Entity entity = spawnCreature(world, entityhuman, itemstack, (double) blockposition.getX() + 0.5D, (double) blockposition.getY() + d0, (double) blockposition.getZ() + 0.5D); // EMC
+ 
+             if (entity != null) {
+                 if (entity instanceof EntityLiving && itemstack.hasName()) {
+@@ -88,7 +88,7 @@ public class ItemMonsterEgg extends Item {
+                     }
+ 
+                     if (world.getType(blockposition).getBlock() instanceof BlockFluids) {
+-                        Entity entity = a(world, itemstack.getData(), (double) blockposition.getX() + 0.5D, (double) blockposition.getY() + 0.5D, (double) blockposition.getZ() + 0.5D);
++                        Entity entity = spawnCreature(world, entityhuman, itemstack, (double) blockposition.getX() + 0.5D, (double) blockposition.getY() + 0.5D, (double) blockposition.getZ() + 0.5D);
+ 
+                         if (entity != null) {
+                             if (entity instanceof EntityLiving && itemstack.hasName()) {
+@@ -114,7 +114,15 @@ public class ItemMonsterEgg extends Item {
+         return spawnCreature(world, i, d0, d1, d2, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.SPAWNER_EGG);
+     }
+ 
++    // EMC start
+     public static Entity spawnCreature(World world, int i, double d0, double d1, double d2, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason spawnReason) {
++        return spawnCreature(world, null, null, i, d0, d1, d2, spawnReason);
++    }
++    public static Entity spawnCreature(World world, EntityHuman player, ItemStack item, double d0, double d1, double d2) {
++        return spawnCreature(world, player, item, item.getData(), d0, d1, d2, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.SPAWNER_EGG);
++    }
++    public static Entity spawnCreature(World world, EntityHuman player, ItemStack item, int i, double d0, double d1, double d2, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason spawnReason) {
++    // EMC end
+         // CraftBukkit end
+         if (!EntityTypes.eggInfo.containsKey(Integer.valueOf(i))) {
+             return null;
+@@ -134,6 +142,20 @@ public class ItemMonsterEgg extends Item {
+                     if (!world.addEntity(entity, spawnReason)) {
+                         entity = null;
+                     } else {
++                        // EMC start - if false the spawn was cancelled, add new event
++                        if (item != null) {
++                            final com.empireminecraft.customevents.MonsterEggSpawnEvent event = new com.empireminecraft.customevents.MonsterEggSpawnEvent(player.getBukkitEntity(), (org.bukkit.entity.LivingEntity) entity.getBukkitEntity(), org.bukkit.craftbukkit.inventory.CraftItemStack.asCraftMirror(item));
++
++                            if (!event.callEvent()) {
++                                world.removeEntity(entity);
++                                return null;
++                            }
++                            if (event.getEntity().getEntityId() != entity.getId()) {
++                                world.removeEntity(entity);
++                                entity = entityinsentient = (EntityInsentient) ((org.bukkit.craftbukkit.entity.CraftEntity) event.getEntity()).getHandle();
++                            }
++                        }
++                        // EMC end
+                         entityinsentient.x();
+                     }
+                     // CraftBukkit end
+-- 
+1.9.1
+
