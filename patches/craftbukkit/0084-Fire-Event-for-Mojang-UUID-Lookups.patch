@@ -1,20 +1,55 @@
-From 81006430482c2b37f362175dddd683515f72e55f Mon Sep 17 00:00:00 2001
+From 22a537be058be151fb8ecde85bc8da549dcc51d3 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Thu, 30 Apr 2015 23:22:06 -0400
 Subject: [PATCH] Fire Event for Mojang UUID Lookups
 
 ---
- .../customevents/UUIDLookupEvent.java              | 77 ++++++++++++++++++++++
+ .../customevents/LookupProfileEvent.java           | 27 ++++++
+ .../customevents/PreLookupProfileEvent.java        | 98 ++++++++++++++++++++++
  .../java/net/minecraft/server/MinecraftServer.java |  2 +-
- 2 files changed, 78 insertions(+), 1 deletion(-)
- create mode 100644 src/main/java/com/empireminecraft/customevents/UUIDLookupEvent.java
+ 3 files changed, 126 insertions(+), 1 deletion(-)
+ create mode 100644 src/main/java/com/empireminecraft/customevents/LookupProfileEvent.java
+ create mode 100644 src/main/java/com/empireminecraft/customevents/PreLookupProfileEvent.java
 
-diff --git a/src/main/java/com/empireminecraft/customevents/UUIDLookupEvent.java b/src/main/java/com/empireminecraft/customevents/UUIDLookupEvent.java
+diff --git a/src/main/java/com/empireminecraft/customevents/LookupProfileEvent.java b/src/main/java/com/empireminecraft/customevents/LookupProfileEvent.java
 new file mode 100644
-index 0000000..228e1f6
+index 0000000..a4bf400
 --- /dev/null
-+++ b/src/main/java/com/empireminecraft/customevents/UUIDLookupEvent.java
-@@ -0,0 +1,77 @@
++++ b/src/main/java/com/empireminecraft/customevents/LookupProfileEvent.java
+@@ -0,0 +1,27 @@
++package com.empireminecraft.customevents;
++
++import com.mojang.authlib.GameProfile;
++import org.bukkit.event.Event;
++import org.bukkit.event.HandlerList;
++
++public class LookupProfileEvent extends Event {
++    private final GameProfile profile;
++
++    public LookupProfileEvent(GameProfile profile) {
++        this.profile = profile;
++    }
++
++    public GameProfile getProfile() {
++        return profile;
++    }
++
++    private static final HandlerList handlers = new HandlerList();
++
++    public HandlerList getHandlers() {
++        return handlers;
++    }
++
++    public static HandlerList getHandlerList() {
++        return handlers;
++    }
++}
+diff --git a/src/main/java/com/empireminecraft/customevents/PreLookupProfileEvent.java b/src/main/java/com/empireminecraft/customevents/PreLookupProfileEvent.java
+new file mode 100644
+index 0000000..26ab3aa
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/customevents/PreLookupProfileEvent.java
+@@ -0,0 +1,98 @@
 +package com.empireminecraft.customevents;
 +
 +import com.google.common.collect.Lists;
@@ -22,6 +57,7 @@ index 0000000..228e1f6
 +import com.mojang.authlib.GameProfile;
 +import com.mojang.authlib.GameProfileRepository;
 +import com.mojang.authlib.ProfileLookupCallback;
++import com.mojang.authlib.properties.PropertyMap;
 +import org.bukkit.Bukkit;
 +import org.bukkit.event.Event;
 +import org.bukkit.event.HandlerList;
@@ -29,12 +65,13 @@ index 0000000..228e1f6
 +import java.util.List;
 +import java.util.UUID;
 +
-+public class UUIDLookupEvent extends Event {
++public class PreLookupProfileEvent extends Event {
 +    private final String name;
 +
 +    private UUID uuid = null;
++    private PropertyMap properties = new PropertyMap();
 +
-+    public UUIDLookupEvent(String name) {
++    public PreLookupProfileEvent(String name) {
 +        super(!Bukkit.isPrimaryThread());
 +        this.name = name;
 +    }
@@ -51,6 +88,13 @@ index 0000000..228e1f6
 +        this.uuid = uuid;
 +    }
 +
++    public PropertyMap getProperties() {
++        return properties;
++    }
++
++    public void setProperties(PropertyMap properties) {
++        this.properties = properties;
++    }
 +
 +    private static final HandlerList handlers = new HandlerList();
 +
@@ -70,13 +114,14 @@ index 0000000..228e1f6
 +            repository = new GameProfileRepository() {
 +                @Override
 +                public void findProfilesByNames(String[] names, Agent agent,
-+                                                ProfileLookupCallback callback) {
++                                                final ProfileLookupCallback callback) {
 +                    List<String> unfoundNames = Lists.newArrayList();
 +                    for (String name : names) {
-+                        UUIDLookupEvent event = new UUIDLookupEvent(name);
++                        PreLookupProfileEvent event = new PreLookupProfileEvent(name);
 +                        event.callEvent();
 +                        if (event.getUUID() != null) {
 +                            GameProfile gameprofile = new GameProfile(event.getUUID(), name);
++                            gameprofile.getProperties().putAll(event.getProperties());
 +                            callback.onProfileLookupSucceeded(gameprofile);
 +                        } else {
 +                            unfoundNames.add(name);
@@ -84,7 +129,18 @@ index 0000000..228e1f6
 +                    }
 +                    if (!unfoundNames.isEmpty() && orig != null) {
 +                        orig.findProfilesByNames(unfoundNames.toArray(new String[unfoundNames.size()]), agent,
-+                            callback);
++                            new ProfileLookupCallback() {
++                                @Override
++                                public void onProfileLookupSucceeded(GameProfile gameProfile) {
++                                    new LookupProfileEvent(gameProfile).callEvent();
++                                    callback.onProfileLookupSucceeded(gameProfile);
++                                }
++
++                                @Override
++                                public void onProfileLookupFailed(GameProfile gameProfile, Exception e) {
++                                    callback.onProfileLookupFailed(gameProfile, e);
++                                }
++                            });
 +                    }
 +                }
 +            };
@@ -93,7 +149,7 @@ index 0000000..228e1f6
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
-index 4672e3b..b6aa6b1 100644
+index 4672e3b..d5a5578 100644
 --- a/src/main/java/net/minecraft/server/MinecraftServer.java
 +++ b/src/main/java/net/minecraft/server/MinecraftServer.java
 @@ -1491,7 +1491,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
@@ -101,7 +157,7 @@ index 4672e3b..b6aa6b1 100644
  
      public GameProfileRepository getGameProfileRepository() {
 -        return this.Y;
-+        return com.empireminecraft.customevents.UUIDLookupEvent.getProfileRepository(this.Y);
++        return com.empireminecraft.customevents.PreLookupProfileEvent.getProfileRepository(this.Y);
      }
  
      public UserCache getUserCache() {
