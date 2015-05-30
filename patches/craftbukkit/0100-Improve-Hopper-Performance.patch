@@ -1,0 +1,56 @@
+From 052de057ff2cef51e7764ae1a157319292198631 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Fri, 29 May 2015 21:58:24 -0400
+Subject: [PATCH] Improve Hopper Performance
+
+Only do a "Suck in" action once per second, and scale hopper speed down when low TPS
+---
+ src/main/java/net/minecraft/server/MinecraftServer.java  | 2 ++
+ src/main/java/net/minecraft/server/TileEntityHopper.java | 4 +++-
+ 2 files changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
+index a2a1ec4..0a619eb 100644
+--- a/src/main/java/net/minecraft/server/MinecraftServer.java
++++ b/src/main/java/net/minecraft/server/MinecraftServer.java
+@@ -558,6 +558,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+         }
+     }
+     // Spigot End
++    public static double currentTPS = 20D; // EMC
+ 
+     public void run() {
+         try {
+@@ -699,6 +700,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+             this.methodProfiler.a = true;
+             this.methodProfiler.a();
+         }
++        currentTPS = tps1.getAverage(); // EMC
+ 
+         this.methodProfiler.a("root");
+         this.A();
+diff --git a/src/main/java/net/minecraft/server/TileEntityHopper.java b/src/main/java/net/minecraft/server/TileEntityHopper.java
+index 4fdfe89..7416c3a 100644
+--- a/src/main/java/net/minecraft/server/TileEntityHopper.java
++++ b/src/main/java/net/minecraft/server/TileEntityHopper.java
+@@ -345,6 +345,8 @@ public class TileEntityHopper extends TileEntityContainer implements IHopper, IU
+     }
+ 
+     public static boolean a(IHopper ihopper) {
++        if (MinecraftServer.currentTPS < 18 && MinecraftServer.currentTick % 4 == 0) return false; // EMC
++        if (MinecraftServer.currentTPS < 17 && MinecraftServer.currentTick % 2 == 0) return false; // EMC
+         IInventory iinventory = b(ihopper);
+ 
+         if (iinventory != null) {
+@@ -372,7 +374,7 @@ public class TileEntityHopper extends TileEntityContainer implements IHopper, IU
+                     }
+                 }
+             }
+-        } else {
++        } else if (MinecraftServer.currentTPS > 18 && (MinecraftServer.currentTick + ihopper.A() + ihopper.B() + ihopper.C()) % 20 == 0){ // EMC
+             Iterator iterator = a(ihopper.getWorld(), ihopper.A(), ihopper.B() + 1.0D, ihopper.C()).iterator(); // EMC - No change here - but if ihopper.A/B/C() changes, update drain event little above
+ 
+             while (iterator.hasNext()) {
+-- 
+1.9.1
+
