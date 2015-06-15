@@ -50,6 +50,7 @@ import MerchantRecipe
 import CommandStop
 import WorldGenMonument
 import BlockSponge
+import EntityMinecartHopper
 
 (
 	cd Spigot/Spigot/Spigot-Server/
