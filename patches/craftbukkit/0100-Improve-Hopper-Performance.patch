@@ -1,4 +1,4 @@
-From 43135302ffe77610319976f75cc1cf50c54c2501 Mon Sep 17 00:00:00 2001
+From 041d044fbee5aaae29e0dd80e9ad7fec6e290d3f Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Fri, 29 May 2015 21:58:24 -0400
 Subject: [PATCH] Improve Hopper Performance
@@ -6,33 +6,49 @@ Subject: [PATCH] Improve Hopper Performance
 Only do a "Suck in" action once per second, and scale hopper speed down when low TPS
 Also, remove InventoryMoveEvent code for extra performance since we dont use it
 ---
- src/main/java/net/minecraft/server/EntityItem.java | 10 +++++
+ src/main/java/net/minecraft/server/EntityItem.java | 15 +++++++
  .../net/minecraft/server/EntityMinecartHopper.java |  1 +
  .../java/net/minecraft/server/MinecraftServer.java |  2 +
  .../net/minecraft/server/TileEntityHopper.java     | 48 +++++++++++++++++-----
- 4 files changed, 50 insertions(+), 11 deletions(-)
+ 4 files changed, 55 insertions(+), 11 deletions(-)
 
 diff --git a/src/main/java/net/minecraft/server/EntityItem.java b/src/main/java/net/minecraft/server/EntityItem.java
-index 5d0b37a..793b4e8 100644
+index 5d0b37a..e74f3b6 100644
 --- a/src/main/java/net/minecraft/server/EntityItem.java
 +++ b/src/main/java/net/minecraft/server/EntityItem.java
-@@ -118,6 +118,16 @@ public class EntityItem extends Entity {
+@@ -118,10 +118,24 @@ public class EntityItem extends Entity {
                  // CraftBukkit end
                  this.die();
              }
-+            // EMC start
-+            if (!this.dead && this.onGround && this.age < 20 * 60 && this.age % 20 == 0) {
-+                AxisAlignedBB aabb = this.getBoundingBox().a(15, 4, 15);
-+                for (Entity entity : this.world.getEntities(this, aabb)) {
-+                    if (entity instanceof EntityMinecartHopper) {
-+                        ((EntityMinecartHopper) entity).pickupImmunity = MinecraftServer.currentTick + 200;
-+                    }
-+                }
-+            }
-+            // EMC end
++            markHopperCarts(); // EMC
  
          }
      }
+ 
++    // EMC start
++    public void markHopperCarts() {
++        if (!this.dead && this.onGround && this.age < 20 * 60 && this.age % 20 == 0) {
++            AxisAlignedBB aabb = this.getBoundingBox().grow(32, 4, 32);
++            for (Entity entity : this.world.getEntities(this, aabb)) {
++                if (entity instanceof EntityMinecartHopper) {
++                    ((EntityMinecartHopper) entity).pickupImmunity = MinecraftServer.currentTick + 200;
++                }
++            }
++        }
++    }
++    // EMC end
++
+     // Spigot start - copied from above
+     @Override
+     public void inactiveTick() {
+@@ -141,6 +155,7 @@ public class EntityItem extends Entity {
+             // CraftBukkit end
+             this.die();
+         }
++        markHopperCarts(); // EMC
+     }
+     // Spigot end
+ 
 diff --git a/src/main/java/net/minecraft/server/EntityMinecartHopper.java b/src/main/java/net/minecraft/server/EntityMinecartHopper.java
 index eefbdc6..4a1d84b 100644
 --- a/src/main/java/net/minecraft/server/EntityMinecartHopper.java
