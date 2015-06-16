@@ -1,4 +1,4 @@
-From a90b0553172fac35f188cfe101a4861ec6e5a8e7 Mon Sep 17 00:00:00 2001
+From 4e0301e63a4276fb0e9baa1b77274decb2d29ccc Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Fri, 31 May 2013 22:40:25 -0400
 Subject: [PATCH] Entity AI / Attributes API
@@ -7,14 +7,14 @@ This gives us control over some Entity AI
 Also API for Attributes
 This will be expanded as future needs.
 ---
- .../empireminecraft/entityai/AttributesAPI.java    |  47 ++++++++
- .../com/empireminecraft/entityai/EntityAIApi.java  | 123 +++++++++++++++++++++
- .../empireminecraft/entityai/EntityMoveApi.java    |  64 +++++++++++
+ .../empireminecraft/entityai/AttributesAPI.java    |  47 +++++++++
+ .../com/empireminecraft/entityai/EntityAIApi.java  | 116 +++++++++++++++++++++
+ .../empireminecraft/entityai/EntityMoveApi.java    |  64 ++++++++++++
  .../net/minecraft/server/AttributesAccessor.java   |  39 +++++++
  src/main/java/net/minecraft/server/Entity.java     |  14 ++-
  .../java/net/minecraft/server/EntityAnimal.java    |   2 +
- .../net/minecraft/server/EntityArmorStand.java     |   4 +-
- .../net/minecraft/server/EntityGoalAccessor.java   |  24 ++++
+ .../net/minecraft/server/EntityArmorStand.java     |   2 +-
+ .../net/minecraft/server/EntityGoalAccessor.java   |  24 +++++
  .../net/minecraft/server/EntityInsentient.java     |   1 +
  src/main/java/net/minecraft/server/EntityItem.java |   3 +-
  .../java/net/minecraft/server/EntityLiving.java    |   3 +-
@@ -23,7 +23,7 @@ This will be expanded as future needs.
  .../net/minecraft/server/PathfinderGoalTarget.java |   2 +-
  src/main/java/net/minecraft/server/World.java      |   2 +-
  src/main/java/org/spigotmc/ActivationRange.java    |   1 +
- 16 files changed, 328 insertions(+), 13 deletions(-)
+ 16 files changed, 319 insertions(+), 13 deletions(-)
  create mode 100644 src/main/java/com/empireminecraft/entityai/AttributesAPI.java
  create mode 100644 src/main/java/com/empireminecraft/entityai/EntityAIApi.java
  create mode 100644 src/main/java/com/empireminecraft/entityai/EntityMoveApi.java
@@ -85,10 +85,10 @@ index 0000000..2c7a83b
 +}
 diff --git a/src/main/java/com/empireminecraft/entityai/EntityAIApi.java b/src/main/java/com/empireminecraft/entityai/EntityAIApi.java
 new file mode 100644
-index 0000000..2da224a
+index 0000000..cae3ef2
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/entityai/EntityAIApi.java
-@@ -0,0 +1,123 @@
+@@ -0,0 +1,116 @@
 +package com.empireminecraft.entityai;
 +
 +import net.minecraft.server.*;
@@ -204,13 +204,6 @@ index 0000000..2da224a
 +    public static void setDisabledSlots(ArmorStand armorStand, int i) {
 +        ((CraftArmorStand)armorStand).getHandle().setDisabledSlots(i);
 +    }
-+
-+    public static boolean isMarker(ArmorStand entity) {
-+        return ((CraftArmorStand)entity).getHandle().isMarker();
-+    }
-+    public static void setMarker(ArmorStand entity, boolean marker) {
-+        ((CraftArmorStand)entity).getHandle().setMarker(marker);
-+    }
 +}
 diff --git a/src/main/java/com/empireminecraft/entityai/EntityMoveApi.java b/src/main/java/com/empireminecraft/entityai/EntityMoveApi.java
 new file mode 100644
@@ -284,7 +277,7 @@ index 0000000..fd44df1
 +}
 diff --git a/src/main/java/net/minecraft/server/AttributesAccessor.java b/src/main/java/net/minecraft/server/AttributesAccessor.java
 new file mode 100644
-index 0000000..d886b45
+index 0000000..de07837
 --- /dev/null
 +++ b/src/main/java/net/minecraft/server/AttributesAccessor.java
 @@ -0,0 +1,39 @@
@@ -304,10 +297,10 @@ index 0000000..d886b45
 +    static {
 +        attributeMap.put(AttributesAPI.Attribute.TARGET_RANGE, targetRange);
 +        attributeMap.put(AttributesAPI.Attribute.MAX_HEALTH, GenericAttributes.maxHealth);
-+        attributeMap.put(AttributesAPI.Attribute.FOLLOW_RANGE, GenericAttributes.b);
++        attributeMap.put(AttributesAPI.Attribute.FOLLOW_RANGE, GenericAttributes.FOLLOW_RANGE);
 +        attributeMap.put(AttributesAPI.Attribute.KNOCKBACK_RESISTANCE, GenericAttributes.c);
-+        attributeMap.put(AttributesAPI.Attribute.MOVEMENT_SPEED, GenericAttributes.d);
-+        attributeMap.put(AttributesAPI.Attribute.ATTACK_DAMAGE, GenericAttributes.e);
++        attributeMap.put(AttributesAPI.Attribute.MOVEMENT_SPEED, GenericAttributes.MOVEMENT_SPEED);
++        attributeMap.put(AttributesAPI.Attribute.ATTACK_DAMAGE, GenericAttributes.ATTACK_DAMAGE);
 +    }
 +    public static IAttribute getAttribute(AttributesAPI.Attribute attribute) {
 +        return attributeMap.get(attribute);
@@ -328,7 +321,7 @@ index 0000000..d886b45
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
-index 66017ef..cccf745 100644
+index e41c341..7b0a0aa 100644
 --- a/src/main/java/net/minecraft/server/Entity.java
 +++ b/src/main/java/net/minecraft/server/Entity.java
 @@ -37,7 +37,9 @@ public abstract class Entity implements ICommandListener {
@@ -342,7 +335,7 @@ index 66017ef..cccf745 100644
          return tag.hasKey("Bukkit.updateLevel") && tag.getInt("Bukkit.updateLevel") >= level;
      }
 @@ -95,7 +97,7 @@ public abstract class Entity implements ICommandListener {
-     public boolean inWater; // Spigot - protected -> public
+     public boolean inWater; // Spigot - protected -> public // PAIL
      public int noDamageTicks;
      protected boolean justCreated;
 -    protected boolean fireProof;
@@ -437,7 +430,7 @@ index a831529..a3e8f4b 100644
  
      public EntityAnimal(World world) {
 diff --git a/src/main/java/net/minecraft/server/EntityArmorStand.java b/src/main/java/net/minecraft/server/EntityArmorStand.java
-index ef1904b..a5dd37c 100644
+index cd57d69..7a4b859 100644
 --- a/src/main/java/net/minecraft/server/EntityArmorStand.java
 +++ b/src/main/java/net/minecraft/server/EntityArmorStand.java
 @@ -22,7 +22,7 @@ public class EntityArmorStand extends EntityLiving {
@@ -447,24 +440,8 @@ index ef1904b..a5dd37c 100644
 -    private int bi;
 +    private int bi;public void setDisabledSlots(int i) { bi = i;} public int getDisabledSlots() { return bi ;} // EMC
      private boolean bj;
-     // CraftBukkit start - public all the things!
      public Vector3f headPose;
-@@ -649,6 +649,7 @@ public class EntityArmorStand extends EntityLiving {
-         return (this.datawatcher.getByte(10) & 8) != 0;
-     }
- 
-+    public void setMarker(boolean marker) { n(marker); } // EMC
-     private void n(boolean flag) {
-         byte b0 = this.datawatcher.getByte(10);
- 
-@@ -661,6 +662,7 @@ public class EntityArmorStand extends EntityLiving {
-         this.datawatcher.watch(10, Byte.valueOf(b0));
-     }
- 
-+    public boolean isMarker() { return s(); } // EMC
-     public boolean s() {
-         return (this.datawatcher.getByte(10) & 16) != 0;
-     }
+     public Vector3f bodyPose;
 diff --git a/src/main/java/net/minecraft/server/EntityGoalAccessor.java b/src/main/java/net/minecraft/server/EntityGoalAccessor.java
 new file mode 100644
 index 0000000..99051b9
@@ -496,30 +473,30 @@ index 0000000..99051b9
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/EntityInsentient.java b/src/main/java/net/minecraft/server/EntityInsentient.java
-index 9621ce0..fb3ec4a 100644
+index f8aec29..56d023c 100644
 --- a/src/main/java/net/minecraft/server/EntityInsentient.java
 +++ b/src/main/java/net/minecraft/server/EntityInsentient.java
-@@ -743,6 +743,7 @@ public abstract class EntityInsentient extends EntityLiving {
+@@ -742,6 +742,7 @@ public abstract class EntityInsentient extends EntityLiving {
  
      public GroupDataEntity prepare(DifficultyDamageScaler difficultydamagescaler, GroupDataEntity groupdataentity) {
-         this.getAttributeInstance(GenericAttributes.b).b(new AttributeModifier("Random spawn bonus", this.random.nextGaussian() * 0.05D, 1));
+         this.getAttributeInstance(GenericAttributes.FOLLOW_RANGE).b(new AttributeModifier("Random spawn bonus", this.random.nextGaussian() * 0.05D, 1));
 +        AttributesAccessor.configureAttributes(this); // EMC
          return groupdataentity;
      }
  
 diff --git a/src/main/java/net/minecraft/server/EntityItem.java b/src/main/java/net/minecraft/server/EntityItem.java
-index 1f7a702..1d3a93b 100644
+index fa27864..5d0b37a 100644
 --- a/src/main/java/net/minecraft/server/EntityItem.java
 +++ b/src/main/java/net/minecraft/server/EntityItem.java
-@@ -11,6 +11,7 @@ public class EntityItem extends Entity {
+@@ -10,6 +10,7 @@ public class EntityItem extends Entity {
      private static final Logger b = LogManager.getLogger();
      private int age;
-     public int pickupDelay; // CraftBukkit - public
+     public int pickupDelay;
 +    public boolean canDespawn = true; // EMC
      private int e;
      private String f;
      private String g;
-@@ -109,7 +110,7 @@ public class EntityItem extends Entity {
+@@ -108,7 +109,7 @@ public class EntityItem extends Entity {
  
  
              this.W();
@@ -529,7 +506,7 @@ index 1f7a702..1d3a93b 100644
                  if (org.bukkit.craftbukkit.event.CraftEventFactory.callItemDespawnEvent(this).isCancelled()) {
                      this.age = 0;
 diff --git a/src/main/java/net/minecraft/server/EntityLiving.java b/src/main/java/net/minecraft/server/EntityLiving.java
-index 99b120a..9673f3a 100644
+index 8090a0c..96c9ab6 100644
 --- a/src/main/java/net/minecraft/server/EntityLiving.java
 +++ b/src/main/java/net/minecraft/server/EntityLiving.java
 @@ -29,7 +29,7 @@ public abstract class EntityLiving extends Entity {
@@ -538,17 +515,17 @@ index 99b120a..9673f3a 100644
      private static final AttributeModifier b = (new AttributeModifier(EntityLiving.a, "Sprinting speed boost", 0.30000001192092896D, 2)).a(false);
 -    private AttributeMapBase c;
 +    private AttributeMapBase c; public AttributeMapBase getAttributeMapBase() { return c; } // EMC
-     public CombatTracker combatTracker = new CombatTracker(this); // CraftBukkit - public
-     public final Map<Integer, MobEffect> effects = Maps.newHashMap(); // CraftBukkit - public
+     public CombatTracker combatTracker = new CombatTracker(this);
+     public final Map<Integer, MobEffect> effects = Maps.newHashMap();
      private final ItemStack[] h = new ItemStack[5];
-@@ -125,6 +125,7 @@ public abstract class EntityLiving extends Entity {
-     protected void initAttributes() {
+@@ -126,6 +126,7 @@ public abstract class EntityLiving extends Entity {
          this.getAttributeMap().b(GenericAttributes.maxHealth);
          this.getAttributeMap().b(GenericAttributes.c);
+         this.getAttributeMap().b(GenericAttributes.MOVEMENT_SPEED);
 +        AttributesAccessor.initializeAttributes(this, getAttributeMapBase()); // EMC
-         this.getAttributeMap().b(GenericAttributes.d);
      }
  
+     protected void a(double d0, boolean flag, Block block, BlockPosition blockposition) {
 diff --git a/src/main/java/net/minecraft/server/PathfinderGoalArrowAttack.java b/src/main/java/net/minecraft/server/PathfinderGoalArrowAttack.java
 index 42ee4e7..e9e0f75 100644
 --- a/src/main/java/net/minecraft/server/PathfinderGoalArrowAttack.java
@@ -584,20 +561,20 @@ index b03ba85..12ffd83 100644
      private int e;
      private int f = 3;
 diff --git a/src/main/java/net/minecraft/server/PathfinderGoalTarget.java b/src/main/java/net/minecraft/server/PathfinderGoalTarget.java
-index 11183d8..72c82ae 100644
+index 7e21ef6..72c82ae 100644
 --- a/src/main/java/net/minecraft/server/PathfinderGoalTarget.java
 +++ b/src/main/java/net/minecraft/server/PathfinderGoalTarget.java
 @@ -55,7 +55,7 @@ public abstract class PathfinderGoalTarget extends PathfinderGoal {
      }
  
      protected double f() {
--        AttributeInstance attributeinstance = this.e.getAttributeInstance(GenericAttributes.b);
+-        AttributeInstance attributeinstance = this.e.getAttributeInstance(GenericAttributes.FOLLOW_RANGE);
 +        final AttributeInstance attributeinstance = this.e.getAttributeInstance(AttributesAccessor.targetRange); // EMC
  
          return attributeinstance == null ? 16.0D : attributeinstance.getValue();
      }
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index 9b3ad2a..4bf3a6d 100644
+index ce36e6c..796557a 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
 @@ -1602,7 +1602,7 @@ public abstract class World implements IBlockAccess {
