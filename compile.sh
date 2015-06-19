@@ -1,1 +1,1 @@
-scripts/compile.sh
+compile.bat

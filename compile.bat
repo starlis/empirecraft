@@ -17,5 +17,6 @@ git fetch origin
 git reset --hard origin/master
 
 cd ..
-
-mvn clean install
+if [ "$1" != "--nocompile" ]; then
+	mvn clean install
+fi
