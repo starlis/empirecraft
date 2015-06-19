@@ -51,6 +51,7 @@ import CommandStop
 import WorldGenMonument
 import BlockSponge
 import EntityMinecartHopper
+import PathfinderGoalInteractVillagers
 
 (
 	cd Spigot/Spigot/Spigot-Server/
