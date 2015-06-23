@@ -1,13 +1,13 @@
-From 4e0301e63a4276fb0e9baa1b77274decb2d29ccc Mon Sep 17 00:00:00 2001
+From e8462bf67b850ec3347d95d2548dbf3b04670fb8 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Fri, 31 May 2013 22:40:25 -0400
 Subject: [PATCH] Entity AI / Attributes API
 
 This gives us control over some Entity AI
-Also API for Attributes
+Also API for Attributes (Entity + Item)
 This will be expanded as future needs.
 ---
- .../empireminecraft/entityai/AttributesAPI.java    |  47 +++++++++
+ .../empireminecraft/entityai/AttributesAPI.java    | 107 +++++++++++++++++++
  .../com/empireminecraft/entityai/EntityAIApi.java  | 116 +++++++++++++++++++++
  .../empireminecraft/entityai/EntityMoveApi.java    |  64 ++++++++++++
  .../net/minecraft/server/AttributesAccessor.java   |  39 +++++++
@@ -18,12 +18,14 @@ This will be expanded as future needs.
  .../net/minecraft/server/EntityInsentient.java     |   1 +
  src/main/java/net/minecraft/server/EntityItem.java |   3 +-
  .../java/net/minecraft/server/EntityLiving.java    |   3 +-
+ .../net/minecraft/server/GenericAttributes.java    |   1 +
  .../server/PathfinderGoalArrowAttack.java          |   8 +-
  .../minecraft/server/PathfinderGoalSelector.java   |   4 +-
  .../net/minecraft/server/PathfinderGoalTarget.java |   2 +-
  src/main/java/net/minecraft/server/World.java      |   2 +-
+ .../craftbukkit/inventory/CraftItemStack.java      |   2 +-
  src/main/java/org/spigotmc/ActivationRange.java    |   1 +
- 16 files changed, 319 insertions(+), 13 deletions(-)
+ 18 files changed, 381 insertions(+), 14 deletions(-)
  create mode 100644 src/main/java/com/empireminecraft/entityai/AttributesAPI.java
  create mode 100644 src/main/java/com/empireminecraft/entityai/EntityAIApi.java
  create mode 100644 src/main/java/com/empireminecraft/entityai/EntityMoveApi.java
@@ -32,20 +34,55 @@ This will be expanded as future needs.
 
 diff --git a/src/main/java/com/empireminecraft/entityai/AttributesAPI.java b/src/main/java/com/empireminecraft/entityai/AttributesAPI.java
 new file mode 100644
-index 0000000..2c7a83b
+index 0000000..0033a86
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/entityai/AttributesAPI.java
-@@ -0,0 +1,47 @@
+@@ -0,0 +1,107 @@
 +package com.empireminecraft.entityai;
 +
-+import net.minecraft.server.AttributeInstance;
-+import net.minecraft.server.AttributesAccessor;
-+import net.minecraft.server.EntityLiving;
-+import net.minecraft.server.IAttribute;
++import net.minecraft.server.*;
 +import org.bukkit.craftbukkit.entity.CraftLivingEntity;
++import org.bukkit.craftbukkit.inventory.CraftItemStack;
 +import org.bukkit.entity.LivingEntity;
++import org.bukkit.inventory.ItemStack;
 +
-+public class AttributesAPI {
++import java.util.UUID;
++
++public final class AttributesAPI {
++    private AttributesAPI() {}
++
++    private static NBTTagList getAttributes(final net.minecraft.server.ItemStack nmsStack) {
++        NBTTagCompound parent;
++
++        if (nmsStack.tag == null) {
++            parent = nmsStack.tag = new NBTTagCompound();
++        } else {
++            parent = nmsStack.tag;
++        }
++
++        NBTTagList attributes;
++        if (parent.hasKeyOfType("AttributeModifiers", 9)) {
++            attributes = parent.getList("AttributeModifiers", 10);
++        } else {
++            attributes = new NBTTagList();
++            parent.set("AttributeModifiers", attributes);
++        }
++        return attributes;
++    }
++
++    // TODO: other attribute APIs
++    public static void addAttribute(ItemStack item, Attribute attr, Operation operation, double val) {
++        final CraftItemStack craftStack = CraftItemStack.asCraftCopy(item);
++        final NBTTagList attributes = getAttributes(craftStack.handle);
++        final String name = AttributesAccessor.getAttribute(attr).getName();
++        final AttributeModifier attributeModifier =
++            new AttributeModifier(UUID.randomUUID(), name, val, operation.getId());
++        final NBTTagCompound attributeData = GenericAttributes.buildModifierCompound(attributeModifier);
++        attributeData.setString("AttributeName", name);
++        attributes.add(attributeData);
++        item.setItemMeta(craftStack.getItemMeta());
++    }
++
 +    public static boolean setAttribute(LivingEntity livingEntity, Attribute attr, double val) {
 +        final EntityLiving entity = ((CraftLivingEntity) livingEntity).getHandle();
 +        final IAttribute attributetype = AttributesAccessor.getAttribute(attr);
@@ -73,6 +110,31 @@ index 0000000..2c7a83b
 +        return attributetype.b();
 +    }
 +
++    // part of this copied from https://bukkit.org/threads/util-edit-itemstack-attributes-adding-speed-damage-or-health-bonuses.158316/
++    public enum Operation {
++        ADD_NUMBER(0),
++        MULTIPLY_PERCENTAGE(1),
++        ADD_PERCENTAGE(2);
++        private final int id;
++
++        Operation(int id) {
++            this.id = id;
++        }
++
++        public int getId() {
++            return id;
++        }
++
++        public static Operation fromId(int id) {
++            // Linear scan is very fast for small N
++            for (Operation op : values()) {
++                if (op.getId() == id) {
++                    return op;
++                }
++            }
++            throw new IllegalArgumentException("Corrupt operation ID " + id + " detected.");
++        }
++    }
 +
 +    public enum Attribute {
 +        TARGET_RANGE,
@@ -80,7 +142,7 @@ index 0000000..2c7a83b
 +        MAX_HEALTH,
 +        KNOCKBACK_RESISTANCE,
 +        MOVEMENT_SPEED,
-+        ATTACK_DAMAGE;
++        ATTACK_DAMAGE
 +    }
 +}
 diff --git a/src/main/java/com/empireminecraft/entityai/EntityAIApi.java b/src/main/java/com/empireminecraft/entityai/EntityAIApi.java
@@ -526,6 +588,18 @@ index 8090a0c..96c9ab6 100644
      }
  
      protected void a(double d0, boolean flag, Block block, BlockPosition blockposition) {
+diff --git a/src/main/java/net/minecraft/server/GenericAttributes.java b/src/main/java/net/minecraft/server/GenericAttributes.java
+index 0cc3e2f..000b81f 100644
+--- a/src/main/java/net/minecraft/server/GenericAttributes.java
++++ b/src/main/java/net/minecraft/server/GenericAttributes.java
+@@ -56,6 +56,7 @@ public class GenericAttributes {
+         return nbttagcompound;
+     }
+ 
++    public static NBTTagCompound buildModifierCompound(AttributeModifier attributeModifier) { return a(attributeModifier); } // EMC
+     private static NBTTagCompound a(AttributeModifier attributemodifier) {
+         NBTTagCompound nbttagcompound = new NBTTagCompound();
+ 
 diff --git a/src/main/java/net/minecraft/server/PathfinderGoalArrowAttack.java b/src/main/java/net/minecraft/server/PathfinderGoalArrowAttack.java
 index 42ee4e7..e9e0f75 100644
 --- a/src/main/java/net/minecraft/server/PathfinderGoalArrowAttack.java
@@ -586,6 +660,19 @@ index ce36e6c..796557a 100644
                  ++entity.ticksLived;
                  if (entity.vehicle != null) {
                      entity.ak();
+diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftItemStack.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftItemStack.java
+index 23f05f4..cf27fc3 100644
+--- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftItemStack.java
++++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftItemStack.java
+@@ -90,7 +90,7 @@ public final class CraftItemStack extends ItemStack {
+         return new CraftItemStack(CraftMagicNumbers.getMaterial(item), amount, (short) 0, null);
+     }
+ 
+-    net.minecraft.server.ItemStack handle;
++    public net.minecraft.server.ItemStack handle;
+ 
+     /**
+      * Mirror
 diff --git a/src/main/java/org/spigotmc/ActivationRange.java b/src/main/java/org/spigotmc/ActivationRange.java
 index 621a717..b1da384 100644
 --- a/src/main/java/org/spigotmc/ActivationRange.java
