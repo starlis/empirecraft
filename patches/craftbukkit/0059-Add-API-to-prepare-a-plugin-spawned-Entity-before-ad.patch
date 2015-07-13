@@ -1,4 +1,4 @@
-From e84ed34af5912c6b5153fea08c2ff7a3bc93e76c Mon Sep 17 00:00:00 2001
+From ab32e6fcea4a988f0da7e41277383f99fdc7887d Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Thu, 11 Sep 2014 21:00:51 -0400
 Subject: [PATCH] Add API to prepare a plugin spawned Entity before added to
@@ -6,14 +6,14 @@ Subject: [PATCH] Add API to prepare a plugin spawned Entity before added to
 
 This will enable configuring Metadata before spawn events and packets are sent to the client.
 ---
- src/main/java/org/bukkit/craftbukkit/CraftWorld.java | 15 ++++++++++++---
- 1 file changed, 12 insertions(+), 3 deletions(-)
+ src/main/java/org/bukkit/craftbukkit/CraftWorld.java | 10 +++++++++-
+ 1 file changed, 9 insertions(+), 1 deletion(-)
 
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
-index 6e7fc12..f04c550 100644
+index 9f4e3b7..41876d6 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
-@@ -396,6 +396,12 @@ public class CraftWorld implements World {
+@@ -395,6 +395,12 @@ public class CraftWorld implements World {
      public Entity spawnEntity(Location loc, EntityType type, SpawnReason reason) {
          return spawn(loc, type.getEntityClass(), reason);
      }
@@ -26,34 +26,25 @@ index 6e7fc12..f04c550 100644
      // EMC end
      public Entity spawnEntity(Location loc, EntityType entityType) {
          return spawn(loc, entityType.getEntityClass());
-@@ -1143,21 +1149,24 @@ public class CraftWorld implements World {
+@@ -904,8 +910,9 @@ public class CraftWorld implements World {
+         return spawnFallingBlock(location, org.bukkit.Material.getMaterial(blockId), blockData);
      }
  
-     @SuppressWarnings("unchecked")
--    public <T extends Entity> T addEntity(net.minecraft.server.Entity entity, SpawnReason reason) throws IllegalArgumentException {
-+    public <T extends Entity> T addEntity(net.minecraft.server.Entity entity, SpawnReason reason, com.google.common.base.Predicate<Entity> prepare) throws IllegalArgumentException { // EMC
-         Preconditions.checkArgument(entity != null, "Cannot spawn null entity");
- 
-         if (entity instanceof EntityInsentient) {
-             ((EntityInsentient) entity).prepare(getHandle().E(new BlockPosition(entity)), (GroupDataEntity) null);
-         }
- 
-+        if (prepare != null) { prepare.apply(entity.getBukkitEntity()); } // EMC
-         world.addEntity(entity, reason);
-         return (T) entity.getBukkitEntity();
-     }
- 
--    public <T extends Entity> T spawn(Location location, Class<T> clazz, SpawnReason reason) throws IllegalArgumentException {
-+    public <T extends Entity> T addEntity(net.minecraft.server.Entity entity, SpawnReason reason) throws IllegalArgumentException { return addEntity(entity, reason, null); } // EMC
 +    public <T extends Entity> T spawn(Location location, Class<T> clazz, SpawnReason reason) throws IllegalArgumentException { return spawn(location, clazz, reason, null); } // EMC
+     @SuppressWarnings("unchecked")
+-    public <T extends Entity> T spawn(Location location, Class<T> clazz, SpawnReason reason) throws IllegalArgumentException {
 +    public <T extends Entity> T spawn(Location location, Class<T> clazz, SpawnReason reason, com.google.common.base.Predicate<Entity> prepare) throws IllegalArgumentException { // EMC
-         net.minecraft.server.Entity entity = createEntity(location, clazz);
+         if (location == null || clazz == null) {
+             throw new IllegalArgumentException("Location or entity class cannot be null");
+         }
+@@ -1142,6 +1149,7 @@ public class CraftWorld implements World {
+                 ((EntityInsentient) entity).prepare(getHandle().E(new BlockPosition(entity)), (GroupDataEntity) null);
+             }
  
--        return addEntity(entity, reason);
-+        return addEntity(entity, reason, prepare);
-     }
- 
-     public ChunkSnapshot getEmptyChunkSnapshot(int x, int z, boolean includeBiome, boolean includeBiomeTempRain) {
++            if (prepare != null) { prepare.apply(entity.getBukkitEntity()); } // EMC
+             world.addEntity(entity, reason);
+             return (T) entity.getBukkitEntity();
+         }
 -- 
 1.9.1
 
