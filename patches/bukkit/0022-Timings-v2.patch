@@ -1,4 +1,4 @@
-From 3382ffcf90b402034ddad149b9e594bd9dfa035c Mon Sep 17 00:00:00 2001
+From b3eebd42a8ac81b83e6a417521cac1d62b2a4cf2 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Wed, 8 Oct 2014 19:16:12 -0400
 Subject: [PATCH] Timings v2
@@ -29,7 +29,7 @@ Adds many other new Timings API for controlling Timings settings and generating 
  .../java/org/spigotmc/CustomTimingsHandler.java    | 209 ++++--------
  .../spigotmc/timings/FullServerTickHandler.java    |  61 ++++
  .../org/spigotmc/timings/NullTimingHandler.java    |  61 ++++
- .../org/spigotmc/timings/TimedEventExecutor.java   |  69 ++++
+ .../org/spigotmc/timings/TimedEventExecutor.java   |  70 ++++
  src/main/java/org/spigotmc/timings/Timing.java     |  72 ++++
  src/main/java/org/spigotmc/timings/TimingData.java | 105 ++++++
  .../java/org/spigotmc/timings/TimingHandler.java   | 191 +++++++++++
@@ -41,7 +41,7 @@ Adds many other new Timings API for controlling Timings settings and generating 
  .../java/org/spigotmc/timings/TimingsExport.java   | 361 +++++++++++++++++++++
  .../java/org/spigotmc/timings/TimingsManager.java  | 195 +++++++++++
  .../org/spigotmc/timings/UnsafeTimingHandler.java  |  51 +++
- 26 files changed, 2075 insertions(+), 306 deletions(-)
+ 26 files changed, 2076 insertions(+), 306 deletions(-)
  create mode 100644 src/main/java/org/spigotmc/timings/FullServerTickHandler.java
  create mode 100644 src/main/java/org/spigotmc/timings/NullTimingHandler.java
  create mode 100644 src/main/java/org/spigotmc/timings/TimedEventExecutor.java
@@ -70,7 +70,7 @@ index 95d8c80..a35cc51 100644
  
      /**
 diff --git a/src/main/java/org/bukkit/Server.java b/src/main/java/org/bukkit/Server.java
-index 5a12b4c..76a67bf 100644
+index b0490cc..49e00cf 100644
 --- a/src/main/java/org/bukkit/Server.java
 +++ b/src/main/java/org/bukkit/Server.java
 @@ -915,10 +915,13 @@ public interface Server extends PluginMessageRecipient {
@@ -328,10 +328,10 @@ index fc59aa3..7b705fa 100644
 -    // Spigot end
  }
 diff --git a/src/main/java/org/bukkit/entity/Player.java b/src/main/java/org/bukkit/entity/Player.java
-index 25ba635..7542928 100644
+index 85fa286..124dd1a 100644
 --- a/src/main/java/org/bukkit/entity/Player.java
 +++ b/src/main/java/org/bukkit/entity/Player.java
-@@ -1139,6 +1139,11 @@ public interface Player extends HumanEntity, Conversable, CommandSender, Offline
+@@ -1169,6 +1169,11 @@ public interface Player extends HumanEntity, Conversable, CommandSender, Offline
          public void sendMessage(net.md_5.bungee.api.chat.BaseComponent... components) {
              throw new UnsupportedOperationException("Not supported yet.");
          }
@@ -841,10 +841,10 @@ index 0000000..2993971
 +}
 diff --git a/src/main/java/org/spigotmc/timings/TimedEventExecutor.java b/src/main/java/org/spigotmc/timings/TimedEventExecutor.java
 new file mode 100644
-index 0000000..64118c1
+index 0000000..b4cf438
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/timings/TimedEventExecutor.java
-@@ -0,0 +1,69 @@
+@@ -0,0 +1,70 @@
 +/*
 + * This file is licensed under the MIT License (MIT).
 + *
@@ -870,6 +870,7 @@ index 0000000..64118c1
 + */
 +package org.spigotmc.timings;
 +
++import org.bukkit.Bukkit;
 +import org.bukkit.event.Event;
 +import org.bukkit.event.EventException;
 +import org.bukkit.event.Listener;
@@ -905,7 +906,7 @@ index 0000000..64118c1
 +
 +    @Override
 +    public void execute(Listener listener, Event event) throws EventException {
-+        if (event.isAsynchronous() || !Timings.timingsEnabled) {
++        if (event.isAsynchronous() || !Timings.timingsEnabled || !Bukkit.isPrimaryThread()) {
 +            executor.execute(listener, event);
 +            return;
 +        }
