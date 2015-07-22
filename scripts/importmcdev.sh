@@ -52,7 +52,7 @@ import WorldGenMonument
 import BlockSponge
 import EntityMinecartHopper
 import PathfinderGoalInteractVillagers
-import GamePRofileSerializer
+import GameProfileSerializer
 
 (
 	cd Spigot/Spigot/Spigot-Server/
