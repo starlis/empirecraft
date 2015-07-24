@@ -1,4 +1,4 @@
-From 2d7d2d3899e7fbef27147f85c09b07e2c67b8a65 Mon Sep 17 00:00:00 2001
+From d358e7bb6ce26fc65f93617bc278165ef1f5c515 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Mon, 11 Mar 2013 21:05:05 -0400
 Subject: [PATCH] Keep certain items on death API
@@ -7,11 +7,11 @@ This adds a getItemsToKeep to PlayerDeathEvent that can be modified for what ite
 
 This can be used for never-to-be-dropped items.
 ---
- .../java/net/minecraft/server/EntityPlayer.java    | 30 ++++++++++++++++++++++
- 1 file changed, 30 insertions(+)
+ .../java/net/minecraft/server/EntityPlayer.java    | 47 ++++++++++++++++++++++
+ 1 file changed, 47 insertions(+)
 
 diff --git a/src/main/java/net/minecraft/server/EntityPlayer.java b/src/main/java/net/minecraft/server/EntityPlayer.java
-index 3854edf..7867ee1 100644
+index 3438d3a..264787c 100644
 --- a/src/main/java/net/minecraft/server/EntityPlayer.java
 +++ b/src/main/java/net/minecraft/server/EntityPlayer.java
 @@ -428,6 +428,10 @@ public class EntityPlayer extends EntityHuman implements ICrafting {
@@ -25,27 +25,46 @@ index 3854edf..7867ee1 100644
              for (int i = 0; i < this.inventory.items.length; ++i) {
                  this.inventory.items[i] = null;
              }
-@@ -435,6 +439,8 @@ public class EntityPlayer extends EntityHuman implements ICrafting {
+@@ -435,7 +439,10 @@ public class EntityPlayer extends EntityHuman implements ICrafting {
              for (int i = 0; i < this.inventory.armor.length; ++i) {
                  this.inventory.armor[i] = null;
              }
 +            */
 +            // EMC end
          }
++        processKeep(event, null); // EMC
  
          this.closeInventory();
-@@ -468,6 +474,30 @@ public class EntityPlayer extends EntityHuman implements ICrafting {
+         this.setSpectatorTarget(this); // Remove spectated target
+@@ -468,6 +475,46 @@ public class EntityPlayer extends EntityHuman implements ICrafting {
          this.bs().g();
      }
  
 +    // EMC start
 +    private void processKeep(org.bukkit.event.entity.PlayerDeathEvent event, ItemStack[] inv) {
++        List<org.bukkit.inventory.ItemStack> itemsToKeep = event.getItemsToKeep();
++        if (inv == null) {
++            // remainder
++            if (!itemsToKeep.isEmpty()) {
++                final org.bukkit.inventory.ItemStack[] items = itemsToKeep.toArray(
++                    new org.bukkit.inventory.ItemStack[itemsToKeep.size()]
++                );
++                event.getEntity().getInventory().addItem(items);
++            }
++            return;
++        }
 +        for (int i = 0; i < inv.length; ++i) {
-+            if (inv[i] == null) continue;
++            if (itemsToKeep.isEmpty()) {
++                break;
++            }
++            if (inv[i] == null) {
++                continue;
++            }
 +            final org.bukkit.inventory.ItemStack bukkitStack = inv[i].getBukkitStack();
 +
 +            boolean keep = false;
-+            final Iterator<org.bukkit.inventory.ItemStack> iterator = event.getItemsToKeep().iterator();
++
++            final Iterator<org.bukkit.inventory.ItemStack> iterator = itemsToKeep.iterator();
 +            while (iterator.hasNext()) {
 +                final org.bukkit.inventory.ItemStack keepStack = iterator.next();
 +                if (bukkitStack.equals(keepStack)) {
@@ -58,7 +77,6 @@ index 3854edf..7867ee1 100644
 +                inv[i] = null;
 +            }
 +        }
-+
 +    }
 +    // EMC end
 +
