@@ -1,4 +1,4 @@
-From 3ab634a12dcea479cf9e2b04fe6062f5d12bfcc5 Mon Sep 17 00:00:00 2001
+From bcfd683e0fac4680ec005a22fa5277cc5824317a Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Tue, 21 Jul 2015 23:05:32 -0400
 Subject: [PATCH] Profile Serialization Events
@@ -7,8 +7,8 @@ Lets us modify profile data before/after it is serialized/deserialized.
 ---
  .../customevents/ProfileDeserializeEvent.java      | 37 ++++++++++++++++++++++
  .../customevents/ProfileSerializeEvent.java        | 37 ++++++++++++++++++++++
- .../minecraft/server/GameProfileSerializer.java    |  2 ++
- 3 files changed, 76 insertions(+)
+ .../minecraft/server/GameProfileSerializer.java    |  7 ++++
+ 3 files changed, 81 insertions(+)
  create mode 100644 src/main/java/com/empireminecraft/customevents/ProfileDeserializeEvent.java
  create mode 100644 src/main/java/com/empireminecraft/customevents/ProfileSerializeEvent.java
 
@@ -99,10 +99,10 @@ index 0000000..1483f41
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/GameProfileSerializer.java b/src/main/java/net/minecraft/server/GameProfileSerializer.java
-index 998cf70..026b8c3 100644
+index 998cf70..86798c4 100644
 --- a/src/main/java/net/minecraft/server/GameProfileSerializer.java
 +++ b/src/main/java/net/minecraft/server/GameProfileSerializer.java
-@@ -53,11 +53,13 @@ public final class GameProfileSerializer {
+@@ -53,11 +53,18 @@ public final class GameProfileSerializer {
                  }
              }
  
@@ -112,7 +112,12 @@ index 998cf70..026b8c3 100644
      }
  
      public static NBTTagCompound serialize(NBTTagCompound nbttagcompound, GameProfile gameprofile) {
-+        new com.empireminecraft.customevents.ProfileSerializeEvent(gameprofile).callEvent(); // EMC
++        // EMC start - defensive copy to prevent ConcurrentModificationExceptions if the event modifies the profile
++        GameProfile old = gameprofile;
++        gameprofile = new GameProfile(old.getId(), old.getName());
++        gameprofile.getProperties().putAll(old.getProperties());
++        new com.empireminecraft.customevents.ProfileSerializeEvent(gameprofile).callEvent();
++        // EMC end
          if (!UtilColor.b(gameprofile.getName())) {
              nbttagcompound.setString("Name", gameprofile.getName());
          }
