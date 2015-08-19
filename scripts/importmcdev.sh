@@ -53,6 +53,7 @@ import BlockSponge
 import EntityMinecartHopper
 import PathfinderGoalInteractVillagers
 import GameProfileSerializer
+import FileIOThread
 
 (
 	cd Spigot/Spigot/Spigot-Server/

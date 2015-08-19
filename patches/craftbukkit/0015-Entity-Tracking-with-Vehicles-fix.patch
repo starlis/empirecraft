@@ -1,0 +1,96 @@
+From 1caf9abebc8a4ffcaef119ab1eecbe7efd2647f9 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Mon, 17 Jun 2013 01:24:00 -0400
+Subject: [PATCH] Entity Tracking with Vehicles fix
+
+If an entity untracks from a player while a vehicle/passenger, the rider can become frozen
+and stop receiving updates correctly.
+
+This patch makes it so passengers track the same way as their vehicle.
+---
+ src/main/java/net/minecraft/server/Entity.java     |  1 +
+ .../net/minecraft/server/EntityTrackerEntry.java   | 28 +++++++++++++++++++++-
+ 2 files changed, 28 insertions(+), 1 deletion(-)
+
+diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
+index 17721a9..a6beedd 100644
+--- a/src/main/java/net/minecraft/server/Entity.java
++++ b/src/main/java/net/minecraft/server/Entity.java
+@@ -40,6 +40,7 @@ public abstract class Entity implements ICommandListener {
+     static boolean isLevelAtLeast(NBTTagCompound tag, int level) {
+         return tag.hasKey("Bukkit.updateLevel") && tag.getInt("Bukkit.updateLevel") >= level;
+     }
++    EntityTrackerEntry tracker; // EMC
+     // CraftBukikt end
+ 
+     private static final AxisAlignedBB a = new AxisAlignedBB(0.0D, 0.0D, 0.0D, 0.0D, 0.0D, 0.0D);
+diff --git a/src/main/java/net/minecraft/server/EntityTrackerEntry.java b/src/main/java/net/minecraft/server/EntityTrackerEntry.java
+index f0149bf..d3e1400 100644
+--- a/src/main/java/net/minecraft/server/EntityTrackerEntry.java
++++ b/src/main/java/net/minecraft/server/EntityTrackerEntry.java
+@@ -42,6 +42,7 @@ public class EntityTrackerEntry {
+     public Set<EntityPlayer> trackedPlayers = Sets.newHashSet();
+ 
+     public EntityTrackerEntry(Entity entity, int i, int j, boolean flag) {
++        entity.tracker = this; // EMC
+         this.tracker = entity;
+         this.b = i;
+         this.c = j;
+@@ -312,7 +313,17 @@ public class EntityTrackerEntry {
+     public void updatePlayer(EntityPlayer entityplayer) {
+         org.spigotmc.AsyncCatcher.catchOp( "player tracker update"); // Spigot
+         if (entityplayer != this.tracker) {
+-            if (this.c(entityplayer)) {
++            // EMC start
++            boolean parent = true;
++            boolean force = false;
++            if (tracker.vehicle != null) {
++                parent = this.tracker.passenger instanceof EntityPlayer || (
++                    tracker.vehicle.tracker != null && tracker.vehicle.tracker.trackedPlayers.contains(entityplayer)
++                );
++                force = true;
++            }
++            // EMC end
++            if (parent && (force || this.c(entityplayer))) { // EMC - parent && (force || XXXX )
+                 if (!this.trackedPlayers.contains(entityplayer) && (this.e(entityplayer) || this.tracker.attachedToPlayer)) {
+                     // CraftBukkit start - respect vanish API
+                     if (this.tracker instanceof EntityPlayer) {
+@@ -331,6 +342,11 @@ public class EntityTrackerEntry {
+                     if (!this.tracker.getDataWatcher().d()) {
+                         entityplayer.playerConnection.sendPacket(new PacketPlayOutEntityMetadata(this.tracker.getId(), this.tracker.getDataWatcher(), true));
+                     }
++                    // EMC start
++                    if (tracker.passenger != null && tracker.passenger.tracker != null) {
++                        tracker.passenger.tracker.updatePlayer(entityplayer);
++                    }
++                    // EMC end
+ 
+                     NBTTagCompound nbttagcompound = this.tracker.getNBTTag();
+ 
+@@ -363,6 +379,11 @@ public class EntityTrackerEntry {
+                     if (this.tracker.vehicle != null) {
+                         entityplayer.playerConnection.sendPacket(new PacketPlayOutAttachEntity(0, this.tracker, this.tracker.vehicle));
+                     }
++                    // EMC start
++                    if (this.tracker == entityplayer.vehicle) {
++                        entityplayer.playerConnection.sendPacket(new PacketPlayOutAttachEntity(0, entityplayer, this.tracker));
++                    }
++                    // EMC end
+ 
+                     if (this.tracker instanceof EntityInsentient && ((EntityInsentient) this.tracker).getLeashHolder() != null) {
+                         entityplayer.playerConnection.sendPacket(new PacketPlayOutAttachEntity(1, this.tracker, ((EntityInsentient) this.tracker).getLeashHolder()));
+@@ -404,6 +425,11 @@ public class EntityTrackerEntry {
+                 }
+             } else if (this.trackedPlayers.contains(entityplayer)) {
+                 this.trackedPlayers.remove(entityplayer);
++                // EMC start
++                if (tracker.passenger != null && tracker.passenger.tracker != null) {
++                    tracker.passenger.tracker.updatePlayer(entityplayer);
++                }
++                // EMC end
+                 entityplayer.d(this.tracker);
+             }
+ 
+-- 
+1.9.1
+

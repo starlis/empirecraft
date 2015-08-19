@@ -1,0 +1,141 @@
+From ebed7e7fd3135ee8d147d5efe5114002aada59aa Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Mon, 31 Dec 2012 01:25:46 -0500
+Subject: [PATCH] Anvil Event
+
+Fire an event for anvil usage, remove cap from server, send level to client
+---
+ .../empireminecraft/customevents/AnvilEvent.java   | 68 ++++++++++++++++++++++
+ .../java/net/minecraft/server/ContainerAnvil.java  | 24 ++++++++
+ 2 files changed, 92 insertions(+)
+ create mode 100644 src/main/java/com/empireminecraft/customevents/AnvilEvent.java
+
+diff --git a/src/main/java/com/empireminecraft/customevents/AnvilEvent.java b/src/main/java/com/empireminecraft/customevents/AnvilEvent.java
+new file mode 100644
+index 0000000..aa4e6ce
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/customevents/AnvilEvent.java
+@@ -0,0 +1,68 @@
++package com.empireminecraft.customevents;
++
++import org.bukkit.entity.Player;
++import org.bukkit.event.Cancellable;
++import org.bukkit.event.Event;
++import org.bukkit.event.HandlerList;
++import org.bukkit.inventory.ItemStack;
++
++public class AnvilEvent extends Event implements Cancellable {
++    private static final HandlerList handlers = new HandlerList();
++    private boolean canceled;
++    final Player player;
++    final ItemStack left;
++    final ItemStack right;
++    ItemStack result;
++    int cost;
++    public AnvilEvent(Player player, ItemStack left, ItemStack right, ItemStack result, int cost) {
++        this.player = player;
++        this.left = left;
++        this.right = right;
++        this.result = result;
++        this.cost = cost;
++    }
++
++    public Player getPlayer() {
++        return player;
++    }
++
++    public ItemStack getLeft() {
++        return left;
++    }
++
++    public ItemStack getRight() {
++        return right;
++    }
++
++    public ItemStack getResult() {
++        return result;
++    }
++
++    public int getCost() {
++        return cost;
++    }
++
++    public void setCost(int cost) {
++        this.cost = cost;
++    }
++
++    public void setResult(ItemStack result) {
++        this.result = result;
++    }
++
++    public boolean isCancelled() {
++        return canceled;
++    }
++
++    public void setCancelled(boolean cancel) {
++        canceled = cancel;
++    }
++
++    public HandlerList getHandlers() {
++        return handlers;
++    }
++
++    public static HandlerList getHandlerList() {
++        return handlers;
++    }
++}
+diff --git a/src/main/java/net/minecraft/server/ContainerAnvil.java b/src/main/java/net/minecraft/server/ContainerAnvil.java
+index 2816de6..df3b159 100644
+--- a/src/main/java/net/minecraft/server/ContainerAnvil.java
++++ b/src/main/java/net/minecraft/server/ContainerAnvil.java
+@@ -6,7 +6,11 @@ import org.apache.commons.lang3.StringUtils;
+ import org.apache.logging.log4j.LogManager;
+ import org.apache.logging.log4j.Logger;
+ 
++import com.empireminecraft.customevents.AnvilEvent; // EMC
++import org.bukkit.Bukkit; // EMC
+ import org.bukkit.craftbukkit.inventory.CraftInventoryView; // CraftBukkit
++import org.bukkit.craftbukkit.inventory.CraftItemStack;
++import org.bukkit.entity.Player;
+ 
+ public class ContainerAnvil extends Container {
+ 
+@@ -285,8 +289,18 @@ public class ContainerAnvil extends Container {
+             }
+ 
+             if (this.a >= 40 && !this.m.abilities.canInstantlyBuild) {
++                itemstack1 = null; // EMC
++            }
++            // EMC start
++            AnvilEvent event = new AnvilEvent((Player) player.player.getBukkitEntity(), CraftItemStack.asBukkitCopy(itemstack), CraftItemStack.asBukkitCopy(itemstack2), CraftItemStack.asBukkitCopy(itemstack1), this.a);
++            Bukkit.getPluginManager().callEvent(event);
++            if (event.isCancelled()) {
+                 itemstack1 = null;
++            } else {
++                itemstack1 = CraftItemStack.asNMSCopy(event.getResult());
++                this.a = event.getCost();
+             }
++            // EMC end
+ 
+             if (itemstack1 != null) {
+                 k = itemstack1.getRepairCost();
+@@ -304,6 +318,16 @@ public class ContainerAnvil extends Container {
+         }
+     }
+ 
++    // EMC Start - send modified max level on change
++    @Override
++    public void b() {
++        super.b();
++        for (ICrafting listener : this.listeners) {
++            listener.setContainerData(this, 0, this.a);
++        }
++    }
++    // EMC end
++
+     public void addSlotListener(ICrafting icrafting) {
+         super.addSlotListener(icrafting);
+         icrafting.setContainerData(this, 0, this.a);
+-- 
+1.9.1
+

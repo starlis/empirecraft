@@ -1,0 +1,103 @@
+From 72ade3e7f0f89c84d087b01d8c227a3b4d64fb15 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Fri, 8 May 2015 19:56:21 -0400
+Subject: [PATCH] ServerShutdownEvent and move disablePlugins
+
+---
+ .../customevents/ServerShutdownEvent.java          | 29 ++++++++++++++++++++++
+ .../java/net/minecraft/server/CommandStop.java     |  3 +++
+ .../java/net/minecraft/server/MinecraftServer.java |  6 ++++-
+ 3 files changed, 37 insertions(+), 1 deletion(-)
+ create mode 100644 src/main/java/com/empireminecraft/customevents/ServerShutdownEvent.java
+
+diff --git a/src/main/java/com/empireminecraft/customevents/ServerShutdownEvent.java b/src/main/java/com/empireminecraft/customevents/ServerShutdownEvent.java
+new file mode 100644
+index 0000000..43f761a
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/customevents/ServerShutdownEvent.java
+@@ -0,0 +1,29 @@
++package com.empireminecraft.customevents;
++
++import org.bukkit.event.Event;
++import org.bukkit.event.HandlerList;
++
++public class ServerShutdownEvent extends Event {
++    private String reason;
++    public ServerShutdownEvent(String reason) {
++        this.reason = reason;
++    }
++
++    public String getReason() {
++        return reason;
++    }
++
++    public void setReason(String reason) {
++        this.reason = reason;
++    }
++
++    private static final HandlerList handlers = new HandlerList();
++
++    public HandlerList getHandlers() {
++        return handlers;
++    }
++
++    public static HandlerList getHandlerList() {
++        return handlers;
++    }
++}
+diff --git a/src/main/java/net/minecraft/server/CommandStop.java b/src/main/java/net/minecraft/server/CommandStop.java
+index 40b8a57..bd21068 100644
+--- a/src/main/java/net/minecraft/server/CommandStop.java
++++ b/src/main/java/net/minecraft/server/CommandStop.java
+@@ -16,7 +16,10 @@ public class CommandStop extends CommandAbstract {
+         if (MinecraftServer.getServer().worldServer != null) {
+             a(icommandlistener, this, "commands.stop.start", new Object[0]);
+         }
++        if (astring.length > 0) { MinecraftServer.getServer().shutdownReason = org.apache.commons.lang.StringUtils.join(astring, ' '); }// EMC
+ 
+         MinecraftServer.getServer().safeShutdown();
+     }
++
++    @Override public int compareTo(ICommand o) {return getCommand().compareTo(o.getCommand());} // EMC
+ }
+diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
+index b3a611a..469f74c 100644
+--- a/src/main/java/net/minecraft/server/MinecraftServer.java
++++ b/src/main/java/net/minecraft/server/MinecraftServer.java
+@@ -75,6 +75,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+     private boolean onlineMode;
+     private boolean spawnAnimals;
+     private boolean spawnNPCs;
++    public String shutdownReason; // EMC
+     private boolean pvpMode;
+     private boolean allowFlight;
+     private String motd;
+@@ -454,7 +455,8 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+ 
+             // CraftBukkit start
+             if (this.server != null) {
+-                this.server.disablePlugins();
++                // this.server.disablePlugins(); // EMC - Moved below after everything has unloaded so plugins can get events
++                new com.empireminecraft.customevents.ServerShutdownEvent(shutdownReason).callEvent(); // EMC
+             }
+             // CraftBukkit end
+             if (this.aq() != null) {
+@@ -479,6 +481,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+                 }
+                 // CraftBukkit end */
+             }
++            if (server != null) { this.server.disablePlugins(); } // EMC
+ 
+             if (this.n.d()) {
+                 this.n.e();
+@@ -506,6 +509,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+     }
+ 
+     public void safeShutdown() {
++        if (shutdownReason == null) { shutdownReason = "Server Shutting Down"; } // EMC
+         this.isRunning = false;
+     }
+ 
+-- 
+1.9.1
+
