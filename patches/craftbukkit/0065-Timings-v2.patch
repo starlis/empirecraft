@@ -1,9 +1,10 @@
-From 5bd1ba1129b502f2fabcb98afff6d3ca5fd43950 Mon Sep 17 00:00:00 2001
+From 7330f5766ea90581bc7c8099cb36689ffcbecd37 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Sat, 20 Sep 2014 15:54:22 -0400
 Subject: [PATCH] Timings v2
 
 ---
+ src/main/java/net/minecraft/server/Block.java      |  10 ++
  .../java/net/minecraft/server/DedicatedServer.java |   2 +-
  src/main/java/net/minecraft/server/Entity.java     |   7 +-
  .../java/net/minecraft/server/EntityLiving.java    |  12 +-
@@ -11,7 +12,7 @@ Subject: [PATCH] Timings v2
  .../net/minecraft/server/PlayerConnection.java     |  11 +-
  src/main/java/net/minecraft/server/TileEntity.java |   5 +-
  src/main/java/net/minecraft/server/World.java      |  19 ++-
- .../java/net/minecraft/server/WorldServer.java     |  14 +-
+ .../java/net/minecraft/server/WorldServer.java     |  17 +-
  .../java/org/bukkit/craftbukkit/CraftServer.java   |   9 +-
  .../java/org/bukkit/craftbukkit/SpigotTimings.java | 173 ---------------------
  .../org/bukkit/craftbukkit/entity/CraftPlayer.java |   6 +
@@ -20,13 +21,34 @@ Subject: [PATCH] Timings v2
  .../bukkit/craftbukkit/util/CraftIconCache.java    |   1 +
  src/main/java/org/spigotmc/ActivationRange.java    |   1 +
  src/main/java/org/spigotmc/SpigotConfig.java       |  37 +++++
- .../java/org/spigotmc/timings/SpigotTimings.java   | 106 +++++++++++++
+ .../java/org/spigotmc/timings/SpigotTimings.java   | 110 +++++++++++++
  .../org/spigotmc/timings/WorldTimingsHandler.java  |  69 ++++++++
- 18 files changed, 279 insertions(+), 245 deletions(-)
+ 19 files changed, 296 insertions(+), 245 deletions(-)
  delete mode 100644 src/main/java/org/bukkit/craftbukkit/SpigotTimings.java
  create mode 100644 src/main/java/org/spigotmc/timings/SpigotTimings.java
  create mode 100644 src/main/java/org/spigotmc/timings/WorldTimingsHandler.java
 
+diff --git a/src/main/java/net/minecraft/server/Block.java b/src/main/java/net/minecraft/server/Block.java
+index 5e91e82..3c43bae 100644
+--- a/src/main/java/net/minecraft/server/Block.java
++++ b/src/main/java/net/minecraft/server/Block.java
+@@ -65,6 +65,16 @@ public class Block {
+     protected boolean y;
+     protected boolean z;
+     protected boolean isTileEntity;
++    // Spigot start
++    public org.spigotmc.timings.Timing timing;
++    public org.spigotmc.timings.Timing getTiming() {
++        if (timing == null) {
++            timing = org.spigotmc.timings.SpigotTimings.getBlockTiming(this);
++        }
++        return timing;
++    }
++    // Spigot end
++
+     protected double minX;
+     protected double minY;
+     protected double minZ;
 diff --git a/src/main/java/net/minecraft/server/DedicatedServer.java b/src/main/java/net/minecraft/server/DedicatedServer.java
 index 2ce6963..10d292d 100644
 --- a/src/main/java/net/minecraft/server/DedicatedServer.java
@@ -362,7 +384,7 @@ index d360424..28e66c8 100644
      }
  
 diff --git a/src/main/java/net/minecraft/server/WorldServer.java b/src/main/java/net/minecraft/server/WorldServer.java
-index 6755143..71738b2 100644
+index 6755143..c73e2f2 100644
 --- a/src/main/java/net/minecraft/server/WorldServer.java
 +++ b/src/main/java/net/minecraft/server/WorldServer.java
 @@ -245,13 +245,13 @@ public class WorldServer extends World implements IAsyncTaskHandler {
@@ -419,7 +441,21 @@ index 6755143..71738b2 100644
                  Iterator iterator = this.V.iterator();
  
                  while (iterator.hasNext()) {
-@@ -663,6 +668,7 @@ public class WorldServer extends World implements IAsyncTaskHandler {
+@@ -647,6 +652,8 @@ public class WorldServer extends World implements IAsyncTaskHandler {
+ 
+                     if (this.areChunksLoadedBetween(nextticklistentry.a.a(-b0, -b0, -b0), nextticklistentry.a.a(b0, b0, b0))) {
+                         IBlockData iblockdata = this.getType(nextticklistentry.a);
++                        org.spigotmc.timings.Timing timing = iblockdata.getBlock().getTiming(); // Spigot
++                        timing.startTiming(); // Spigot
+ 
+                         if (iblockdata.getBlock().getMaterial() != Material.AIR && Block.a(iblockdata.getBlock(), nextticklistentry.a())) {
+                             try {
+@@ -659,10 +666,12 @@ public class WorldServer extends World implements IAsyncTaskHandler {
+                                 throw new ReportedException(crashreport);
+                             }
+                         }
++                        timing.stopTiming(); // Spigot
+                     } else {
                          this.a(nextticklistentry.a, nextticklistentry.a(), 0);
                      }
                  }
@@ -861,10 +897,10 @@ index b468f71..761c277 100644
          int count = getInt( "settings.netty-threads", 4 );
 diff --git a/src/main/java/org/spigotmc/timings/SpigotTimings.java b/src/main/java/org/spigotmc/timings/SpigotTimings.java
 new file mode 100644
-index 0000000..495846d
+index 0000000..ea5b168
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/timings/SpigotTimings.java
-@@ -0,0 +1,106 @@
+@@ -0,0 +1,110 @@
 +package org.spigotmc.timings;
 +
 +import net.minecraft.server.*;
@@ -969,6 +1005,10 @@ index 0000000..495846d
 +
 +    public static void stopServer() {
 +        TimingsManager.stopServer();
++    }
++
++    public static Timing getBlockTiming(Block block) {
++        return Timings.ofSafe("## Scheduled Block: " + block.getName());
 +    }
 +}
 diff --git a/src/main/java/org/spigotmc/timings/WorldTimingsHandler.java b/src/main/java/org/spigotmc/timings/WorldTimingsHandler.java
