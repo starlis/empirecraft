@@ -1,4 +1,4 @@
-From 5535596f49ebec4ec091dc067dc86654f45f40a1 Mon Sep 17 00:00:00 2001
+From cd522d4379cab5abeb89751017fa25e8274d87b8 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Wed, 8 Oct 2014 19:16:12 -0400
 Subject: [PATCH] Timings v2
@@ -32,7 +32,7 @@ Adds many other new Timings API for controlling Timings settings and generating 
  .../org/spigotmc/timings/TimedEventExecutor.java   |  70 ++++
  src/main/java/org/spigotmc/timings/Timing.java     |  72 ++++
  src/main/java/org/spigotmc/timings/TimingData.java | 105 ++++++
- .../java/org/spigotmc/timings/TimingHandler.java   | 191 +++++++++++
+ .../java/org/spigotmc/timings/TimingHandler.java   | 193 +++++++++++
  .../java/org/spigotmc/timings/TimingHistory.java   | 271 ++++++++++++++++
  .../org/spigotmc/timings/TimingHistoryEntry.java   |  59 ++++
  .../org/spigotmc/timings/TimingIdentifier.java     | 102 ++++++
@@ -41,7 +41,7 @@ Adds many other new Timings API for controlling Timings settings and generating 
  .../java/org/spigotmc/timings/TimingsExport.java   | 361 +++++++++++++++++++++
  .../java/org/spigotmc/timings/TimingsManager.java  | 195 +++++++++++
  .../org/spigotmc/timings/UnsafeTimingHandler.java  |  51 +++
- 26 files changed, 2076 insertions(+), 306 deletions(-)
+ 26 files changed, 2078 insertions(+), 306 deletions(-)
  create mode 100644 src/main/java/org/spigotmc/timings/FullServerTickHandler.java
  create mode 100644 src/main/java/org/spigotmc/timings/NullTimingHandler.java
  create mode 100644 src/main/java/org/spigotmc/timings/TimedEventExecutor.java
@@ -1106,10 +1106,10 @@ index 0000000..677b597
 +}
 diff --git a/src/main/java/org/spigotmc/timings/TimingHandler.java b/src/main/java/org/spigotmc/timings/TimingHandler.java
 new file mode 100644
-index 0000000..bf9b065
+index 0000000..c956a90
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/timings/TimingHandler.java
-@@ -0,0 +1,191 @@
+@@ -0,0 +1,193 @@
 +/*
 + * This file is licensed under the MIT License (MIT).
 + *
@@ -1135,7 +1135,9 @@ index 0000000..bf9b065
 + */
 +package org.spigotmc.timings;
 +
++import gnu.trove.map.hash.TIntObjectHashMap;
 +import org.bukkit.Bukkit;
++import org.spigotmc.util.LoadingIntMap;
 +import org.spigotmc.util.LoadingMap;
 +import org.spigotmc.util.MRUMapCache;
 +
@@ -1150,7 +1152,7 @@ index 0000000..bf9b065
 +    final String name;
 +    final boolean verbose;
 +
-+    final Map<Integer, TimingData> children = MRUMapCache.of(LoadingMap.newHashMap(TimingData.LOADER));
++    final TIntObjectHashMap<TimingData> children = new LoadingIntMap<TimingData>(TimingData.LOADER);
 +
 +    final TimingData record;
 +    final TimingHandler groupHandler;
@@ -1190,7 +1192,7 @@ index 0000000..bf9b065
 +        }
 +
 +        record.processTick(violated);
-+        for (TimingData handler : children.values()) {
++        for (TimingData handler : children.valueCollection()) {
 +            handler.processTick(violated);
 +        }
 +    }
@@ -1580,7 +1582,7 @@ index 0000000..d9e34bc
 +}
 diff --git a/src/main/java/org/spigotmc/timings/TimingHistoryEntry.java b/src/main/java/org/spigotmc/timings/TimingHistoryEntry.java
 new file mode 100644
-index 0000000..6fe8a79
+index 0000000..2b37cbe
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/timings/TimingHistoryEntry.java
 @@ -0,0 +1,59 @@
@@ -1623,7 +1625,7 @@ index 0000000..6fe8a79
 +        this.data = handler.record.clone();
 +        children = new TimingData[handler.children.size()];
 +        int i = 0;
-+        for (TimingData child : handler.children.values()) {
++        for (TimingData child : handler.children.valueCollection()) {
 +            children[i++] = child.clone();
 +        }
 +    }

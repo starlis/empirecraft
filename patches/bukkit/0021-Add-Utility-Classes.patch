@@ -1,4 +1,4 @@
-From 4f33d1f8ab6f58a7f6fd8e5036ab5215a5c09edf Mon Sep 17 00:00:00 2001
+From 5231398a2ce9e76e5254848bb05024a9854d64a7 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Wed, 8 Oct 2014 19:02:16 -0400
 Subject: [PATCH] Add Utility Classes
@@ -7,13 +7,18 @@ Provides Utility classes for Spigot and plugins to use.
 
 JSONUtil: Provides utility methods for building json-simple documents.
 LoadingMap: Create a map with an auto loader to auto load on .get() if missing, similar to a LoadingCache.
+LoadingIntMap: extension of TIntObjectMap that behaves like a LoadingMap
 MRUMapCache: Caches most recently used key/value for faster lookups on on 1 or 2 key maps.
+
+Util
 ---
- src/main/java/org/spigotmc/util/JSONUtil.java    | 123 +++++++++
- src/main/java/org/spigotmc/util/LoadingMap.java  | 332 +++++++++++++++++++++++
- src/main/java/org/spigotmc/util/MRUMapCache.java | 100 +++++++
- 3 files changed, 555 insertions(+)
+ src/main/java/org/spigotmc/util/JSONUtil.java      | 123 ++++++++
+ src/main/java/org/spigotmc/util/LoadingIntMap.java |  68 +++++
+ src/main/java/org/spigotmc/util/LoadingMap.java    | 332 +++++++++++++++++++++
+ src/main/java/org/spigotmc/util/MRUMapCache.java   | 100 +++++++
+ 4 files changed, 623 insertions(+)
  create mode 100644 src/main/java/org/spigotmc/util/JSONUtil.java
+ create mode 100644 src/main/java/org/spigotmc/util/LoadingIntMap.java
  create mode 100644 src/main/java/org/spigotmc/util/LoadingMap.java
  create mode 100644 src/main/java/org/spigotmc/util/MRUMapCache.java
 
@@ -144,6 +149,80 @@ index 0000000..134fb2d
 +            this.key = key;
 +            this.val = val;
 +        }
++    }
++}
+diff --git a/src/main/java/org/spigotmc/util/LoadingIntMap.java b/src/main/java/org/spigotmc/util/LoadingIntMap.java
+new file mode 100644
+index 0000000..e8087e8
+--- /dev/null
++++ b/src/main/java/org/spigotmc/util/LoadingIntMap.java
+@@ -0,0 +1,68 @@
++/*
++ * Copyright (c) 2015. Starlis LLC / dba Empire Minecraft
++ *
++ * This source code is proprietary software and must not be redistributed without Starlis LLC's approval
++ *
++ */
++package org.spigotmc.util;
++
++
++import com.google.common.base.Function;
++import gnu.trove.map.hash.TIntObjectHashMap;
++
++import java.lang.reflect.Constructor;
++import java.util.*;
++
++/**
++ * Allows you to pass a Loader function that when a key is accessed that doesn't exists,
++ * automatically loads the entry into the map by calling the loader Function.
++ *
++ * .get() Will only return null if the Loader can return null.
++ *
++ * You may pass any backing Map to use.
++ *
++ * This class is not thread safe and should be wrapped with Collections.synchronizedMap on the OUTSIDE of the LoadingMap if needed.
++ *
++ * Do not wrap the backing map with Collections.synchronizedMap.
++ *
++ * @param <K> Key
++ * @param <V> Value
++ */
++public class LoadingIntMap<V> extends TIntObjectHashMap<V> {
++    private final Function<Integer, V> loader;
++
++    /**
++     * Initializes an auto loading map using specified loader and backing map
++     * @param backingMap
++     * @param loader
++     */
++    public LoadingIntMap(Function<Integer, V> loader) {
++        this.loader = loader;
++    }
++
++
++    @Override
++    public V get(int key) {
++        V res = super.get(key);
++        if (res == null) {
++            res = loader.apply(key);
++            if (res != null) {
++                put(key, res);
++            }
++        }
++        return res;
++    }
++
++    /**
++     * Due to java stuff, you will need to cast it to (Function) for some cases
++     * @param <T>
++     */
++    public abstract static class Feeder <T> implements Function<T, T> {
++        @Override
++        public T apply(Object input) {
++            return apply();
++        }
++
++        public abstract T apply();
 +    }
 +}
 diff --git a/src/main/java/org/spigotmc/util/LoadingMap.java b/src/main/java/org/spigotmc/util/LoadingMap.java
