@@ -1,0 +1,61 @@
+From 30917b8981637f3bc203c5caabfb0b9e59ef7cea Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Thu, 27 Aug 2015 00:43:02 -0400
+Subject: [PATCH] Optimize hot spot with isValidLocation
+
+While this method is simple, its so hot its showing up in samplings.
+
+Removing it from the 2 hot spots its used at should save a decent bit
+of CPU, as plenty of other elements of the server protect invalid locs
+
+Also make isValidLocation static to help hint the JVM inline too
+---
+ src/main/java/net/minecraft/server/World.java | 14 +++++++-------
+ 1 file changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
+index 22a3e64..9573883 100644
+--- a/src/main/java/net/minecraft/server/World.java
++++ b/src/main/java/net/minecraft/server/World.java
+@@ -281,7 +281,7 @@ public abstract class World implements IBlockAccess {
+         return this.getType(blockposition1).getBlock();
+     }
+ 
+-    private boolean isValidLocation(BlockPosition blockposition) {
++    public static boolean isValidLocation(BlockPosition blockposition) { // EMC
+         return blockposition.getX() >= -30000000 && blockposition.getZ() >= -30000000 && blockposition.getX() < 30000000 && blockposition.getZ() < 30000000 && blockposition.getY() >= 0 && blockposition.getY() < 256;
+     }
+ 
+@@ -376,9 +376,9 @@ public abstract class World implements IBlockAccess {
+             return true;
+         }
+         // CraftBukkit end
+-        if (!this.isValidLocation(blockposition)) {
++        /*if (!this.isValidLocation(blockposition)) { // EMC remove isValid loc
+             return false;
+-        } else if (!this.isClientSide && this.worldData.getType() == WorldType.DEBUG_ALL_BLOCK_STATES) {
++        } else */if (!this.isClientSide && this.worldData.getType() == WorldType.DEBUG_ALL_BLOCK_STATES) {
+             return false;
+         } else {
+             Chunk chunk = this.getChunkAtWorldCoords(blockposition);
+@@ -778,13 +778,13 @@ public abstract class World implements IBlockAccess {
+             }
+         }
+         // CraftBukkit end
+-        if (!this.isValidLocation(blockposition)) {
+-            return Blocks.AIR.getBlockData();
+-        } else {
++        //if (!this.isValidLocation(blockposition)) { // EMC
++            //return Blocks.AIR.getBlockData(); // EMC
++        //} else { // EMC
+             Chunk chunk = this.getChunkAtWorldCoords(blockposition);
+ 
+             return chunk.getBlockData(blockposition);
+-        }
++        //} // EMC
+     }
+ 
+     public boolean w() {
+-- 
+1.9.1
+
