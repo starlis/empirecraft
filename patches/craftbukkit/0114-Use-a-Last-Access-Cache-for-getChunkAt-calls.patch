@@ -1,4 +1,4 @@
-From ab2df5b559845b35f263af453978a36d7436bee6 Mon Sep 17 00:00:00 2001
+From d26ab9d90f9c8ba989deb73e8d2d64464ec968cf Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Thu, 27 Aug 2015 01:15:02 -0400
 Subject: [PATCH] Use a Last Access Cache for getChunkAt calls
@@ -8,20 +8,21 @@ Considering this method will be repeatedly called for blocks in the same
 chunk, cacheing this and skipping all the lookup code should provide
 substantial improvements.
 ---
- src/main/java/net/minecraft/server/ChunkProviderServer.java | 3 +++
- src/main/java/net/minecraft/server/World.java               | 6 ++++++
- src/main/java/net/minecraft/server/WorldServer.java         | 1 +
- 3 files changed, 10 insertions(+)
+ src/main/java/net/minecraft/server/ChunkProviderServer.java |  3 +++
+ src/main/java/net/minecraft/server/World.java               | 13 +++++++++++++
+ src/main/java/net/minecraft/server/WorldServer.java         |  1 +
+ src/main/java/org/bukkit/craftbukkit/CraftWorld.java        |  1 +
+ 4 files changed, 18 insertions(+)
 
 diff --git a/src/main/java/net/minecraft/server/ChunkProviderServer.java b/src/main/java/net/minecraft/server/ChunkProviderServer.java
-index 975d666..5c22944 100644
+index 975d666..d6854d3 100644
 --- a/src/main/java/net/minecraft/server/ChunkProviderServer.java
 +++ b/src/main/java/net/minecraft/server/ChunkProviderServer.java
 @@ -60,6 +60,7 @@ public class ChunkProviderServer implements IChunkProvider {
  
                  Chunk c = chunks.get(LongHash.toLong(i, j));
                  if (c != null) {
-+                    if (world.lastChunkByPos == c) { world.lastChunkByPos = null; } // Spigot
++                    world.testResetChunkCache(c); // Spigot
                      c.mustSave = true;
                  }
                  // CraftBukkit end
@@ -29,7 +30,7 @@ index 975d666..5c22944 100644
  
              Chunk c = chunks.get(LongHash.toLong(i, j));
              if (c != null) {
-+                if (world.lastChunkByPos == c) { world.lastChunkByPos = null; } // Spigot
++                world.testResetChunkCache(c); // Spigot
                  c.mustSave = true;
              }
              // CraftBukkit end
@@ -37,19 +38,26 @@ index 975d666..5c22944 100644
                          chunk.removeEntities();
                          this.saveChunk(chunk);
                          this.saveChunkNOP(chunk);
-+                        if (world.lastChunkByPos == chunk) { world.lastChunkByPos = null; } // Spigot
++                        world.testResetChunkCache(chunk); // Spigot
                          this.chunks.remove(chunkcoordinates); // CraftBukkit
                      }
  
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index 9573883..fc12fb9 100644
+index f81009a..69171a8 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
-@@ -350,7 +350,13 @@ public abstract class World implements IBlockAccess {
+@@ -356,7 +356,20 @@ public abstract class World implements IBlockAccess {
          return this.getChunkAt(blockposition.getX() >> 4, blockposition.getZ() >> 4);
      }
  
-+    public Chunk lastChunkByPos = null; // Spigot - cache last chunk for a block position
++    // Spigot start - Cache last accessed chunk for fast lookups
++    protected Chunk lastChunkByPos = null;
++    public void testResetChunkCache(Chunk chunk) {
++        if (chunk == lastChunkByPos) {
++            lastChunkByPos = null;
++        }
++    }
++    // Spigot end
      public Chunk getChunkAt(int i, int j) {
 +        // Spigot start
 +        if (lastChunkByPos != null && i == lastChunkByPos.locX && j == lastChunkByPos.locZ) {
@@ -71,6 +79,18 @@ index c73e2f2..62316c9 100644
          super.doTick();
          if (this.getWorldData().isHardcore() && this.getDifficulty() != EnumDifficulty.HARD) {
              this.getWorldData().setDifficulty(EnumDifficulty.HARD);
+diff --git a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
+index 2395ab6..7d817cb 100644
+--- a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
++++ b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
+@@ -233,6 +233,7 @@ public class CraftWorld implements World {
+ 
+         world.chunkProviderServer.unloadQueue.remove(x, z);
+         world.chunkProviderServer.chunks.remove(LongHash.toLong(x, z));
++        world.testResetChunkCache(chunk); // Spigot
+ 
+         return true;
+     }
 -- 
 1.9.1
 
