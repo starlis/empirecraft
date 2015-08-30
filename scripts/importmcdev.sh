@@ -54,6 +54,7 @@ import EntityMinecartHopper
 import PathfinderGoalInteractVillagers
 import GameProfileSerializer
 import FileIOThread
+import PathfinderNormal
 
 (
 	cd Spigot/Spigot/Spigot-Server/
