@@ -1,4 +1,4 @@
-From 356a67ae91672805081f67f8824e36030045172e Mon Sep 17 00:00:00 2001
+From a82c6dd780329ee71fb9765007f437cf7958baf7 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Sun, 30 Aug 2015 00:50:50 -0400
 Subject: [PATCH] Pool BlockPosition to reduce memory usage
@@ -7,19 +7,40 @@ Implements a PooledMutableBlockPosition system.
 
 Use pooled BlockPosition for many hot spots of the server that does not hold a reference past its current scope.
 ---
- src/main/java/net/minecraft/server/Chunk.java      |   4 +-
- src/main/java/net/minecraft/server/Entity.java     |   4 +-
+ src/main/java/net/minecraft/server/Chunk.java      |  12 +-
+ src/main/java/net/minecraft/server/Entity.java     |  13 ++-
  .../net/minecraft/server/PathfinderNormal.java     |  14 ++-
- .../server/PooledMutableBlockPosition.java         | 116 +++++++++++++++++++++
- src/main/java/net/minecraft/server/World.java      |  34 ++++--
- 5 files changed, 155 insertions(+), 17 deletions(-)
+ .../server/PooledMutableBlockPosition.java         | 126 +++++++++++++++++++++
+ src/main/java/net/minecraft/server/World.java      |  39 +++++--
+ .../org/bukkit/craftbukkit/block/CraftBlock.java   |  56 ++++++---
+ 6 files changed, 222 insertions(+), 38 deletions(-)
  create mode 100644 src/main/java/net/minecraft/server/PooledMutableBlockPosition.java
 
 diff --git a/src/main/java/net/minecraft/server/Chunk.java b/src/main/java/net/minecraft/server/Chunk.java
-index 66e1f33..2762cf4 100644
+index 66e1f33..05b5304 100644
 --- a/src/main/java/net/minecraft/server/Chunk.java
 +++ b/src/main/java/net/minecraft/server/Chunk.java
-@@ -1257,7 +1257,7 @@ public class Chunk {
+@@ -273,13 +273,17 @@ public class Chunk {
+     }
+ 
+     private void a(int i, int j, int k, int l) {
+-        if (l > k && this.world.areChunksLoaded(new BlockPosition(i, 0, j), 16)) {
++        final PooledMutableBlockPosition pos1 = PooledMutableBlockPosition.acquire(i, 0, j); // Spigot
++        if (l > k && this.world.areChunksLoaded(pos1, 16)) { // Spigot
+             for (int i1 = k; i1 < l; ++i1) {
+-                this.world.c(EnumSkyBlock.SKY, new BlockPosition(i, i1, j));
++                final PooledMutableBlockPosition pos2 = PooledMutableBlockPosition.acquire(i, i1, j); // Spigot
++                this.world.c(EnumSkyBlock.SKY, pos2); // Spigot
++                pos2.release(); // Spigot
+             }
+ 
+             this.q = true;
+         }
++        pos1.release(); // Spigot
+ 
+     }
+ 
+@@ -1257,7 +1261,7 @@ public class Chunk {
          int k = this.g();
          boolean flag = false;
          boolean flag1 = false;
@@ -28,7 +49,7 @@ index 66e1f33..2762cf4 100644
  
          int l;
  
-@@ -1272,6 +1272,7 @@ public class Chunk {
+@@ -1272,6 +1276,7 @@ public class Chunk {
              if (!flag && i1 > 0) {
                  flag = true;
              } else if (flag && i1 == 0 && !this.world.x(blockposition_mutableblockposition)) {
@@ -36,7 +57,7 @@ index 66e1f33..2762cf4 100644
                  return false;
              }
          }
-@@ -1283,6 +1284,7 @@ public class Chunk {
+@@ -1283,6 +1288,7 @@ public class Chunk {
              }
          }
  
@@ -45,10 +66,38 @@ index 66e1f33..2762cf4 100644
      }
  
 diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
-index c96832a..6028060 100644
+index c96832a..d89b2e0 100644
 --- a/src/main/java/net/minecraft/server/Entity.java
 +++ b/src/main/java/net/minecraft/server/Entity.java
-@@ -1450,7 +1450,7 @@ public abstract class Entity implements ICommandListener {
+@@ -627,15 +627,15 @@ public abstract class Entity implements ICommandListener {
+             int i = MathHelper.floor(this.locX);
+             int j = MathHelper.floor(this.locY - 0.20000000298023224D);
+             int k = MathHelper.floor(this.locZ);
+-            BlockPosition blockposition = new BlockPosition(i, j, k);
++            PooledMutableBlockPosition blockposition = PooledMutableBlockPosition.acquire(i, j, k); // Spigot
+             Block block = this.world.getType(blockposition).getBlock();
+ 
+             if (block.getMaterial() == Material.AIR) {
+-                Block block1 = this.world.getType(blockposition.down()).getBlock();
+-
++                Block block1 = this.world.getType(blockposition.adjustY(-1)).getBlock(); // Spigot down 1 temporarily
++                blockposition.adjustY(1); // Spigot - reset back
+                 if (block1 instanceof BlockFence || block1 instanceof BlockCobbleWall || block1 instanceof BlockFenceGate) {
+                     block = block1;
+-                    blockposition = blockposition.down();
++                    blockposition = blockposition.adjustY(-1); // Spigot
+                 }
+             }
+ 
+@@ -703,6 +703,7 @@ public abstract class Entity implements ICommandListener {
+                     block.a(this.world, blockposition, this); // CraftBukkit moved from above
+                 }
+             }
++            blockposition.release(); // Spigot
+ 
+             // CraftBukkit start - Move to the top of the method
+             /*
+@@ -1450,7 +1451,7 @@ public abstract class Entity implements ICommandListener {
          if (this.noclip) {
              return false;
          } else {
@@ -57,7 +106,7 @@ index c96832a..6028060 100644
  
              for (int i = 0; i < 8; ++i) {
                  int j = MathHelper.floor(this.locY + (double) (((float) ((i >> 0) % 2) - 0.5F) * 0.1F) + (double) this.getHeadHeight());
-@@ -1460,10 +1460,12 @@ public abstract class Entity implements ICommandListener {
+@@ -1460,10 +1461,12 @@ public abstract class Entity implements ICommandListener {
                  if (blockposition_mutableblockposition.getX() != k || blockposition_mutableblockposition.getY() != j || blockposition_mutableblockposition.getZ() != l) {
                      blockposition_mutableblockposition.c(k, j, l);
                      if (this.world.getType(blockposition_mutableblockposition).getBlock().w()) {
@@ -123,10 +172,10 @@ index 0a14c9d..dca0087 100644
                          } else if (!block.b(iblockaccess, blockposition_mutableblockposition) && (!flag1 || !(block instanceof BlockDoor) || block.getMaterial() != Material.WOOD)) {
 diff --git a/src/main/java/net/minecraft/server/PooledMutableBlockPosition.java b/src/main/java/net/minecraft/server/PooledMutableBlockPosition.java
 new file mode 100644
-index 0000000..0ab11e1
+index 0000000..4c30e20
 --- /dev/null
 +++ b/src/main/java/net/minecraft/server/PooledMutableBlockPosition.java
-@@ -0,0 +1,116 @@
+@@ -0,0 +1,126 @@
 +/*
 + * Copyright (c) 2015. Starlis LLC / dba Empire Minecraft
 + *
@@ -148,8 +197,8 @@ index 0000000..0ab11e1
 +    private int z;
 +    private boolean free = false;
 +
-+    private static final int MAX_SIZE = 100;
-+    private static final List<PooledMutableBlockPosition> pool = Lists.newArrayList();
++    private static final int MAX_SIZE = 200;
++    private static final List<PooledMutableBlockPosition> pool = Lists.newArrayListWithExpectedSize(MAX_SIZE);
 +
 +    private PooledMutableBlockPosition(int x, int y, int z) {
 +        super(0, 0, 0);
@@ -164,6 +213,9 @@ index 0000000..0ab11e1
 +
 +    public static PooledMutableBlockPosition acquire(Entity entity) {
 +        return acquire(MathHelper.floor(entity.locX), MathHelper.floor(entity.locY), MathHelper.floor(entity.locZ));
++    }
++    public static PooledMutableBlockPosition acquire(BlockPosition pos) {
++        return acquire(pos.getX(), pos.getY(), pos.getZ());
 +    }
 +
 +    public static synchronized PooledMutableBlockPosition acquire(int x, int y, int z) {
@@ -237,14 +289,21 @@ index 0000000..0ab11e1
 +        return set(this.x, this.y, this.z + z);
 +    }
 +
++    public PooledMutableBlockPosition adjust(EnumDirection enumdirection) {
++        return adjust(enumdirection, 1);
++    }
++
++    public PooledMutableBlockPosition adjust(EnumDirection dir, int i) {
++        return set(x + dir.getAdjacentX() * i, y + dir.getAdjacentY() * i, z + dir.getAdjacentZ() * i);
++    }
++
 +    @Override
 +    public int compareTo(BaseBlockPosition o) {
 +        return y == o.getY() ? (z == o.getZ() ? x - o.getX() : z - o.getZ()) : y - o.getY();
 +    }
-+
 +}
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index 69171a8..4e0cee9 100644
+index 69171a8..f857fed 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
 @@ -1180,7 +1180,7 @@ public abstract class World implements IBlockAccess {
@@ -404,7 +463,34 @@ index 69171a8..4e0cee9 100644
  
          return false;
      }
-@@ -2441,7 +2453,7 @@ public abstract class World implements IBlockAccess {
+@@ -2383,12 +2395,13 @@ public abstract class World implements IBlockAccess {
+             } else if (i >= 14) {
+                 return i;
+             } else {
++                PooledMutableBlockPosition mutable = PooledMutableBlockPosition.acquire(blockposition); // Spigot
+                 EnumDirection[] aenumdirection = EnumDirection.values();
+                 int k = aenumdirection.length;
+ 
+                 for (int l = 0; l < k; ++l) {
+                     EnumDirection enumdirection = aenumdirection[l];
+-                    BlockPosition blockposition1 = blockposition.shift(enumdirection);
++                    BlockPosition blockposition1 = mutable.adjust(enumdirection); // Spigot
+                     int i1 = this.b(enumskyblock, blockposition1) - j;
+ 
+                     if (i1 > i) {
+@@ -2396,9 +2409,11 @@ public abstract class World implements IBlockAccess {
+                     }
+ 
+                     if (i >= 14) {
++                        mutable.release(); // Spigot
+                         return i;
+                     }
+                 }
++                mutable.release(); // Spigto
+ 
+                 return i;
+             }
+@@ -2441,7 +2456,7 @@ public abstract class World implements IBlockAccess {
                      j2 = (l1 >> 6 & 63) - 32 + j1;
                      k2 = (l1 >> 12 & 63) - 32 + k1;
                      int l3 = l1 >> 18 & 15;
@@ -413,7 +499,7 @@ index 69171a8..4e0cee9 100644
  
                      l2 = this.b(enumskyblock, blockposition1);
                      if (l2 == l3) {
-@@ -2451,7 +2463,7 @@ public abstract class World implements IBlockAccess {
+@@ -2451,7 +2466,7 @@ public abstract class World implements IBlockAccess {
                              j3 = MathHelper.a(j2 - j1);
                              k3 = MathHelper.a(k2 - k1);
                              if (i3 + j3 + k3 < 17) {
@@ -422,7 +508,7 @@ index 69171a8..4e0cee9 100644
                                  EnumDirection[] aenumdirection = EnumDirection.values();
                                  int i4 = aenumdirection.length;
  
-@@ -2469,9 +2481,11 @@ public abstract class World implements IBlockAccess {
+@@ -2469,9 +2484,11 @@ public abstract class World implements IBlockAccess {
                                          this.H[j++] = k4 - i1 + 32 | l4 - j1 + 32 << 6 | i5 - k1 + 32 << 12 | l3 - j5 << 18;
                                      }
                                  }
@@ -434,6 +520,123 @@ index 69171a8..4e0cee9 100644
                  }
  
                  i = 0;
+diff --git a/src/main/java/org/bukkit/craftbukkit/block/CraftBlock.java b/src/main/java/org/bukkit/craftbukkit/block/CraftBlock.java
+index 22a8055..b44f4ed 100644
+--- a/src/main/java/org/bukkit/craftbukkit/block/CraftBlock.java
++++ b/src/main/java/org/bukkit/craftbukkit/block/CraftBlock.java
+@@ -24,6 +24,8 @@ import org.bukkit.metadata.MetadataValue;
+ import org.bukkit.plugin.Plugin;
+ import org.bukkit.util.BlockVector;
+ 
++import net.minecraft.server.PooledMutableBlockPosition;
++
+ public class CraftBlock implements Block {
+     private final CraftChunk chunk;
+     private final int x;
+@@ -102,13 +104,17 @@ public class CraftBlock implements Block {
+ 
+     private void setData(final byte data, int flag) {
+         net.minecraft.server.World world = chunk.getHandle().getWorld();
+-        BlockPosition position = new BlockPosition(x, y, z);
++        final PooledMutableBlockPosition position = PooledMutableBlockPosition.acquire(this.x, this.y, this.z); // Spigot
+         IBlockData blockData = world.getType(position);
+         world.setTypeAndData(position, blockData.getBlock().fromLegacyData(data), flag);
++        position.release(); // Spigot
+     }
+ 
+     public byte getData() {
+-        IBlockData blockData = chunk.getHandle().getBlockData(new BlockPosition(x, y, z));
++        // Spigot - pooled BlockPosition
++        final PooledMutableBlockPosition position = PooledMutableBlockPosition.acquire(this.x, this.y, this.z); // Spigot
++        IBlockData blockData = chunk.getHandle().getBlockData(position);
++        position.release();
+         return (byte) blockData.getBlock().toLegacyData(blockData);
+     }
+ 
+@@ -132,14 +138,17 @@ public class CraftBlock implements Block {
+ 
+     public boolean setTypeIdAndData(final int type, final byte data, final boolean applyPhysics) {
+         IBlockData blockData = getNMSBlock(type).fromLegacyData(data);
+-        BlockPosition position = new BlockPosition(x, y, z);
++        final PooledMutableBlockPosition position = PooledMutableBlockPosition.acquire(this.x, this.y, this.z); // Spigot
+         if (applyPhysics) {
+-            return chunk.getHandle().getWorld().setTypeAndData(position, blockData, 3);
++            final boolean ret = chunk.getHandle().getWorld().setTypeAndData(position, blockData, 3);
++            position.release(); // Spigot
++            return ret;
+         } else {
+             boolean success = chunk.getHandle().getWorld().setTypeAndData(position, blockData, 2);
+             if (success) {
+                 chunk.getHandle().getWorld().notify(position);
+             }
++            position.release(); // Spigot
+             return success;
+         }
+     }
+@@ -151,19 +160,35 @@ public class CraftBlock implements Block {
+     @Deprecated
+     @Override
+     public int getTypeId() {
+-        return CraftMagicNumbers.getId(chunk.getHandle().getType(new BlockPosition(this.x, this.y, this.z)));
++        // Spigot - pooled BlockPosition
++        final PooledMutableBlockPosition blockposition = PooledMutableBlockPosition.acquire(this.x, this.y, this.z);
++        final net.minecraft.server.Block type = chunk.getHandle().getType(blockposition);
++        blockposition.release();
++        return CraftMagicNumbers.getId(type);
+     }
+ 
+     public byte getLightLevel() {
+-        return (byte) chunk.getHandle().getWorld().getLightLevel(new BlockPosition(this.x, this.y, this.z));
++        // Spigot - pooled BlockPosition
++        final PooledMutableBlockPosition blockposition = PooledMutableBlockPosition.acquire(this.x, this.y, this.z);
++        final byte lightLevel = (byte) chunk.getHandle().getWorld().getLightLevel(blockposition);
++        blockposition.release();
++        return lightLevel;
+     }
+ 
+     public byte getLightFromSky() {
+-        return (byte) chunk.getHandle().getBrightness(EnumSkyBlock.SKY, new BlockPosition(this.x, this.y, this.z));
++        // Spigot - pooled BlockPosition
++        final PooledMutableBlockPosition blockposition = PooledMutableBlockPosition.acquire(this.x, this.y, this.z);
++        final byte brightness = (byte) chunk.getHandle().getBrightness(EnumSkyBlock.SKY, blockposition);
++        blockposition.release();
++        return brightness;
+     }
+ 
+     public byte getLightFromBlocks() {
+-        return (byte) chunk.getHandle().getBrightness(EnumSkyBlock.BLOCK, new BlockPosition(this.x, this.y, this.z));
++        // Spigot - pooled BlockPosition
++        final PooledMutableBlockPosition blockposition = PooledMutableBlockPosition.acquire(this.x, this.y, this.z);
++        final byte brightness = (byte) chunk.getHandle().getBrightness(EnumSkyBlock.BLOCK, blockposition);
++        blockposition.release();
++        return brightness;
+     }
+ 
+ 
+@@ -359,14 +384,17 @@ public class CraftBlock implements Block {
+ 
+     public int getBlockPower(BlockFace face) {
+         int power = 0;
++        // Spigot - replace all positions with position.set()
++        final PooledMutableBlockPosition position = PooledMutableBlockPosition.acquire(this.x, this.y, this.z); // Spigot
+         BlockRedstoneWire wire = Blocks.REDSTONE_WIRE;
+         net.minecraft.server.World world = chunk.getHandle().getWorld();
+-        if ((face == BlockFace.DOWN || face == BlockFace.SELF) && world.isBlockFacePowered(new BlockPosition(x, y - 1, z), EnumDirection.DOWN)) power = wire.getPower(world, new BlockPosition(x, y - 1, z), power);
+-        if ((face == BlockFace.UP || face == BlockFace.SELF) && world.isBlockFacePowered(new BlockPosition(x, y + 1, z), EnumDirection.UP)) power = wire.getPower(world, new BlockPosition(x, y + 1, z), power);
+-        if ((face == BlockFace.EAST || face == BlockFace.SELF) && world.isBlockFacePowered(new BlockPosition(x + 1, y, z), EnumDirection.EAST)) power = wire.getPower(world, new BlockPosition(x + 1, y, z), power);
+-        if ((face == BlockFace.WEST || face == BlockFace.SELF) && world.isBlockFacePowered(new BlockPosition(x - 1, y, z), EnumDirection.WEST)) power = wire.getPower(world, new BlockPosition(x - 1, y, z), power);
+-        if ((face == BlockFace.NORTH || face == BlockFace.SELF) && world.isBlockFacePowered(new BlockPosition(x, y, z - 1), EnumDirection.NORTH)) power = wire.getPower(world, new BlockPosition(x, y, z - 1), power);
+-        if ((face == BlockFace.SOUTH || face == BlockFace.SELF) && world.isBlockFacePowered(new BlockPosition(x, y, z + 1), EnumDirection.SOUTH)) power = wire.getPower(world, new BlockPosition(x, y, z - 1), power);
++        if ((face == BlockFace.DOWN || face == BlockFace.SELF) && world.isBlockFacePowered(position.set(x, y - 1, z), EnumDirection.DOWN)) power = wire.getPower(world, position.set(x, y - 1, z), power);
++        if ((face == BlockFace.UP || face == BlockFace.SELF) && world.isBlockFacePowered(position.set(x, y + 1, z), EnumDirection.UP)) power = wire.getPower(world, position.set(x, y + 1, z), power);
++        if ((face == BlockFace.EAST || face == BlockFace.SELF) && world.isBlockFacePowered(position.set(x + 1, y, z), EnumDirection.EAST)) power = wire.getPower(world, position.set(x + 1, y, z), power);
++        if ((face == BlockFace.WEST || face == BlockFace.SELF) && world.isBlockFacePowered(position.set(x - 1, y, z), EnumDirection.WEST)) power = wire.getPower(world, position.set(x - 1, y, z), power);
++        if ((face == BlockFace.NORTH || face == BlockFace.SELF) && world.isBlockFacePowered(position.set(x, y, z - 1), EnumDirection.NORTH)) power = wire.getPower(world, position.set(x, y, z - 1), power);
++        if ((face == BlockFace.SOUTH || face == BlockFace.SELF) && world.isBlockFacePowered(position.set(x, y, z + 1), EnumDirection.SOUTH)) power = wire.getPower(world, position.set(x, y, z - 1), power);
++        position.release(); // Spigot
+         return power > 0 ? power : (face == BlockFace.SELF ? isBlockIndirectlyPowered() : isBlockFaceIndirectlyPowered(face)) ? 15 : 0;
+     }
+ 
 -- 
 1.9.1
 
