@@ -1,0 +1,113 @@
+From 3a9a0ac93122c204c79e67e611085f3f3bfd4420 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Fri, 12 Jul 2013 18:58:19 -0400
+Subject: [PATCH] Entity Serialization
+
+Allow serializing an Entity to raw NBT, and to get an Entity object without spawning it into the world.
+---
+ .../cbmisc/EntitySerialization.java                | 58 ++++++++++++++++++++++
+ src/main/java/net/minecraft/server/Entity.java     |  1 +
+ .../org/bukkit/craftbukkit/entity/CraftEntity.java | 10 ++++
+ 3 files changed, 69 insertions(+)
+ create mode 100644 src/main/java/com/empireminecraft/cbmisc/EntitySerialization.java
+
+diff --git a/src/main/java/com/empireminecraft/cbmisc/EntitySerialization.java b/src/main/java/com/empireminecraft/cbmisc/EntitySerialization.java
+new file mode 100644
+index 0000000..508b62c
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/cbmisc/EntitySerialization.java
+@@ -0,0 +1,58 @@
++package com.empireminecraft.cbmisc;
++
++import net.minecraft.server.*;
++import org.bukkit.craftbukkit.CraftWorld;
++import org.bukkit.craftbukkit.entity.CraftEntity;
++import org.bukkit.entity.Entity;
++
++import java.io.ByteArrayInputStream;
++import java.io.ByteArrayOutputStream;
++import java.io.DataInput;
++import java.io.DataInputStream;
++import java.io.DataOutput;
++import java.io.DataOutputStream;
++import java.io.IOException;
++import java.io.InputStream;
++import java.io.OutputStream;
++import java.util.zip.GZIPOutputStream;
++
++public class EntitySerialization {
++    public static byte[] serializeEntity(Entity craftentity) {
++        if (craftentity == null) {
++            throw new NullPointerException("Entity can not be null for serialization");
++        }
++        net.minecraft.server.Entity entity = ((CraftEntity) craftentity).getHandle();
++        NBTTagCompound cmp = new NBTTagCompound();
++        entity.serializeEntity(cmp);
++
++        return NBTToBytes(cmp);
++    }
++    private static byte[] NBTToBytes(NBTTagCompound nbttagcompound) {
++        ByteArrayOutputStream bytearrayoutputstream = new ByteArrayOutputStream();
++
++        try {
++            NBTCompressedStreamTools.a(nbttagcompound, bytearrayoutputstream);
++        } catch (IOException ignored) {
++            return null;
++        }
++
++        return bytearrayoutputstream.toByteArray();
++    }
++    private static NBTTagCompound readNBT(ByteArrayInputStream datainputstream) throws IOException {
++        return NBTCompressedStreamTools.a((InputStream) new DataInputStream(datainputstream));
++    }
++
++    public static Entity deserializeEntity(byte[] data, org.bukkit.World world) {
++        if (data == null || data.length == 0) {
++            throw new NullPointerException("Data can not be null or empty for deserialization");
++        }
++        ByteArrayInputStream stream = new ByteArrayInputStream(data);
++        final NBTTagCompound cmp;
++        try {
++            cmp = readNBT(stream);
++        } catch (IOException e) {
++            return null;
++        }
++        return EntityTypes.a(cmp, ((CraftWorld) world).getHandle()).getBukkitEntity();
++    }
++}
+diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
+index 7c77401..3bbbcd1 100644
+--- a/src/main/java/net/minecraft/server/Entity.java
++++ b/src/main/java/net/minecraft/server/Entity.java
+@@ -1165,6 +1165,7 @@ public abstract class Entity implements ICommandListener {
+         }
+     }
+ 
++    public boolean serializeEntity(NBTTagCompound cmp) { Entity pass = passenger; passenger = null;boolean res = d(cmp); passenger = pass; return res; } // EMC
+     public boolean d(NBTTagCompound nbttagcompound) {
+         String s = this.ag();
+ 
+diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java
+index efbf1a8..d8848ea 100644
+--- a/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java
++++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java
+@@ -44,6 +44,16 @@ public abstract class CraftEntity implements org.bukkit.entity.Entity {
+     protected Entity entity;
+     private EntityDamageEvent lastDamageEvent;
+ 
++    // EMC start
++    public boolean spawnAt(Location loc) {
++        return spawnAt(loc, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.DEFAULT);
++    }
++    public boolean spawnAt(Location loc, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason spawnReason) { // EMC
++        entity.world = ((CraftWorld) loc.getWorld()).getHandle();
++        entity.setLocation(loc.getX(), loc.getY(), loc.getZ(), loc.getYaw(), loc.getPitch());
++        return !entity.valid && entity.world.addEntity(entity, spawnReason);
++    }
++    // EMC end
+     public CraftEntity(final CraftServer server, final Entity entity) {
+         this.server = server;
+         this.entity = entity;
+-- 
+1.9.1
+

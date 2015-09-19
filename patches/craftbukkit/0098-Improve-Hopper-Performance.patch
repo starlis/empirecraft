@@ -1,0 +1,227 @@
+From d697301a0fb0fe23900971f6bff2721e99a473e9 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Fri, 29 May 2015 21:58:24 -0400
+Subject: [PATCH] Improve Hopper Performance
+
+Only do a "Suck in" action once per second
+Also, remove InventoryMoveEvent code for extra performance since we dont use it
+---
+ src/main/java/net/minecraft/server/EntityItem.java | 15 +++++++
+ .../net/minecraft/server/EntityMinecartHopper.java |  1 +
+ .../java/net/minecraft/server/MinecraftServer.java |  2 +
+ .../net/minecraft/server/TileEntityHopper.java     | 52 +++++++++++++++++-----
+ 4 files changed, 58 insertions(+), 12 deletions(-)
+
+diff --git a/src/main/java/net/minecraft/server/EntityItem.java b/src/main/java/net/minecraft/server/EntityItem.java
+index 306c7e4..d0f6e28 100644
+--- a/src/main/java/net/minecraft/server/EntityItem.java
++++ b/src/main/java/net/minecraft/server/EntityItem.java
+@@ -118,10 +118,24 @@ public class EntityItem extends Entity {
+                 // CraftBukkit end
+                 this.die();
+             }
++            markHopperCarts(); // EMC
+ 
+         }
+     }
+ 
++    // EMC start
++    public void markHopperCarts() {
++        if (!this.dead && this.onGround && this.age < 20 * 60 && this.age % 20 == 0) {
++            AxisAlignedBB aabb = this.getBoundingBox().grow(32, 4, 32);
++            for (Entity entity : this.world.getEntities(this, aabb)) {
++                if (entity instanceof EntityMinecartHopper) {
++                    ((EntityMinecartHopper) entity).pickupImmunity = MinecraftServer.currentTick + 200;
++                }
++            }
++        }
++    }
++    // EMC end
++
+     // Spigot start - copied from above
+     @Override
+     public void inactiveTick() {
+@@ -141,6 +155,7 @@ public class EntityItem extends Entity {
+             // CraftBukkit end
+             this.die();
+         }
++        markHopperCarts(); // EMC
+     }
+     // Spigot end
+ 
+diff --git a/src/main/java/net/minecraft/server/EntityMinecartHopper.java b/src/main/java/net/minecraft/server/EntityMinecartHopper.java
+index eefbdc6..4a1d84b 100644
+--- a/src/main/java/net/minecraft/server/EntityMinecartHopper.java
++++ b/src/main/java/net/minecraft/server/EntityMinecartHopper.java
+@@ -7,6 +7,7 @@ public class EntityMinecartHopper extends EntityMinecartContainer implements IHo
+     private boolean a = true;
+     private int b = -1;
+     private BlockPosition c;
++    public int pickupImmunity = 0; // EMC
+ 
+     public EntityMinecartHopper(World world) {
+         super(world);
+diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
+index 33d6c15..7ca3f41 100644
+--- a/src/main/java/net/minecraft/server/MinecraftServer.java
++++ b/src/main/java/net/minecraft/server/MinecraftServer.java
+@@ -561,6 +561,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+         }
+     }
+     // Spigot End
++    public static double currentTPS = 20D; // EMC
+ 
+     public void run() {
+         try {
+@@ -702,6 +703,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+             this.methodProfiler.a = true;
+             this.methodProfiler.a();
+         }
++        currentTPS = tps1.getAverage(); // EMC
+ 
+         this.methodProfiler.a("root");
+         this.B();
+diff --git a/src/main/java/net/minecraft/server/TileEntityHopper.java b/src/main/java/net/minecraft/server/TileEntityHopper.java
+index a41b88a..b5e88f7 100644
+--- a/src/main/java/net/minecraft/server/TileEntityHopper.java
++++ b/src/main/java/net/minecraft/server/TileEntityHopper.java
+@@ -135,6 +135,22 @@ public class TileEntityHopper extends TileEntityContainer implements IHopper, IU
+         }
+     }
+ 
++    // EMC start
++    public static boolean shouldSuckin(IHopper hopper) {
++        if (MinecraftServer.currentTPS < 18) {
++            return false;
++        }
++        final int tick = MinecraftServer.currentTick;
++        final int hopperId = (int) hopper.A() + (int) hopper.B() + (int) hopper.C();
++        if ((tick + hopperId) % 60 == 0) {
++            return true;
++        }
++        if (hopper instanceof EntityMinecartHopper && ((EntityMinecartHopper) hopper).pickupImmunity > tick) {
++            return true;
++        }
++        return false;
++    }
++    // EMC end
+     public void setItem(int i, ItemStack itemstack) {
+         this.items[i] = itemstack;
+         if (itemstack != null && itemstack.count > this.getMaxStackSize()) {
+@@ -201,6 +217,8 @@ public class TileEntityHopper extends TileEntityContainer implements IHopper, IU
+                     return true;
+                 }
+             }
++
++            if (isFull()) { resetCooldown(); } // EMC
+             return false;
+         } else {
+             return false;
+@@ -222,6 +240,7 @@ public class TileEntityHopper extends TileEntityContainer implements IHopper, IU
+         return true;
+     }
+ 
++    boolean isFull() { return q(); } // EMC
+     private boolean q() {
+         ItemStack[] aitemstack = this.items;
+         int i = aitemstack.length;
+@@ -252,8 +271,9 @@ public class TileEntityHopper extends TileEntityContainer implements IHopper, IU
+                 for (int i = 0; i < this.getSize(); ++i) {
+                     if (this.getItem(i) != null) {
+                         ItemStack itemstack = this.getItem(i).cloneItemStack();
+-                        // ItemStack itemstack1 = addItem(iinventory, this.splitStack(i, 1), enumdirection);
+-
++                        // EMC start
++                        ItemStack itemstack1 = addItem(iinventory, this.splitStack(i, 1), enumdirection);
++                        /*
+                         // CraftBukkit start - Call event when pushing items into other inventories
+                         CraftItemStack oitemstack = CraftItemStack.asCraftMirror(this.splitStack(i, world.spigotConfig.hopperAmount)); // Spigot
+ 
+@@ -274,17 +294,19 @@ public class TileEntityHopper extends TileEntityContainer implements IHopper, IU
+                         }
+                         int origCount = event.getItem().getAmount(); // Spigot
+                         ItemStack itemstack1 = addItem(iinventory, CraftItemStack.asNMSCopy(event.getItem()), enumdirection);
+-
++                        */
+                         if (itemstack1 == null || itemstack1.count == 0) {
+-                            if (event.getItem().equals(oitemstack)) {
++                            iinventory.update();
++                            /*if (event.getItem().equals(oitemstack)) {
+                                 iinventory.update();
+                             } else {
+                                 this.setItem(i, itemstack);
+-                            }
++                            }*/
++                            // EMC end
+                             // CraftBukkit end
+                             return true;
+                         }
+-                        itemstack.count -= origCount - itemstack1.count; // Spigot
++                        //itemstack.count -= origCount - itemstack1.count; // Spigot // EMC
+                         this.setItem(i, itemstack);
+                     }
+                 }
+@@ -372,7 +394,7 @@ public class TileEntityHopper extends TileEntityContainer implements IHopper, IU
+                     }
+                 }
+             }
+-        } else {
++        } else if (shouldSuckin(ihopper)) { // EMC
+             Iterator iterator = a(ihopper.getWorld(), ihopper.A(), ihopper.B() + 1.0D, ihopper.C()).iterator(); // EMC - No change here - but if ihopper.A/B/C() changes, update drain event little above
+ 
+             while (iterator.hasNext()) {
+@@ -392,7 +414,9 @@ public class TileEntityHopper extends TileEntityContainer implements IHopper, IU
+ 
+         if (itemstack != null && b(iinventory, itemstack, i, enumdirection)) {
+             ItemStack itemstack1 = itemstack.cloneItemStack();
+-            // ItemStack itemstack2 = addItem(ihopper, iinventory.splitStack(i, 1), (EnumDirection) null);
++            ItemStack itemstack2 = addItem(ihopper, iinventory.splitStack(i, 1), (EnumDirection) null);
++            // EMC start
++            /*
+             // CraftBukkit start - Call event on collection of items from inventories into the hopper
+             CraftItemStack oitemstack = CraftItemStack.asCraftMirror(iinventory.splitStack(i, ihopper.getWorld().spigotConfig.hopperAmount)); // Spigot
+ 
+@@ -419,17 +443,20 @@ public class TileEntityHopper extends TileEntityContainer implements IHopper, IU
+             }
+             int origCount = event.getItem().getAmount(); // Spigot
+             ItemStack itemstack2 = addItem(ihopper, CraftItemStack.asNMSCopy(event.getItem()), null);
+-
++            */
+             if (itemstack2 == null || itemstack2.count == 0) {
+-                if (event.getItem().equals(oitemstack)) {
++                iinventory.update();
++                /*if (event.getItem().equals(oitemstack)) {
+                     iinventory.update();
+                 } else {
+                     iinventory.setItem(i, itemstack1);
+                 }
++                */
++                // EMC end
+                 // CraftBukkit end
+                 return true;
+             }
+-            itemstack1.count -= origCount - itemstack2.count; // Spigot
++            //itemstack1.count -= origCount - itemstack2.count; // Spigot // EMC
+ 
+             iinventory.setItem(i, itemstack1);
+         }
+@@ -522,7 +549,7 @@ public class TileEntityHopper extends TileEntityContainer implements IHopper, IU
+                         tileentityhopper.d(tileentityhopper.world.spigotConfig.hopperTransfer); // Spigot
+                     }
+ 
+-                    iinventory.update();
++                    //iinventory.update(); // EMC - duplicate
+                 }
+ 
+                 iinventory.update();
+@@ -593,6 +620,7 @@ public class TileEntityHopper extends TileEntityContainer implements IHopper, IU
+         return (double) this.position.getZ() + 0.5D;
+     }
+ 
++    void resetCooldown() { d(world.spigotConfig.hopperTransfer); } // EMC
+     public void d(int i) {
+         this.g = i;
+     }
+-- 
+1.9.1
+
