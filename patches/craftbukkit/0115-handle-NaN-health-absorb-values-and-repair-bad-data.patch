@@ -1,15 +1,15 @@
-From 901965ec4054fc43cadbe24dbbaf67759bcf1816 Mon Sep 17 00:00:00 2001
+From 797fc8a50386c20ce0a3bcb9e5649ddabbdfa161 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Sun, 27 Sep 2015 01:18:02 -0400
 Subject: [PATCH] handle NaN health/absorb values and repair bad data
 
 ---
- src/main/java/net/minecraft/server/EntityLiving.java         | 12 +++++++++---
- src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java |  1 +
- 2 files changed, 10 insertions(+), 3 deletions(-)
+ src/main/java/net/minecraft/server/EntityLiving.java      | 15 +++++++++++++--
+ .../java/org/bukkit/craftbukkit/entity/CraftPlayer.java   |  1 +
+ 2 files changed, 14 insertions(+), 2 deletions(-)
 
 diff --git a/src/main/java/net/minecraft/server/EntityLiving.java b/src/main/java/net/minecraft/server/EntityLiving.java
-index 3486f2c..ea811cd 100644
+index 3486f2c..424a133 100644
 --- a/src/main/java/net/minecraft/server/EntityLiving.java
 +++ b/src/main/java/net/minecraft/server/EntityLiving.java
 @@ -414,7 +414,13 @@ public abstract class EntityLiving extends Entity {
@@ -27,16 +27,19 @@ index 3486f2c..ea811cd 100644
          if (nbttagcompound.hasKeyOfType("Attributes", 9) && this.world != null && !this.world.isClientSide) {
              GenericAttributes.a(this.getAttributeMap(), nbttagcompound.getList("Attributes", 10));
          }
-@@ -701,7 +707,7 @@ public abstract class EntityLiving extends Entity {
-             // Squeeze
-             if (f < 0.0F) {
-                 player.setRealHealth(0.0D);
--            } else if (f > player.getMaxHealth()) {
-+            } else if (f > player.getMaxHealth() || Float.isNaN(f)) { // EMC
-                 player.setRealHealth(player.getMaxHealth());
-             } else {
-                 player.setRealHealth(f);
-@@ -1817,7 +1823,7 @@ public abstract class EntityLiving extends Entity {
+@@ -695,6 +701,11 @@ public abstract class EntityLiving extends Entity {
+     }
+ 
+     public void setHealth(float f) {
++        // EMC start
++        if (Float.isNaN(f)) { f = getMaxHealth(); if (this.valid) {
++            System.err.println("[NAN-HEALTH] " + getName() + " had NaN health set");
++            System.err.println(com.empireminecraft.cbmisc.CBMiscUtils.stack());
++        } } // EMC end
+         // CraftBukkit start - Handle scaled health
+         if (this instanceof EntityPlayer) {
+             org.bukkit.craftbukkit.entity.CraftPlayer player = ((EntityPlayer) this).getBukkitEntity();
+@@ -1817,7 +1828,7 @@ public abstract class EntityLiving extends Entity {
      }
  
      public void setAbsorptionHearts(float f) {
