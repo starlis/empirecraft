@@ -1,0 +1,144 @@
+From b111bcf5acea4be19bb964b655f5c5a430a04ebe Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Wed, 7 Oct 2015 20:42:59 -0400
+Subject: [PATCH] Optimize Entity and Tile Entity Removal
+
+Java's implementation of List.removeAll is extremely slow. This is
+currently causing lots of TPS loss when lots of chunk unload activity
+occurs, as the process iterates the removal list for every entry in the
+source list, resulting in O(n^2) performance.
+
+This change will switch the process to instead iterate over the
+removal list, and marking a boolean that its removed.
+
+Then, we then iterate the source list and use a compaction technique
+that skips any object marked for removal.
+
+Finally, after all live objects are compacted down, we do a range
+removal to clear out any removed objects at the end of the current list.
+
+This gives us O(n) performance and a much cheaper overall operation.
+
+Compaction technique was originally used by CyberTiger in a different
+implementation.
+---
+ src/main/java/net/minecraft/server/Entity.java     |  7 +++-
+ src/main/java/net/minecraft/server/TileEntity.java |  7 +++-
+ src/main/java/net/minecraft/server/World.java      |  4 +-
+ src/main/java/org/spigotmc/OptimizedRemoveAll.java | 46 ++++++++++++++++++++++
+ 4 files changed, 60 insertions(+), 4 deletions(-)
+ create mode 100644 src/main/java/org/spigotmc/OptimizedRemoveAll.java
+
+diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
+index 606c315..eacb276 100644
+--- a/src/main/java/net/minecraft/server/Entity.java
++++ b/src/main/java/net/minecraft/server/Entity.java
+@@ -33,7 +33,12 @@ import org.bukkit.event.entity.EntityPortalEvent;
+ import org.bukkit.plugin.PluginManager;
+ // CraftBukkit end
+ 
+-public abstract class Entity implements ICommandListener {
++// Spigot start
++public abstract class Entity implements ICommandListener, org.spigotmc.OptimizedRemoveAll.Marker {
++    private boolean needsRemoved = false;
++    public boolean isToBeRemoved() { return needsRemoved; }
++    public void markToBeRemoved() { needsRemoved = true; }
++    // Spigot end
+ 
+     // CraftBukkit start
+     public com.empireminecraft.metaapi.MetaApi.MetaMap metaMap = null; // EMC
+diff --git a/src/main/java/net/minecraft/server/TileEntity.java b/src/main/java/net/minecraft/server/TileEntity.java
+index 741f86c..f665958 100644
+--- a/src/main/java/net/minecraft/server/TileEntity.java
++++ b/src/main/java/net/minecraft/server/TileEntity.java
+@@ -10,7 +10,12 @@ import org.spigotmc.timings.SpigotTimings; // Spigot
+ import org.spigotmc.timings.Timing; // Spigot
+ import org.bukkit.inventory.InventoryHolder; // CraftBukkit
+ 
+-public abstract class TileEntity {
++// Spigot start
++public abstract class TileEntity implements org.spigotmc.OptimizedRemoveAll.Marker {
++    private boolean needsRemoved = false;
++    public boolean isToBeRemoved() { return needsRemoved; }
++    public void markToBeRemoved() { needsRemoved = true; }
++    // Spigot end
+ 
+     public Timing tickTimer = SpigotTimings.getTileEntityTimings(this); // Spigot
+     private static final Logger a = LogManager.getLogger();
+diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
+index 12a1383..47d0da6 100644
+--- a/src/main/java/net/minecraft/server/World.java
++++ b/src/main/java/net/minecraft/server/World.java
+@@ -1400,7 +1400,7 @@ public abstract class World implements IBlockAccess {
+ 
+         this.methodProfiler.c("remove");
+         timings.entityRemoval.startTiming(); // Spigot
+-        this.entityList.removeAll(this.g);
++        tickPosition = org.spigotmc.OptimizedRemoveAll.removeAll(this.entityList, this.g, tickPosition); // Spigot
+ 
+         int j;
+         int k;
+@@ -1492,7 +1492,7 @@ public abstract class World implements IBlockAccess {
+         this.M = true;
+         // CraftBukkit start - From below, clean up tile entities before ticking them
+         if (!this.c.isEmpty()) {
+-            this.tileEntityList.removeAll(this.c);
++            tileTickPosition = org.spigotmc.OptimizedRemoveAll.removeAll(this.tileEntityList, this.c, tileTickPosition); // Spigot
+             // this.h.removeAll(this.c); // Spigot - Unused List
+             this.c.clear();
+         }
+diff --git a/src/main/java/org/spigotmc/OptimizedRemoveAll.java b/src/main/java/org/spigotmc/OptimizedRemoveAll.java
+new file mode 100644
+index 0000000..f7d200e
+--- /dev/null
++++ b/src/main/java/org/spigotmc/OptimizedRemoveAll.java
+@@ -0,0 +1,46 @@
++package org.spigotmc;
++
++
++import java.util.List;
++
++/**
++ * Improved algorithim for bulk removing entries from a list
++ *
++ * WARNING: This system only works on Identity Based lists,
++ * unlike traditional .removeAll() that operates on object equality.
++ */
++public final class OptimizedRemoveAll {
++    private OptimizedRemoveAll() {}
++
++    public interface Marker {
++        boolean isToBeRemoved();
++        void markToBeRemoved();
++    }
++
++    /**
++     * More effecient removeAll method
++     * @param tickPosition Previous Tick Position
++     * @return New Tick Position
++     */
++    public static <E extends Marker> int removeAll(List<E> list, List<E> removal, int tickPosition) {
++        int removalSize = removal.size();
++        for (int i = 0; i < removalSize; i++) {
++            removal.get(i).markToBeRemoved();
++        }
++
++        int size = list.size();
++        int insertAt = 0;
++        for (int i = 0; i < size; i++) {
++            E el = list.get(i);
++            if (el != null && !el.isToBeRemoved()) {
++                if (i == tickPosition) {
++                    tickPosition = insertAt;
++                }
++                list.set(insertAt++, el);
++            }
++        }
++        list.subList(insertAt, size).clear();
++        return tickPosition;
++    }
++
++}
+-- 
+2.6.1
+
