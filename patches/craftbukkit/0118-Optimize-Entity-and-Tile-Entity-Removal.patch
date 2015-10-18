@@ -1,4 +1,4 @@
-From 5f9e6332d14c5716a152eae08190e454b0abf2bf Mon Sep 17 00:00:00 2001
+From 84c76114a88f054ab90acae63ce7d7f48e5c908d Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Wed, 7 Oct 2015 20:42:59 -0400
 Subject: [PATCH] Optimize Entity and Tile Entity Removal
@@ -30,11 +30,11 @@ previously .removeAll would shift entity index order but the tick
 position was never moved to its new location.
 ---
  src/main/java/net/minecraft/server/Entity.java     |  7 +++-
- src/main/java/net/minecraft/server/TileEntity.java |  7 +++-
- src/main/java/net/minecraft/server/World.java      | 14 +++++--
+ src/main/java/net/minecraft/server/TileEntity.java |  9 +++-
+ src/main/java/net/minecraft/server/World.java      | 17 +++++---
  .../java/org/bukkit/craftbukkit/CraftWorld.java    |  8 ++--
  src/main/java/org/spigotmc/OptimizedRemoveAll.java | 48 ++++++++++++++++++++++
- 5 files changed, 74 insertions(+), 10 deletions(-)
+ 5 files changed, 77 insertions(+), 12 deletions(-)
  create mode 100644 src/main/java/org/spigotmc/OptimizedRemoveAll.java
 
 diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
@@ -56,7 +56,7 @@ index 606c315..eacb276 100644
      // CraftBukkit start
      public com.empireminecraft.metaapi.MetaApi.MetaMap metaMap = null; // EMC
 diff --git a/src/main/java/net/minecraft/server/TileEntity.java b/src/main/java/net/minecraft/server/TileEntity.java
-index 741f86c..f665958 100644
+index 741f86c..a748cfd 100644
 --- a/src/main/java/net/minecraft/server/TileEntity.java
 +++ b/src/main/java/net/minecraft/server/TileEntity.java
 @@ -10,7 +10,12 @@ import org.spigotmc.timings.SpigotTimings; // Spigot
@@ -73,8 +73,17 @@ index 741f86c..f665958 100644
  
      public Timing tickTimer = SpigotTimings.getTileEntityTimings(this); // Spigot
      private static final Logger a = LogManager.getLogger();
+@@ -127,7 +132,7 @@ public abstract class TileEntity {
+     }
+ 
+     public boolean x() {
+-        return this.d;
++        return this.d && !isToBeRemoved(); // Spigot
+     }
+ 
+     public void y() {
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index 751b9f8..eec3105 100644
+index 751b9f8..7160ce1 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
 @@ -1400,7 +1400,7 @@ public abstract class World implements IBlockAccess {
@@ -129,7 +138,17 @@ index 751b9f8..eec3105 100644
  
          timings.tileEntityTick.stopTiming(); // Spigot
          timings.tileEntityPending.startTiming(); // Spigot
-@@ -2571,6 +2575,7 @@ public abstract class World implements IBlockAccess {
+@@ -2043,7 +2047,8 @@ public abstract class World implements IBlockAccess {
+             if (tileentity != null) {
+                 this.b.remove(tileentity);
+                 // this.h.remove(tileentity); // Spigot - Unused list
+-                this.tileEntityList.remove(tileentity);
++                // this.tileEntityList.remove(tileentity);
++                tileentity.markToBeRemoved(); // Spigot
+             }
+ 
+             this.getChunkAtWorldCoords(blockposition).e(blockposition);
+@@ -2571,6 +2576,7 @@ public abstract class World implements IBlockAccess {
  
          while (iterator.hasNext()) {
              Entity entity = (Entity) iterator.next();
@@ -137,7 +156,7 @@ index 751b9f8..eec3105 100644
  
              if (oclass.isAssignableFrom(entity.getClass()) && predicate.apply((T) entity)) { // CraftBukkit - fix decompile error
                  arraylist.add(entity);
-@@ -2655,6 +2660,7 @@ public abstract class World implements IBlockAccess {
+@@ -2655,6 +2661,7 @@ public abstract class World implements IBlockAccess {
  
          while (iterator.hasNext()) {
              Entity entity = (Entity) iterator.next();
@@ -240,5 +259,5 @@ index 0000000..d37c413
 +
 +}
 -- 
-2.6.1
+2.6.2
 
