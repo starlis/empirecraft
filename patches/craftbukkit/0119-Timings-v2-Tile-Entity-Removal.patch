@@ -1,0 +1,111 @@
+From 060cd7b7d2618dcfcfa066e8538ab3b296e9fe3c Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Wed, 14 Oct 2015 20:46:31 -0400
+Subject: [PATCH] Timings v2 - Tile Entity Removal
+
+---
+ src/main/java/net/minecraft/server/World.java         | 19 ++++++++++++++-----
+ .../org/spigotmc/timings/WorldTimingsHandler.java     | 10 ++++++++--
+ 2 files changed, 22 insertions(+), 7 deletions(-)
+
+diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
+index 5f88fb1..acda786 100644
+--- a/src/main/java/net/minecraft/server/World.java
++++ b/src/main/java/net/minecraft/server/World.java
+@@ -1399,7 +1399,7 @@ public abstract class World implements IBlockAccess {
+         }
+ 
+         this.methodProfiler.c("remove");
+-        timings.entityRemoval.startTiming(); // Spigot
++        timings.entityRemovalPre.startTiming(); // Spigot
+         this.entityList.removeAll(this.g);
+ 
+         int j;
+@@ -1419,7 +1419,7 @@ public abstract class World implements IBlockAccess {
+         }
+ 
+         this.g.clear();
+-        timings.entityRemoval.stopTiming(); // Spigot
++        timings.entityRemovalPre.stopTiming(); // Spigot
+         this.methodProfiler.c("regular");
+ 
+         org.spigotmc.ActivationRange.activateEntities(this); // Spigot
+@@ -1484,22 +1484,29 @@ public abstract class World implements IBlockAccess {
+ 
+             this.methodProfiler.b();
+         }
++        timings.entityTick.stopTiming(); // Spigot
++
++        timings.entityRemovalPost.startTiming(); // Spigot
+         this.entityList.removeAll(null); // EMC
++        timings.entityRemovalPost.stopTiming(); // Spigot
+         guardEntityList = false; // Spigot
+ 
+-        timings.entityTick.stopTiming(); // Spigot
++
+         this.methodProfiler.c("blockEntities");
+-        timings.tileEntityTick.startTiming(); // Spigot
++
+         this.M = true;
+         // CraftBukkit start - From below, clean up tile entities before ticking them
+         if (!this.c.isEmpty()) {
++            timings.tileEntityRemovalTickPre.startTiming(); // Spigot
+             this.tileEntityList.removeAll(this.c);
+             // this.h.removeAll(this.c); // Spigot - Unused List
+             this.c.clear();
++            timings.tileEntityRemovalTickPre.stopTiming(); // Spigot
+         }
+         // CraftBukkit end
+ 
+         // Spigot start
++        timings.tileEntityTick.startTiming();
+         int tilesThisCycle = 0;
+         for (tileLimiter.initTick();
+                 tilesThisCycle < tileEntityList.size() && (tilesThisCycle % 10 == 0 || tileLimiter.shouldContinue());
+@@ -1553,9 +1560,11 @@ public abstract class World implements IBlockAccess {
+                 }
+             }
+         }
++        timings.tileEntityTick.stopTiming(); // Spigot
++        timings.tileEntityRemovalTickPost.startTiming(); // Spigot
+         this.tileEntityList.removeAll(null); // EMC
++        timings.tileEntityRemovalTickPost.stopTiming(); // Spigot
+ 
+-        timings.tileEntityTick.stopTiming(); // Spigot
+         timings.tileEntityPending.startTiming(); // Spigot
+         this.M = false;
+         /* CraftBukkit start - Moved up
+diff --git a/src/main/java/org/spigotmc/timings/WorldTimingsHandler.java b/src/main/java/org/spigotmc/timings/WorldTimingsHandler.java
+index e1c7987..b58c261 100644
+--- a/src/main/java/org/spigotmc/timings/WorldTimingsHandler.java
++++ b/src/main/java/org/spigotmc/timings/WorldTimingsHandler.java
+@@ -18,9 +18,12 @@ public class WorldTimingsHandler {
+     public final Timing doChunkMap;
+     public final Timing doChunkGC;
+     public final Timing doSounds;
+-    public final Timing entityRemoval;
++    public final Timing entityRemovalPre;
++    public final Timing entityRemovalPost;
+     public final Timing entityTick;
+     public final Timing tileEntityTick;
++    public final Timing tileEntityRemovalTickPre;
++    public final Timing tileEntityRemovalTickPost;
+     public final Timing tileEntityPending;
+     public final Timing tracker;
+     public final Timing doTick;
+@@ -50,8 +53,11 @@ public class WorldTimingsHandler {
+         doChunkGC = Timings.ofSafe(name + "doChunkGC");
+         doPortalForcer = Timings.ofSafe(name + "doPortalForcer");
+         entityTick = Timings.ofSafe(name + "entityTick");
+-        entityRemoval = Timings.ofSafe(name + "entityRemoval");
++        entityRemovalPre = Timings.ofSafe(name + "entity - removeAll - Pre");
++        entityRemovalPost = Timings.ofSafe(name + "entity - removeAll - Post");
+         tileEntityTick = Timings.ofSafe(name + "tileEntityTick");
++        tileEntityRemovalTickPre = Timings.ofSafe(name + "tileEntity - removeAll - Pre");
++        tileEntityRemovalTickPost = Timings.ofSafe(name + "tileEntity - removeAll - Post");
+         tileEntityPending = Timings.ofSafe(name + "tileEntityPending");
+ 
+         syncChunkLoadTimer = Timings.ofSafe(name + "syncChunkLoad");
+-- 
+2.6.2
+
