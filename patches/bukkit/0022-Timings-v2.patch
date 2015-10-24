@@ -1,6 +1,6 @@
-From cd522d4379cab5abeb89751017fa25e8274d87b8 Mon Sep 17 00:00:00 2001
+From 3d730783ea97da2f28541051524f5333b510cd25 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
-Date: Wed, 8 Oct 2014 19:16:12 -0400
+Date: Mon, 8 Sep 2014 21:04:59 -0400
 Subject: [PATCH] Timings v2
 
 Massive improvement of the Spigot Timings system.
@@ -27,21 +27,21 @@ Adds many other new Timings API for controlling Timings settings and generating 
  .../org/bukkit/plugin/java/PluginClassLoader.java  |   3 +-
  .../java/org/bukkit/util/CachedServerIcon.java     |   4 +-
  .../java/org/spigotmc/CustomTimingsHandler.java    | 209 ++++--------
- .../spigotmc/timings/FullServerTickHandler.java    |  61 ++++
+ .../spigotmc/timings/FullServerTickHandler.java    |  79 +++++
  .../org/spigotmc/timings/NullTimingHandler.java    |  61 ++++
  .../org/spigotmc/timings/TimedEventExecutor.java   |  70 ++++
  src/main/java/org/spigotmc/timings/Timing.java     |  72 ++++
  src/main/java/org/spigotmc/timings/TimingData.java | 105 ++++++
  .../java/org/spigotmc/timings/TimingHandler.java   | 193 +++++++++++
- .../java/org/spigotmc/timings/TimingHistory.java   | 271 ++++++++++++++++
+ .../java/org/spigotmc/timings/TimingHistory.java   | 276 +++++++++++++++
  .../org/spigotmc/timings/TimingHistoryEntry.java   |  59 ++++
  .../org/spigotmc/timings/TimingIdentifier.java     | 102 ++++++
- src/main/java/org/spigotmc/timings/Timings.java    | 273 ++++++++++++++++
- .../java/org/spigotmc/timings/TimingsCommand.java  | 110 +++++++
- .../java/org/spigotmc/timings/TimingsExport.java   | 361 +++++++++++++++++++++
- .../java/org/spigotmc/timings/TimingsManager.java  | 195 +++++++++++
+ src/main/java/org/spigotmc/timings/Timings.java    | 273 +++++++++++++++
+ .../java/org/spigotmc/timings/TimingsCommand.java  | 110 ++++++
+ .../java/org/spigotmc/timings/TimingsExport.java   | 372 +++++++++++++++++++++
+ .../java/org/spigotmc/timings/TimingsManager.java  | 194 +++++++++++
  .../org/spigotmc/timings/UnsafeTimingHandler.java  |  51 +++
- 26 files changed, 2078 insertions(+), 306 deletions(-)
+ 26 files changed, 2111 insertions(+), 306 deletions(-)
  create mode 100644 src/main/java/org/spigotmc/timings/FullServerTickHandler.java
  create mode 100644 src/main/java/org/spigotmc/timings/NullTimingHandler.java
  create mode 100644 src/main/java/org/spigotmc/timings/TimedEventExecutor.java
@@ -344,7 +344,7 @@ index 85fa286..124dd1a 100644
  
      Spigot spigot();
 diff --git a/src/main/java/org/bukkit/plugin/SimplePluginManager.java b/src/main/java/org/bukkit/plugin/SimplePluginManager.java
-index 1a61ad3..166de84 100644
+index c9d23d6..eb654c2 100644
 --- a/src/main/java/org/bukkit/plugin/SimplePluginManager.java
 +++ b/src/main/java/org/bukkit/plugin/SimplePluginManager.java
 @@ -295,7 +295,6 @@ public final class SimplePluginManager implements PluginManager {
@@ -707,10 +707,10 @@ index 8d98297..ed89acc 100644
  }
 diff --git a/src/main/java/org/spigotmc/timings/FullServerTickHandler.java b/src/main/java/org/spigotmc/timings/FullServerTickHandler.java
 new file mode 100644
-index 0000000..c9b125f
+index 0000000..1d3926f
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/timings/FullServerTickHandler.java
-@@ -0,0 +1,61 @@
+@@ -0,0 +1,79 @@
 +package org.spigotmc.timings;
 +
 +import static org.spigotmc.timings.TimingsManager.*;
@@ -718,6 +718,8 @@ index 0000000..c9b125f
 +public class FullServerTickHandler extends TimingHandler {
 +    static final TimingIdentifier IDENTITY = new TimingIdentifier("Minecraft", "Full Server Tick", null, false);
 +    final TimingData minuteData;
++    double avgFreeMemory = -1D;
++    double avgUsedMemory = -1D;
 +    FullServerTickHandler() {
 +        super(IDENTITY);
 +        minuteData = new TimingData(id);
@@ -740,6 +742,22 @@ index 0000000..c9b125f
 +        super.stopTiming();
 +        if (!enabled) {
 +            return;
++        }
++        if (TimingHistory.timedTicks % 20 == 0) {
++            final Runtime runtime = Runtime.getRuntime();
++            double usedMemory = runtime.totalMemory() - runtime.freeMemory();
++            double freeMemory = runtime.maxMemory() - usedMemory;
++            if (this.avgFreeMemory == -1) {
++                this.avgFreeMemory = freeMemory;
++            } else {
++                this.avgFreeMemory = (this.avgFreeMemory * (59 / 60D)) + (freeMemory * (1 / 60D));
++            }
++
++            if (this.avgUsedMemory == -1) {
++                this.avgUsedMemory = usedMemory;
++            } else {
++                this.avgUsedMemory = (this.avgUsedMemory * (59 / 60D)) + (usedMemory * (1 / 60D));
++            }
 +        }
 +
 +        long start = System.nanoTime();
@@ -1305,10 +1323,10 @@ index 0000000..c956a90
 +}
 diff --git a/src/main/java/org/spigotmc/timings/TimingHistory.java b/src/main/java/org/spigotmc/timings/TimingHistory.java
 new file mode 100644
-index 0000000..d9e34bc
+index 0000000..b99f73c
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/timings/TimingHistory.java
-@@ -0,0 +1,271 @@
+@@ -0,0 +1,276 @@
 +/*
 + * This file is licensed under the MIT License (MIT).
 + *
@@ -1347,6 +1365,7 @@ index 0000000..d9e34bc
 +import org.spigotmc.util.LoadingMap;
 +import org.spigotmc.util.MRUMapCache;
 +
++import java.lang.management.ManagementFactory;
 +import java.util.Collection;
 +import java.util.EnumMap;
 +import java.util.List;
@@ -1359,9 +1378,6 @@ index 0000000..d9e34bc
 +
 +@SuppressWarnings({"deprecation", "SuppressionAnnotation"})
 +public class TimingHistory {
-+    static int idPool = 1;
-+
-+    final int id = idPool++;
 +    public static long lastMinuteTime;
 +    public static long timedTicks;
 +    public static long playerTicks;
@@ -1389,7 +1405,7 @@ index 0000000..d9e34bc
 +    TimingHistory() {
 +        this.endTime = System.currentTimeMillis() / 1000;
 +        this.startTime = TimingsManager.historyStart / 1000;
-+        if (timedTicks % 1200 != 0) {
++        if (timedTicks % 1200 != 0 || MINUTE_REPORTS.isEmpty()) {
 +            this.minuteReports = MINUTE_REPORTS.toArray(new MinuteReport[MINUTE_REPORTS.size() + 1]);
 +            this.minuteReports[this.minuteReports.length - 1] = new MinuteReport();
 +        } else {
@@ -1484,8 +1500,8 @@ index 0000000..d9e34bc
 +        activatedEntityTicks = 0;
 +    }
 +
-+    JSONPair export() {
-+        return pair(id, createObject(
++    Object export() {
++        return createObject(
 +            pair("s", startTime),
 +            pair("e", endTime),
 +            pair("tk", totalTicks),
@@ -1499,14 +1515,15 @@ index 0000000..d9e34bc
 +                        return null;
 +                    }
 +                    return entry.export();
-+                }})),
++                }
++            })),
 +            pair("mp", toArrayMapper(minuteReports, new Function<MinuteReport, Object>() {
 +                @Override
 +                public Object apply(MinuteReport input) {
 +                    return input.export();
 +                }
 +            }))
-+        ));
++        );
 +    }
 +
 +    static class MinuteReport {
@@ -1516,6 +1533,9 @@ index 0000000..d9e34bc
 +        final PingRecord pingRecord = new PingRecord();
 +        final TimingData fst = TimingsManager.FULL_SERVER_TICK.minuteData.clone();
 +        final double tps = 1E9 / ( System.nanoTime() - lastMinuteTime ) * ticksRecord.timed;
++        final double usedMemory = TimingsManager.FULL_SERVER_TICK.avgUsedMemory;
++        final double freeMemory = TimingsManager.FULL_SERVER_TICK.avgFreeMemory;
++        final double loadAvg = ManagementFactory.getOperatingSystemMXBean().getSystemLoadAverage();
 +
 +        public List export() {
 +            return toArray(
@@ -1528,7 +1548,10 @@ index 0000000..d9e34bc
 +                    ticksRecord.entity,
 +                    ticksRecord.activatedEntity,
 +                    ticksRecord.tileEntity
-+                )
++                ),
++                usedMemory,
++                freeMemory,
++                loadAvg
 +            );
 +        }
 +    }
@@ -2150,10 +2173,10 @@ index 0000000..aa1867f
 +}
 diff --git a/src/main/java/org/spigotmc/timings/TimingsExport.java b/src/main/java/org/spigotmc/timings/TimingsExport.java
 new file mode 100644
-index 0000000..0925cd8
+index 0000000..2ed5028
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/timings/TimingsExport.java
-@@ -0,0 +1,361 @@
+@@ -0,0 +1,372 @@
 +/*
 + * This file is licensed under the MIT License (MIT).
 + *
@@ -2199,6 +2222,10 @@ index 0000000..0925cd8
 +import java.io.IOException;
 +import java.io.InputStream;
 +import java.io.OutputStream;
++import java.lang.management.GarbageCollectorMXBean;
++import java.lang.management.ManagementFactory;
++import java.lang.management.OperatingSystemMXBean;
++import java.lang.management.RuntimeMXBean;
 +import java.net.HttpURLConnection;
 +import java.net.InetAddress;
 +import java.net.URL;
@@ -2250,17 +2277,24 @@ index 0000000..0925cd8
 +        }
 +
 +        final Runtime runtime = Runtime.getRuntime();
++        RuntimeMXBean runtimeBean = ManagementFactory.getRuntimeMXBean();
 +
 +        parent.put("system", createObject(
 +                pair("timingcost", getCost()),
 +                pair("name", System.getProperty("os.name")),
 +                pair("version", System.getProperty("os.version")),
++                pair("jvmversion", System.getProperty("java.version")),
 +                pair("arch", System.getProperty("os.arch")),
-+                pair("totalmem", runtime.totalMemory()),
-+                pair("usedmem", runtime.totalMemory() - runtime.freeMemory()),
 +                pair("maxmem", runtime.maxMemory()),
 +                pair("cpu", runtime.availableProcessors()),
-+                pair("runtime", (System.currentTimeMillis() / 1000) - TimingsManager.SERVER_START)
++                pair("runtime", ManagementFactory.getRuntimeMXBean().getUptime()),
++                pair("flags", StringUtils.join(runtimeBean.getInputArguments(), " ")),
++                pair("gc", toObjectMapper(ManagementFactory.getGarbageCollectorMXBeans(), new Function<GarbageCollectorMXBean, JSONPair>() {
++                    @Override
++                    public JSONPair apply(GarbageCollectorMXBean input) {
++                        return pair(input.getName(), toArray(input.getCollectionCount(), input.getCollectionTime()));
++                    }
++                }))
 +            )
 +        );
 +
@@ -2438,9 +2472,9 @@ index 0000000..0925cd8
 +        sender.sendMessage(ChatColor.GREEN + "Preparing Timings Report...");
 +
 +
-+        out.put("data", toObjectMapper(history, new Function<TimingHistory, JSONPair>() {
++        out.put("data", toArrayMapper(history, new Function<TimingHistory, Object>() {
 +            @Override
-+            public JSONPair apply(TimingHistory input) {
++            public Object apply(TimingHistory input) {
 +                return input.export();
 +            }
 +        }));
@@ -2517,10 +2551,10 @@ index 0000000..0925cd8
 +}
 diff --git a/src/main/java/org/spigotmc/timings/TimingsManager.java b/src/main/java/org/spigotmc/timings/TimingsManager.java
 new file mode 100644
-index 0000000..5710e69
+index 0000000..f6b31cb
 --- /dev/null
 +++ b/src/main/java/org/spigotmc/timings/TimingsManager.java
-@@ -0,0 +1,195 @@
+@@ -0,0 +1,194 @@
 +/*
 + * This file is licensed under the MIT License (MIT).
 + *
@@ -2564,7 +2598,6 @@ index 0000000..5710e69
 +import java.util.logging.Level;
 +
 +public final class TimingsManager {
-+    static final long SERVER_START = System.currentTimeMillis() / 1000;
 +    static final Map<TimingIdentifier, TimingHandler> TIMING_MAP =
 +        Collections.synchronizedMap(LoadingMap.newHashMap(
 +            new Function<TimingIdentifier, TimingHandler>() {
@@ -2774,5 +2807,5 @@ index 0000000..971106f
 +    }
 +}
 -- 
-1.9.1
+2.6.2
 
