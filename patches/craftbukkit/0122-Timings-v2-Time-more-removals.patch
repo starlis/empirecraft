@@ -1,0 +1,98 @@
+From 0040f2449509b6874816013b0a64ca8b0c038060 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Sun, 25 Oct 2015 23:37:32 -0400
+Subject: [PATCH] Timings v2: Time more removals
+
+---
+ src/main/java/net/minecraft/server/World.java               | 8 ++++++++
+ src/main/java/org/spigotmc/timings/WorldTimingsHandler.java | 8 ++++++++
+ 2 files changed, 16 insertions(+)
+
+diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
+index fd3e7bd..5032825 100644
+--- a/src/main/java/net/minecraft/server/World.java
++++ b/src/main/java/net/minecraft/server/World.java
+@@ -1081,21 +1081,25 @@ public abstract class World implements IBlockAccess {
+     }
+ 
+     protected void a(Entity entity) {
++        timings.entityWorldAdd.startTiming(); // Spigot
+         for (int i = 0; i < this.u.size(); ++i) {
+             ((IWorldAccess) this.u.get(i)).a(entity);
+         }
+ 
+         entity.valid = true; // CraftBukkit
+         new com.empireminecraft.customevents.EntityEvents.EntitySpawnEvent(entity.bukkitEntity).callEvent(); // EMC
++        timings.entityWorldAdd.stopTiming(); // Spigot
+     }
+ 
+     protected void b(Entity entity) {
++        timings.entityWorldRemoval.startTiming(); // Spigot
+         for (int i = 0; i < this.u.size(); ++i) {
+             ((IWorldAccess) this.u.get(i)).b(entity);
+         }
+ 
+         new com.empireminecraft.customevents.EntityEvents.EntityDespawnEvent(entity.bukkitEntity).callEvent(); // EMC
+         entity.valid = false; // CraftBukkit
++        timings.entityWorldRemoval.startTiming(); // Spigot
+     }
+ 
+     public void kill(Entity entity) {
+@@ -1470,9 +1474,11 @@ public abstract class World implements IBlockAccess {
+             if (entity.dead) {
+                 j = entity.ae;
+                 k = entity.ag;
++                timings.entityChunkRemoval.startTiming(); // Spigot
+                 if (entity.ad && this.isChunkLoaded(j, k, true)) {
+                     this.getChunkAt(j, k).b(entity);
+                 }
++                timings.entityChunkRemoval.stopTiming(); // Spigot
+ 
+                 guardEntityList = false; // Spigot
+                 this.entityList.remove(entity); // CraftBukkit - Use field for loop variable // EMC
+@@ -1550,10 +1556,12 @@ public abstract class World implements IBlockAccess {
+             if (tileentity.x()) {
+                 tilesThisCycle--;
+                 this.tileEntityList.remove(tileentity); // EMC
++                timings.tileEntityChunkRemoval.startTiming(); // Spigot
+                 // this.h.remove(tileentity); // Spigot - unused list
+                 if (this.isLoaded(tileentity.getPosition())) {
+                     this.getChunkAtWorldCoords(tileentity.getPosition()).e(tileentity.getPosition());
+                 }
++                timings.tileEntityChunkRemoval.stopTiming(); // Spigot
+             }
+         }
+         timings.tileEntityTick.stopTiming(); // Spigot
+diff --git a/src/main/java/org/spigotmc/timings/WorldTimingsHandler.java b/src/main/java/org/spigotmc/timings/WorldTimingsHandler.java
+index b58c261..258c833 100644
+--- a/src/main/java/org/spigotmc/timings/WorldTimingsHandler.java
++++ b/src/main/java/org/spigotmc/timings/WorldTimingsHandler.java
+@@ -21,7 +21,11 @@ public class WorldTimingsHandler {
+     public final Timing entityRemovalPre;
+     public final Timing entityRemovalPost;
+     public final Timing entityTick;
++    public final Timing entityChunkRemoval;
++    public final Timing entityWorldRemoval;
++    public final Timing entityWorldAdd;
+     public final Timing tileEntityTick;
++    public final Timing tileEntityChunkRemoval;
+     public final Timing tileEntityRemovalTickPre;
+     public final Timing tileEntityRemovalTickPost;
+     public final Timing tileEntityPending;
+@@ -53,9 +57,13 @@ public class WorldTimingsHandler {
+         doChunkGC = Timings.ofSafe(name + "doChunkGC");
+         doPortalForcer = Timings.ofSafe(name + "doPortalForcer");
+         entityTick = Timings.ofSafe(name + "entityTick");
++        entityChunkRemoval = Timings.ofSafe("## " + name + "entityChunkRemoval");
++        entityWorldRemoval = Timings.ofSafe("## " + name + "entityWorldRemoval");
++        entityWorldAdd = Timings.ofSafe("## " + name + "entityWorldAdd");
+         entityRemovalPre = Timings.ofSafe(name + "entity - removeAll - Pre");
+         entityRemovalPost = Timings.ofSafe(name + "entity - removeAll - Post");
+         tileEntityTick = Timings.ofSafe(name + "tileEntityTick");
++        tileEntityChunkRemoval = Timings.ofSafe("## " + name + "tileEntityChunkRemoval");
+         tileEntityRemovalTickPre = Timings.ofSafe(name + "tileEntity - removeAll - Pre");
+         tileEntityRemovalTickPost = Timings.ofSafe(name + "tileEntity - removeAll - Post");
+         tileEntityPending = Timings.ofSafe(name + "tileEntityPending");
+-- 
+2.6.2
+
