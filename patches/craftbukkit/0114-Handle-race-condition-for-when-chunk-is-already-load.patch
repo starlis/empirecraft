@@ -1,4 +1,4 @@
-From 9a4db4625378a04ddd9a68a8425d2123a83d4dd2 Mon Sep 17 00:00:00 2001
+From 3999e8717a207d59199aed3da05b7ade4693fb3f Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Sat, 19 Sep 2015 00:56:28 -0400
 Subject: [PATCH] Handle race condition for when chunk is already loaded after
@@ -12,8 +12,8 @@ Also move CraftWorld.loadChunk to load the chunk through the Executor
 ---
  .../net/minecraft/server/ChunkProviderServer.java  |  2 +-
  .../java/org/bukkit/craftbukkit/CraftWorld.java    | 25 ++++++++++------------
- .../craftbukkit/chunkio/ChunkIOProvider.java       |  9 ++++++--
- 3 files changed, 19 insertions(+), 17 deletions(-)
+ .../craftbukkit/chunkio/ChunkIOProvider.java       | 10 +++++++--
+ 3 files changed, 20 insertions(+), 17 deletions(-)
 
 diff --git a/src/main/java/net/minecraft/server/ChunkProviderServer.java b/src/main/java/net/minecraft/server/ChunkProviderServer.java
 index d6854d3..75009f5 100644
@@ -74,10 +74,10 @@ index e09d892..d264d92 100644
  
      private void chunkLoadPostProcess(net.minecraft.server.Chunk chunk, int cx, int cz) {
 diff --git a/src/main/java/org/bukkit/craftbukkit/chunkio/ChunkIOProvider.java b/src/main/java/org/bukkit/craftbukkit/chunkio/ChunkIOProvider.java
-index 1178ad7..90e67ff 100644
+index 1178ad7..797b4bb 100644
 --- a/src/main/java/org/bukkit/craftbukkit/chunkio/ChunkIOProvider.java
 +++ b/src/main/java/org/bukkit/craftbukkit/chunkio/ChunkIOProvider.java
-@@ -42,10 +42,15 @@ class ChunkIOProvider implements AsynchronousExecutor.CallBackProvider<QueuedChu
+@@ -42,10 +42,16 @@ class ChunkIOProvider implements AsynchronousExecutor.CallBackProvider<QueuedChu
              queuedChunk.provider.originalGetChunkAt(queuedChunk.x, queuedChunk.z);
              return;
          }
@@ -85,7 +85,8 @@ index 1178ad7..90e67ff 100644
 +        final long chunkKey = LongHash.toLong(queuedChunk.x, queuedChunk.z);
 +        // Check if something else (CraftWorld.loadChunk?) beat us to it
 +        if (queuedChunk.provider.chunks.containsKey(chunkKey)) {
-+            return;
++            boolean b = queuedChunk.provider.unloadQueue.contains(chunkKey); // EMC
++            System.err.println("Chunk Already was loaded: " + queuedChunk.x + "," + queuedChunk.z + " - unloading? " + b); // EMC
 +        }
          queuedChunk.loader.loadEntities(chunk, queuedChunk.compound.getCompound("Level"), queuedChunk.world);
          chunk.setLastSaved(queuedChunk.provider.world.getTime());
