@@ -1,0 +1,54 @@
+From c28eade2e11f03d649ccf77e781e5b0ef9697af8 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Tue, 3 Nov 2015 21:05:41 -0500
+Subject: [PATCH] Don't create Region File's when checking if chunk exists
+
+Plugins like Dynap can end up creating tons of emtpy Region Files
+when using chunkExists.
+---
+ src/main/java/net/minecraft/server/ChunkRegionLoader.java | 3 ++-
+ src/main/java/net/minecraft/server/RegionFileCache.java   | 6 ++++++
+ 2 files changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/src/main/java/net/minecraft/server/ChunkRegionLoader.java b/src/main/java/net/minecraft/server/ChunkRegionLoader.java
+index deef232..0f5acc0 100644
+--- a/src/main/java/net/minecraft/server/ChunkRegionLoader.java
++++ b/src/main/java/net/minecraft/server/ChunkRegionLoader.java
+@@ -36,7 +36,8 @@ public class ChunkRegionLoader implements IChunkLoader, IAsyncChunkSaver {
+             }
+         }
+ 
+-        return RegionFileCache.a(this.d, i, j).chunkExists(i & 31, j & 31);
++        final RegionFile region = RegionFileCache.a(this.d, i, j, false); // Spigot
++        return region != null && region.chunkExists(i & 31, j & 31); // Spigot
+     }
+     // CraftBukkit end
+ 
+diff --git a/src/main/java/net/minecraft/server/RegionFileCache.java b/src/main/java/net/minecraft/server/RegionFileCache.java
+index 5528019..1f01db4 100644
+--- a/src/main/java/net/minecraft/server/RegionFileCache.java
++++ b/src/main/java/net/minecraft/server/RegionFileCache.java
+@@ -12,7 +12,12 @@ public class RegionFileCache {
+ 
+     public static final Map<File, RegionFile> a = Maps.newHashMap(); // Spigot - private -> public
+ 
++    // Spigot start
+     public static synchronized RegionFile a(File file, int i, int j) {
++        return a(file, i, j, true);
++    }
++    public static synchronized RegionFile a(File file, int i, int j, boolean create) {
++        // Spigot end
+         File file1 = new File(file, "region");
+         File file2 = new File(file1, "r." + (i >> 5) + "." + (j >> 5) + ".mca");
+         RegionFile regionfile = (RegionFile) RegionFileCache.a.get(file2);
+@@ -20,6 +25,7 @@ public class RegionFileCache {
+         if (regionfile != null) {
+             return regionfile;
+         } else {
++            if (!create) { return null; } // Spigot
+             if (!file1.exists()) {
+                 file1.mkdirs();
+             }
+-- 
+2.6.2
+
