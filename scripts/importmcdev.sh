@@ -54,6 +54,7 @@ import EntityMinecartHopper
 import PathfinderGoalInteractVillagers
 import GameProfileSerializer
 import PathfinderNormal
+import NavigationAbstract
 import EntityBat
 
 (

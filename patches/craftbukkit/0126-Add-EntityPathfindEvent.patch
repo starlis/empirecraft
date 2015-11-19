@@ -1,0 +1,112 @@
+From f3d68737257304a354b1a82a374148c1ec78f332 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Wed, 18 Nov 2015 01:04:24 -0500
+Subject: [PATCH] Add EntityPathfindEvent
+
+---
+ .../customevents/EntityPathfindEvent.java          | 63 ++++++++++++++++++++++
+ .../net/minecraft/server/NavigationAbstract.java   |  4 +-
+ 2 files changed, 66 insertions(+), 1 deletion(-)
+ create mode 100644 src/main/java/com/empireminecraft/customevents/EntityPathfindEvent.java
+
+diff --git a/src/main/java/com/empireminecraft/customevents/EntityPathfindEvent.java b/src/main/java/com/empireminecraft/customevents/EntityPathfindEvent.java
+new file mode 100644
+index 0000000..c7ef381
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/customevents/EntityPathfindEvent.java
+@@ -0,0 +1,63 @@
++/*
++ * Copyright (c) 2015. Starlis LLC / dba Empire Minecraft
++ *
++ * This source code is proprietary software and must not be redistributed without Starlis LLC's approval
++ *
++ */
++
++package com.empireminecraft.customevents;
++
++import net.minecraft.server.BlockPosition;
++import org.bukkit.Location;
++import org.bukkit.craftbukkit.entity.CraftEntity;
++import org.bukkit.entity.Entity;
++import org.bukkit.event.Cancellable;
++import org.bukkit.event.Event;
++import org.bukkit.event.HandlerList;
++
++public class EntityPathfindEvent extends Event implements Cancellable {
++    final Entity entity;
++    final Location loc;
++    public EntityPathfindEvent(net.minecraft.server.Entity entity, double x, double y, double z) {
++        Location location = new Location(entity.getWorld().getWorld(), x, y, z);
++        this.entity = entity.getBukkitEntity();
++        this.loc = location;
++    }
++
++    public Entity getEntity() {
++        return entity;
++    }
++
++    public Location getLoc() {
++        return loc;
++    }
++
++    private static final HandlerList handlers = new HandlerList();
++
++    public HandlerList getHandlers() {
++        return handlers;
++    }
++
++    public static HandlerList getHandlerList() {
++        return handlers;
++    }
++
++    private boolean cancelled = false;
++
++    @Override
++    public boolean isCancelled() {
++        return cancelled;
++    }
++
++    @Override
++    public void setCancelled(boolean cancel) {
++        cancelled = cancel;
++    }
++
++    public static boolean process(net.minecraft.server.Entity entity, BlockPosition pos) {
++        return (new EntityPathfindEvent(entity, pos.getX(), pos.getY(), pos.getZ())).callEvent();
++    }
++    public static boolean process(net.minecraft.server.Entity entity, net.minecraft.server.Entity tar) {
++        return (new EntityPathfindEvent(entity, tar.locX, tar.locY, tar.locZ)).callEvent();
++    }
++}
+diff --git a/src/main/java/net/minecraft/server/NavigationAbstract.java b/src/main/java/net/minecraft/server/NavigationAbstract.java
+index d5eaa24..69bb966 100644
+--- a/src/main/java/net/minecraft/server/NavigationAbstract.java
++++ b/src/main/java/net/minecraft/server/NavigationAbstract.java
+@@ -5,7 +5,7 @@ import java.util.List;
+ 
+ public abstract class NavigationAbstract {
+ 
+-    protected EntityInsentient b;
++    protected EntityInsentient b;public EntityInsentient getEntity() { return b; } // EMC
+     protected World c;
+     protected PathEntity d;
+     protected double e;
+@@ -41,6 +41,7 @@ public abstract class NavigationAbstract {
+         if (!this.b()) {
+             return null;
+         } else {
++            if (!com.empireminecraft.customevents.EntityPathfindEvent.process(getEntity(), blockposition)) { return null; } // EMC
+             float f = this.i();
+ 
+             this.c.methodProfiler.a("pathfind");
+@@ -68,6 +69,7 @@ public abstract class NavigationAbstract {
+         if (!this.b()) {
+             return null;
+         } else {
++            if (!com.empireminecraft.customevents.EntityPathfindEvent.process(getEntity(), entity)) { return null; } // EMC
+             float f = this.i();
+ 
+             this.c.methodProfiler.a("pathfind");
+-- 
+2.6.3
+
