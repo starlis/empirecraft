@@ -1,4 +1,4 @@
-From fe8b5b8e238e2b8340dd1a35db91df758105dd4b Mon Sep 17 00:00:00 2001
+From 4c36bd6ee5806172e4ad982321705077196d4ba2 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Thu, 27 Aug 2015 00:43:02 -0400
 Subject: [PATCH] Optimize hot spot with isValidLocation
@@ -11,29 +11,35 @@ never be at the 3 billion distance.
 
 Also static the existing isValidLocation to assist with inlining.
 ---
- src/main/java/net/minecraft/server/World.java | 12 +++++++++---
- 1 file changed, 9 insertions(+), 3 deletions(-)
+ src/main/java/net/minecraft/server/World.java | 17 +++++++++++++----
+ 1 file changed, 13 insertions(+), 4 deletions(-)
 
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index c9cecfc..8fdc3fd 100644
+index c9cecfc..8800f83 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
-@@ -281,7 +281,13 @@ public abstract class World implements IBlockAccess {
+@@ -281,9 +281,18 @@ public abstract class World implements IBlockAccess {
          return this.getType(blockposition1).getBlock();
      }
  
 -    private boolean isValidLocation(BlockPosition blockposition) {
+-        return blockposition.getX() >= -30000000 && blockposition.getZ() >= -30000000 && blockposition.getX() < 30000000 && blockposition.getZ() < 30000000 && blockposition.getY() >= 0 && blockposition.getY() < 256;
 +    // EMC start
-+    private static boolean isFastValidLocation(BlockPosition blockposition) {
++    private static boolean isFastValidLocation(final BlockPosition blockposition) {
 +        final int y = blockposition.getY();
 +        return y >= 0 && y < 256;
+     }
++    private static boolean isValidLocation(final BlockPosition blockposition) {
++        final int x = blockposition.getX();
++        final int z = blockposition.getZ();
++        final int y = blockposition.getY();
++        return x >= -30000000 && z >= -30000000 && x < 30000000 && z < 30000000 && y >= 0 && y < 256;
 +    }
 +    // EMC end
-+    private static boolean isValidLocation(BlockPosition blockposition) { // EMC
-         return blockposition.getX() >= -30000000 && blockposition.getZ() >= -30000000 && blockposition.getX() < 30000000 && blockposition.getZ() < 30000000 && blockposition.getY() >= 0 && blockposition.getY() < 256;
-     }
  
-@@ -376,7 +382,7 @@ public abstract class World implements IBlockAccess {
+     public boolean isEmpty(BlockPosition blockposition) {
+         return this.getType(blockposition).getBlock().getMaterial() == Material.AIR;
+@@ -376,7 +385,7 @@ public abstract class World implements IBlockAccess {
              return true;
          }
          // CraftBukkit end
@@ -42,7 +48,7 @@ index c9cecfc..8fdc3fd 100644
              return false;
          } else if (!this.isClientSide && this.worldData.getType() == WorldType.DEBUG_ALL_BLOCK_STATES) {
              return false;
-@@ -778,7 +784,7 @@ public abstract class World implements IBlockAccess {
+@@ -778,7 +787,7 @@ public abstract class World implements IBlockAccess {
              }
          }
          // CraftBukkit end
@@ -52,5 +58,5 @@ index c9cecfc..8fdc3fd 100644
          } else {
              Chunk chunk = this.getChunkAtWorldCoords(blockposition);
 -- 
-2.6.2
+2.6.4
 
