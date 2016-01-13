@@ -56,6 +56,7 @@ import GameProfileSerializer
 import PathfinderNormal
 import NavigationAbstract
 import EntityBat
+import ItemBlock
 
 (
 	cd Spigot/Spigot/Spigot-Server/
