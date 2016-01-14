@@ -57,6 +57,7 @@ import PathfinderNormal
 import NavigationAbstract
 import EntityBat
 import ItemBlock
+import CommandGive
 
 (
 	cd Spigot/Spigot/Spigot-Server/
