@@ -1,0 +1,69 @@
+From 218b440a75cfc158fde27040ddecd52ffe143da5 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Mon, 18 Jan 2016 00:18:43 -0500
+Subject: [PATCH] Optimize Pathfinding
+
+Prevents pathfinding from spamming failures for things such as
+arrow attacks.
+
+Also remove a duplicate .getType() call
+---
+ .../java/net/minecraft/server/NavigationAbstract.java  | 18 +++++++++++++++++-
+ .../java/net/minecraft/server/PathfinderNormal.java    |  2 +-
+ 2 files changed, 18 insertions(+), 2 deletions(-)
+
+diff --git a/src/main/java/net/minecraft/server/NavigationAbstract.java b/src/main/java/net/minecraft/server/NavigationAbstract.java
+index 69bb966..e0c90aa 100644
+--- a/src/main/java/net/minecraft/server/NavigationAbstract.java
++++ b/src/main/java/net/minecraft/server/NavigationAbstract.java
+@@ -84,10 +84,25 @@ public abstract class NavigationAbstract {
+     }
+ 
+     public boolean a(Entity entity, double d0) {
++        // EMC start - whole method roughly.
++        if (this.pathfindFailures > 10 && this.d == null && MinecraftServer.currentTick < this.lastFailure + 40) {
++            return false;
++        }
+         PathEntity pathentity = this.a(entity);
+ 
+-        return pathentity != null ? this.a(pathentity, d0) : false;
++        if (pathentity != null && this.a(pathentity, d0)) {
++            this.lastFailure = 0;
++            this.pathfindFailures = 0;
++            return true;
++        } else {
++            this.pathfindFailures++;
++            this.lastFailure = MinecraftServer.currentTick;
++            return false;
++        }
+     }
++    private int lastFailure = 0;
++    private int pathfindFailures = 0;
++    // EMC end
+ 
+     public boolean a(PathEntity pathentity, double d0) {
+         if (pathentity == null) {
+@@ -207,6 +222,7 @@ public abstract class NavigationAbstract {
+     }
+ 
+     public void n() {
++        this.pathfindFailures = 0; this.lastFailure = 0; // EMC
+         this.d = null;
+     }
+ 
+diff --git a/src/main/java/net/minecraft/server/PathfinderNormal.java b/src/main/java/net/minecraft/server/PathfinderNormal.java
+index 0a14c9d..aabf9a5 100644
+--- a/src/main/java/net/minecraft/server/PathfinderNormal.java
++++ b/src/main/java/net/minecraft/server/PathfinderNormal.java
+@@ -158,7 +158,7 @@ public class PathfinderNormal extends PathfinderAbstract {
+                             flag3 = true;
+                         }
+ 
+-                        if (entity.world.getType(blockposition_mutableblockposition).getBlock() instanceof BlockMinecartTrackAbstract) {
++                        if (block instanceof BlockMinecartTrackAbstract) { // EMC
+                             if (!(entity.world.getType(blockposition).getBlock() instanceof BlockMinecartTrackAbstract) && !(entity.world.getType(blockposition.down()).getBlock() instanceof BlockMinecartTrackAbstract)) {
+                                 return -3;
+                             }
+-- 
+2.7.0
+
