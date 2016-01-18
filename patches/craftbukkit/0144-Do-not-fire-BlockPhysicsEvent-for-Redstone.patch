@@ -1,0 +1,57 @@
+From 2a8bda234f33d54b1dcb79a3675928fbaa63a4c2 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Sun, 17 Jan 2016 22:24:36 -0500
+Subject: [PATCH] Do not fire BlockPhysicsEvent for Redstone
+
+Causes too much event noise for an operation we would never
+want to cancel anyways.
+---
+ src/main/java/net/minecraft/server/World.java       | 2 +-
+ src/main/java/net/minecraft/server/WorldServer.java | 4 +++-
+ 2 files changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
+index 93c4c88..cfecc89 100644
+--- a/src/main/java/net/minecraft/server/World.java
++++ b/src/main/java/net/minecraft/server/World.java
+@@ -582,7 +582,7 @@ public abstract class World implements IBlockAccess {
+             try {
+                 // CraftBukkit start
+                 CraftWorld world = ((WorldServer) this).getWorld();
+-                if (world != null) {
++                if (world != null && !((WorldServer)this).stopPhysicsEvent) { // EMC
+                     BlockPhysicsEvent event = new BlockPhysicsEvent(world.getBlockAt(blockposition.getX(), blockposition.getY(), blockposition.getZ()), CraftMagicNumbers.getId(block));
+                     this.getServer().getPluginManager().callEvent(event);
+ 
+diff --git a/src/main/java/net/minecraft/server/WorldServer.java b/src/main/java/net/minecraft/server/WorldServer.java
+index 28fa584..4536fbc 100644
+--- a/src/main/java/net/minecraft/server/WorldServer.java
++++ b/src/main/java/net/minecraft/server/WorldServer.java
+@@ -32,6 +32,7 @@ import org.bukkit.event.weather.LightningStrikeEvent;
+ public class WorldServer extends World implements IAsyncTaskHandler {
+ 
+     private static final Logger a = LogManager.getLogger();
++    public boolean stopPhysicsEvent = false; // EMC
+     private final MinecraftServer server;
+     public EntityTracker tracker;
+     private final PlayerChunkMap manager;
+@@ -658,6 +659,7 @@ public class WorldServer extends World implements IAsyncTaskHandler {
+ 
+                         if (iblockdata.getBlock().getMaterial() != Material.AIR && Block.a(iblockdata.getBlock(), nextticklistentry.a())) {
+                             try {
++                                stopPhysicsEvent = iblockdata.getBlock() instanceof BlockDiodeAbstract; // EMC
+                                 iblockdata.getBlock().b((World) this, nextticklistentry.a, iblockdata, this.random);
+                             } catch (Throwable throwable) {
+                                 CrashReport crashreport = CrashReport.a(throwable, "Exception while ticking a block");
+@@ -665,7 +667,7 @@ public class WorldServer extends World implements IAsyncTaskHandler {
+ 
+                                 CrashReportSystemDetails.a(crashreportsystemdetails, nextticklistentry.a, iblockdata);
+                                 throw new ReportedException(crashreport);
+-                            }
++                            } finally { stopPhysicsEvent = false; } // EMC
+                         }
+                         timing.stopTiming(); // Spigot
+                     } else {
+-- 
+2.7.0
+
