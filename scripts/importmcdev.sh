@@ -58,6 +58,7 @@ import NavigationAbstract
 import EntityBat
 import ItemBlock
 import CommandGive
+import ChunkCache
 
 (
 	cd Spigot/Spigot/Spigot-Server/
