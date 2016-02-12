@@ -1,0 +1,36 @@
+From f9a6510b25a83901a61c8464851b0579c35fc79f Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Fri, 28 Aug 2015 02:30:16 -0400
+Subject: [PATCH] Optimize getBlockData
+
+Hot method, so reduce # of instructions for the method.
+---
+ src/main/java/net/minecraft/server/Chunk.java | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/src/main/java/net/minecraft/server/Chunk.java b/src/main/java/net/minecraft/server/Chunk.java
+index 47d510d..502fbe7 100644
+--- a/src/main/java/net/minecraft/server/Chunk.java
++++ b/src/main/java/net/minecraft/server/Chunk.java
+@@ -441,7 +441,18 @@ public class Chunk {
+         }
+     }
+ 
++    // EMC start
+     public IBlockData getBlockData(final BlockPosition blockposition) {
++        if (blockposition.getY() >= 0 && blockposition.getY() >> 4 < this.sections.length) {
++            ChunkSection chunksection = this.sections[blockposition.getY() >> 4];
++            if (chunksection != null) {
++                return chunksection.getType(blockposition.getX() & 15, blockposition.getY() & 15, blockposition.getZ() & 15);
++            }
++        }
++        return Blocks.AIR.getBlockData();
++    }
++    public IBlockData getBlockDataSlow(final BlockPosition blockposition) {
++        // EMC end
+         if (this.world.G() == WorldType.DEBUG_ALL_BLOCK_STATES) {
+             IBlockData iblockdata = null;
+ 
+-- 
+2.7.1
+
