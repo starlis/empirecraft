@@ -10,9 +10,9 @@ done
 
 
 cd $basedir
-spigotVer=$(cat current-spigot)
+paperVer=$(cat current-paper)
 
-decompile=$(ls -lat Spigot/work/ | grep decompile | head -n 1 | awk '{print $9}')
+decompile="Paper/work/1.9"
 mkdir -p mc-dev/src/net/minecraft/server
 
 cd mc-dev
@@ -20,7 +20,7 @@ if [ ! -d ".git" ]; then
 	git init
 fi
 
-cp $basedir/Spigot/work/$decompile/net/minecraft/server/*.java src/net/minecraft/server
+cp $basedir/$decompile/net/minecraft/server/*.java src/net/minecraft/server
 
 base="$basedir/EmpireCraft-Server/src/main/java/net/minecraft/server"
 cd $basedir/mc-dev/src/net/minecraft/server/
@@ -33,5 +33,5 @@ done
 cd $basedir/mc-dev
 git add . -A
 git commit . -m "mc-dev"
-git tag -a "$spigotVer" -m "$spigotVer" 2>/dev/null
-pushRepo . git@bitbucket.org:starlis/mc-dev $spigotVer
+git tag -a "$paperVer" -m "$paperVer" 2>/dev/null
+pushRepo . git@bitbucket.org:starlis/mc-dev $paperVer

@@ -2,48 +2,51 @@
 # get base dir regardless of execution location
 SOURCE="${BASH_SOURCE[0]}"
 while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symlink
-  DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
-  SOURCE="$(readlink "$SOURCE")"
-  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE" # if $SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
+	DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+	SOURCE="$(readlink "$SOURCE")"
+	[[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE" # if $SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
 done
 . $(dirname $SOURCE)/init.sh
 PS1="$"
 
-spigotVer=$(cat current-spigot)
+paperVer=$(cat current-paper)
 echo "Rebuilding Forked projects.... "
 function applyPatch {
 	what=$1
+	what_name=$(basename $what)
+	target=$2
+	branch=$3
+	patch_folder=$4
 
-	cd $basedir
-	if [ ! -d $what ]; then
-		git clone git@bitbucket.org:starlis/$2 $what
+	cd "$basedir/$what"
+	git fetch
+	git branch -f upstream "$branch" >/dev/null
+
+	cd "$basedir"
+	if [ ! -d  "$basedir/$target" ]; then
+		git clone "$what" "$target"
 	fi
-	cd $basedir/$what
-	echo "Synchronizing $what/master to $2/$spigotVer"
-	git remote rm origin > /dev/null 2>&1
-	git remote add origin git@bitbucket.org:starlis/$what >/dev/null 2>&1
+	cd "$basedir/$target"
+	echo "Resetting $target to $what_name..."
 	git remote rm upstream > /dev/null 2>&1
-	git remote add upstream git@bitbucket.org:starlis/$2 >/dev/null 2>&1
-
-	git checkout master >/dev/null 2>&1
-	git fetch --all --tags
-	git am --abort
-	git clean -f
-
-	git reset --hard "$spigotVer" >/dev/null
-	git branch -D upstream 2>/dev/null
-	git branch upstream
-	echo "  Applying patches to $what..."
-	git am -3 $basedir/patches/$3/*.patch
+	git remote add upstream $basedir/$what >/dev/null 2>&1
+	git checkout master 2>/dev/null || git checkout -b master
+	git fetch upstream >/dev/null 2>&1
+	git reset --hard upstream/upstream
+	echo "  Applying patches to $target..."
+	git am --abort >/dev/null 2>&1
+	git am --3way --ignore-whitespace "$basedir/patches/$patch_folder/"*.patch
 	if [ "$?" != "0" ]; then
-		echo "  Something did not apply cleanly to $what. "
+		echo "  Something did not apply cleanly to $target."
 		echo "  Please review above details and finish the apply then"
-		echo "  save the changes with rebuildpatches.sh"
+		echo "  save the changes with rebuildPatches.sh"
+		exit 1
 	else
-		echo "  Patches applied cleanly to $what"
+		echo "  Patches applied cleanly to $target"
 	fi
 }
-applyPatch EmpireCraft-API Spigot-API bukkit
-applyPatch EmpireCraft-Server Spigot-Server craftbukkit
+applyPatch Paper/Paper-API EmpireCraft-API HEAD api
+applyPatch Paper/Paper-Server EmpireCraft-Server HEAD server
+
 basedir
-scripts/generatesources
+scripts/generatesources.sh
