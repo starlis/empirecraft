@@ -52,7 +52,6 @@ import ItemSnowball
 import ItemBookAndQuill
 import MerchantRecipe
 import CommandStop
-import WorldGenMonument
 import BlockSponge
 import EntityMinecartHopper
 import PathfinderGoalInteractVillagers
@@ -63,6 +62,7 @@ import EntityBat
 import ItemBlock
 import CommandGive
 import ChunkCache
+import PathfinderGoalSelector
 
 (
 	cd Paper/Paper-Server/

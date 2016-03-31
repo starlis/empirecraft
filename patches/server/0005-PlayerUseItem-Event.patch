@@ -1,4 +1,4 @@
-From d3f6b49dda517e10109d548b31a14c4198d79784 Mon Sep 17 00:00:00 2001
+From e811dcfc95b2f01dbcad1cc6a295039ac1b6fab9 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Sat, 22 Dec 2012 00:35:15 -0500
 Subject: [PATCH] PlayerUseItem Event
@@ -11,13 +11,13 @@ This lets us control when an item is consumed and change the item.
  create mode 100644 src/main/java/org/bukkit/event/inventory/PlayerUseItemEvent.java
 
 diff --git a/src/main/java/net/minecraft/server/PlayerInteractManager.java b/src/main/java/net/minecraft/server/PlayerInteractManager.java
-index e589e09..0d01e6f 100644
+index 72f5256..064f33f 100644
 --- a/src/main/java/net/minecraft/server/PlayerInteractManager.java
 +++ b/src/main/java/net/minecraft/server/PlayerInteractManager.java
-@@ -363,6 +363,16 @@ public class PlayerInteractManager {
+@@ -375,6 +375,16 @@ public class PlayerInteractManager {
      }
  
-     public boolean useItem(EntityHuman entityhuman, World world, ItemStack itemstack) {
+     public EnumInteractionResult a(EntityHuman entityhuman, World world, ItemStack itemstack, EnumHand enumhand) {
 +        // EMC Start - Allow control over if item should be consumed or not.
 +        org.bukkit.craftbukkit.inventory.CraftItemStack craftitem = org.bukkit.craftbukkit.inventory.CraftItemStack.asCraftMirror(itemstack);
 +        org.bukkit.event.inventory.PlayerUseItemEvent event = new org.bukkit.event.inventory.PlayerUseItemEvent((org.bukkit.craftbukkit.entity.CraftPlayer)entityhuman.bukkitEntity, craftitem);
@@ -29,21 +29,21 @@ index e589e09..0d01e6f 100644
 +        }
 +        // EMC end
          if (this.gamemode == WorldSettings.EnumGamemode.SPECTATOR) {
-             return false;
-         } else {
-@@ -374,7 +384,7 @@ public class PlayerInteractManager {
-                 return false;
+             return EnumInteractionResult.PASS;
+         } else if (entityhuman.da().a(itemstack.getItem())) {
+@@ -389,7 +399,7 @@ public class PlayerInteractManager {
+                 return interactionresultwrapper.a();
              } else {
-                 entityhuman.inventory.items[entityhuman.inventory.itemInHandIndex] = itemstack1;
+                 entityhuman.a(enumhand, itemstack1);
 -                if (this.isCreative()) {
 +                if (!event.getConsumeItem() || this.isCreative()) {  // EMC - add getConsumeItem
                      itemstack1.count = i;
                      if (itemstack1.e()) {
                          itemstack1.setData(j);
-@@ -497,13 +507,24 @@ public class PlayerInteractManager {
+@@ -516,13 +526,24 @@ public class PlayerInteractManager {
              }
  
-             if (itemstack != null && !result && !interactResult) { // add !interactResult SPIGOT-764
+             if (itemstack != null && result != EnumInteractionResult.SUCCESS && !interactResult) { // add !interactResult SPIGOT-764
 +                // EMC Start - Allow control over if item should be consumed or not.
 +                org.bukkit.craftbukkit.inventory.CraftItemStack craftitem = org.bukkit.craftbukkit.inventory.CraftItemStack.asCraftMirror(itemstack);
 +                org.bukkit.event.inventory.PlayerUseItemEvent eventUse = new org.bukkit.event.inventory.PlayerUseItemEvent((org.bukkit.craftbukkit.entity.CraftPlayer)entityhuman.bukkitEntity, craftitem);
@@ -58,7 +58,7 @@ index e589e09..0d01e6f 100644
                  int j1 = itemstack.getData();
                  int k1 = itemstack.count;
  
-                 result = itemstack.placeItem(entityhuman, world, blockposition, enumdirection, f, f1, f2);
+                 result = itemstack.placeItem(entityhuman, world, blockposition, enumhand, enumdirection, f, f1, f2);
  
                  // The item count should not decrement in Creative mode.
 -                if (this.isCreative()) {
@@ -128,5 +128,5 @@ index 0000000..b9c2d50
 +    }
 +}
 -- 
-1.9.1
+2.8.0
 
