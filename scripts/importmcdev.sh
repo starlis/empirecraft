@@ -8,6 +8,10 @@ while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symli
 done
 . $(dirname $SOURCE)/init.sh
 
+workdir=$basedir/Paper/work
+minecraftversion=$(cat $basedir/Paper/BuildData/info.json | grep minecraftVersion | cut -d '"' -f 4)
+decompiledir=$workdir/$minecraftversion
+
 nms="net/minecraft/server"
 export MODLOG=""
 cd $basedir
@@ -17,7 +21,7 @@ function import {
 	export importedmcdev="$importedmcdev $1"
 	file="${1}.java"
 	target="$basedir/Paper/Paper-Server/src/main/java/$nms/$file"
-	base="$basedir/Paper/work/1.9/$nms/$file"
+	base="$decompiledir/$nms/$file"
 
 	if [[ ! -f "$target" ]]; then
 		export MODLOG="$MODLOG  Imported $file from mc-dev\n";
