@@ -23,6 +23,6 @@ function savePatches {
 }
 
 savePatches EmpireCraft-API api
-savePatches EmpireCraft-Server server
+#savePatches EmpireCraft-Server server
 
 #$basedir/scripts/push.sh
