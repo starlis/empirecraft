@@ -38,6 +38,7 @@ function import {
 	fi
 )
 
+import BlockFlowerPot
 import ServerStatisticManager
 import RemoteControlListener
 import NBTTagList
