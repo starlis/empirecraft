@@ -1,6 +1,6 @@
 #!/bin/bash
 cd $(dirname $SOURCE)/../
-basedir=$(pwd)
+basedir=$(pwd -P)
 
 API_REPO="git@bitbucket.org:starlis/Spigot-API"
 SERVER_REPO="git@bitbucket.org:starlis/Spigot-Server"

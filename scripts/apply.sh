@@ -19,7 +19,7 @@ function applyPatch {
 	patch_folder=$4
 
 	cd "$basedir/$what"
-	git fetch
+	git fetch --all
 	git branch -f upstream "$branch" >/dev/null
 
 	cd "$basedir"
