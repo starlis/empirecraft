@@ -21,7 +21,7 @@ fi
 paperVer=$(gethead Paper)
 cd "$basedir/Paper"
 
-./build.sh
+./paper patch
 
 basedir
 . scripts/importmcdev.sh

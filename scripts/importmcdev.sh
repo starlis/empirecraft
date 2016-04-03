@@ -9,7 +9,7 @@ done
 . $(dirname $SOURCE)/init.sh
 
 workdir=$basedir/Paper/work
-minecraftversion=$(cat $basedir/Paper/BuildData/info.json | grep minecraftVersion | cut -d '"' -f 4)
+minecraftversion=$(cat $basedir/Paper/work/BuildData/info.json | grep minecraftVersion | cut -d '"' -f 4)
 decompiledir=$workdir/$minecraftversion
 
 nms="net/minecraft/server"

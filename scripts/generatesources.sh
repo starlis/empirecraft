@@ -12,7 +12,7 @@ done
 cd $basedir
 paperVer=$(cat current-paper)
 
-minecraftversion=$(cat $basedir/Paper/BuildData/info.json | grep minecraftVersion | cut -d '"' -f 4)
+minecraftversion=$(cat $basedir/Paper/work/BuildData/info.json | grep minecraftVersion | cut -d '"' -f 4)
 decompile="Paper/work/$minecraftversion/"
 
 mkdir -p mc-dev/src/net/minecraft/server
