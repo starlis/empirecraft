@@ -8,7 +8,7 @@ while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symli
 done
 . $(dirname $SOURCE)/init.sh
 
-if [ "$1" == "update" ]; then
+if [[ "$1" == up* ]]; then
 
 	(
 		cd "$basedir/Paper/"
