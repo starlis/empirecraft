@@ -22,7 +22,7 @@ function savePatches {
 	echo "  Patches saved for $what to patches/$2"
 }
 
-#savePatches EmpireCraft-API api
+savePatches EmpireCraft-API api
 savePatches EmpireCraft-Server server
 
 #$basedir/scripts/push.sh
