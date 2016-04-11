@@ -30,7 +30,7 @@ basedir
 cd Paper/
 
 version=$(echo -e "Paper: $paperVer\nmc-dev:$importedmcdev")
-tag="upstream-$(echo -e $version | sha1sum | awk '{print $1}')"
+tag="upstream-$(echo -e $version | shasum | awk '{print $1}')"
 
 function tag {
 (
