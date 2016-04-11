@@ -1,0 +1,106 @@
+From af4c198bad7657fc56b40e60daadcb64aca8bc0b Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Wed, 17 Dec 2014 01:14:31 -0500
+Subject: [PATCH] Add SnowballThrowEvent
+
+---
+ .../customevents/SnowballThrowEvent.java           | 65 ++++++++++++++++++++++
+ .../java/net/minecraft/server/ItemSnowball.java    |  9 ++-
+ 2 files changed, 73 insertions(+), 1 deletion(-)
+ create mode 100644 src/main/java/com/empireminecraft/customevents/SnowballThrowEvent.java
+
+diff --git a/src/main/java/com/empireminecraft/customevents/SnowballThrowEvent.java b/src/main/java/com/empireminecraft/customevents/SnowballThrowEvent.java
+new file mode 100644
+index 0000000..ed8019e
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/customevents/SnowballThrowEvent.java
+@@ -0,0 +1,65 @@
++package com.empireminecraft.customevents;
++
++import net.minecraft.server.EntityHuman;
++import net.minecraft.server.EntitySnowball;
++import net.minecraft.server.ItemStack;
++import org.bukkit.entity.Player;
++import org.bukkit.entity.Snowball;
++import org.bukkit.event.Cancellable;
++import org.bukkit.event.Event;
++import org.bukkit.event.HandlerList;
++
++public class SnowballThrowEvent extends Event implements Cancellable {
++    private final org.bukkit.inventory.ItemStack item;
++    private final Snowball entity;
++    private final Player player;
++    private boolean consumeOnThrow = true;
++    public SnowballThrowEvent(EntityHuman player, ItemStack item, EntitySnowball entity) {
++        this.player = (Player) player.getBukkitEntity();
++        this.entity = (Snowball) entity.getBukkitEntity();
++        this.item = item.getBukkitStack();
++        this.consumeOnThrow = !player.abilities.canInstantlyBuild;
++    }
++
++    public boolean shouldConsumeOnThrow() {
++        return consumeOnThrow;
++    }
++
++    public void setConsumeOnThrow(boolean consumeOnThrow) {
++        this.consumeOnThrow = consumeOnThrow;
++    }
++
++    public Player getPlayer() {
++        return player;
++    }
++
++    public Snowball getEntity() {
++        return entity;
++    }
++
++    public org.bukkit.inventory.ItemStack getItem() {
++        return item;
++    }
++
++    private static final HandlerList handlers = new HandlerList();
++
++    public HandlerList getHandlers() {
++        return handlers;
++    }
++
++    public static HandlerList getHandlerList() {
++        return handlers;
++    }
++
++    private boolean cancelled = false;
++
++    @Override
++    public boolean isCancelled() {
++        return cancelled;
++    }
++
++    @Override
++    public void setCancelled(boolean cancel) {
++        cancelled = cancel;
++    }
++}
+diff --git a/src/main/java/net/minecraft/server/ItemSnowball.java b/src/main/java/net/minecraft/server/ItemSnowball.java
+index 425af3f..be8acc9 100644
+--- a/src/main/java/net/minecraft/server/ItemSnowball.java
++++ b/src/main/java/net/minecraft/server/ItemSnowball.java
+@@ -19,8 +19,15 @@ public class ItemSnowball extends Item {
+             EntitySnowball entitysnowball = new EntitySnowball(world, entityhuman);
+ 
+             entitysnowball.a(entityhuman, entityhuman.pitch, entityhuman.yaw, 0.0F, 1.5F, 1.0F);
++            // EMC start
++            com.empireminecraft.customevents.SnowballThrowEvent event = new com.empireminecraft.customevents.SnowballThrowEvent(entityhuman, itemstack, entitysnowball);
++            if (!event.callEvent()) {
++                entitysnowball.die();
++                return new InteractionResultWrapper(EnumInteractionResult.FAIL, itemstack);
++            }
++            // EMC end
+             if (world.addEntity(entitysnowball)) {
+-                if (!entityhuman.abilities.canInstantlyBuild) {
++                if (event.shouldConsumeOnThrow()) { // EMC
+                     --itemstack.count;
+                 }
+ 
+-- 
+2.8.1
+

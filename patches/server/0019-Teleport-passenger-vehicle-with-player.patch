@@ -1,0 +1,111 @@
+From efe35306a2920cea9db2ade9f9ea8c392c0a165a Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Wed, 17 Jul 2013 21:06:55 -0400
+Subject: [PATCH] Teleport passenger/vehicle with player
+
+Will teleport entities with a player for vehicle/passenger
+---
+ src/main/java/net/minecraft/server/Entity.java     | 14 +++++++-
+ .../org/bukkit/craftbukkit/entity/CraftPlayer.java | 40 +++++++++++++++++++++-
+ 2 files changed, 52 insertions(+), 2 deletions(-)
+
+diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
+index 0114b95..3df6e7a 100644
+--- a/src/main/java/net/minecraft/server/Entity.java
++++ b/src/main/java/net/minecraft/server/Entity.java
+@@ -54,6 +54,14 @@ public abstract class Entity implements ICommandListener {
+ 
+     protected CraftEntity bukkitEntity;
+     EntityTrackerEntry tracker; // EMC
++    // EMC start
++    public void retrack() {
++        final EntityTracker entityTracker = ((WorldServer) world).getTracker();
++        entityTracker.untrackEntity(this);
++        entityTracker.track(this);
++
++    }
++    // EMC end
+     public CraftEntity getBukkitEntity() {
+         if (bukkitEntity == null) {
+             bukkitEntity = CraftEntity.getEntity(world.getServer(), this);
+@@ -2174,7 +2182,7 @@ public abstract class Entity implements ICommandListener {
+             // CraftBukkit end */
+             // CraftBukkit start - Ensure chunks are loaded in case TravelAgent is not used which would initially cause chunks to load during find/create
+             // minecraftserver.getPlayerList().changeWorld(this, j, worldserver, worldserver1);
+-            worldserver1.getMinecraftServer().getPlayerList().repositionEntity(this, exit, portal);
++            //worldserver1.getMinecraftServer().getPlayerList().repositionEntity(this, exit, portal); // EMC - no... this entity is dead;
+             // worldserver.entityJoinedWorld(this, false); // Handled in repositionEntity
+             // CraftBukkit end
+             this.world.methodProfiler.c("reloading");
+@@ -2182,6 +2190,10 @@ public abstract class Entity implements ICommandListener {
+ 
+             if (entity != null) {
+                 entity.a(this);
++                // EMC start - move entity to new location
++                exit.getBlock(); // force load
++                entity.setLocation(exit.getX(), exit.getY(), exit.getZ(), exit.getYaw(), exit.getPitch());
++                // EMC end
+                 /* CraftBukkit start - We need to do this...
+                 if (j == 1 && i == 1) {
+                     BlockPosition blockposition1 = worldserver1.q(worldserver1.getSpawn());
+diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
+index d77211a..7ab4899 100644
+--- a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
++++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
+@@ -538,7 +538,36 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+         }
+ 
+         // If this player is riding another entity, we must dismount before teleporting.
+-        entity.stopRiding();
++        // EMC start
++        //entity.stopRiding();
++
++        Entity vehicle = entity.getVehicleDirect();
++        List<Entity> passengers = entity.saveAndClearPassengers();
++        if (vehicle != null) {
++            List<Entity> prev = vehicle.saveAndClearPassengers();
++            vehicle.teleportTo(location, false);
++            vehicle = vehicle.getBukkitEntity().getHandle();
++            vehicle.passengersPrev = prev;
++            Entity finalVehicle = vehicle;
++            prev.forEach((passenger) -> {
++                passenger.setVehicleDirect(null);
++                passenger.teleportTo(location, false);
++                passenger = passenger.getBukkitEntity().getHandle();
++                passenger.setVehicleDirect(finalVehicle);
++            });
++            vehicle.restorePassengers();
++        }
++
++        if (!passengers.isEmpty()) {
++            passengers.forEach((passenger) -> {
++                passenger.setVehicleDirect(null);
++                passenger.teleportTo(location, false);
++                passenger = passenger.getBukkitEntity().getHandle();
++                passenger.setVehicleDirect(entity);
++            });
++            entity.restorePassengers();
++        }
++        // EMC end
+ 
+         // Update the From Location
+         from = event.getFrom();
+@@ -567,6 +596,15 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+             // Paper - Configurable suffocation check
+             server.getHandle().moveToWorld(entity, toWorld.dimension, true, to, !toWorld.paperConfig.disableTeleportationSuffocationCheck);
+         }
++
++        // EMC start
++        if (vehicle != null) {
++            vehicle.retrack();
++        }
++        if (!passengers.isEmpty()) {
++            passengers.forEach(Entity::retrack);
++        }
++        // EMC end
+         return true;
+     }
+ 
+-- 
+2.8.1
+

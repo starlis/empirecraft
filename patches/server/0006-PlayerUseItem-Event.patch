@@ -1,0 +1,141 @@
+From f135362f0a0cae3923bfc624a6186d9ce1dc90bf Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Sat, 22 Dec 2012 00:35:15 -0500
+Subject: [PATCH] PlayerUseItem Event
+
+This lets us control when an item is consumed and change the item.
+---
+ .../minecraft/server/PlayerInteractManager.java    | 27 ++++++++++-
+ .../bukkit/event/inventory/PlayerUseItemEvent.java | 55 ++++++++++++++++++++++
+ 2 files changed, 80 insertions(+), 2 deletions(-)
+ create mode 100644 src/main/java/org/bukkit/event/inventory/PlayerUseItemEvent.java
+
+diff --git a/src/main/java/net/minecraft/server/PlayerInteractManager.java b/src/main/java/net/minecraft/server/PlayerInteractManager.java
+index 72f5256..3693661 100644
+--- a/src/main/java/net/minecraft/server/PlayerInteractManager.java
++++ b/src/main/java/net/minecraft/server/PlayerInteractManager.java
+@@ -1,6 +1,7 @@
+ package net.minecraft.server;
+ 
+ // CraftBukkit start
++import org.bukkit.entity.Player;
+ import org.bukkit.event.block.BlockBreakEvent;
+ import org.bukkit.craftbukkit.event.CraftEventFactory;
+ import org.bukkit.event.Event;
+@@ -375,6 +376,16 @@ public class PlayerInteractManager {
+     }
+ 
+     public EnumInteractionResult a(EntityHuman entityhuman, World world, ItemStack itemstack, EnumHand enumhand) {
++        // EMC Start - Allow control over if item should be consumed or not.
++        org.bukkit.craftbukkit.inventory.CraftItemStack craftitem = org.bukkit.craftbukkit.inventory.CraftItemStack.asCraftMirror(itemstack);
++        org.bukkit.event.inventory.PlayerUseItemEvent event = new org.bukkit.event.inventory.PlayerUseItemEvent((org.bukkit.craftbukkit.entity.CraftPlayer)entityhuman.bukkitEntity, craftitem);
++        if (!event.callEvent()) {
++            return EnumInteractionResult.FAIL;
++        }
++        if (!craftitem.equals(event.getItem())) {
++            itemstack = org.bukkit.craftbukkit.inventory.CraftItemStack.asNMSCopy(event.getItem());
++        }
++        // EMC end
+         if (this.gamemode == WorldSettings.EnumGamemode.SPECTATOR) {
+             return EnumInteractionResult.PASS;
+         } else if (entityhuman.da().a(itemstack.getItem())) {
+@@ -389,7 +400,7 @@ public class PlayerInteractManager {
+                 return interactionresultwrapper.a();
+             } else {
+                 entityhuman.a(enumhand, itemstack1);
+-                if (this.isCreative()) {
++                if (!event.getConsumeItem() || this.isCreative()) {  // EMC - add getConsumeItem
+                     itemstack1.count = i;
+                     if (itemstack1.e()) {
+                         itemstack1.setData(j);
+@@ -516,13 +527,25 @@ public class PlayerInteractManager {
+             }
+ 
+             if (itemstack != null && result != EnumInteractionResult.SUCCESS && !interactResult) { // add !interactResult SPIGOT-764
++                // EMC Start - Allow control over if item should be consumed or not.
++                org.bukkit.craftbukkit.inventory.CraftItemStack craftitem = org.bukkit.craftbukkit.inventory.CraftItemStack.asCraftMirror(itemstack);
++                org.bukkit.event.inventory.PlayerUseItemEvent eventUse = new org.bukkit.event.inventory.PlayerUseItemEvent(
++                    (Player) entityhuman.getBukkitEntity(), craftitem);
++
++                if (!eventUse.callEvent()) {
++                    return EnumInteractionResult.FAIL;
++                }
++                if (!craftitem.equals(eventUse.getItem())) {
++                    itemstack = org.bukkit.craftbukkit.inventory.CraftItemStack.asNMSCopy(eventUse.getItem());
++                }
++                // EMC end
+                 int j1 = itemstack.getData();
+                 int k1 = itemstack.count;
+ 
+                 result = itemstack.placeItem(entityhuman, world, blockposition, enumhand, enumdirection, f, f1, f2);
+ 
+                 // The item count should not decrement in Creative mode.
+-                if (this.isCreative()) {
++                if (!eventUse.getConsumeItem() || this.isCreative()) { // EMC - add getConsumeItem
+                     itemstack.setData(j1);
+                     itemstack.count = k1;
+                 }
+diff --git a/src/main/java/org/bukkit/event/inventory/PlayerUseItemEvent.java b/src/main/java/org/bukkit/event/inventory/PlayerUseItemEvent.java
+new file mode 100644
+index 0000000..b9c2d50
+--- /dev/null
++++ b/src/main/java/org/bukkit/event/inventory/PlayerUseItemEvent.java
+@@ -0,0 +1,55 @@
++package org.bukkit.event.inventory;
++
++import org.bukkit.entity.Player;
++import org.bukkit.event.Cancellable;
++import org.bukkit.event.Event;
++import org.bukkit.event.HandlerList;
++import org.bukkit.inventory.ItemStack;
++
++public class PlayerUseItemEvent extends Event implements Cancellable {
++    private static final HandlerList handlers = new HandlerList();
++    private boolean canceled;
++    Player player;
++    ItemStack item;
++    boolean consume = true;
++    public PlayerUseItemEvent(Player player, ItemStack item) {        
++        this.player = player;
++        this.item = item;
++    }
++
++    public Player getPlayer() {
++        return this.player;
++    }
++
++    public ItemStack getItem() {
++        return this.item;
++    }
++    public void setItem(ItemStack item) {
++        if (item == null) {
++            canceled = true;
++        }
++        this.item = item;
++    }
++    public boolean getConsumeItem() {
++        return this.consume;
++    }
++    
++    public void setConsumeItem(boolean consume) {
++        this.consume = consume;
++    }
++    public boolean isCancelled() {
++        return canceled;
++    }
++
++    public void setCancelled(boolean cancel) {
++        canceled = cancel;
++    }
++
++    public HandlerList getHandlers() {
++        return handlers;
++    }
++
++    public static HandlerList getHandlerList() {
++        return handlers;
++    }
++}
+-- 
+2.8.1
+
