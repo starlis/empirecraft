@@ -1,0 +1,99 @@
+From db3bf46e0d1fe9d3493c5ce914c92fd268be0dd6 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Mon, 17 Jun 2013 01:24:00 -0400
+Subject: [PATCH] Entity Tracking Improvements
+
+If any part of a Vehicle/Passenger relationship is visible to a player,
+send all passenger/vehicles to the player in the chain.
+---
+ src/main/java/net/minecraft/server/Entity.java     |  2 +-
+ .../net/minecraft/server/EntityTrackerEntry.java   | 26 ++++++++++++++++++++++
+ 2 files changed, 27 insertions(+), 1 deletion(-)
+
+diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
+index 9e633e0..a69a104 100644
+--- a/src/main/java/net/minecraft/server/Entity.java
++++ b/src/main/java/net/minecraft/server/Entity.java
+@@ -51,7 +51,7 @@ public abstract class Entity implements ICommandListener {
+     }
+ 
+     protected CraftEntity bukkitEntity;
+-
++    EntityTrackerEntry tracker; // EMC
+     public CraftEntity getBukkitEntity() {
+         if (bukkitEntity == null) {
+             bukkitEntity = CraftEntity.getEntity(world.getServer(), this);
+diff --git a/src/main/java/net/minecraft/server/EntityTrackerEntry.java b/src/main/java/net/minecraft/server/EntityTrackerEntry.java
+index 1602dff..c090772 100644
+--- a/src/main/java/net/minecraft/server/EntityTrackerEntry.java
++++ b/src/main/java/net/minecraft/server/EntityTrackerEntry.java
+@@ -49,6 +49,7 @@ public class EntityTrackerEntry {
+     // Paper end
+ 
+     public EntityTrackerEntry(Entity entity, int i, int j, int k, boolean flag) {
++        entity.tracker = this; // EMC
+         this.tracker = entity;
+         this.e = i;
+         this.f = j;
+@@ -346,8 +347,19 @@ public class EntityTrackerEntry {
+             entityplayer.c(this.tracker);
+             this.trackedPlayers.remove(entityplayer);
+         }
++    }
+ 
++    // EMC start
++    private static boolean isTrackedBy(Entity entity, EntityPlayer entityplayer) {
++        return entity.tracker != null && entity.tracker.trackedPlayers.contains(entityplayer);
++    }
++    private void updateRelated(EntityPlayer player) {
++        tracker.passengers.forEach((e) -> e.tracker.updatePlayer(player));
++        if (tracker.isPassenger()) {
++            tracker.getVehicleDirect().tracker.updatePlayer(player);
++        }
+     }
++    // EMC end
+ 
+     public void updatePlayer(EntityPlayer entityplayer) {
+         org.spigotmc.AsyncCatcher.catchOp( "player tracker update"); // Spigot
+@@ -440,17 +452,30 @@ public class EntityTrackerEntry {
+ 
+                     this.tracker.b(entityplayer);
+                     entityplayer.d(this.tracker);
++                    updateRelated(entityplayer); // EMC
+                 }
+             } else if (this.trackedPlayers.contains(entityplayer)) {
+                 this.trackedPlayers.remove(entityplayer);
+                 this.tracker.c(entityplayer);
+                 entityplayer.c(this.tracker);
++                updateRelated(entityplayer); // EMC
+             }
+ 
+         }
+     }
+ 
+     public boolean c(EntityPlayer entityplayer) {
++        // EMC start
++        if (tracker.isPassenger() && isTrackedBy(tracker.getVehicleDirect(), entityplayer)) {
++            return true;
++        }
++        for (Entity passenger : this.tracker.passengers) {
++            if (passenger instanceof EntityPlayer || isTrackedBy(passenger, entityplayer)) {
++                return true;
++            }
++        }
++        // EMC end
++
+         double d0 = entityplayer.locX - (double) this.xLoc / 4096.0D;
+         double d1 = entityplayer.locZ - (double) this.zLoc / 4096.0D;
+         int i = Math.min(this.e, this.f);
+@@ -590,6 +615,7 @@ public class EntityTrackerEntry {
+             this.trackedPlayers.remove(entityplayer);
+             this.tracker.c(entityplayer);
+             entityplayer.c(this.tracker);
++            updateRelated(entityplayer); // EMC
+         }
+ 
+     }
+-- 
+2.8.1
+
