@@ -47,6 +47,3 @@ function applyPatch {
 }
 applyPatch Paper/Paper-API EmpireCraft-API HEAD api
 applyPatch Paper/Paper-Server EmpireCraft-Server HEAD server
-
-basedir
-scripts/generatesources.sh

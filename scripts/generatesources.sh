@@ -24,7 +24,7 @@ fi
 
 cp $basedir/$decompile/net/minecraft/server/*.java src/net/minecraft/server
 
-base="$basedir/EmpireCraft-Server/src/main/java/net/minecraft/server"
+base="$basedir/Paper/Paper-Server/src/main/java/net/minecraft/server"
 cd $basedir/mc-dev/src/net/minecraft/server/
 for file in $(/bin/ls $base)
 do

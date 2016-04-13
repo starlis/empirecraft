@@ -25,7 +25,7 @@ cd "$basedir/Paper"
 
 basedir
 . scripts/importmcdev.sh
-
+scripts/generatesources.sh
 
 cd Paper/
 
