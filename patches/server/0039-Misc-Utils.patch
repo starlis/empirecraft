@@ -1,86 +1,41 @@
-From 8a2d2d52b7ed34724688f8e5a66806c72ffec4cd Mon Sep 17 00:00:00 2001
+From c718ca799437934ffcabe92950a2f3786a561441 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Wed, 12 Mar 2014 21:29:01 -0400
 Subject: [PATCH] Misc Utils
 
 Adds Misc Util functions to be used by future commits
 ---
- .../com/empireminecraft/cbmisc/CBMiscUtils.java    | 166 +++++++++++++++++++++
- 1 file changed, 166 insertions(+)
+ .../com/empireminecraft/cbmisc/CBMiscUtils.java    | 35 ++++++++++++++++++++++
+ 1 file changed, 35 insertions(+)
  create mode 100644 src/main/java/com/empireminecraft/cbmisc/CBMiscUtils.java
 
 diff --git a/src/main/java/com/empireminecraft/cbmisc/CBMiscUtils.java b/src/main/java/com/empireminecraft/cbmisc/CBMiscUtils.java
 new file mode 100644
-index 0000000..4ab01fa
+index 0000000..7e12c13
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/cbmisc/CBMiscUtils.java
-@@ -0,0 +1,166 @@
+@@ -0,0 +1,35 @@
 +package com.empireminecraft.cbmisc;
 +
 +
-+import net.minecraft.server.*;
++import net.minecraft.server.ItemMonsterEgg;
 +import org.apache.commons.lang.exception.ExceptionUtils;
 +import org.bukkit.Bukkit;
-+import org.bukkit.Server;
++import org.bukkit.Material;
 +import org.bukkit.World;
-+import org.bukkit.command.CommandSender;
-+import org.bukkit.craftbukkit.event.CraftEventFactory;
-+import org.bukkit.entity.Projectile;
-+import org.bukkit.entity.ThrownPotion;
-+import org.bukkit.event.entity.EntityDamageEvent;
-+import org.bukkit.permissions.Permission;
-+import org.bukkit.permissions.PermissionAttachment;
-+import org.bukkit.permissions.PermissionAttachmentInfo;
-+import org.bukkit.plugin.Plugin;
-+
-+import java.util.Set;
++import org.bukkit.craftbukkit.inventory.CraftItemStack;
++import org.bukkit.entity.EntityType;
 +
 +
-+public class CBMiscUtils {
-+    public static EntityDamageEvent.DamageCause getCause(DamageSource source) {
-+        if (source.isExplosion()) {
-+            return EntityDamageEvent.DamageCause.BLOCK_EXPLOSION;
-+        } else if (source instanceof EntityDamageSource) {
-+            Entity damager;
-+            if (source instanceof EntityDamageSourceIndirect) {
-+                damager = ((EntityDamageSourceIndirect) source).getProximateDamageSource();
-+                if (damager.getBukkitEntity() instanceof ThrownPotion) {
-+                    return EntityDamageEvent.DamageCause.MAGIC;
-+                } else if (damager.getBukkitEntity() instanceof Projectile) {
-+                    return EntityDamageEvent.DamageCause.PROJECTILE;
-+                } else {
-+                    return EntityDamageEvent.DamageCause.ENTITY_ATTACK;
-+                }
-+            } else if ("thorns".equals(source.translationIndex)) {
-+                return EntityDamageEvent.DamageCause.THORNS;
-+            } else {
-+                return EntityDamageEvent.DamageCause.ENTITY_ATTACK;
-+            }
-+        } else {
-+            if (source == DamageSource.OUT_OF_WORLD) {
-+                return EntityDamageEvent.DamageCause.VOID;
-+            } else if (source == DamageSource.FIRE) {
-+                return EntityDamageEvent.DamageCause.FIRE;
-+            } else if (source == DamageSource.STARVE) {
-+                return EntityDamageEvent.DamageCause.STARVATION;
-+            } else if (source == DamageSource.WITHER) {
-+                return EntityDamageEvent.DamageCause.WITHER;
-+            } else if (source == DamageSource.STUCK) {
-+                return EntityDamageEvent.DamageCause.SUFFOCATION;
-+            } else if (source == DamageSource.DROWN) {
-+                return EntityDamageEvent.DamageCause.DROWNING;
-+            } else if (source == DamageSource.BURN) {
-+                return EntityDamageEvent.DamageCause.FIRE_TICK;
-+            } else if (source == CraftEventFactory.MELTING) {
-+                return EntityDamageEvent.DamageCause.MELTING;
-+            } else if (source == CraftEventFactory.POISON) {
-+                return EntityDamageEvent.DamageCause.POISON;
-+            } else if (source == DamageSource.MAGIC) {
-+                return EntityDamageEvent.DamageCause.MAGIC;
-+            } else {
-+                return EntityDamageEvent.DamageCause.CUSTOM;
-+            }
++public final class CBMiscUtils {
++    private CBMiscUtils() {}
++
++    public static EntityType getTypeForSpawnEgg(org.bukkit.inventory.ItemStack bukkitItem) {
++        if (bukkitItem.getType() != Material.MONSTER_EGG) {
++            return null;
 +        }
++        net.minecraft.server.ItemStack item = CraftItemStack.asNMSCopy(bukkitItem);
++        return EntityType.fromName(ItemMonsterEgg.h(item));
 +    }
 +
 +    public static void clearEntityMeta() {
@@ -93,92 +48,6 @@ index 0000000..4ab01fa
 +
 +    public static String stack() {
 +        return ExceptionUtils.getFullStackTrace(new Throwable());
-+    }
-+
-+    public abstract static class PartialCommandSender implements CommandSender {
-+        public abstract void sendMessage(String message);
-+
-+        @Override
-+        public void sendMessage(String[] messages) {
-+            for (String message : messages) {
-+                sendMessage(message);
-+            }
-+        }
-+
-+        @Override
-+        public Server getServer() {
-+            return null;
-+        }
-+
-+        @Override
-+        public String getName() {
-+            return null;
-+        }
-+
-+        @Override
-+        public boolean isPermissionSet(String name) {
-+            return false;
-+        }
-+
-+        @Override
-+        public boolean isPermissionSet(Permission perm) {
-+            return false;
-+        }
-+
-+        @Override
-+        public boolean hasPermission(String name) {
-+            return false;
-+        }
-+
-+        @Override
-+        public boolean hasPermission(Permission perm) {
-+            return false;
-+        }
-+
-+        @Override
-+        public PermissionAttachment addAttachment(Plugin plugin, String name, boolean value) {
-+            return null;
-+        }
-+
-+        @Override
-+        public PermissionAttachment addAttachment(Plugin plugin) {
-+            return null;
-+        }
-+
-+        @Override
-+        public PermissionAttachment addAttachment(Plugin plugin, String name, boolean value, int ticks) {
-+            return null;
-+        }
-+
-+        @Override
-+        public PermissionAttachment addAttachment(Plugin plugin, int ticks) {
-+            return null;
-+        }
-+
-+        @Override
-+        public void removeAttachment(PermissionAttachment attachment) {
-+
-+        }
-+
-+        @Override
-+        public void recalculatePermissions() {
-+
-+        }
-+
-+        @Override
-+        public Set<PermissionAttachmentInfo> getEffectivePermissions() {
-+            return null;
-+        }
-+
-+        @Override
-+        public boolean isOp() {
-+            return false;
-+        }
-+
-+        @Override
-+        public void setOp(boolean value) {
-+
-+        }
 +    }
 +}
 -- 
