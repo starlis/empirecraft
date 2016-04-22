@@ -43,6 +43,7 @@ import ServerStatisticManager
 import RemoteControlListener
 import NBTTagList
 import EntityAnimal
+import EntityEnderSignal
 import PathfinderGoalNearestAttackableTarget
 import EnchantmentManager
 import TileEntityEnderChest
