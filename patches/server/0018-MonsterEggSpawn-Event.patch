@@ -1,0 +1,179 @@
+From 4c4a9ebc5fc63cbaf1ecfbb73a6628fab7214a97 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Sat, 20 Jul 2013 22:40:56 -0400
+Subject: [PATCH] MonsterEggSpawn Event
+
+Get the itemstack used to spawn an entity
+---
+ .../customevents/MonsterEggSpawnEvent.java         | 63 ++++++++++++++++++++++
+ .../java/net/minecraft/server/BlockPortal.java     |  2 +-
+ .../net/minecraft/server/DispenserRegistry.java    |  2 +-
+ .../java/net/minecraft/server/ItemMonsterEgg.java  | 31 +++++++++--
+ 4 files changed, 92 insertions(+), 6 deletions(-)
+ create mode 100644 src/main/java/com/empireminecraft/customevents/MonsterEggSpawnEvent.java
+
+diff --git a/src/main/java/com/empireminecraft/customevents/MonsterEggSpawnEvent.java b/src/main/java/com/empireminecraft/customevents/MonsterEggSpawnEvent.java
+new file mode 100644
+index 0000000..013c381
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/customevents/MonsterEggSpawnEvent.java
+@@ -0,0 +1,63 @@
++package com.empireminecraft.customevents;
++
++
++import org.bukkit.entity.HumanEntity;
++import org.bukkit.entity.LivingEntity;
++import org.bukkit.entity.Player;
++import org.bukkit.event.Cancellable;
++import org.bukkit.event.Event;
++import org.bukkit.event.HandlerList;
++import org.bukkit.inventory.ItemStack;
++
++public class MonsterEggSpawnEvent extends Event implements Cancellable {
++    private static final HandlerList handlers = new HandlerList();
++    private boolean canceled;
++
++
++    private final Player player;
++    LivingEntity entity;
++    final ItemStack item;
++
++    public MonsterEggSpawnEvent(HumanEntity player, LivingEntity entity, ItemStack item) {
++        this.player = (Player) player;
++        this.entity = entity;
++        this.item = item;
++    }
++
++    public Player getPlayer() {
++        return player;
++    }
++
++    public LivingEntity getEntity() {
++        return entity;
++    }
++
++    public void setEntity(LivingEntity entity) {
++        if (entity == null) {
++            canceled = true;
++            return;
++        }
++        this.entity = entity;
++    }
++
++    public ItemStack getItem() {
++        return item;
++    }
++
++    public boolean isCancelled() {
++        return canceled;
++    }
++
++    public void setCancelled(boolean cancel) {
++        canceled = cancel;
++    }
++
++    public HandlerList getHandlers() {
++        return handlers;
++    }
++
++    public static HandlerList getHandlerList() {
++        return handlers;
++    }
++
++}
+diff --git a/src/main/java/net/minecraft/server/BlockPortal.java b/src/main/java/net/minecraft/server/BlockPortal.java
+index d85335b..10fc730 100644
+--- a/src/main/java/net/minecraft/server/BlockPortal.java
++++ b/src/main/java/net/minecraft/server/BlockPortal.java
+@@ -46,7 +46,7 @@ public class BlockPortal extends BlockHalfTransparent {
+ 
+             if (i > 0 && !world.getType(blockposition1.up()).l()) {
+                 // CraftBukkit - set spawn reason to NETHER_PORTAL
+-                Entity entity = ItemMonsterEgg.spawnCreature(world, EntityTypes.getName(EntityPigZombie.class), (double) blockposition1.getX() + 0.5D, (double) blockposition1.getY() + 1.1D, (double) blockposition1.getZ() + 0.5D, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.NETHER_PORTAL);
++                Entity entity = ItemMonsterEgg.spawnCreature(null, world, EntityTypes.getName(EntityPigZombie.class), null, (double) blockposition1.getX() + 0.5D, (double) blockposition1.getY() + 1.1D, (double) blockposition1.getZ() + 0.5D, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.NETHER_PORTAL); // EMC
+ 
+                 if (entity != null) {
+                     entity.portalCooldown = entity.aC();
+diff --git a/src/main/java/net/minecraft/server/DispenserRegistry.java b/src/main/java/net/minecraft/server/DispenserRegistry.java
+index a93a990..244af48 100644
+--- a/src/main/java/net/minecraft/server/DispenserRegistry.java
++++ b/src/main/java/net/minecraft/server/DispenserRegistry.java
+@@ -142,7 +142,7 @@ public class DispenserRegistry {
+ 
+                 itemstack1 = CraftItemStack.asNMSCopy(event.getItem());
+ 
+-                Entity entity = ItemMonsterEgg.spawnCreature(isourceblock.getWorld(), ItemMonsterEgg.h(itemstack), event.getVelocity().getX(), event.getVelocity().getY(), event.getVelocity().getZ(), org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.DISPENSE_EGG);
++                Entity entity = ItemMonsterEgg.spawnCreature(isourceblock.getWorld(), itemstack, event.getVelocity().getX(), event.getVelocity().getY(), event.getVelocity().getZ(), org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.DISPENSE_EGG); // EMC
+ 
+                 if (entity instanceof EntityLiving && itemstack.hasName()) {
+                     entity.setCustomName(itemstack.getName());
+diff --git a/src/main/java/net/minecraft/server/ItemMonsterEgg.java b/src/main/java/net/minecraft/server/ItemMonsterEgg.java
+index 554d369..0640cb2 100644
+--- a/src/main/java/net/minecraft/server/ItemMonsterEgg.java
++++ b/src/main/java/net/minecraft/server/ItemMonsterEgg.java
+@@ -51,7 +51,7 @@ public class ItemMonsterEgg extends Item {
+                 d0 = 0.5D;
+             }
+ 
+-            Entity entity = a(world, h(itemstack), (double) blockposition.getX() + 0.5D, (double) blockposition.getY() + d0, (double) blockposition.getZ() + 0.5D);
++            Entity entity = a(entityhuman, world, itemstack, (double) blockposition.getX() + 0.5D, (double) blockposition.getY() + d0, (double) blockposition.getZ() + 0.5D); // EMC
+ 
+             if (entity != null) {
+                 if (entity instanceof EntityLiving && itemstack.hasName()) {
+@@ -104,7 +104,7 @@ public class ItemMonsterEgg extends Item {
+                 if (!(world.getType(blockposition).getBlock() instanceof BlockFluids)) {
+                     return new InteractionResultWrapper(EnumInteractionResult.PASS, itemstack);
+                 } else if (world.a(entityhuman, blockposition) && entityhuman.a(blockposition, movingobjectposition.direction, itemstack)) {
+-                    Entity entity = a(world, h(itemstack), (double) blockposition.getX() + 0.5D, (double) blockposition.getY() + 0.5D, (double) blockposition.getZ() + 0.5D);
++                    Entity entity = a(entityhuman, world, itemstack, (double) blockposition.getX() + 0.5D, (double) blockposition.getY() + 0.5D, (double) blockposition.getZ() + 0.5D); // EMC
+ 
+                     if (entity == null) {
+                         return new InteractionResultWrapper(EnumInteractionResult.PASS, itemstack);
+@@ -130,12 +130,21 @@ public class ItemMonsterEgg extends Item {
+         }
+     }
+ 
+-    public static Entity a(World world, String s, double d0, double d1, double d2) {
++    public static Entity a_disabled(World world, ItemStack s, double d0, double d1, double d2) { // EMC - anything calling this needs to be checked
+         // CraftBukkit start - delegate to spawnCreature
+         return spawnCreature(world, s, d0, d1, d2, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.SPAWNER_EGG);
+     }
+ 
+-    public static Entity spawnCreature(World world, String s, double d0, double d1, double d2, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason spawnReason) {
++    // EMC start
++    public static Entity a(EntityHuman player, World world, ItemStack item, double d0, double d1, double d2) {
++        return spawnCreature(player, world, h(item), item, d0, d1, d2, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.SPAWNER_EGG);
++    }
++    public static Entity spawnCreature(World world, ItemStack item, double d0, double d1, double d2, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason spawnReason) {
++        return spawnCreature(null, world, h(item), item, d0, d1, d2, spawnReason);
++    }
++
++    public static Entity spawnCreature(EntityHuman player,  World world, String s, ItemStack item, double d0, double d1, double d2, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason spawnReason) {
++        // EMC end
+         if (s != null && EntityTypes.eggInfo.containsKey(s)) {
+             Entity entity = null;
+ 
+@@ -152,6 +161,20 @@ public class ItemMonsterEgg extends Item {
+                     if (!world.addEntity(entity, spawnReason)) {
+                         entity = null;
+                     } else {
++                        // EMC start - if false the spawn was cancelled, add new event
++                        if (item != null && player != null) {
++                            final com.empireminecraft.customevents.MonsterEggSpawnEvent event = new com.empireminecraft.customevents.MonsterEggSpawnEvent(player.getBukkitEntity(), (org.bukkit.entity.LivingEntity) entity.getBukkitEntity(), org.bukkit.craftbukkit.inventory.CraftItemStack.asCraftMirror(item));
++
++                            if (!event.callEvent()) {
++                                world.removeEntity(entity);
++                                return null;
++                            }
++                            if (event.getEntity().getEntityId() != entity.getId()) {
++                                world.removeEntity(entity);
++                                entity = entityinsentient = (EntityInsentient) ((org.bukkit.craftbukkit.entity.CraftEntity) event.getEntity()).getHandle();
++                            }
++                        }
++                        // EMC end
+                         entityinsentient.D();
+                     }
+                     // CraftBukkit end
+-- 
+2.8.1
+
