@@ -54,6 +54,7 @@ import ItemSnowball
 import ItemBookAndQuill
 import MerchantRecipe
 import CommandStop
+import NBTTagCompound
 import BlockSponge
 import EntityMinecartHopper
 import PathfinderGoalInteractVillagers
