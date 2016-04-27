@@ -1,4 +1,4 @@
-From d39577532bb39b7bb3af89903a99aa33bf54c62e Mon Sep 17 00:00:00 2001
+From 6be24df128d59606d6ae3b92d0a88f6f706c96fb Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Mon, 4 Mar 2013 23:35:02 -0500
 Subject: [PATCH] Persistent Meta API
@@ -7,7 +7,7 @@ This adds an API for getting and setting PERSISTENT Metadata
 Meta data can be stored on Worlds, Entities, Chunks and at a Block level.
 Meta is is provided in a simple Map/List setup and does not expose raw NBT access.
 ---
- .../java/com/empireminecraft/metaapi/MetaApi.java  | 315 ++++++++++++++++++
+ .../java/com/empireminecraft/metaapi/MetaApi.java  | 318 ++++++++++++++++++
  src/main/java/net/minecraft/server/Chunk.java      |   1 +
  .../net/minecraft/server/ChunkRegionLoader.java    |   2 +
  src/main/java/net/minecraft/server/Entity.java     |   3 +
@@ -15,16 +15,16 @@ Meta is is provided in a simple Map/List setup and does not expose raw NBT acces
  .../java/net/minecraft/server/NBTTagCompound.java  |   2 +-
  src/main/java/net/minecraft/server/NBTTagList.java |  11 +-
  src/main/java/net/minecraft/server/WorldData.java  |   5 +-
- 8 files changed, 703 insertions(+), 3 deletions(-)
+ 8 files changed, 706 insertions(+), 3 deletions(-)
  create mode 100644 src/main/java/com/empireminecraft/metaapi/MetaApi.java
  create mode 100644 src/main/java/net/minecraft/server/MetaApiAccessor.java
 
 diff --git a/src/main/java/com/empireminecraft/metaapi/MetaApi.java b/src/main/java/com/empireminecraft/metaapi/MetaApi.java
 new file mode 100644
-index 0000000..572257b
+index 0000000..f82e42f
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/metaapi/MetaApi.java
-@@ -0,0 +1,315 @@
+@@ -0,0 +1,318 @@
 +package com.empireminecraft.metaapi;
 +
 +import com.google.common.collect.ForwardingMap;
@@ -106,7 +106,7 @@ index 0000000..572257b
 +    }
 +
 +    public static <T> T removeEntityMeta(Entity entity, String key) {
-+        return setEntityMeta(entity, key, null);
++        return setMetaMapValue(getEntityMetaMap(entity, false), key, null);
 +    }
 +
 +    //////////////////////////////////////////////////
@@ -146,7 +146,7 @@ index 0000000..572257b
 +    }
 +
 +    public static <T> T removeChunkMeta(Chunk chunk, String key) {
-+        return setChunkMeta(chunk, key, null);
++        return setMetaMapValue(getChunkMetaMap(chunk, false), key, null);
 +    }
 +
 +    //////////////////////////////////////////////////
@@ -177,7 +177,7 @@ index 0000000..572257b
 +    }
 +
 +    public static <T> T removeBlockMeta(Location loc, String key) {
-+        return setBlockMeta(loc, key, null);
++        return setMetaMapValue(getBlockMetaMap(loc, false), key, null);
 +    }
 +
 +    //////////////////////////////////////////////////
@@ -195,6 +195,9 @@ index 0000000..572257b
 +     * @return
 +     */
 +    private static <T> T setMetaMapValue(MetaMap map, String key, Object val) {
++        if (map == null) {
++            return null;
++        }
 +        if (val == null) {
 +            return (T) map.remove(key);
 +        } else {
