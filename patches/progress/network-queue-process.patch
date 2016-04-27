@@ -1,0 +1,101 @@
+From 11eec02781082797849cc47ec3b6c48634e9078a Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Sat, 23 Apr 2016 23:40:51 -0400
+Subject: [PATCH] 400 TPS
+
+---
+ .../java/net/minecraft/server/MinecraftServer.java    | 19 +++++++++++++++++--
+ .../net/minecraft/server/PlayerConnectionUtils.java   | 10 ++++++----
+ 2 files changed, 23 insertions(+), 6 deletions(-)
+
+diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
+index 4de7292..6f00e14 100644
+--- a/src/main/java/net/minecraft/server/MinecraftServer.java
++++ b/src/main/java/net/minecraft/server/MinecraftServer.java
+@@ -109,6 +109,18 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+     private long aa = av();
+ 
+     // CraftBukkit start
++    private static final Queue<FutureTask<?>> networkQueue = new java.util.concurrent.ConcurrentLinkedQueue<FutureTask<?>>();
++    static void schedulePacket(Callable<?> run) {
++        networkQueue.add(ListenableFutureTask.create(run));
++    }
++    static void processNetworkQueue() {
++        // Spigot start
++        FutureTask<?> entry;
++        int count = networkQueue.size();
++        while (count-- > 0 && (entry = networkQueue.poll()) != null) {
++            SystemUtils.a(entry, MinecraftServer.LOGGER);
++        }
++    }
+     public List<WorldServer> worlds = new ArrayList<WorldServer>();
+     public org.bukkit.craftbukkit.CraftServer server;
+     public OptionSet options;
+@@ -827,6 +839,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+          }
+         // Spigot end
+         SpigotTimings.minecraftSchedulerTimer.stopTiming(); // Paper
++        processNetworkQueue(); // Paper
+ 
+         this.methodProfiler.c("levels");
+ 
+@@ -874,7 +887,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+                 // CraftBukkit end */
+ 
+                 this.methodProfiler.a("tick");
+-
++                processNetworkQueue(); // Paper
+                 CrashReport crashreport;
+ 
+                 try {
+@@ -892,7 +905,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+                     worldserver.a(crashreport);
+                     throw new ReportedException(crashreport);
+                 }
+-
++                processNetworkQueue(); // Paper
+                 try {
+                     worldserver.timings.tickEntities.startTiming(); // Spigot
+                     worldserver.tickEntities();
+@@ -910,6 +923,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+                 }
+ 
+                 this.methodProfiler.b();
++                processNetworkQueue(); // Paper
+                 this.methodProfiler.a("tracker");
+                 worldserver.timings.tracker.startTiming(); // Spigot
+                 worldserver.getTracker().updatePlayers();
+@@ -939,6 +953,7 @@ public abstract class MinecraftServer implements Runnable, ICommandListener, IAs
+         SpigotTimings.tickablesTimer.stopTiming(); // Spigot
+ 
+         this.methodProfiler.b();
++        processNetworkQueue(); // Paper
+     }
+ 
+     public boolean getAllowNether() {
+diff --git a/src/main/java/net/minecraft/server/PlayerConnectionUtils.java b/src/main/java/net/minecraft/server/PlayerConnectionUtils.java
+index f74b067..0c541c2 100644
+--- a/src/main/java/net/minecraft/server/PlayerConnectionUtils.java
++++ b/src/main/java/net/minecraft/server/PlayerConnectionUtils.java
+@@ -4,12 +4,14 @@ public class PlayerConnectionUtils {
+ 
+     public static <T extends PacketListener> void ensureMainThread(final Packet<T> packet, final T t0, IAsyncTaskHandler iasynctaskhandler) throws CancelledPacketHandleException {
+         if (!iasynctaskhandler.isMainThread()) {
+-            iasynctaskhandler.postToMainThread(new Runnable() {
+-                public void run() {
+-                    packet.a(packetlistener);
+-                }
++            // Paper start - faster network processing
++            MinecraftServer.schedulePacket(() -> {
++                packet.a(t0);
++                return null;
+             });
++            // Paper end
+             throw CancelledPacketHandleException.INSTANCE;
+         }
++
+     }
+ }
+-- 
+2.8.1
+
