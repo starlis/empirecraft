@@ -27,6 +27,8 @@ function import {
 		export MODLOG="$MODLOG  Imported $file from mc-dev\n";
 		echo "Copying $base to $target"
 		cp "$base" "$target"
+	else
+		echo "UN-NEEDED IMPORT STATEMENT: $file"
 	fi
 }
 
@@ -39,33 +41,20 @@ function import {
 )
 
 import BlockFlowerPot
-import ServerStatisticManager
-import RemoteControlListener
-import NBTTagList
-import EntityAnimal
-import EntityEnderSignal
-import PathfinderGoalNearestAttackableTarget
-import EnchantmentManager
-import TileEntityEnderChest
-import TileEntityLightDetector
-import PathfinderGoalArrowAttack
-import PathfinderGoalTarget
-import ItemSnowball
-import ItemBookAndQuill
-import MerchantRecipe
-import CommandStop
-import NBTTagCompound
 import BlockSponge
-import EntityMinecartHopper
-import PathfinderGoalInteractVillagers
-import GameProfileSerializer
-import PathfinderNormal
-import NavigationAbstract
-import EntityBat
-import ItemBlock
 import CommandGive
-import ChunkCache
+import CommandStop
+import EnchantmentManager
+import EntityBat
+import EntityEnderSignal
+import EntityMinecartHopper
+import GameProfileSerializer
+import ItemBookAndQuill
+import PathfinderGoalArrowAttack
+import PathfinderGoalInteractVillagers
 import PathfinderGoalSelector
+import TileEntityLightDetector
+
 
 (
 	cd Paper/Paper-Server/
