@@ -1,4 +1,4 @@
-From 8d526d398bbe418ba2001373a59388167abc95d6 Mon Sep 17 00:00:00 2001
+From d835d4e70183be0a279ba3f8b855e9f70f937f3c Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Mon, 4 Mar 2013 23:35:02 -0500
 Subject: [PATCH] Persistent Meta API
@@ -7,23 +7,23 @@ This adds an API for getting and setting PERSISTENT Metadata
 Meta data can be stored on Worlds, Entities, Chunks and at a Block level.
 Meta is is provided in a simple Map/List setup and does not expose raw NBT access.
 ---
- .../java/com/empireminecraft/metaapi/MetaApi.java  | 350 ++++++++++++++++++
+ .../java/com/empireminecraft/metaapi/MetaApi.java  | 355 ++++++++++++++++++
  src/main/java/net/minecraft/server/Chunk.java      |   1 +
  .../net/minecraft/server/ChunkRegionLoader.java    |   2 +
  src/main/java/net/minecraft/server/Entity.java     |   3 +
- .../java/net/minecraft/server/MetaApiAccessor.java | 392 +++++++++++++++++++++
+ .../java/net/minecraft/server/MetaApiAccessor.java | 395 +++++++++++++++++++++
  src/main/java/net/minecraft/server/TileEntity.java |   3 +
  src/main/java/net/minecraft/server/WorldData.java  |   5 +-
- 7 files changed, 755 insertions(+), 1 deletion(-)
+ 7 files changed, 763 insertions(+), 1 deletion(-)
  create mode 100644 src/main/java/com/empireminecraft/metaapi/MetaApi.java
  create mode 100644 src/main/java/net/minecraft/server/MetaApiAccessor.java
 
 diff --git a/src/main/java/com/empireminecraft/metaapi/MetaApi.java b/src/main/java/com/empireminecraft/metaapi/MetaApi.java
 new file mode 100644
-index 0000000..2429e8e
+index 0000000..e42ba28
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/metaapi/MetaApi.java
-@@ -0,0 +1,350 @@
+@@ -0,0 +1,355 @@
 +package com.empireminecraft.metaapi;
 +
 +import com.google.common.collect.ForwardingMap;
@@ -34,6 +34,7 @@ index 0000000..2429e8e
 +import org.bukkit.block.BlockState;
 +import org.bukkit.craftbukkit.CraftChunk;
 +import org.bukkit.craftbukkit.CraftWorld;
++import org.bukkit.craftbukkit.block.CraftBlockState;
 +import org.bukkit.entity.Entity;
 +import org.bukkit.inventory.ItemStack;
 +
@@ -188,7 +189,11 @@ index 0000000..2429e8e
 +        return MetaApiAccessor.getTileEntityMetaMap(tileEntity, isWrite);
 +    }
 +
-+    public static boolean hasBlockMeta(BlockState tileEntity, String key) {
++    public static boolean isTileEntity(BlockState state) {
++        return ((CraftBlockState) state).getTileEntity() != null;
++    }
++
++    public static boolean hasTileEntityMeta(BlockState tileEntity, String key) {
 +        final MetaMap tileEntityMetaMap = getTileEntityMetaMap(tileEntity, false);
 +        return tileEntityMetaMap != null && !tileEntityMetaMap.isEmpty() && tileEntityMetaMap.containsKey(key);
 +    }
@@ -203,11 +208,11 @@ index 0000000..2429e8e
 +        return ret != null ? ret : def;
 +    }
 +
-+    public static <T> T setBlockMeta(BlockState tileEntity, String key, Object val) {
++    public static <T> T setTileEntityMeta(BlockState tileEntity, String key, Object val) {
 +        return setMetaMapValue(getTileEntityMetaMap(tileEntity, true), key, val);
 +    }
 +
-+    public static <T> T removeBlockMeta(BlockState tileEntity, String key) {
++    public static <T> T removeTileEntityMeta(BlockState tileEntity, String key) {
 +        return setMetaMapValue(getTileEntityMetaMap(tileEntity, false), key, null);
 +    }
 +
@@ -436,10 +441,10 @@ index 0a4de90..3ba528e 100644
              if (Math.abs(this.motX) > 10.0D) {
 diff --git a/src/main/java/net/minecraft/server/MetaApiAccessor.java b/src/main/java/net/minecraft/server/MetaApiAccessor.java
 new file mode 100644
-index 0000000..63a74eb
+index 0000000..75c5b50
 --- /dev/null
 +++ b/src/main/java/net/minecraft/server/MetaApiAccessor.java
-@@ -0,0 +1,392 @@
+@@ -0,0 +1,395 @@
 +package net.minecraft.server;
 +
 +import net.minecraft.server.NBTBase.NBTNumber;
@@ -476,6 +481,9 @@ index 0000000..63a74eb
 +    public static MetaMap getTileEntityMetaMap(org.bukkit.block.BlockState block, boolean isWrite) {
 +        final CraftBlockState craftBlock = (CraftBlockState) block;
 +        final TileEntity tileEntity = craftBlock.getTileEntity();
++        if (tileEntity == null) {
++            return null;
++        }
 +        if (tileEntity.metaMap == null && isWrite) {
 +            tileEntity.metaMap = new MetaMap();
 +        }
