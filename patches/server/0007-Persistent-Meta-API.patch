@@ -1,4 +1,4 @@
-From 38166cbc793149f2b7c00c410cc243b3cfe1ef5b Mon Sep 17 00:00:00 2001
+From 8d526d398bbe418ba2001373a59388167abc95d6 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Mon, 4 Mar 2013 23:35:02 -0500
 Subject: [PATCH] Persistent Meta API
@@ -7,22 +7,23 @@ This adds an API for getting and setting PERSISTENT Metadata
 Meta data can be stored on Worlds, Entities, Chunks and at a Block level.
 Meta is is provided in a simple Map/List setup and does not expose raw NBT access.
 ---
- .../java/com/empireminecraft/metaapi/MetaApi.java  | 318 ++++++++++++++++++
+ .../java/com/empireminecraft/metaapi/MetaApi.java  | 350 ++++++++++++++++++
  src/main/java/net/minecraft/server/Chunk.java      |   1 +
  .../net/minecraft/server/ChunkRegionLoader.java    |   2 +
  src/main/java/net/minecraft/server/Entity.java     |   3 +
- .../java/net/minecraft/server/MetaApiAccessor.java | 367 +++++++++++++++++++++
+ .../java/net/minecraft/server/MetaApiAccessor.java | 392 +++++++++++++++++++++
+ src/main/java/net/minecraft/server/TileEntity.java |   3 +
  src/main/java/net/minecraft/server/WorldData.java  |   5 +-
- 6 files changed, 695 insertions(+), 1 deletion(-)
+ 7 files changed, 755 insertions(+), 1 deletion(-)
  create mode 100644 src/main/java/com/empireminecraft/metaapi/MetaApi.java
  create mode 100644 src/main/java/net/minecraft/server/MetaApiAccessor.java
 
 diff --git a/src/main/java/com/empireminecraft/metaapi/MetaApi.java b/src/main/java/com/empireminecraft/metaapi/MetaApi.java
 new file mode 100644
-index 0000000..f82e42f
+index 0000000..2429e8e
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/metaapi/MetaApi.java
-@@ -0,0 +1,318 @@
+@@ -0,0 +1,350 @@
 +package com.empireminecraft.metaapi;
 +
 +import com.google.common.collect.ForwardingMap;
@@ -30,6 +31,7 @@ index 0000000..f82e42f
 +import org.bukkit.Chunk;
 +import org.bukkit.Location;
 +import org.bukkit.World;
++import org.bukkit.block.BlockState;
 +import org.bukkit.craftbukkit.CraftChunk;
 +import org.bukkit.craftbukkit.CraftWorld;
 +import org.bukkit.entity.Entity;
@@ -176,6 +178,37 @@ index 0000000..f82e42f
 +
 +    public static <T> T removeBlockMeta(Location loc, String key) {
 +        return setMetaMapValue(getBlockMetaMap(loc, false), key, null);
++    }
++
++    //////////////////////////////////////////////////
++    //// TILE ENTITY META
++    //////////////////////////////////////////////////
++
++    public static MetaMap getTileEntityMetaMap(BlockState tileEntity, boolean isWrite) {
++        return MetaApiAccessor.getTileEntityMetaMap(tileEntity, isWrite);
++    }
++
++    public static boolean hasBlockMeta(BlockState tileEntity, String key) {
++        final MetaMap tileEntityMetaMap = getTileEntityMetaMap(tileEntity, false);
++        return tileEntityMetaMap != null && !tileEntityMetaMap.isEmpty() && tileEntityMetaMap.containsKey(key);
++    }
++
++    public static <T> T getTileEntityMeta(BlockState tileEntity, String key) {
++        return getTileEntityMeta(tileEntity, key, null);
++    }
++
++    public static <T> T getTileEntityMeta(BlockState tileEntity, String key, T def) {
++        final MetaMap tileEntityMetaMap = getTileEntityMetaMap(tileEntity, false);
++        T ret = tileEntityMetaMap != null && !tileEntityMetaMap.isEmpty() ? (T) tileEntityMetaMap.get(key) : null;
++        return ret != null ? ret : def;
++    }
++
++    public static <T> T setBlockMeta(BlockState tileEntity, String key, Object val) {
++        return setMetaMapValue(getTileEntityMetaMap(tileEntity, true), key, val);
++    }
++
++    public static <T> T removeBlockMeta(BlockState tileEntity, String key) {
++        return setMetaMapValue(getTileEntityMetaMap(tileEntity, false), key, null);
 +    }
 +
 +    //////////////////////////////////////////////////
@@ -342,7 +375,7 @@ index 0000000..f82e42f
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/Chunk.java b/src/main/java/net/minecraft/server/Chunk.java
-index dff47c3..f9d313a 100644
+index 8c64b2d..26f9122 100644
 --- a/src/main/java/net/minecraft/server/Chunk.java
 +++ b/src/main/java/net/minecraft/server/Chunk.java
 @@ -114,6 +114,7 @@ public class Chunk {
@@ -403,15 +436,16 @@ index 0a4de90..3ba528e 100644
              if (Math.abs(this.motX) > 10.0D) {
 diff --git a/src/main/java/net/minecraft/server/MetaApiAccessor.java b/src/main/java/net/minecraft/server/MetaApiAccessor.java
 new file mode 100644
-index 0000000..e25e998
+index 0000000..63a74eb
 --- /dev/null
 +++ b/src/main/java/net/minecraft/server/MetaApiAccessor.java
-@@ -0,0 +1,367 @@
+@@ -0,0 +1,392 @@
 +package net.minecraft.server;
 +
 +import net.minecraft.server.NBTBase.NBTNumber;
 +import org.bukkit.craftbukkit.CraftChunk;
 +import org.bukkit.craftbukkit.CraftWorld;
++import org.bukkit.craftbukkit.block.CraftBlockState;
 +import org.bukkit.craftbukkit.entity.CraftEntity;
 +import org.bukkit.craftbukkit.inventory.CraftItemStack;
 +
@@ -427,6 +461,7 @@ index 0000000..e25e998
 +    private static final String META_TYPE = "MetaType";
 +    private static final String ITEM = "Item";
 +    private static final String ENTITY_META = "_EntityMeta";
++    private static final String TILEENTITY_META = "_TileEntityMeta";
 +    private static final String WORLD_META = "_WorldMeta";
 +    private static final String CHUNK_META_LIST = "_ChunkMetaList";
 +    private static final String BLOCK_POS = "_BlockPos";
@@ -437,6 +472,16 @@ index 0000000..e25e998
 +    public static MetaMap getWorldMetaMap(CraftWorld world) {
 +        return world.getHandle().worldData.metaMap;
 +    }
++
++    public static MetaMap getTileEntityMetaMap(org.bukkit.block.BlockState block, boolean isWrite) {
++        final CraftBlockState craftBlock = (CraftBlockState) block;
++        final TileEntity tileEntity = craftBlock.getTileEntity();
++        if (tileEntity.metaMap == null && isWrite) {
++            tileEntity.metaMap = new MetaMap();
++        }
++        return tileEntity.metaMap;
++    }
++
 +    /**
 +     * Util for getting a MetaMap by location
 +     * @param loc
@@ -505,9 +550,22 @@ index 0000000..e25e998
 +            entity.metaMap = getMetaMapFromCompound(nbt.getCompound(ENTITY_META));
 +        }
 +    }
++
 +    static void saveEntityMeta(Entity entity, NBTTagCompound nbt) {
 +        if (entity.metaMap != null && !entity.metaMap.isEmpty()) {
 +            nbt.set(ENTITY_META, getNbtFromObject(entity.metaMap));
++        }
++    }
++
++    static void loadTileEntityMeta(TileEntity tileEntity, NBTTagCompound nbt) {
++        if (nbt.hasKey(TILEENTITY_META)) {
++            tileEntity.metaMap = getMetaMapFromCompound(nbt.getCompound(TILEENTITY_META));
++        }
++    }
++
++    static void saveTileEntityMeta(TileEntity tileEntity, NBTTagCompound nbt) {
++        if (tileEntity.metaMap != null && !tileEntity.metaMap.isEmpty()) {
++            nbt.set(TILEENTITY_META, getNbtFromObject(tileEntity.metaMap));
 +        }
 +    }
 +
@@ -774,6 +832,34 @@ index 0000000..e25e998
 +
 +    public static class ChunkMeta extends HashMap<BlockPos, MetaMap> {}
 +}
+diff --git a/src/main/java/net/minecraft/server/TileEntity.java b/src/main/java/net/minecraft/server/TileEntity.java
+index 4809cbf..efd715c 100644
+--- a/src/main/java/net/minecraft/server/TileEntity.java
++++ b/src/main/java/net/minecraft/server/TileEntity.java
+@@ -50,6 +50,7 @@ public abstract class TileEntity {
+     }
+ 
+     public void a(NBTTagCompound nbttagcompound) {
++        MetaApiAccessor.loadTileEntityMeta(this, nbttagcompound); // EMC
+         this.position = new BlockPosition(nbttagcompound.getInt("x"), nbttagcompound.getInt("y"), nbttagcompound.getInt("z"));
+     }
+ 
+@@ -59,6 +60,7 @@ public abstract class TileEntity {
+         if (s == null) {
+             throw new RuntimeException(this.getClass() + " is missing a mapping! This is a bug!");
+         } else {
++            MetaApiAccessor.saveTileEntityMeta(this, nbttagcompound); // EMC
+             nbttagcompound.setString("id", s);
+             nbttagcompound.setInt("x", this.position.getX());
+             nbttagcompound.setInt("y", this.position.getY());
+@@ -247,6 +249,7 @@ public abstract class TileEntity {
+         a(TileEntityCommand.class, "Control");
+     }
+ 
++    com.empireminecraft.metaapi.MetaApi.MetaMap metaMap; // EMC
+     // CraftBukkit start - add method
+     public InventoryHolder getOwner() {
+         if (world == null) return null;
 diff --git a/src/main/java/net/minecraft/server/WorldData.java b/src/main/java/net/minecraft/server/WorldData.java
 index eb83b38..92f44f7 100644
 --- a/src/main/java/net/minecraft/server/WorldData.java
