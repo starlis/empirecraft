@@ -1,4 +1,4 @@
-From d835d4e70183be0a279ba3f8b855e9f70f937f3c Mon Sep 17 00:00:00 2001
+From 3d8482b04f3ea3f1e45c9a244a5cac42a0a653e0 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Mon, 4 Mar 2013 23:35:02 -0500
 Subject: [PATCH] Persistent Meta API
@@ -7,17 +7,62 @@ This adds an API for getting and setting PERSISTENT Metadata
 Meta data can be stored on Worlds, Entities, Chunks and at a Block level.
 Meta is is provided in a simple Map/List setup and does not expose raw NBT access.
 ---
+ .../metaapi/BlockWithMetaClearedEvent.java         |  36 ++
  .../java/com/empireminecraft/metaapi/MetaApi.java  | 355 ++++++++++++++++++
  src/main/java/net/minecraft/server/Chunk.java      |   1 +
  .../net/minecraft/server/ChunkRegionLoader.java    |   2 +
  src/main/java/net/minecraft/server/Entity.java     |   3 +
- .../java/net/minecraft/server/MetaApiAccessor.java | 395 +++++++++++++++++++++
+ .../java/net/minecraft/server/MetaApiAccessor.java | 416 +++++++++++++++++++++
  src/main/java/net/minecraft/server/TileEntity.java |   3 +
+ src/main/java/net/minecraft/server/World.java      |   1 +
  src/main/java/net/minecraft/server/WorldData.java  |   5 +-
- 7 files changed, 763 insertions(+), 1 deletion(-)
+ 9 files changed, 821 insertions(+), 1 deletion(-)
+ create mode 100644 src/main/java/com/empireminecraft/metaapi/BlockWithMetaClearedEvent.java
  create mode 100644 src/main/java/com/empireminecraft/metaapi/MetaApi.java
  create mode 100644 src/main/java/net/minecraft/server/MetaApiAccessor.java
 
+diff --git a/src/main/java/com/empireminecraft/metaapi/BlockWithMetaClearedEvent.java b/src/main/java/com/empireminecraft/metaapi/BlockWithMetaClearedEvent.java
+new file mode 100644
+index 0000000..4114b48
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/metaapi/BlockWithMetaClearedEvent.java
+@@ -0,0 +1,36 @@
++/*
++ * Copyright (c) 2016. Starlis LLC / dba Empire Minecraft
++ *
++ * This source code is proprietary software and must not be redistributed without Starlis LLC's approval
++ *
++ */
++
++package com.empireminecraft.metaapi;
++
++import net.minecraft.server.BlockPosition;
++
++import net.minecraft.server.Chunk;
++import org.bukkit.block.Block;
++import org.bukkit.event.Event;
++import org.bukkit.event.HandlerList;
++
++public class BlockWithMetaClearedEvent extends Event {
++    private final Block block;
++    public BlockWithMetaClearedEvent(Chunk chunk, BlockPosition pos) {
++        this.block = chunk.bukkitChunk.getBlock(pos.getX(), pos.getY(), pos.getZ());
++    }
++
++    public Block getBlock() {
++        return block;
++    }
++
++    private static final HandlerList handlers = new HandlerList();
++
++    public HandlerList getHandlers() {
++        return handlers;
++    }
++
++    public static HandlerList getHandlerList() {
++        return handlers;
++    }
++}
 diff --git a/src/main/java/com/empireminecraft/metaapi/MetaApi.java b/src/main/java/com/empireminecraft/metaapi/MetaApi.java
 new file mode 100644
 index 0000000..e42ba28
@@ -441,12 +486,13 @@ index 0a4de90..3ba528e 100644
              if (Math.abs(this.motX) > 10.0D) {
 diff --git a/src/main/java/net/minecraft/server/MetaApiAccessor.java b/src/main/java/net/minecraft/server/MetaApiAccessor.java
 new file mode 100644
-index 0000000..75c5b50
+index 0000000..408660c
 --- /dev/null
 +++ b/src/main/java/net/minecraft/server/MetaApiAccessor.java
-@@ -0,0 +1,395 @@
+@@ -0,0 +1,416 @@
 +package net.minecraft.server;
 +
++import com.empireminecraft.metaapi.BlockWithMetaClearedEvent;
 +import net.minecraft.server.NBTBase.NBTNumber;
 +import org.bukkit.craftbukkit.CraftChunk;
 +import org.bukkit.craftbukkit.CraftWorld;
@@ -510,7 +556,7 @@ index 0000000..75c5b50
 +
 +    /**
 +     * Gets the metamap for the specified coords, creating it if it doesnt exists
-+     * @param meta
++     * @param handle
 +     * @param x
 +     * @param y
 +     * @param z
@@ -524,7 +570,7 @@ index 0000000..75c5b50
 +            }
 +            meta = handle.chunkMeta = new ChunkMeta();
 +        }
-+        BlockPos coords = new BlockPos(x, y,  z);
++        BlockPos coords = new BlockPos(x, y, z);
 +        if (!isWrite && !meta.containsKey(coords)) {
 +            return null;
 +        }
@@ -694,7 +740,7 @@ index 0000000..75c5b50
 +            return getCompoundFromMetaMap((MetaMap) value);
 +        } else if (value instanceof MetaList) {
 +            NBTTagList list = new NBTTagList();
-+            for (Object obj : (Iterable) value) {
++            for (Object obj : (Iterable<?>) value) {
 +                NBTBase add = getNbtFromObject(obj);
 +                if (add != null) {
 +                    list.add(add);
@@ -819,11 +865,10 @@ index 0000000..75c5b50
 +    /**
 +     * Parses a string into BlockPos
 +     *
-+     * @deprecated Only used for reading old data
 +     * @param loc
 +     * @return
 +     */
-+    static BlockPos deserializeOldLoc(String loc) {
++    private static BlockPos deserializeOldLoc(String loc) {
 +        if (loc != null)  {
 +            String[] args = COLON_SPLIT.split(loc, 3);
 +            if (args.length == 3) {
@@ -832,13 +877,34 @@ index 0000000..75c5b50
 +                    int y = (int) Math.floor(Float.parseFloat(args[1]));
 +                    int z = (int) Math.floor(Float.parseFloat(args[2]));
 +                    return new BlockPos(x, y, z);
-+                } catch (NumberFormatException inored) {}
++                } catch (NumberFormatException ignored) {}
 +            }
 +        }
 +        return null;
 +    }
 +
-+    public static class ChunkMeta extends HashMap<BlockPos, MetaMap> {}
++    static void processSetAir(Chunk chunk, BlockPosition pos) {
++        ChunkMeta meta = chunk.chunkMeta;
++        if (meta == null) {
++            return;
++        }
++        BlockPos coords = new BlockPos(pos.getX(), pos.getY(), pos.getZ());
++        if (meta.containsKey(coords)) {
++            new BlockWithMetaClearedEvent(chunk, pos).callEvent();
++        }
++    }
++
++    static class ChunkMeta extends HashMap<BlockPos, MetaMap> {
++        ChunkMeta() {}
++
++        ChunkMeta(Map<? extends BlockPos, ? extends MetaMap> m) {
++            super(m);
++        }
++
++        public ChunkMeta clone() {
++            return new ChunkMeta(this);
++        }
++    }
 +}
 diff --git a/src/main/java/net/minecraft/server/TileEntity.java b/src/main/java/net/minecraft/server/TileEntity.java
 index 4809cbf..efd715c 100644
@@ -868,6 +934,18 @@ index 4809cbf..efd715c 100644
      // CraftBukkit start - add method
      public InventoryHolder getOwner() {
          if (world == null) return null;
+diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
+index c453981..cd54803 100644
+--- a/src/main/java/net/minecraft/server/World.java
++++ b/src/main/java/net/minecraft/server/World.java
+@@ -426,6 +426,7 @@ public abstract class World implements IBlockAccess {
+                     }
+                 }
+                 */
++                if (block == Blocks.AIR) MetaApiAccessor.processSetAir(chunk, blockposition); // EMC
+ 
+                 // CraftBukkit start
+                 if (!this.captureBlockStates) { // Don't notify clients or update physics while capturing blockstates
 diff --git a/src/main/java/net/minecraft/server/WorldData.java b/src/main/java/net/minecraft/server/WorldData.java
 index eb83b38..92f44f7 100644
 --- a/src/main/java/net/minecraft/server/WorldData.java
