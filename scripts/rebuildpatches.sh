@@ -13,8 +13,23 @@ echo "Rebuilding patch files from current fork state..."
 function savePatches {
 	what=$1
 	cd $basedir/$what/
+
 	mkdir -p $basedir/patches/$2
-	rm $basedir/patches/$2/*.patch 2>/dev/null
+	if [ -d ".git/rebase-apply" ]; then
+		# in middle of a rebase, be smarter
+		echo "REBASE DETECTED - PARTIAL SAVE"
+		last=$(cat ".git/rebase-apply/last")
+		next=$(cat ".git/rebase-apply/next")
+		for i in $(seq -f "%04g" 1 1 $last)
+		do
+			if [ $i -lt $next ]; then
+				rm $basedir/patches/$2/${i}-*.patch
+			fi
+		done
+	else
+		rm $basedir/patches/$2/*.patch
+	fi
+
 	git format-patch --quiet -N -o $basedir/patches/$2 upstream/upstream
 	cd $basedir
 	git add -A $basedir/patches/$2

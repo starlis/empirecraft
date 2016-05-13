@@ -1,17 +1,17 @@
-From 7a831e51dcba12594a1607980832887ee167d591 Mon Sep 17 00:00:00 2001
+From 6ced6438cb5591f988db17fe41b9e4620d6f517d Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Mon, 8 Jun 2015 23:55:20 -0400
 Subject: [PATCH] SendSignEvent
 
 ---
  .../customevents/SendSignEvent.java                | 48 ++++++++++++++++++++++
- .../java/net/minecraft/server/TileEntitySign.java  |  1 +
- 2 files changed, 49 insertions(+)
+ .../java/net/minecraft/server/TileEntitySign.java  | 14 ++++++-
+ 2 files changed, 60 insertions(+), 2 deletions(-)
  create mode 100644 src/main/java/com/empireminecraft/customevents/SendSignEvent.java
 
 diff --git a/src/main/java/com/empireminecraft/customevents/SendSignEvent.java b/src/main/java/com/empireminecraft/customevents/SendSignEvent.java
 new file mode 100644
-index 0000000..ea82b75
+index 0000000..86409c6
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/customevents/SendSignEvent.java
 @@ -0,0 +1,48 @@
@@ -27,7 +27,7 @@ index 0000000..ea82b75
 +import org.bukkit.event.HandlerList;
 +
 +public class SendSignEvent extends Event {
-+    private final IChatBaseComponent[] lines;
++    public final IChatBaseComponent[] lines;
 +    private final String[] slines;
 +    private final Block block;
 +    public SendSignEvent(World world, BlockPosition position, IChatBaseComponent[] lines) {
@@ -64,17 +64,46 @@ index 0000000..ea82b75
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/TileEntitySign.java b/src/main/java/net/minecraft/server/TileEntitySign.java
-index 37af97e..8269cc6 100644
+index 95f1a32..d6d4070 100644
 --- a/src/main/java/net/minecraft/server/TileEntitySign.java
 +++ b/src/main/java/net/minecraft/server/TileEntitySign.java
-@@ -111,6 +111,7 @@ public class TileEntitySign extends TileEntity {
-         IChatBaseComponent[] aichatbasecomponent = new IChatBaseComponent[4];
+@@ -1,5 +1,6 @@
+ package net.minecraft.server;
  
-         System.arraycopy(this.lines, 0, aichatbasecomponent, 0, 4);
-+        new com.empireminecraft.customevents.SendSignEvent(this.world, this.getPosition(), aichatbasecomponent).callEvent(); // EMC
-         return new PacketPlayOutUpdateSign(this.world, this.position, aichatbasecomponent);
++import com.empireminecraft.customevents.SendSignEvent; // EMC
+ import javax.annotation.Nullable;
+ 
+ public class TileEntitySign extends TileEntity {
+@@ -13,10 +14,15 @@ public class TileEntitySign extends TileEntity {
+     public TileEntitySign() {}
+ 
+     public NBTTagCompound save(NBTTagCompound nbttagcompound) {
++        // EMC start
++        return save(nbttagcompound, this.lines);
++    }
++    public NBTTagCompound save(NBTTagCompound nbttagcompound, IChatBaseComponent[] lines) {
++        // EMC end
+         super.save(nbttagcompound);
+ 
+         for (int i = 0; i < 4; ++i) {
+-            String s = IChatBaseComponent.ChatSerializer.a(this.lines[i]);
++            String s = IChatBaseComponent.ChatSerializer.a(lines[i]); // EMC
+ 
+             nbttagcompound.setString("Text" + (i + 1), s);
+         }
+@@ -112,7 +118,11 @@ public class TileEntitySign extends TileEntity {
+ 
+     @Nullable
+     public PacketPlayOutTileEntityData getUpdatePacket() {
+-        return new PacketPlayOutTileEntityData(this.position, 9, this.E_());
++        // EMC start
++        SendSignEvent event = new SendSignEvent(this.world, this.getPosition(), this.lines);
++        event.callEvent();
++        return new PacketPlayOutTileEntityData(this.position, 9, this.save(new NBTTagCompound(), event.lines));
++        // EMC end
      }
  
+     public NBTTagCompound E_() {
 -- 
 2.8.2
 
