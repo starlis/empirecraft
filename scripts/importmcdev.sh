@@ -49,6 +49,7 @@ import EntityBat
 import EntityEnderSignal
 import EntityMinecartHopper
 import GameProfileSerializer
+import IHopper
 import ItemBookAndQuill
 import PathfinderGoalArrowAttack
 import PathfinderGoalInteractVillagers

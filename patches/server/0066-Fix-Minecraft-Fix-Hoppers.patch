@@ -1,4 +1,4 @@
-From 4456654d735afe9e87d8f4944d0428121901442a Mon Sep 17 00:00:00 2001
+From 3b0ebbcd0df521a04c8755db43d1834c2c3546b7 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Fri, 29 May 2015 21:58:24 -0400
 Subject: [PATCH] Fix Minecraft: Fix Hoppers
@@ -12,13 +12,14 @@ Minor: remove InventoryMoveEvent code for extra performance since we dont use it
   is also full of item stack cloning
 ---
  src/main/java/net/minecraft/server/EntityItem.java | 15 +++++
- .../net/minecraft/server/EntityMinecartHopper.java | 11 ++++
+ .../net/minecraft/server/EntityMinecartHopper.java | 17 ++++++
+ src/main/java/net/minecraft/server/IHopper.java    |  2 +
  .../java/net/minecraft/server/MinecraftServer.java |  2 +
- .../net/minecraft/server/TileEntityHopper.java     | 67 ++++++++++++++++------
- 4 files changed, 79 insertions(+), 16 deletions(-)
+ .../net/minecraft/server/TileEntityHopper.java     | 70 +++++++++++++++++-----
+ 5 files changed, 90 insertions(+), 16 deletions(-)
 
 diff --git a/src/main/java/net/minecraft/server/EntityItem.java b/src/main/java/net/minecraft/server/EntityItem.java
-index 2cc7024..5fea58f 100644
+index 2cc7024..baa30de 100644
 --- a/src/main/java/net/minecraft/server/EntityItem.java
 +++ b/src/main/java/net/minecraft/server/EntityItem.java
 @@ -120,10 +120,24 @@ public class EntityItem extends Entity {
@@ -31,7 +32,7 @@ index 2cc7024..5fea58f 100644
      }
  
 +    // EMC start
-+    public void markHopperCarts() {
++    private void markHopperCarts() {
 +        if (!this.dead && this.onGround && this.age < 20 * 60 && this.age % 20 == 0) {
 +            AxisAlignedBB aabb = this.getBoundingBox().grow(32, 4, 32);
 +            for (Entity entity : this.world.getEntities(this, aabb)) {
@@ -55,7 +56,7 @@ index 2cc7024..5fea58f 100644
      // Spigot end
  
 diff --git a/src/main/java/net/minecraft/server/EntityMinecartHopper.java b/src/main/java/net/minecraft/server/EntityMinecartHopper.java
-index 8bd73b2..88bf2b4 100644
+index 8bd73b2..ef282db 100644
 --- a/src/main/java/net/minecraft/server/EntityMinecartHopper.java
 +++ b/src/main/java/net/minecraft/server/EntityMinecartHopper.java
 @@ -1,5 +1,7 @@
@@ -74,7 +75,7 @@ index 8bd73b2..88bf2b4 100644
  
      public EntityMinecartHopper(World world) {
          super(world);
-@@ -147,4 +150,12 @@ public class EntityMinecartHopper extends EntityMinecartContainer implements IHo
+@@ -147,4 +150,18 @@ public class EntityMinecartHopper extends EntityMinecartContainer implements IHo
      public Container createContainer(PlayerInventory playerinventory, EntityHuman entityhuman) {
          return new ContainerHopper(playerinventory, this, entityhuman);
      }
@@ -83,9 +84,26 @@ index 8bd73b2..88bf2b4 100644
 +    @Override
 +    public Location getLocation() {
 +        //noinspection RedundantCast
-+        return new Location(getWorld().getWorld(), ((IHopper) this).E(),((IHopper) this).F(),((IHopper) this).G());
++        return new Location(getWorld().getWorld(), ((IHopper) this).getX(),((IHopper) this).getY(),((IHopper) this).getZ());
++    }
++
++    private long tickAttempts = 0;
++    @Override
++    public long getAndIncrementAttemptCounter() {
++        return tickAttempts++;
 +    }
 +    // EMC stop
+ }
+diff --git a/src/main/java/net/minecraft/server/IHopper.java b/src/main/java/net/minecraft/server/IHopper.java
+index 2004b19..47916e0 100644
+--- a/src/main/java/net/minecraft/server/IHopper.java
++++ b/src/main/java/net/minecraft/server/IHopper.java
+@@ -9,4 +9,6 @@ public interface IHopper extends IInventory {
+     double F();default double getY() { return F(); } // EMC // OBF HELPER
+ 
+     double G();default double getZ() { return G(); } // EMC // OBF HELPER
++
++    long getAndIncrementAttemptCounter(); // EMC
  }
 diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
 index d251691..e9ee4c6 100644
@@ -108,30 +126,34 @@ index d251691..e9ee4c6 100644
          this.methodProfiler.a("root");
          this.D();
 diff --git a/src/main/java/net/minecraft/server/TileEntityHopper.java b/src/main/java/net/minecraft/server/TileEntityHopper.java
-index bd96f36..6b489b6 100644
+index 7ee6481..9cbda78 100644
 --- a/src/main/java/net/minecraft/server/TileEntityHopper.java
 +++ b/src/main/java/net/minecraft/server/TileEntityHopper.java
-@@ -119,6 +119,19 @@ public class TileEntityHopper extends TileEntityLootable implements IHopper, ITi
+@@ -119,6 +119,23 @@ public class TileEntityHopper extends TileEntityLootable implements IHopper, ITi
          return ContainerUtil.a(this.items, i);
      }
  
 +    // EMC start
-+    public static boolean shouldSuckin(IHopper hopper) {
-+        final int tick = MinecraftServer.currentTick;
-+        final int hopperId = (int) hopper.E() + (int) hopper.F() + (int) hopper.G();
-+        if ((tick + hopperId) % 60 == 0) {
++
++    private long tickAttempts = 0;
++    @Override
++    public long getAndIncrementAttemptCounter() {
++        return tickAttempts++;
++    }
++
++    private static boolean shouldSuckin(IHopper hopper) {
++        if (hopper instanceof EntityMinecartHopper && ((EntityMinecartHopper) hopper).pickupImmunity > MinecraftServer.currentTick) {
 +            return true;
 +        }
-+        if (hopper instanceof EntityMinecartHopper && ((EntityMinecartHopper) hopper).pickupImmunity > tick) {
-+            return true;
-+        }
-+        return false;
++
++        final int hopperId = (int) hopper.getX() + (int) hopper.getY() + (int) hopper.getZ();
++        return (hopper.getAndIncrementAttemptCounter() + hopperId) % 5 == 0;
 +    }
 +    // EMC end
      public void setItem(int i, @Nullable ItemStack itemstack) {
          this.d((EntityHuman) null);
          this.items[i] = itemstack;
-@@ -245,9 +258,13 @@ public class TileEntityHopper extends TileEntityLootable implements IHopper, ITi
+@@ -245,9 +262,13 @@ public class TileEntityHopper extends TileEntityLootable implements IHopper, ITi
              } else {
                  for (int i = 0; i < this.getSize(); ++i) {
                      if (this.getItem(i) != null) {
@@ -147,7 +169,7 @@ index bd96f36..6b489b6 100644
                          // CraftBukkit start - Call event when pushing items into other inventories
                          CraftItemStack oitemstack = CraftItemStack.asCraftMirror(this.splitStack(i, world.spigotConfig.hopperAmount)); // Spigot
  
-@@ -268,18 +285,24 @@ public class TileEntityHopper extends TileEntityLootable implements IHopper, ITi
+@@ -268,18 +289,24 @@ public class TileEntityHopper extends TileEntityLootable implements IHopper, ITi
                          }
                          int origCount = event.getItem().getAmount(); // Spigot
                          ItemStack itemstack1 = addItem(iinventory, CraftItemStack.asNMSCopy(event.getItem()), enumdirection);
@@ -178,16 +200,16 @@ index bd96f36..6b489b6 100644
                      }
                  }
  
-@@ -366,7 +389,7 @@ public class TileEntityHopper extends TileEntityLootable implements IHopper, ITi
+@@ -366,7 +393,7 @@ public class TileEntityHopper extends TileEntityLootable implements IHopper, ITi
                      }
                  }
              }
 -        } else {
 +        } else if (shouldSuckin(ihopper)) { // EMC
-             Iterator iterator = a(ihopper.getWorld(), ihopper.E(), ihopper.F(), ihopper.G()).iterator(); // EMC - No change here - but if ihopper.A/B/C() changes, update drain event little above
+             Iterator iterator = a(ihopper.getWorld(), ihopper.E(), ihopper.F(), ihopper.G()).iterator();
  
              while (iterator.hasNext()) {
-@@ -381,12 +404,16 @@ public class TileEntityHopper extends TileEntityLootable implements IHopper, ITi
+@@ -381,12 +408,16 @@ public class TileEntityHopper extends TileEntityLootable implements IHopper, ITi
          return false;
      }
  
@@ -206,7 +228,7 @@ index bd96f36..6b489b6 100644
              // CraftBukkit start - Call event on collection of items from inventories into the hopper
              CraftItemStack oitemstack = CraftItemStack.asCraftMirror(iinventory.splitStack(i, ihopper.getWorld().spigotConfig.hopperAmount)); // Spigot
  
-@@ -413,19 +440,26 @@ public class TileEntityHopper extends TileEntityLootable implements IHopper, ITi
+@@ -413,19 +444,26 @@ public class TileEntityHopper extends TileEntityLootable implements IHopper, ITi
              }
              int origCount = event.getItem().getAmount(); // Spigot
              ItemStack itemstack2 = addItem(ihopper, CraftItemStack.asNMSCopy(event.getItem()), null);
@@ -238,14 +260,6 @@ index bd96f36..6b489b6 100644
          }
  
          return false;
-@@ -589,6 +623,7 @@ public class TileEntityHopper extends TileEntityLootable implements IHopper, ITi
-         return (double) this.position.getZ() + 0.5D;
-     }
- 
-+    void resetCooldown() { setCooldown(world.spigotConfig.hopperTransfer); } // EMC
-     public void setCooldown(int i) {
-         this.g = i;
-     }
 -- 
 2.8.2
 
