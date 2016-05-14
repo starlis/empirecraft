@@ -1,4 +1,4 @@
-From 23d12905890fed5fcd4c5a418320c9a22f606064 Mon Sep 17 00:00:00 2001
+From 32557646aeb59c95b9a0a343f24be3d18d7eaa45 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Mon, 4 Mar 2013 23:35:02 -0500
 Subject: [PATCH] Persistent Meta API
@@ -8,7 +8,7 @@ Meta data can be stored on Worlds, Entities, Chunks and at a Block level.
 Meta is is provided in a simple Map/List setup and does not expose raw NBT access.
 ---
  .../metaapi/BlockWithMetaClearedEvent.java         |  36 ++
- .../java/com/empireminecraft/metaapi/MetaApi.java  | 355 ++++++++++++++++++
+ .../java/com/empireminecraft/metaapi/MetaApi.java  | 381 +++++++++++++++++++
  src/main/java/net/minecraft/server/Chunk.java      |   1 +
  .../net/minecraft/server/ChunkRegionLoader.java    |   2 +
  src/main/java/net/minecraft/server/Entity.java     |   3 +
@@ -16,7 +16,7 @@ Meta is is provided in a simple Map/List setup and does not expose raw NBT acces
  src/main/java/net/minecraft/server/TileEntity.java |   3 +
  src/main/java/net/minecraft/server/World.java      |   1 +
  src/main/java/net/minecraft/server/WorldData.java  |   5 +-
- 9 files changed, 821 insertions(+), 1 deletion(-)
+ 9 files changed, 847 insertions(+), 1 deletion(-)
  create mode 100644 src/main/java/com/empireminecraft/metaapi/BlockWithMetaClearedEvent.java
  create mode 100644 src/main/java/com/empireminecraft/metaapi/MetaApi.java
  create mode 100644 src/main/java/net/minecraft/server/MetaApiAccessor.java
@@ -65,10 +65,10 @@ index 0000000..4114b48
 +}
 diff --git a/src/main/java/com/empireminecraft/metaapi/MetaApi.java b/src/main/java/com/empireminecraft/metaapi/MetaApi.java
 new file mode 100644
-index 0000000..e42ba28
+index 0000000..19a1eb6
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/metaapi/MetaApi.java
-@@ -0,0 +1,355 @@
+@@ -0,0 +1,381 @@
 +package com.empireminecraft.metaapi;
 +
 +import com.google.common.collect.ForwardingMap;
@@ -230,12 +230,22 @@ index 0000000..e42ba28
 +    //// TILE ENTITY META
 +    //////////////////////////////////////////////////
 +
++    public static MetaMap getTileEntityMetaMap(Location tileEntity, boolean isWrite) {
++        return MetaApiAccessor.getTileEntityMetaMap(tileEntity.getBlock().getState(), isWrite);
++    }
 +    public static MetaMap getTileEntityMetaMap(BlockState tileEntity, boolean isWrite) {
 +        return MetaApiAccessor.getTileEntityMetaMap(tileEntity, isWrite);
 +    }
 +
++    public static boolean isTileEntity(Location state) {
++        return ((CraftBlockState) state.getBlock().getState()).getTileEntity() != null;
++    }
 +    public static boolean isTileEntity(BlockState state) {
 +        return ((CraftBlockState) state).getTileEntity() != null;
++    }
++
++    public static boolean hasTileEntityMeta(Location tileEntity, String key) {
++        return hasTileEntityMeta(tileEntity.getBlock().getState(), key);
 +    }
 +
 +    public static boolean hasTileEntityMeta(BlockState tileEntity, String key) {
@@ -243,8 +253,16 @@ index 0000000..e42ba28
 +        return tileEntityMetaMap != null && !tileEntityMetaMap.isEmpty() && tileEntityMetaMap.containsKey(key);
 +    }
 +
++    public static <T> T getTileEntityMeta(Location tileEntity, String key) {
++        return getTileEntityMeta(tileEntity.getBlock().getState(), key, null);
++    }
++
 +    public static <T> T getTileEntityMeta(BlockState tileEntity, String key) {
 +        return getTileEntityMeta(tileEntity, key, null);
++    }
++
++    public static <T> T getTileEntityMeta(Location tileEntity, String key, T def) {
++        return getTileEntityMeta(tileEntity.getBlock().getState(), key, def);
 +    }
 +
 +    public static <T> T getTileEntityMeta(BlockState tileEntity, String key, T def) {
@@ -253,8 +271,16 @@ index 0000000..e42ba28
 +        return ret != null ? ret : def;
 +    }
 +
++    public static <T> T setTileEntityMeta(Location tileEntity, String key, Object val) {
++        return setTileEntityMeta(tileEntity.getBlock().getState(), key, val);
++    }
++
 +    public static <T> T setTileEntityMeta(BlockState tileEntity, String key, Object val) {
 +        return setMetaMapValue(getTileEntityMetaMap(tileEntity, true), key, val);
++    }
++
++    public static <T> T removeTileEntityMeta(Location tileEntity, String key) {
++        return removeTileEntityMeta(tileEntity.getBlock().getState(), key);
 +    }
 +
 +    public static <T> T removeTileEntityMeta(BlockState tileEntity, String key) {
@@ -425,7 +451,7 @@ index 0000000..e42ba28
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/Chunk.java b/src/main/java/net/minecraft/server/Chunk.java
-index 1981ae4..02f8d66 100644
+index 8724a82..5f38dcc 100644
 --- a/src/main/java/net/minecraft/server/Chunk.java
 +++ b/src/main/java/net/minecraft/server/Chunk.java
 @@ -112,6 +112,7 @@ public class Chunk {
