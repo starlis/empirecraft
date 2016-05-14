@@ -1,4 +1,4 @@
-From 32557646aeb59c95b9a0a343f24be3d18d7eaa45 Mon Sep 17 00:00:00 2001
+From 10dd786f6e8978acc3ab0c61b1032bc8ceea8e64 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Mon, 4 Mar 2013 23:35:02 -0500
 Subject: [PATCH] Persistent Meta API
@@ -12,11 +12,13 @@ Meta is is provided in a simple Map/List setup and does not expose raw NBT acces
  src/main/java/net/minecraft/server/Chunk.java      |   1 +
  .../net/minecraft/server/ChunkRegionLoader.java    |   2 +
  src/main/java/net/minecraft/server/Entity.java     |   3 +
- .../java/net/minecraft/server/MetaApiAccessor.java | 416 +++++++++++++++++++++
+ .../java/net/minecraft/server/MetaApiAccessor.java | 420 +++++++++++++++++++++
+ .../minecraft/server/PacketPlayOutMapChunk.java    |   1 +
+ .../server/PacketPlayOutTileEntityData.java        |   1 +
  src/main/java/net/minecraft/server/TileEntity.java |   3 +
  src/main/java/net/minecraft/server/World.java      |   1 +
  src/main/java/net/minecraft/server/WorldData.java  |   5 +-
- 9 files changed, 847 insertions(+), 1 deletion(-)
+ 11 files changed, 853 insertions(+), 1 deletion(-)
  create mode 100644 src/main/java/com/empireminecraft/metaapi/BlockWithMetaClearedEvent.java
  create mode 100644 src/main/java/com/empireminecraft/metaapi/MetaApi.java
  create mode 100644 src/main/java/net/minecraft/server/MetaApiAccessor.java
@@ -512,10 +514,10 @@ index 02a1c25..32d52ee 100644
              if (Math.abs(this.motX) > 10.0D) {
 diff --git a/src/main/java/net/minecraft/server/MetaApiAccessor.java b/src/main/java/net/minecraft/server/MetaApiAccessor.java
 new file mode 100644
-index 0000000..408660c
+index 0000000..fd0eb31
 --- /dev/null
 +++ b/src/main/java/net/minecraft/server/MetaApiAccessor.java
-@@ -0,0 +1,416 @@
+@@ -0,0 +1,420 @@
 +package net.minecraft.server;
 +
 +import com.empireminecraft.metaapi.BlockWithMetaClearedEvent;
@@ -920,6 +922,10 @@ index 0000000..408660c
 +        }
 +    }
 +
++    static void filterTileEntityMeta(NBTTagCompound cmp) {
++        cmp.remove(TILEENTITY_META);
++    }
++
 +    static class ChunkMeta extends HashMap<BlockPos, MetaMap> {
 +        ChunkMeta() {}
 +
@@ -932,6 +938,30 @@ index 0000000..408660c
 +        }
 +    }
 +}
+diff --git a/src/main/java/net/minecraft/server/PacketPlayOutMapChunk.java b/src/main/java/net/minecraft/server/PacketPlayOutMapChunk.java
+index 4248aa1..68ba8a0 100644
+--- a/src/main/java/net/minecraft/server/PacketPlayOutMapChunk.java
++++ b/src/main/java/net/minecraft/server/PacketPlayOutMapChunk.java
+@@ -38,6 +38,7 @@ public class PacketPlayOutMapChunk implements Packet<PacketListenerPlayOut> {
+ 
+             if (this.e() || (i & 1 << j) != 0) {
+                 NBTTagCompound nbttagcompound = tileentity.E_();
++                MetaApiAccessor.filterTileEntityMeta(nbttagcompound); // EMC
+ 
+                 this.e.add(nbttagcompound);
+             }
+diff --git a/src/main/java/net/minecraft/server/PacketPlayOutTileEntityData.java b/src/main/java/net/minecraft/server/PacketPlayOutTileEntityData.java
+index b30c97e..77c7c8c 100644
+--- a/src/main/java/net/minecraft/server/PacketPlayOutTileEntityData.java
++++ b/src/main/java/net/minecraft/server/PacketPlayOutTileEntityData.java
+@@ -11,6 +11,7 @@ public class PacketPlayOutTileEntityData implements Packet<PacketListenerPlayOut
+     public PacketPlayOutTileEntityData() {}
+ 
+     public PacketPlayOutTileEntityData(BlockPosition blockposition, int i, NBTTagCompound nbttagcompound) {
++        MetaApiAccessor.filterTileEntityMeta(nbttagcompound); // EMC
+         this.a = blockposition;
+         this.b = i;
+         this.c = nbttagcompound;
 diff --git a/src/main/java/net/minecraft/server/TileEntity.java b/src/main/java/net/minecraft/server/TileEntity.java
 index 85f97cc..6e54dad 100644
 --- a/src/main/java/net/minecraft/server/TileEntity.java

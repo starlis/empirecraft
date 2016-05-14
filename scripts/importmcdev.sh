@@ -51,6 +51,7 @@ import EntityMinecartHopper
 import GameProfileSerializer
 import IHopper
 import ItemBookAndQuill
+import PacketPlayOutTileEntityData
 import PathfinderGoalArrowAttack
 import PathfinderGoalInteractVillagers
 import PathfinderGoalSelector
