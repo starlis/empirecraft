@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 if [ ! -d "EmpireCraft-API" ]; then
 git clone git@bitbucket.org:starlis/EmpireCraft-API
 fi
