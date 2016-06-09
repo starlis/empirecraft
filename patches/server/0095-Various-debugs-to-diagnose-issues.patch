@@ -1,0 +1,130 @@
+From d080021c0d105ca7f20f3fc07b09fa90d06d9756 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Wed, 8 Jun 2016 21:47:17 -0400
+Subject: [PATCH] Various debugs to diagnose issues
+
+---
+ src/main/java/net/minecraft/server/Chunk.java                    | 9 ++++++++-
+ src/main/java/net/minecraft/server/ChunkProviderServer.java      | 2 +-
+ src/main/java/net/minecraft/server/EntityTracker.java            | 3 ++-
+ src/main/java/net/minecraft/server/EntityTrackerEntry.java       | 4 +++-
+ src/main/java/org/bukkit/craftbukkit/CraftWorld.java             | 3 ++-
+ .../java/org/bukkit/craftbukkit/chunkio/ChunkIOProvider.java     | 2 +-
+ 6 files changed, 17 insertions(+), 6 deletions(-)
+
+diff --git a/src/main/java/net/minecraft/server/Chunk.java b/src/main/java/net/minecraft/server/Chunk.java
+index d9598b0..92738ca 100644
+--- a/src/main/java/net/minecraft/server/Chunk.java
++++ b/src/main/java/net/minecraft/server/Chunk.java
+@@ -817,7 +817,13 @@ public class Chunk {
+ 
+     }
+ 
+-    public void addEntities() {
++    // EMC start
++    private String lastReason;
++    public void addEntities(String reason) { // EMC
++        reason += ":" + world.getTime();
++        if (this.j) new Throwable("addEntities on already added entities: " + world.getWorld().getName() + ":" + this.locX + "," + this.locZ + " - last reason: " + lastReason + " - this reason: " + reason).printStackTrace();
++        this.lastReason = reason;
++        // EMC end
+         this.j = true;
+         this.world.b(this.tileEntities.values());
+ 
+@@ -836,6 +842,7 @@ public class Chunk {
+     }
+ 
+     public void removeEntities() {
++        this.lastReason = "unloaded:" + world.getTime(); // EMC
+         this.j = false;
+         Iterator iterator = this.tileEntities.values().iterator();
+ 
+diff --git a/src/main/java/net/minecraft/server/ChunkProviderServer.java b/src/main/java/net/minecraft/server/ChunkProviderServer.java
+index 4a2cad6..f61255d 100644
+--- a/src/main/java/net/minecraft/server/ChunkProviderServer.java
++++ b/src/main/java/net/minecraft/server/ChunkProviderServer.java
+@@ -183,7 +183,7 @@ public class ChunkProviderServer implements IChunkProvider {
+             newChunk = true; // CraftBukkit
+ 
+             this.chunks.put(k, chunk);
+-            chunk.addEntities();
++            chunk.addEntities("originalGetChunkAt"); // EMC
+ 
+             // CraftBukkit start
+             Server server = world.getServer();
+diff --git a/src/main/java/net/minecraft/server/EntityTracker.java b/src/main/java/net/minecraft/server/EntityTracker.java
+index 2eea1c1..fbe49ae 100644
+--- a/src/main/java/net/minecraft/server/EntityTracker.java
++++ b/src/main/java/net/minecraft/server/EntityTracker.java
+@@ -105,7 +105,8 @@ public class EntityTracker {
+         i = org.spigotmc.TrackingRange.getEntityTrackingRange(entity, i); // Spigot
+         try {
+             if (this.trackedEntities.b(entity.getId())) {
+-                throw new IllegalStateException("Entity is already tracked!");
++                EntityTrackerEntry ent = this.trackedEntities.get(entity.getId()); // EMC
++                throw new IllegalStateException("Entity " + entity + " is already tracked at " + ent.trackedAt + " as " + ent.tracker + " - now: " + entity.world.getTime()); // EMC
+             }
+ 
+             EntityTrackerEntry entitytrackerentry = new EntityTrackerEntry(entity, i, this.e, j, flag);
+diff --git a/src/main/java/net/minecraft/server/EntityTrackerEntry.java b/src/main/java/net/minecraft/server/EntityTrackerEntry.java
+index a783ecb..05fea32 100644
+--- a/src/main/java/net/minecraft/server/EntityTrackerEntry.java
++++ b/src/main/java/net/minecraft/server/EntityTrackerEntry.java
+@@ -17,7 +17,7 @@ import org.bukkit.event.player.PlayerVelocityEvent;
+ public class EntityTrackerEntry {
+ 
+     private static final Logger c = LogManager.getLogger();
+-    private Entity tracker;
++    public Entity tracker; // EMC
+     private int e;
+     private int f;
+     private int g;
+@@ -47,9 +47,11 @@ public class EntityTrackerEntry {
+     public java.util.Map<EntityPlayer, Boolean> trackedPlayerMap = new java.util.HashMap<EntityPlayer, Boolean>();
+     public Set<EntityPlayer> trackedPlayers = trackedPlayerMap.keySet();
+     // Paper end
++    public final long trackedAt; // EMC
+ 
+     public EntityTrackerEntry(Entity entity, int i, int j, int k, boolean flag) {
+         entity.tracker = this; // Paper
++        trackedAt = entity.world.getTime(); // EMC
+         this.tracker = entity;
+         this.e = i;
+         this.f = j;
+diff --git a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
+index ac656be..d9f5d2d 100644
+--- a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
++++ b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
+@@ -253,6 +253,7 @@ public class CraftWorld implements World {
+         if (chunk.mustSave) {   // If chunk had previously been queued to save, must do save to avoid loss of that data
+             save = true;
+         }
++        new Throwable("Plugin triggered immediate chunk unload - save: " + save).printStackTrace(); // EMC - warn on using this
+ 
+         chunk.removeEntities(); // Always remove entities - even if discarding, need to get them out of world table
+ 
+@@ -352,7 +353,7 @@ public class CraftWorld implements World {
+         if (chunk != null) {
+             world.getChunkProviderServer().chunks.put(ChunkCoordIntPair.a(cx, cz), chunk);
+ 
+-            chunk.addEntities();
++            chunk.addEntities("chunkloadpostprocess"); // EMC
+ 
+             // Update neighbor counts
+             for (int x = -2; x < 3; x++) {
+diff --git a/src/main/java/org/bukkit/craftbukkit/chunkio/ChunkIOProvider.java b/src/main/java/org/bukkit/craftbukkit/chunkio/ChunkIOProvider.java
+index 4d2b371..bd4ea1f 100644
+--- a/src/main/java/org/bukkit/craftbukkit/chunkio/ChunkIOProvider.java
++++ b/src/main/java/org/bukkit/craftbukkit/chunkio/ChunkIOProvider.java
+@@ -41,7 +41,7 @@ class ChunkIOProvider implements AsynchronousExecutor.CallBackProvider<QueuedChu
+         queuedChunk.loader.loadEntities(chunk, queuedChunk.compound.getCompound("Level"), queuedChunk.world);
+         chunk.setLastSaved(queuedChunk.provider.world.getTime());
+         queuedChunk.provider.chunks.put(ChunkCoordIntPair.a(queuedChunk.x, queuedChunk.z), chunk);
+-        chunk.addEntities();
++        chunk.addEntities("iostage2"); // EMC
+ 
+         if (queuedChunk.provider.chunkGenerator != null) {
+             queuedChunk.provider.world.timings.syncChunkLoadStructuresTimer.startTiming(); // Spigot
+-- 
+2.8.4
+
