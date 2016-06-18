@@ -44,6 +44,7 @@ import BlockFlowerPot
 import BlockSponge
 import CommandGive
 import CommandStop
+import DefinedStructure
 import EnchantmentManager
 import EntityBat
 import EntityEnderSignal
