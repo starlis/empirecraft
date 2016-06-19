@@ -1,0 +1,93 @@
+From b9bfa4d81730fa9473886ff741bb61a1bb24c3df Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Sat, 18 Jun 2016 19:54:49 -0400
+Subject: [PATCH] Optimize getBlockData / getType
+
+---
+ src/main/java/net/minecraft/server/Chunk.java      | 22 +++++++++++++++-------
+ .../java/net/minecraft/server/ChunkSection.java    |  2 +-
+ src/main/java/net/minecraft/server/World.java      |  9 ++-------
+ 3 files changed, 18 insertions(+), 15 deletions(-)
+
+diff --git a/src/main/java/net/minecraft/server/Chunk.java b/src/main/java/net/minecraft/server/Chunk.java
+index 92738ca..b9e43f5 100644
+--- a/src/main/java/net/minecraft/server/Chunk.java
++++ b/src/main/java/net/minecraft/server/Chunk.java
+@@ -407,18 +407,26 @@ public class Chunk {
+         return this.a(i, j, k).c();
+     }
+ 
+-    // Paper - Optimize getBlockData
+-    public IBlockData getBlockData(BlockPosition blockposition) {
+-        if (blockposition.getY() >= 0 && blockposition.getY() >> 4 < this.sections.length) {
+-            ChunkSection chunksection = this.sections[blockposition.getY() >> 4];
+-            if (chunksection != null) {
+-                return chunksection.getType(blockposition.getX() & 15, blockposition.getY() & 15, blockposition.getZ() & 15);
+-            }
++    // Paper start - Optimize getBlockData to reduce instructions
++    public final IBlockData getBlockData(final BlockPosition pos) {
++        return getBlockData(pos.getX(), pos.getY(), pos.getZ());
++    }
++
++    public final IBlockData getBlockData(final int x, final int y, final int z) {
++        // Method body / logic copied from below
++        final int i = y >> 4;
++        if (y >= 0 && i < this.sections.length && this.sections[i] != null) {
++            // Inlined ChunkSection.getType() and DataPaletteBlock.a(int,int,int)
++            return this.sections[i].blockIds.a((y & 15) << 8 | (z & 15) << 4 | x & 15);
+         }
+         return Blocks.AIR.getBlockData();
+     }
+ 
+     public IBlockData a(final int i, final int j, final int k) {
++        return getBlockData(i, j, k);
++    }
++    public IBlockData unused(final int i, final int j, final int k) {
++    // Paper end
+         if (this.world.L() == WorldType.DEBUG_ALL_BLOCK_STATES) {
+             IBlockData iblockdata = null;
+ 
+diff --git a/src/main/java/net/minecraft/server/ChunkSection.java b/src/main/java/net/minecraft/server/ChunkSection.java
+index 6cf71b8..41569d9 100644
+--- a/src/main/java/net/minecraft/server/ChunkSection.java
++++ b/src/main/java/net/minecraft/server/ChunkSection.java
+@@ -5,7 +5,7 @@ public class ChunkSection {
+     private int yPos;
+     private int nonEmptyBlockCount;
+     private int tickingBlockCount;
+-    private DataPaletteBlock blockIds;
++    DataPaletteBlock blockIds; // Paper
+     private NibbleArray emittedLight;
+     private NibbleArray skyLight;
+ 
+diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
+index 817786c..5adc118 100644
+--- a/src/main/java/net/minecraft/server/World.java
++++ b/src/main/java/net/minecraft/server/World.java
+@@ -804,7 +804,7 @@ public abstract class World implements IBlockAccess {
+         // CraftBukkit end
+         Chunk chunk = this.getChunkIfLoaded(blockposition);
+         if (chunk != null) {
+-            return blockposition.isValidLocation() ? chunk.getBlockData(blockposition) : Blocks.AIR.getBlockData();
++            return chunk.getBlockData(blockposition.getX(), blockposition.getY(), blockposition.getZ());
+         }
+         return null;
+     }
+@@ -822,13 +822,8 @@ public abstract class World implements IBlockAccess {
+             }
+         }
+         // CraftBukkit end
+-        if (blockposition.isValidYLocation()) { // Paper
+-            return Blocks.AIR.getBlockData();
+-        } else {
+-            Chunk chunk = this.getChunkAtWorldCoords(blockposition);
+ 
+-            return chunk.getBlockData(blockposition);
+-        }
++        return this.getChunkAtWorldCoords(blockposition).getBlockData(blockposition.getX(), blockposition.getY(), blockposition.getZ()); // Paper - optimize blockdata lookup to reduce instructions - getBlockData already enforces valid Y
+     }
+ 
+     public boolean B() {
+-- 
+2.9.0
+
