@@ -1,0 +1,118 @@
+From 509c18fb6070c90df39529498bee99f31d342bc7 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Thu, 23 Jun 2016 23:33:57 -0400
+Subject: [PATCH] IllegalPacketEvent
+
+Fired for invalid data from players that usually represents hacking
+---
+ .../customevents/IllegalPacketEvent.java           | 46 ++++++++++++++++++++++
+ .../net/minecraft/server/PlayerConnection.java     | 12 +++---
+ 2 files changed, 53 insertions(+), 5 deletions(-)
+ create mode 100644 src/main/java/com/empireminecraft/customevents/IllegalPacketEvent.java
+
+diff --git a/src/main/java/com/empireminecraft/customevents/IllegalPacketEvent.java b/src/main/java/com/empireminecraft/customevents/IllegalPacketEvent.java
+new file mode 100644
+index 0000000..cdeb9a5
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/customevents/IllegalPacketEvent.java
+@@ -0,0 +1,46 @@
++/*
++ * Copyright (c) 2016. Starlis LLC / dba Empire Minecraft
++ *
++ * This source code is proprietary software and must not be redistributed without Starlis LLC's approval
++ *
++ */
++
++package com.empireminecraft.customevents;
++
++import org.bukkit.entity.Player;
++import org.bukkit.event.Event;
++import org.bukkit.event.HandlerList;
++
++public class IllegalPacketEvent extends Event {
++    private final Player player;
++    private final String type;
++    private final Exception ex;
++
++    public IllegalPacketEvent(Player player, String type, Exception e) {
++        this.player = player;
++        this.type = type;
++        ex = e;
++    }
++
++    public Player getPlayer() {
++        return player;
++    }
++
++    public String getType() {
++        return type;
++    }
++
++    public Exception getException() {
++        return ex;
++    }
++
++    private static final HandlerList handlers = new HandlerList();
++
++    public HandlerList getHandlers() {
++        return handlers;
++    }
++
++    public static HandlerList getHandlerList() {
++        return handlers;
++    }
++}
+diff --git a/src/main/java/net/minecraft/server/PlayerConnection.java b/src/main/java/net/minecraft/server/PlayerConnection.java
+index bcc2173..9db4822 100644
+--- a/src/main/java/net/minecraft/server/PlayerConnection.java
++++ b/src/main/java/net/minecraft/server/PlayerConnection.java
+@@ -2247,7 +2247,7 @@ public class PlayerConnection implements PacketListenerPlayIn, ITickable {
+                     return;
+                 }
+             } catch (Exception exception) {
+-                PlayerConnection.LOGGER.error("Couldn\'t handle book info", exception);
++                new com.empireminecraft.customevents.IllegalPacketEvent(player.getBukkitEntity(), "InvalidBookEdit", exception).callEvent(); // EMC
+                 this.disconnect("Invalid Book Data!"); // Paper
+                 return;
+             } finally {
+@@ -2294,7 +2294,7 @@ public class PlayerConnection implements PacketListenerPlayIn, ITickable {
+                         return;
+                     }
+                 } catch (Exception exception1) {
+-                    PlayerConnection.LOGGER.error("Couldn\'t sign book", exception1);
++                    new com.empireminecraft.customevents.IllegalPacketEvent(player.getBukkitEntity(), "InvalidBookSign", exception1).callEvent(); // EMC
+                     this.disconnect("Invalid Book Data!"); // Paper
+                     return;
+                 } finally {
+@@ -2311,7 +2311,8 @@ public class PlayerConnection implements PacketListenerPlayIn, ITickable {
+                         ((ContainerMerchant) container).d(j);
+                     }
+                 } catch (Exception exception2) {
+-                    PlayerConnection.LOGGER.error("Couldn\'t select trade", exception2);
++                    new com.empireminecraft.customevents.IllegalPacketEvent(player.getBukkitEntity(), "InvalidTrade", exception2).callEvent(); // EMC
++                    this.disconnect("Invalid Trade!"); // EMC
+                 }
+             } else {
+                 TileEntity tileentity;
+@@ -2456,7 +2457,7 @@ public class PlayerConnection implements PacketListenerPlayIn, ITickable {
+                                     iinventory.update();
+                                 }
+                             } catch (Exception exception5) {
+-                                PlayerConnection.LOGGER.error("Couldn\'t set beacon", exception5);
++                                new com.empireminecraft.customevents.IllegalPacketEvent(player.getBukkitEntity(), "InvalidBeacon", exception5).callEvent(); // EMC
+                                 this.disconnect("Invalid Beacon Data!"); // Paper
+                             }
+                         }
+@@ -2535,7 +2536,8 @@ public class PlayerConnection implements PacketListenerPlayIn, ITickable {
+                             this.player.playerConnection.sendPacket(new PacketPlayOutSetSlot(-2, k, this.player.inventory.getItem(k)));
+                             this.player.playerConnection.sendPacket(new PacketPlayOutHeldItemSlot(this.player.inventory.itemInHandIndex));
+                         } catch (Exception exception7) {
+-                            PlayerConnection.LOGGER.error("Couldn\'t pick item", exception7);
++                            new com.empireminecraft.customevents.IllegalPacketEvent(player.getBukkitEntity(), "InvalidPickItem", exception7).callEvent(); // EMC
++                            this.disconnect("Invalid PickItem"); // EMC
+                         } finally {
+                             packetdataserializer.release();
+                         }
+-- 
+2.9.0
+
