@@ -49,6 +49,7 @@ import EnchantmentManager
 import EntityBat
 import EntityEnderSignal
 import EntityMinecartHopper
+import EntityTameableAnimal
 import GameProfileSerializer
 import IHopper
 import ItemBookAndQuill
