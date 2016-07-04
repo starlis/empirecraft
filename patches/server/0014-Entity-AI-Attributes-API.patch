@@ -1,4 +1,4 @@
-From 27cff7ab7e4595229e87fff0dc3d137a1ce40e60 Mon Sep 17 00:00:00 2001
+From d352098c9e641df35e50ad9fa42a462424cac3b6 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Fri, 31 May 2013 22:40:25 -0400
 Subject: [PATCH] Entity AI / Attributes API
@@ -7,7 +7,7 @@ This gives us control over some Entity AI
 Also API for Attributes (Entity + Item)
 This will be expanded as future needs.
 ---
- .../empireminecraft/entityai/AttributesAPI.java    | 121 ++++++++++++++++++
+ .../empireminecraft/entityai/AttributesAPI.java    | 136 +++++++++++++++++++++
  .../com/empireminecraft/entityai/EntityAIApi.java  | 136 +++++++++++++++++++++
  .../empireminecraft/entityai/EntityMoveApi.java    |  64 ++++++++++
  .../net/minecraft/server/AttributesAccessor.java   |  46 +++++++
@@ -27,7 +27,7 @@ This will be expanded as future needs.
  src/main/java/net/minecraft/server/World.java      |   2 +-
  .../craftbukkit/inventory/CraftItemStack.java      |   2 +-
  src/main/java/org/spigotmc/ActivationRange.java    |   1 +
- 20 files changed, 422 insertions(+), 16 deletions(-)
+ 20 files changed, 437 insertions(+), 16 deletions(-)
  create mode 100644 src/main/java/com/empireminecraft/entityai/AttributesAPI.java
  create mode 100644 src/main/java/com/empireminecraft/entityai/EntityAIApi.java
  create mode 100644 src/main/java/com/empireminecraft/entityai/EntityMoveApi.java
@@ -36,10 +36,10 @@ This will be expanded as future needs.
 
 diff --git a/src/main/java/com/empireminecraft/entityai/AttributesAPI.java b/src/main/java/com/empireminecraft/entityai/AttributesAPI.java
 new file mode 100644
-index 0000000..6b4232d
+index 0000000..243d4a4
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/entityai/AttributesAPI.java
-@@ -0,0 +1,121 @@
+@@ -0,0 +1,136 @@
 +package com.empireminecraft.entityai;
 +
 +import net.minecraft.server.*;
@@ -74,25 +74,40 @@ index 0000000..6b4232d
 +        return attributes;
 +    }
 +
-+    // TODO: other attribute APIs
-+    public static void addAttribute(ItemStack item, Attribute attr, Operation operation, double val) {
++    public static void setAttribute(ItemStack item, Attribute attr, Operation operation, double val) {
 +        final CraftItemStack craftStack = CraftItemStack.asCraftCopy(item);
 +        final NBTTagList attributes = getAttributes(craftStack.handle);
++        final NBTTagCompound attributeData = createAttribute(attr, operation, val);
++        removeAttribute(attributes, attr);
++
++        attributes.add(attributeData);
++        item.setItemMeta(craftStack.getItemMeta());
++    }
++
++    public static void removeAttribute(ItemStack item, Attribute attr) {
++        final CraftItemStack craftStack = CraftItemStack.asCraftCopy(item);
++        final NBTTagList attributes = getAttributes(craftStack.handle);
++        removeAttribute(attributes, attr);
++        item.setItemMeta(craftStack.getItemMeta());
++    }
++
++    private static NBTTagCompound createAttribute(Attribute attr, Operation operation, double val) {
 +        final String name = AttributesAccessor.getAttribute(attr).getName();
 +        final AttributeModifier attributeModifier =
 +            new AttributeModifier(UUID.randomUUID(), name, val, operation.getId());
 +        final NBTTagCompound attributeData = GenericAttributes.buildModifierCompound(attributeModifier);
 +        attributeData.setString("AttributeName", name);
++        return attributeData;
++    }
++
++    private static void removeAttribute(NBTTagList attributes, Attribute attr) {
++        final String name = AttributesAccessor.getAttribute(attr).getName();
 +        for (Iterator<NBTBase> iterator = attributes.list.iterator(); iterator.hasNext(); ) {
 +            NBTTagCompound nbtBase = (NBTTagCompound) iterator.next();
 +            if (name.equals(nbtBase.getString("AttributeName"))) {
 +                iterator.remove();
 +            }
 +        }
-+
-+
-+        attributes.add(attributeData);
-+        item.setItemMeta(craftStack.getItemMeta());
 +    }
 +
 +    public static boolean setAttribute(LivingEntity livingEntity, Attribute attr, double val) {
