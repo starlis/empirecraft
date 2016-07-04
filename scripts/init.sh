@@ -13,7 +13,7 @@ function cleanupPatches {
 
 		testver=$(echo "$diffs" | tail -n 2 | grep -ve "^$" | tail -n 1 | grep "$gitver")
 		if [ "x$testver" != "x" ]; then
-			diffs=$(echo "$diffs" | head -n -2)
+			diffs=$(echo "$diffs" | tail -n +3)
 		fi
 
 		if [ "x$diffs" == "x" ] ; then
@@ -28,7 +28,7 @@ function pushRepo {
 		cd "$1"
 		git remote rm emc-push > /dev/null 2>&1
 		git remote add emc-push $2 >/dev/null 2>&1
-		git push emc-push $3 -f
+#		git push emc-push $3 -f
 	)
 }
 function basedir {
