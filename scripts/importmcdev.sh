@@ -42,6 +42,7 @@ function import {
 
 import BlockFlowerPot
 import BlockSponge
+import BlockStateList
 import CommandGive
 import CommandStop
 import DefinedStructure
