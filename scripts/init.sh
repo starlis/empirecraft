@@ -28,7 +28,7 @@ function pushRepo {
 		cd "$1"
 		git remote rm emc-push > /dev/null 2>&1
 		git remote add emc-push $2 >/dev/null 2>&1
-#		git push emc-push $3 -f
+		git push emc-push $3 -f
 	)
 }
 function basedir {
