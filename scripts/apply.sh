@@ -24,7 +24,10 @@ function applyPatch {
 
 	cd "$basedir"
 	if [ ! -d  "$basedir/$target" ]; then
-		git clone "$what" "$target"
+		mkdir "$basedir/$target"
+		cd "$basedir/$target"
+		git init
+		cd "$basedir"
 	fi
 	cd "$basedir/$target"
 	echo "Resetting $target to $what_name..."
