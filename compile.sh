@@ -1,20 +1,21 @@
 #!/usr/bin/env bash
+. scripts/init.sh
 
-if [ ! -d "EmpireCraft-API" ]; then
-git clone git@bitbucket.org:starlis/EmpireCraft-API
+if [ ! -d "${FORK_NAME}-API" ]; then
+git clone $API_REPO ${FORK_NAME}-API
 fi
 
-if [ ! -d "EmpireCraft-Server" ]; then
-git clone git@bitbucket.org:starlis/EmpireCraft-Server
+if [ ! -d "${FORK_NAME}-Server" ]; then
+git clone $SERVER_REPO ${FORK_NAME}-Server
 fi
 
-cd EmpireCraft-API
+cd ${FORK_NAME}-API
 git fetch origin
 git reset --hard origin/master
 
 cd ..
 
-cd EmpireCraft-Server
+cd ${FORK_NAME}-Server
 git fetch origin
 git reset --hard origin/master
 

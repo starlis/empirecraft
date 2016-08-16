@@ -45,5 +45,5 @@ function applyPatch {
 		echo "  Patches applied cleanly to $target"
 	fi
 }
-applyPatch Paper/Paper-API EmpireCraft-API HEAD api
-applyPatch Paper/Paper-Server EmpireCraft-Server HEAD server
+applyPatch Paper/Paper-API ${FORK_NAME}-API HEAD api
+applyPatch Paper/Paper-Server ${FORK_NAME}-Server HEAD server

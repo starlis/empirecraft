@@ -8,5 +8,5 @@ while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symli
 done
 . $(dirname $SOURCE)/init.sh
 
-pushRepo EmpireCraft-API git@bitbucket.org:starlis/EmpireCraft-API master
-pushRepo EmpireCraft-Server git@bitbucket.org:starlis/EmpireCraft-Server master
+pushRepo ${FORK_NAME}-API $API_REPO master
+pushRepo ${FORK_NAME}-Server $SERVER_REPO master

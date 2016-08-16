@@ -56,6 +56,6 @@ tag Paper-API $forcetag
 tag Paper-Server $forcetag
 
 echo "$tag" > $basedir/current-paper
-pushRepo Paper-API $API_REPO $tag
-pushRepo Paper-Server $SERVER_REPO $tag
+pushRepo Paper-API $PAPER_API_REPO $tag
+pushRepo Paper-Server $PAPER_SERVER_REPO $tag
 

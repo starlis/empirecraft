@@ -1,9 +1,15 @@
 #!/bin/bash
-cd $(dirname $SOURCE)/../
+sourceBase=$(dirname $SOURCE)/../
+cd ${basedir:-$sourceBase}
+
 basedir=$(pwd -P)
 
-API_REPO="git@bitbucket.org:starlis/Spigot-API"
-SERVER_REPO="git@bitbucket.org:starlis/Spigot-Server"
+FORK_NAME="EmpireCraft"
+API_REPO="git.starlis.com:starlis/EmpireCraft-API"
+SERVER_REPO="git.starlis.com:starlis/EmpireCraft-Server"
+PAPER_API_REPO="git.starlis.com:starlis/Paper-API"
+PAPER_SERVER_REPO="git.starlis.com:starlis/Paper-Server"
+MCDEV_REPO="git.starlis.com:starlis/mc-dev"
 
 function cleanupPatches {
 	cd "$1"
@@ -23,6 +29,7 @@ function cleanupPatches {
 	done
 }
 function pushRepo {
+	if [ $(git config minecraft.push-${FORK_NAME}) == "1" ]; then
 	echo "Pushing - $1 ($3) to $2"
 	(
 		cd "$1"
@@ -30,6 +37,7 @@ function pushRepo {
 		git remote add emc-push $2 >/dev/null 2>&1
 		git push emc-push $3 -f
 	)
+	fi
 }
 function basedir {
 	cd "$basedir"
