@@ -45,14 +45,12 @@ import BlockSponge
 import BlockStateList
 import CommandGive
 import CommandStop
-import DefinedStructure
 import EnchantmentManager
 import EntityBat
 import EntityEnderSignal
 import EntityMinecartHopper
 import EntityTameableAnimal
 import GameProfileSerializer
-import IHopper
 import ItemBookAndQuill
 import PacketPlayOutTileEntityData
 import PathfinderGoalArrowAttack
