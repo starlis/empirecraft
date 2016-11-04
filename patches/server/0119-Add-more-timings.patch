@@ -1,0 +1,261 @@
+From c72fa60c090761fb9b81fc7345992a7626f5939d Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Mon, 31 Oct 2016 02:13:34 -0400
+Subject: [PATCH] Add more timings
+
+---
+ .../java/co/aikar/timings/MinecraftTimings.java    |  2 ++
+ .../java/co/aikar/timings/WorldTimingsHandler.java | 22 ++++++++++++++++++++++
+ .../net/minecraft/server/ChunkProviderServer.java  |  5 +++--
+ .../net/minecraft/server/ChunkRegionLoader.java    | 19 +++++++++++++++++--
+ src/main/java/net/minecraft/server/PlayerList.java |  4 +++-
+ .../java/net/minecraft/server/WorldServer.java     |  6 +++++-
+ 6 files changed, 52 insertions(+), 6 deletions(-)
+
+diff --git a/src/main/java/co/aikar/timings/MinecraftTimings.java b/src/main/java/co/aikar/timings/MinecraftTimings.java
+index 2dff5e3..ea7a089 100644
+--- a/src/main/java/co/aikar/timings/MinecraftTimings.java
++++ b/src/main/java/co/aikar/timings/MinecraftTimings.java
+@@ -30,6 +30,8 @@ public final class MinecraftTimings {
+     public static final Timing antiXrayUpdateTimer = Timings.ofSafe("anti-xray - update");
+     public static final Timing antiXrayObfuscateTimer = Timings.ofSafe("anti-xray - obfuscate");
+ 
++    public static final Timing savePlayer = Timings.ofSafe("Save Player");
++
+     private MinecraftTimings() {}
+ 
+     /**
+diff --git a/src/main/java/co/aikar/timings/WorldTimingsHandler.java b/src/main/java/co/aikar/timings/WorldTimingsHandler.java
+index c2e85f3..2c45562 100644
+--- a/src/main/java/co/aikar/timings/WorldTimingsHandler.java
++++ b/src/main/java/co/aikar/timings/WorldTimingsHandler.java
+@@ -43,6 +43,17 @@ public class WorldTimingsHandler {
+     public final Timing chunkGeneration;
+     public final Timing chunkIOStage1;
+     public final Timing chunkIOStage2;
++    public final Timing saveHandler;
++    public final Timing saveChunk;
++    public final Timing queueSave;
++    public final Timing saveEntityNBT;
++    public final Timing saveChunkMetaNBT;
++    public final Timing saveTileEntityNBT;
++    public final Timing saveTileTicksNBT;
++    public final Timing saveChunkMiscNBT;
++    public final Timing chunkNBTBuild;
++    public final Timing saveChunkNOP;
++    public final Timing saveLevel;
+ 
+     public final Timing lightingQueueTimer;
+ 
+@@ -86,6 +97,17 @@ public class WorldTimingsHandler {
+         tracker1 = Timings.ofSafe(name + "tracker stage 1");
+         tracker2 = Timings.ofSafe(name + "tracker stage 2");
+         doTick = Timings.ofSafe(name + "doTick");
++        saveHandler = Timings.ofSafe(name + "worldSave");
++        saveChunk = Timings.ofSafe(name + "saveChunk");
++        saveChunkMetaNBT = Timings.ofSafe(name + "saveChunkMetaNBT");
++        saveChunkMiscNBT = Timings.ofSafe(name + "saveChunkMiscNBT");
++        saveLevel = Timings.ofSafe(name + "saveLevel");
++        queueSave = Timings.ofSafe(name + "queueSave");
++        saveEntityNBT = Timings.ofSafe(name + "saveEntityNBT");
++        saveTileEntityNBT = Timings.ofSafe(name + "saveTileEntityNBT");
++        saveTileTicksNBT = Timings.ofSafe(name + "saveTileTicksNBT");
++        chunkNBTBuild = Timings.ofSafe(name + "chunkNBTBuild");
++        saveChunkNOP = Timings.ofSafe(name + "saveChunkLevel");
+         tickEntities = Timings.ofSafe(name + "tickEntities");
+ 
+         lightingQueueTimer = Timings.ofSafe(name + "Lighting Queue");
+diff --git a/src/main/java/net/minecraft/server/ChunkProviderServer.java b/src/main/java/net/minecraft/server/ChunkProviderServer.java
+index 2feaf75..a194a8d 100644
+--- a/src/main/java/net/minecraft/server/ChunkProviderServer.java
++++ b/src/main/java/net/minecraft/server/ChunkProviderServer.java
+@@ -1,5 +1,6 @@
+ package net.minecraft.server;
+ 
++import co.aikar.timings.Timing;
+ import com.destroystokyo.paper.PaperConfig;
+ import com.google.common.collect.Lists;
+ import com.google.common.collect.Sets;
+@@ -250,7 +251,7 @@ public class ChunkProviderServer implements IChunkProvider {
+     }
+ 
+     public void saveChunkNOP(Chunk chunk) {
+-        try {
++        try (Timing ignored = world.timings.saveChunkNOP.startTiming()) { // EMC
+             this.chunkLoader.b(this.world, chunk);
+         } catch (Exception exception) {
+             // Paper start
+@@ -263,7 +264,7 @@ public class ChunkProviderServer implements IChunkProvider {
+     }
+ 
+     public void saveChunk(Chunk chunk) {
+-        try {
++        try (Timing ignored = world.timings.saveChunk.startTiming()){ // EMC
+             chunk.setLastSaved(this.world.getTime());
+             this.chunkLoader.a(this.world, chunk);
+         } catch (IOException ioexception) {
+diff --git a/src/main/java/net/minecraft/server/ChunkRegionLoader.java b/src/main/java/net/minecraft/server/ChunkRegionLoader.java
+index 3625579..55ae4a9 100644
+--- a/src/main/java/net/minecraft/server/ChunkRegionLoader.java
++++ b/src/main/java/net/minecraft/server/ChunkRegionLoader.java
+@@ -13,6 +13,8 @@ import java.util.Set;
+ import java.util.concurrent.ConcurrentHashMap;
+ import javax.annotation.Nullable;
+ import java.util.concurrent.ConcurrentLinkedQueue; // Paper
++
++import co.aikar.timings.Timing;
+ import org.apache.logging.log4j.LogManager;
+ import org.apache.logging.log4j.Logger;
+ 
+@@ -136,7 +138,9 @@ public class ChunkRegionLoader implements IChunkLoader, IAsyncChunkSaver {
+             nbttagcompound.set("Level", nbttagcompound1);
+             nbttagcompound.setInt("DataVersion", 184);
+             this.a(chunk, world, nbttagcompound1);
+-            this.a(chunk.k(), nbttagcompound);
++            try (Timing ignored = world.timings.queueSave.startTiming()) {
++                this.a(chunk.k(), nbttagcompound);
++            }
+         } catch (Exception exception) {
+             ChunkRegionLoader.a.error("Failed to save chunk", exception);
+         }
+@@ -223,12 +227,16 @@ public class ChunkRegionLoader implements IChunkLoader, IAsyncChunkSaver {
+     private void a(Chunk chunk, World world, NBTTagCompound nbttagcompound) {
+         nbttagcompound.setInt("xPos", chunk.locX);
+         nbttagcompound.setInt("zPos", chunk.locZ);
++        world.timings.saveChunkMetaNBT.startTiming();
+         MetaApiAccessor.saveChunkMetaNbt(nbttagcompound, chunk); // EMC
++        world.timings.saveChunkMetaNBT.stopTiming();
++        world.timings.saveChunkMiscNBT.startTiming();
+         nbttagcompound.setLong("LastUpdate", world.getTime());
+         nbttagcompound.setIntArray("HeightMap", chunk.r());
+         nbttagcompound.setBoolean("TerrainPopulated", chunk.isDone());
+         nbttagcompound.setBoolean("LightPopulated", chunk.v());
+         nbttagcompound.setLong("InhabitedTime", chunk.x());
++        world.timings.saveChunkMiscNBT.stopTiming();
+         ChunkSection[] achunksection = chunk.getSections();
+         NBTTagList nbttaglist = new NBTTagList();
+         boolean flag = !world.worldProvider.m();
+@@ -241,6 +249,7 @@ public class ChunkRegionLoader implements IChunkLoader, IAsyncChunkSaver {
+             ChunkSection chunksection = achunksection1[j];
+ 
+             if (chunksection != Chunk.a) {
++                try (Timing ignored = world.timings.chunkNBTBuild.startTiming()) {
+                 nbttagcompound1 = new NBTTagCompound();
+                 nbttagcompound1.setByte("Y", (byte) (chunksection.getYPosition() >> 4 & 255));
+                 byte[] abyte = new byte[4096];
+@@ -261,12 +270,14 @@ public class ChunkRegionLoader implements IChunkLoader, IAsyncChunkSaver {
+                 }
+ 
+                 nbttaglist.add(nbttagcompound1);
++                }
+             }
+         }
+ 
+         nbttagcompound.set("Sections", nbttaglist);
+         nbttagcompound.setByteArray("Biomes", chunk.getBiomeIndex());
+         chunk.g(false);
++        world.timings.saveEntityNBT.startTiming();
+         NBTTagList nbttaglist1 = new NBTTagList();
+ 
+         Iterator iterator;
+@@ -286,6 +297,8 @@ public class ChunkRegionLoader implements IChunkLoader, IAsyncChunkSaver {
+         }
+ 
+         nbttagcompound.set("Entities", nbttaglist1);
++        world.timings.saveEntityNBT.stopTiming();
++        world.timings.saveTileEntityNBT.startTiming();
+         NBTTagList nbttaglist2 = new NBTTagList();
+ 
+         iterator = chunk.getTileEntities().values().iterator();
+@@ -298,6 +311,8 @@ public class ChunkRegionLoader implements IChunkLoader, IAsyncChunkSaver {
+         }
+ 
+         nbttagcompound.set("TileEntities", nbttaglist2);
++        world.timings.saveTileEntityNBT.stopTiming();
++        world.timings.saveTileTicksNBT.startTiming();
+         List list = world.a(chunk, false);
+ 
+         if (list != null) {
+@@ -321,7 +336,7 @@ public class ChunkRegionLoader implements IChunkLoader, IAsyncChunkSaver {
+ 
+             nbttagcompound.set("TileTicks", nbttaglist3);
+         }
+-
++        world.timings.saveTileTicksNBT.stopTiming();
+     }
+ 
+     private Chunk a(World world, NBTTagCompound nbttagcompound) {
+diff --git a/src/main/java/net/minecraft/server/PlayerList.java b/src/main/java/net/minecraft/server/PlayerList.java
+index ce07f64..629a4a4 100644
+--- a/src/main/java/net/minecraft/server/PlayerList.java
++++ b/src/main/java/net/minecraft/server/PlayerList.java
+@@ -1,5 +1,6 @@
+ package net.minecraft.server;
+ 
++import co.aikar.timings.MinecraftTimings;
+ import com.google.common.collect.Lists;
+ import com.google.common.collect.Maps;
+ import com.google.common.collect.Sets;
+@@ -328,13 +329,14 @@ public abstract class PlayerList {
+     }
+ 
+     protected void savePlayerFile(EntityPlayer entityplayer) {
++        MinecraftTimings.savePlayer.startTiming();
+         this.playerFileData.save(entityplayer);
+         ServerStatisticManager serverstatisticmanager = (ServerStatisticManager) this.o.get(entityplayer.getUniqueID());
+ 
+         if (serverstatisticmanager != null) {
+             serverstatisticmanager.b();
+         }
+-
++        MinecraftTimings.savePlayer.stopTiming();
+     }
+ 
+     public void onPlayerJoin(EntityPlayer entityplayer, String joinMessage) { // CraftBukkit added param
+diff --git a/src/main/java/net/minecraft/server/WorldServer.java b/src/main/java/net/minecraft/server/WorldServer.java
+index d5d0ae1..bc8146d 100644
+--- a/src/main/java/net/minecraft/server/WorldServer.java
++++ b/src/main/java/net/minecraft/server/WorldServer.java
+@@ -1,5 +1,6 @@
+ package net.minecraft.server;
+ 
++import co.aikar.timings.Timing;
+ import com.google.common.base.Predicate;
+ import com.google.common.collect.Lists;
+ import com.google.common.collect.Maps;
+@@ -1013,6 +1014,7 @@ public class WorldServer extends World implements IAsyncTaskHandler {
+     }
+ 
+     public void save(boolean flag, @Nullable IProgressUpdate iprogressupdate) throws ExceptionWorldConflict {
++        try (Timing ignored = timings.saveHandler.startTiming()) { // EMC
+         ChunkProviderServer chunkproviderserver = this.getChunkProviderServer();
+ 
+         if (chunkproviderserver.e()) {
+@@ -1042,7 +1044,7 @@ public class WorldServer extends World implements IAsyncTaskHandler {
+             }*/
+             // Paper end
+ 
+-        }
++        }} // EMC
+     }
+ 
+     public void flushSave() {
+@@ -1054,6 +1056,7 @@ public class WorldServer extends World implements IAsyncTaskHandler {
+     }
+ 
+     protected void a() throws ExceptionWorldConflict {
++        timings.saveLevel.startTiming(); // EMC
+         this.checkSession();
+         WorldServer[] aworldserver = this.server.worldServer;
+         int i = aworldserver.length;
+@@ -1087,6 +1090,7 @@ public class WorldServer extends World implements IAsyncTaskHandler {
+         }
+         this.dataManager.saveWorldData(this.worldData, this.server.getPlayerList().t());
+         // CraftBukkit end
++        timings.saveLevel.stopTiming(); // EMC
+     }
+ 
+     public boolean addEntity(Entity entity) {
+-- 
+2.10.2
+
