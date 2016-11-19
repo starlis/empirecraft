@@ -11,6 +11,17 @@ PAPER_API_REPO="git.starlis.com:starlis/Paper-API"
 PAPER_SERVER_REPO="git.starlis.com:starlis/Paper-Server"
 MCDEV_REPO="git.starlis.com:starlis/mc-dev"
 
+function bashColor {
+if [ $2 ]; then
+	echo -e "\e[$1;$2m"
+else
+	echo -e "\e[$1m"
+fi
+}
+function bashColorReset {
+	echo -e "\e[m"
+}
+
 function cleanupPatches {
 	cd "$1"
 	for patch in *.patch; do
