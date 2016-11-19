@@ -20,10 +20,11 @@ function savePatches {
 		echo "REBASE DETECTED - PARTIAL SAVE"
 		last=$(cat ".git/rebase-apply/last")
 		next=$(cat ".git/rebase-apply/next")
+		declare -a files=("$basedir/patches/$2/"*.patch)
 		for i in $(seq -f "%04g" 1 1 $last)
 		do
 			if [ $i -lt $next ]; then
-				rm $basedir/patches/$2/${i}-*.patch
+				rm "${files[`expr $i - 1`]}"
 			fi
 		done
 	else
