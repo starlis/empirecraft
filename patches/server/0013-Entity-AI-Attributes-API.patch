@@ -1,4 +1,4 @@
-From f2bcbd1f9962f20b1e578c4fa651979185ef6516 Mon Sep 17 00:00:00 2001
+From 355e88ba74100a81cd2a8296748acc66fd2029e3 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Fri, 31 May 2013 22:40:25 -0400
 Subject: [PATCH] Entity AI / Attributes API
@@ -10,6 +10,8 @@ This will be expanded as future needs.
  .../empireminecraft/entityai/AttributesAPI.java    | 136 +++++++++++++++++++++
  .../com/empireminecraft/entityai/EntityAIApi.java  | 136 +++++++++++++++++++++
  .../empireminecraft/entityai/EntityMoveApi.java    |  64 ++++++++++
+ .../net/minecraft/server/AttributeInstance.java    |   4 +-
+ .../net/minecraft/server/AttributeMapBase.java     |   2 +-
  .../net/minecraft/server/AttributesAccessor.java   |  46 +++++++
  src/main/java/net/minecraft/server/Entity.java     |  13 +-
  .../java/net/minecraft/server/EntityAnimal.java    |   2 +-
@@ -27,7 +29,7 @@ This will be expanded as future needs.
  src/main/java/net/minecraft/server/World.java      |   2 +-
  .../craftbukkit/inventory/CraftItemStack.java      |   2 +-
  src/main/java/org/spigotmc/ActivationRange.java    |   1 +
- 20 files changed, 436 insertions(+), 15 deletions(-)
+ 22 files changed, 439 insertions(+), 18 deletions(-)
  create mode 100644 src/main/java/com/empireminecraft/entityai/AttributesAPI.java
  create mode 100644 src/main/java/com/empireminecraft/entityai/EntityAIApi.java
  create mode 100644 src/main/java/com/empireminecraft/entityai/EntityMoveApi.java
@@ -36,7 +38,7 @@ This will be expanded as future needs.
 
 diff --git a/src/main/java/com/empireminecraft/entityai/AttributesAPI.java b/src/main/java/com/empireminecraft/entityai/AttributesAPI.java
 new file mode 100644
-index 0000000..243d4a4
+index 0000000..8381579
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/entityai/AttributesAPI.java
 @@ -0,0 +1,136 @@
@@ -132,9 +134,9 @@ index 0000000..243d4a4
 +        }
 +        final AttributeInstance attribute = entity.getAttributeInstance(attributetype);
 +        if (attribute != null) {
-+            return attribute.b(); // Don't use attribute modifier version (getValue)
++            return attribute.getBaseValue(); // Don't use attribute modifier version (getValue)
 +        }
-+        return attributetype.b();
++        return attributetype.getDefault();
 +    }
 +
 +    // part of this copied from https://bukkit.org/threads/util-edit-itemstack-attributes-adding-speed-damage-or-health-bonuses.158316/
@@ -388,9 +390,44 @@ index 0000000..7ce4f81
 +        return path != null;
 +    }
 +}
+diff --git a/src/main/java/net/minecraft/server/AttributeInstance.java b/src/main/java/net/minecraft/server/AttributeInstance.java
+index be179ba..c5608aa 100644
+--- a/src/main/java/net/minecraft/server/AttributeInstance.java
++++ b/src/main/java/net/minecraft/server/AttributeInstance.java
+@@ -8,7 +8,7 @@ public interface AttributeInstance {
+ 
+     IAttribute getAttribute();
+ 
+-    double b();
++    double b(); default double getBaseValue() { return b(); } // EMC - OBF HELPER
+ 
+     void setValue(double d0);
+ 
+@@ -16,7 +16,7 @@ public interface AttributeInstance {
+ 
+     Collection<AttributeModifier> c();
+ 
+-    boolean a(AttributeModifier attributemodifier);
++    boolean a(AttributeModifier attributemodifier); default boolean configureAttribute(AttributeModifier attributeModifier) { return a(attributeModifier); } // EMC - OBF HELPER
+ 
+     @Nullable
+     AttributeModifier a(UUID uuid);
+diff --git a/src/main/java/net/minecraft/server/AttributeMapBase.java b/src/main/java/net/minecraft/server/AttributeMapBase.java
+index e541672..bd882b9 100644
+--- a/src/main/java/net/minecraft/server/AttributeMapBase.java
++++ b/src/main/java/net/minecraft/server/AttributeMapBase.java
+@@ -26,7 +26,7 @@ public abstract class AttributeMapBase {
+         return (AttributeInstance) this.b.get(s);
+     }
+ 
+-    public AttributeInstance b(IAttribute iattribute) {
++    public AttributeInstance registerAttribute(IAttribute attr) { return b(attr); } public AttributeInstance b(IAttribute iattribute) { // EMC - OBF HELPER
+         if (this.b.containsKey(iattribute.getName())) {
+             throw new IllegalArgumentException("Attribute is already registered!");
+         } else {
 diff --git a/src/main/java/net/minecraft/server/AttributesAccessor.java b/src/main/java/net/minecraft/server/AttributesAccessor.java
 new file mode 100644
-index 0000000..5353916
+index 0000000..3c3676a
 --- /dev/null
 +++ b/src/main/java/net/minecraft/server/AttributesAccessor.java
 @@ -0,0 +1,46 @@
@@ -428,12 +465,12 @@ index 0000000..5353916
 +
 +    public static void configureAttributes(EntityInsentient entity) {
 +        entity.getAttributeInstance(targetRange)
-+              .a(new AttributeModifier("Random spawn bonus", entity.random.nextGaussian() * 0.05D, 1));
++              .configureAttribute(new AttributeModifier("Random spawn bonus", entity.random.nextGaussian() * 0.05D, 1));
 +    }
 +
 +    public static void initializeAttributes(EntityLiving entity, AttributeMapBase map) {
 +        if (entity instanceof EntityInsentient) {
-+            map.b(targetRange);
++            map.registerAttribute(targetRange);
 +            if (entity instanceof Wither) {
 +                AttributesAPI.setAttribute((LivingEntity) entity.getBukkitEntity(), AttributesAPI.Attribute.TARGET_RANGE, 30D);
 +            }
