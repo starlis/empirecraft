@@ -1,4 +1,4 @@
-From b5d5445d3add86093bd284a2700c8a3bac334181 Mon Sep 17 00:00:00 2001
+From 5377478c9e1bb5fdf4c497cbe7608a5710a14f96 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Wed, 27 Feb 2013 23:27:45 -0500
 Subject: [PATCH] Hidden Item Meta
@@ -13,18 +13,18 @@ Then you can store Data on 21+
 Also adds a &&::SHINY tag to send a fake enchantment aura if it does not exists.
 Must be set before META
 ---
- .../com/empireminecraft/cbmisc/HiddenItemMeta.java | 52 ++++++++++++++++++++++
+ .../com/empireminecraft/cbmisc/HiddenItemMeta.java | 85 ++++++++++++++++++++++
  src/main/java/net/minecraft/server/ItemStack.java  |  2 +-
- .../net/minecraft/server/PacketDataSerializer.java | 16 +++++++
- 3 files changed, 69 insertions(+), 1 deletion(-)
+ .../net/minecraft/server/PacketDataSerializer.java |  2 +
+ 3 files changed, 88 insertions(+), 1 deletion(-)
  create mode 100644 src/main/java/com/empireminecraft/cbmisc/HiddenItemMeta.java
 
 diff --git a/src/main/java/com/empireminecraft/cbmisc/HiddenItemMeta.java b/src/main/java/com/empireminecraft/cbmisc/HiddenItemMeta.java
 new file mode 100644
-index 0000000..e95179a
+index 0000000..5e01477
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/cbmisc/HiddenItemMeta.java
-@@ -0,0 +1,52 @@
+@@ -0,0 +1,85 @@
 +package com.empireminecraft.cbmisc;
 +
 +import net.minecraft.server.NBTTagCompound;
@@ -64,7 +64,20 @@ index 0000000..e95179a
 +
 +                    nbttagcompound = (NBTTagCompound) nbttagcompound.clone();
 +                    if (hasShiny && !nbttagcompound.hasKey("ench")) {
-+                        nbttagcompound.set("ench" , new NBTTagList());
++                        NBTTagList nbtbase = new NBTTagList();
++                        NBTTagCompound enchant = new NBTTagCompound();
++                        enchant.setShort("id", (short) 1);
++                        enchant.setShort("lvl", (short) 1);
++                        nbtbase.add(enchant);
++                        nbttagcompound.set("ench" , nbtbase);
++                        int flags = 1;
++                        if (nbttagcompound.hasKey("HideFlags")) {
++                            flags = nbttagcompound.getInt("HideFlags");
++                            nbttagcompound.setInt("HideFlagsOrig", flags);
++                            flags &= 1;
++                        }
++                        nbttagcompound.setInt("HideFlags", flags);
++                        nbttagcompound.setInt("fakeench", 1);
 +                    }
 +                    display = nbttagcompound.getCompound("display");
 +                    display.set("Lore", newlore);
@@ -75,6 +88,26 @@ index 0000000..e95179a
 +            }
 +        }
 +        return nbttagcompound;
++    }
++
++    public static NBTTagCompound restoreItemLore(NBTTagCompound tag) {
++        if (tag.hasKey("display")) {
++            NBTTagCompound display = tag.getCompound("display");
++            if (display.hasKey("OriginalLore")) {
++                display.set("Lore", display.getList("OriginalLore", 8));
++                display.remove("OriginalLore");
++            }
++        }
++        // If shiny was used
++        if (tag.hasKey("fakeench")) {
++            tag.remove("fakeench");
++            tag.remove("ench");
++            if (tag.hasKey("HideFlagsOrig")) {
++                tag.setInt("HideFlags", tag.getInt("HideFlagsOrig"));
++                tag.remove("HideFlagsOrig");
++            }
++        }
++        return tag;
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/ItemStack.java b/src/main/java/net/minecraft/server/ItemStack.java
@@ -91,7 +124,7 @@ index 3063ddd..0459bfb 100644
      private int damage;
      private EntityItemFrame i;
 diff --git a/src/main/java/net/minecraft/server/PacketDataSerializer.java b/src/main/java/net/minecraft/server/PacketDataSerializer.java
-index 68e8c46..25af522 100644
+index 68e8c46..d88703f 100644
 --- a/src/main/java/net/minecraft/server/PacketDataSerializer.java
 +++ b/src/main/java/net/minecraft/server/PacketDataSerializer.java
 @@ -248,6 +248,7 @@ public class PacketDataSerializer extends ByteBuf {
@@ -102,25 +135,11 @@ index 68e8c46..25af522 100644
              }
  
              this.a(nbttagcompound);
-@@ -269,6 +270,21 @@ public class PacketDataSerializer extends ByteBuf {
+@@ -269,6 +270,7 @@ public class PacketDataSerializer extends ByteBuf {
              itemstack.setTag(this.j());
              // CraftBukkit start
              if (itemstack.getTag() != null) {
-+                // EMC start - get around creative menu having ultimate control of the NBT...
-+                if (itemstack.tag.hasKey("display")) {
-+                    NBTTagCompound display = itemstack.tag.getCompound("display");
-+                    if (display.hasKey("OriginalLore")) {
-+                        display.set("Lore", display.getList("OriginalLore", 8));
-+                        display.remove("OriginalLore");
-+                    }
-+                }
-+                // If shiny was used
-+                if (itemstack.tag.hasKey("ench")) {
-+                    if (itemstack.tag.getList("ench", 10).isEmpty()) {
-+                        itemstack.tag.remove("ench");
-+                    }
-+                }
-+                // EMC end
++                itemstack.tag = com.empireminecraft.cbmisc.HiddenItemMeta.restoreItemLore(itemstack.tag); // EMC - get around creative menu having ultimate control of the NBT...
                  CraftItemStack.setItemMeta(itemstack, CraftItemStack.getItemMeta(itemstack));
              }
              // CraftBukkit end
