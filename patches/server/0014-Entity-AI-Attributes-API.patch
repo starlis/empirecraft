@@ -1,4 +1,4 @@
-From 0e435fa81fa708b0dbf5dd482b61877648215b85 Mon Sep 17 00:00:00 2001
+From 4ec727f4f4534c4aebd20eeb621129ac6f193986 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Fri, 31 May 2013 22:40:25 -0400
 Subject: [PATCH] Entity AI / Attributes API
@@ -7,9 +7,9 @@ This gives us control over some Entity AI
 Also API for Attributes (Entity + Item)
 This will be expanded as future needs.
 ---
- .../empireminecraft/entityai/AttributesAPI.java    | 136 +++++++++++++++++++++
- .../com/empireminecraft/entityai/EntityAIApi.java  | 136 +++++++++++++++++++++
- .../empireminecraft/entityai/EntityMoveApi.java    |  64 ++++++++++
+ .../empireminecraft/entityai/AttributesAPI.java    | 136 +++++++++++++++++++
+ .../com/empireminecraft/entityai/EntityAIApi.java  | 146 +++++++++++++++++++++
+ .../empireminecraft/entityai/EntityMoveApi.java    |  64 +++++++++
  .../net/minecraft/server/AttributeInstance.java    |   4 +-
  .../net/minecraft/server/AttributeMapBase.java     |   2 +-
  .../net/minecraft/server/AttributesAccessor.java   |  46 +++++++
@@ -17,19 +17,19 @@ This will be expanded as future needs.
  .../java/net/minecraft/server/EntityAnimal.java    |   2 +-
  .../net/minecraft/server/EntityArmorStand.java     |   2 +-
  .../net/minecraft/server/EntityEnderSignal.java    |   2 +-
- .../net/minecraft/server/EntityGoalAccessor.java   |  24 ++++
+ .../net/minecraft/server/EntityGoalAccessor.java   |  20 +++
  .../net/minecraft/server/EntityInsentient.java     |   1 +
  src/main/java/net/minecraft/server/EntityItem.java |   3 +-
  .../java/net/minecraft/server/EntityLiving.java    |   1 +
  .../net/minecraft/server/GenericAttributes.java    |   1 +
  .../net/minecraft/server/NavigationAbstract.java   |   1 +
  .../server/PathfinderGoalArrowAttack.java          |   8 +-
- .../minecraft/server/PathfinderGoalSelector.java   |   4 +-
+ .../minecraft/server/PathfinderGoalSelector.java   |  10 +-
  .../net/minecraft/server/PathfinderGoalTarget.java |   2 +-
  src/main/java/net/minecraft/server/World.java      |   2 +-
  .../craftbukkit/inventory/CraftItemStack.java      |   2 +-
  src/main/java/org/spigotmc/ActivationRange.java    |   1 +
- 22 files changed, 439 insertions(+), 18 deletions(-)
+ 22 files changed, 448 insertions(+), 21 deletions(-)
  create mode 100644 src/main/java/com/empireminecraft/entityai/AttributesAPI.java
  create mode 100644 src/main/java/com/empireminecraft/entityai/EntityAIApi.java
  create mode 100644 src/main/java/com/empireminecraft/entityai/EntityMoveApi.java
@@ -180,10 +180,10 @@ index 0000000..8381579
 +}
 diff --git a/src/main/java/com/empireminecraft/entityai/EntityAIApi.java b/src/main/java/com/empireminecraft/entityai/EntityAIApi.java
 new file mode 100644
-index 0000000..64976f9
+index 0000000..d237091
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/entityai/EntityAIApi.java
-@@ -0,0 +1,136 @@
+@@ -0,0 +1,146 @@
 +package com.empireminecraft.entityai;
 +
 +import net.minecraft.server.*;
@@ -195,6 +195,7 @@ index 0000000..64976f9
 +
 +import java.util.ArrayList;
 +import java.util.List;
++import java.util.Set;
 +
 +public class EntityAIApi {
 +    /**
@@ -230,30 +231,40 @@ index 0000000..64976f9
 +    }
 +    public static void makeAggressive(Creature creature, float range) {
 +        EntityCreature entity = ((CraftCreature)creature).getHandle();
-+        entity.goalSelector.a(2, new PathfinderGoalMeleeAttack(entity, 1.0F, false));
-+        entity.targetSelector.a(2, new PathfinderGoalNearestAttackableTarget(entity, EntityHuman.class, true));
++        entity.goalSelector.addGoal(2, new PathfinderGoalMeleeAttack(entity, 1.0F, false));
++        entity.targetSelector.addGoal(2, new PathfinderGoalNearestAttackableTarget(entity, EntityHuman.class, true));
 +        setTargetRange(creature, range);
 +    }
 +
 +    public static void makePeaceful(Creature creature) {
 +        EntityCreature entity = (EntityCreature) ((CraftEntity)creature).getHandle();
 +
-+        List check = new ArrayList();
-+        check.addAll(entity.goalSelector.getGoals());
-+        check.addAll(entity.goalSelector.getExecutingGoals());
-+        check.addAll(entity.targetSelector.getGoals());
-+        check.addAll(entity.targetSelector.getExecutingGoals());
++        getGoalSets(entity).forEach(set -> set.removeIf(o -> {
++            return EntityGoalAccessor.isHostileGoal(o.getGoal());
++        }));
++    }
 +
-+        for (Object o : check) {
-+            PathfinderGoal goal = EntityGoalAccessor.getPathfinderGoal(o);
-+            if (EntityGoalAccessor.isHostileGoal(goal)) {
-+                entity.goalSelector.getGoals().remove(o);
-+                entity.goalSelector.getExecutingGoals().remove(o);
-+                entity.targetSelector.getGoals().remove(o);
-+                entity.targetSelector.getExecutingGoals().remove(o);
-+            }
++    public static void removeGoalByName(Creature creature, String goalName) {
++        EntityCreature entity = (EntityCreature) ((CraftEntity)creature).getHandle();
++        getGoalSets(entity).forEach(set -> set.removeIf(o -> {
++            return o.getGoal().getClass().getSimpleName().equalsIgnoreCase(goalName);
++        }));
++    }
 +
-+        }
++    public static List<Set<PathfinderGoalSelector.PathfinderGoalSelectorItem>> getGoalSets(EntityCreature entity) {
++        List<Set<PathfinderGoalSelector.PathfinderGoalSelectorItem>> check = new ArrayList();
++        check.add(entity.goalSelector.getGoals());
++        check.add(entity.goalSelector.getExecutingGoals());
++        check.add(entity.targetSelector.getGoals());
++        check.add(entity.targetSelector.getExecutingGoals());
++        return check;
++    }
++
++    public static void removeGoal(EntityCreature entity, PathfinderGoalSelector.PathfinderGoalSelectorItem o) {
++        entity.goalSelector.getGoals().remove(o);
++        entity.goalSelector.getExecutingGoals().remove(o);
++        entity.targetSelector.getGoals().remove(o);
++        entity.targetSelector.getExecutingGoals().remove(o);
 +    }
 +
 +    public static void setEntitySize(org.bukkit.entity.Entity entity, float width, float height) {
@@ -267,28 +278,27 @@ index 0000000..64976f9
 +    public static void setArrowAttackRange(Monster monster, float range) {
 +        setTargetRange(monster, range);
 +        EntityMonster entity = (EntityMonster) ((CraftEntity)monster).getHandle();
-+        for (Object o : entity.goalSelector.b) {
-+            PathfinderGoal goal = EntityGoalAccessor.getPathfinderGoal(o);
++        getGoalSets(entity).forEach(set -> set.forEach(o -> {
++            PathfinderGoal goal = o.getGoal();
 +            if (goal instanceof PathfinderGoalArrowAttack) {
-+                ((PathfinderGoalArrowAttack) goal).i = range;
-+                ((PathfinderGoalArrowAttack) goal).j = range*range;
++                ((PathfinderGoalArrowAttack) goal).setDist(range);
 +            }
-+        }
++        }));
 +    }
 +
 +    public static void setArrowAttackSpeed(Monster monster, Integer min, Integer max) {
 +        EntityMonster entity = (EntityMonster) ((CraftEntity)monster).getHandle();
-+        for (Object o : entity.goalSelector.b) {
-+            PathfinderGoal goal = EntityGoalAccessor.getPathfinderGoal(o);
++        getGoalSets(entity).forEach(set -> set.forEach(o -> {
++            PathfinderGoal goal = o.getGoal();
 +            if (goal instanceof PathfinderGoalArrowAttack) {
 +                if (min != null) {
-+                    ((PathfinderGoalArrowAttack) goal).g = min;
++                    ((PathfinderGoalArrowAttack) goal).setMinTime(min);
 +                }
 +                if (max != null) {
-+                    ((PathfinderGoalArrowAttack) goal).h = max;
++                    ((PathfinderGoalArrowAttack) goal).setMaxTime(max);
 +                }
 +            }
-+        }
++        }));
 +    }
 +    public static void setEntityMaxPathfindingRange(Creature creature, float range) {
 +        AttributesAPI.setAttribute(creature, AttributesAPI.Attribute.FOLLOW_RANGE, range);
@@ -605,18 +615,14 @@ index a80030b..dc4791f 100644
          double d1 = (double) blockposition.getZ();
 diff --git a/src/main/java/net/minecraft/server/EntityGoalAccessor.java b/src/main/java/net/minecraft/server/EntityGoalAccessor.java
 new file mode 100644
-index 0000000..99051b9
+index 0000000..d0ee7f3
 --- /dev/null
 +++ b/src/main/java/net/minecraft/server/EntityGoalAccessor.java
-@@ -0,0 +1,24 @@
+@@ -0,0 +1,20 @@
 +package net.minecraft.server;
 +
-+public class EntityGoalAccessor {
-+    public static PathfinderGoal getPathfinderGoal(Object object) {
-+        if (object instanceof PathfinderGoalSelector.PathfinderGoalSelectorItem) {
-+            return ((PathfinderGoalSelector.PathfinderGoalSelectorItem) object).a;
-+        }
-+        return null;
++public final class EntityGoalAccessor {
++    private EntityGoalAccessor() {
 +    }
 +
 +    public static boolean isHostileGoal(PathfinderGoal goal) {
@@ -703,7 +709,7 @@ index c0ef240..992331a 100644
      public PathEntity k() {
          return this.c;
 diff --git a/src/main/java/net/minecraft/server/PathfinderGoalArrowAttack.java b/src/main/java/net/minecraft/server/PathfinderGoalArrowAttack.java
-index da09bb2..28eb549 100644
+index da09bb2..6389900 100644
 --- a/src/main/java/net/minecraft/server/PathfinderGoalArrowAttack.java
 +++ b/src/main/java/net/minecraft/server/PathfinderGoalArrowAttack.java
 @@ -8,10 +8,10 @@ public class PathfinderGoalArrowAttack extends PathfinderGoal {
@@ -714,15 +720,15 @@ index da09bb2..28eb549 100644
 -    private final int h;
 -    private final float i;
 -    private final float j;
-+    public int g; // EMC - min ranged time
-+    public int h; // EMC - max ranged time
-+    public float i; // EMC - max ranged dist
-+    public float j; // EMC - max ranged dist squared
++    public int g;public void setMinTime(int time) { this.g = time; } // EMC - OBF HELPER - min ranged time
++    public int h;public void setMaxTime(int time) { this.h = time; } // EMC - OBF HELPER - max ranged time
++    public float i;public void setDist(float range) { this.i = range; j = range*range; } // EMC - OBF HELPER - max ranged dist
++    public float j; // EMC - max ranged dist square
  
      public PathfinderGoalArrowAttack(IRangedEntity irangedentity, double d0, int i, float f) {
          this(irangedentity, d0, i, i, f);
 diff --git a/src/main/java/net/minecraft/server/PathfinderGoalSelector.java b/src/main/java/net/minecraft/server/PathfinderGoalSelector.java
-index c159616..3aac118 100644
+index c159616..bbf31c2 100644
 --- a/src/main/java/net/minecraft/server/PathfinderGoalSelector.java
 +++ b/src/main/java/net/minecraft/server/PathfinderGoalSelector.java
 @@ -10,8 +10,8 @@ import org.apache.logging.log4j.Logger;
@@ -736,6 +742,27 @@ index c159616..3aac118 100644
      private final MethodProfiler d;
      private int e;
      private int f = 3;
+@@ -21,7 +21,7 @@ public class PathfinderGoalSelector {
+         this.d = methodprofiler;
+     }
+ 
+-    public void a(int i, PathfinderGoal pathfindergoal) {
++    public void addGoal(int i, PathfinderGoal pathfindergoal) { this.a(i, pathfindergoal); } public void a(int i, PathfinderGoal pathfindergoal) { // EMC - OBF HELPER
+         this.b.add(new PathfinderGoalSelector.PathfinderGoalSelectorItem(i, pathfindergoal));
+     }
+ 
+@@ -154,9 +154,9 @@ public class PathfinderGoalSelector {
+ 
+     }
+ 
+-    class PathfinderGoalSelectorItem {
++    public class PathfinderGoalSelectorItem { // EMC
+ 
+-        public final PathfinderGoal a;
++        public final PathfinderGoal a; public PathfinderGoal getGoal() { return a; } // EMC - OBF HELPER
+         public final int b;
+         public boolean c;
+ 
 diff --git a/src/main/java/net/minecraft/server/PathfinderGoalTarget.java b/src/main/java/net/minecraft/server/PathfinderGoalTarget.java
 index 6f23207..b3a9d43 100644
 --- a/src/main/java/net/minecraft/server/PathfinderGoalTarget.java
