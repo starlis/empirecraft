@@ -1,43 +1,72 @@
-From 8a69b8c762382f1759f07411e72ecce8cef0432d Mon Sep 17 00:00:00 2001
+From ff6d2b33625f92f8fa44bcc8fb51a9724e9ef650 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Wed, 12 Mar 2014 21:29:01 -0400
 Subject: [PATCH] Misc Utils
 
 Adds Misc Util functions to be used by future commits
 ---
- .../com/empireminecraft/cbmisc/CBMiscUtils.java    | 36 ++++++++++++++++++++++
+ .../com/empireminecraft/cbmisc/CBMiscUtils.java    | 65 ++++++++++++++++++++++
  .../minecraft/server/GameProfileSerializer.java    |  2 +-
- 2 files changed, 37 insertions(+), 1 deletion(-)
+ 2 files changed, 66 insertions(+), 1 deletion(-)
  create mode 100644 src/main/java/com/empireminecraft/cbmisc/CBMiscUtils.java
 
 diff --git a/src/main/java/com/empireminecraft/cbmisc/CBMiscUtils.java b/src/main/java/com/empireminecraft/cbmisc/CBMiscUtils.java
 new file mode 100644
-index 0000000..db73624
+index 0000000..27718da
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/cbmisc/CBMiscUtils.java
-@@ -0,0 +1,36 @@
+@@ -0,0 +1,65 @@
 +package com.empireminecraft.cbmisc;
 +
 +
 +import net.minecraft.server.ItemMonsterEgg;
++import net.minecraft.server.ItemStack;
 +import net.minecraft.server.MinecraftKey;
++import net.minecraft.server.NBTTagCompound;
 +import org.apache.commons.lang.exception.ExceptionUtils;
 +import org.bukkit.Bukkit;
 +import org.bukkit.Material;
 +import org.bukkit.World;
++import org.bukkit.craftbukkit.entity.CraftItem;
 +import org.bukkit.craftbukkit.inventory.CraftItemStack;
 +import org.bukkit.entity.EntityType;
++
++import javax.annotation.Nonnull;
 +
 +
 +public final class CBMiscUtils {
 +    private CBMiscUtils() {}
 +
-+    public static EntityType getTypeForSpawnEgg(org.bukkit.inventory.ItemStack bukkitItem) {
++    public static EntityType getTypeForSpawnEgg(@Nonnull org.bukkit.inventory.ItemStack bukkitItem) {
 +        if (bukkitItem.getType() != Material.MONSTER_EGG) {
 +            return null;
 +        }
 +        MinecraftKey key = ItemMonsterEgg.getKey(CraftItemStack.asNMSCopy(bukkitItem));
 +        return key != null ? EntityType.fromName(key.getName()) : null;
++    }
++
++    public static org.bukkit.inventory.ItemStack spawnEggAsType(@Nonnull org.bukkit.inventory.ItemStack bukkitItem, @Nonnull
++                                                                    com.destroystokyo.paper.MinecraftKey key) {
++        if (bukkitItem.getType() != Material.MONSTER_EGG) {
++            return null;
++        }
++        if (!"minecraft".equals(key.getGroup())) {
++            throw new IllegalArgumentException("Group of key must be minecraft");
++        }
++        ItemStack item;
++        if (bukkitItem instanceof CraftItemStack && ((CraftItemStack) bukkitItem).handle != null) {
++            item = ((CraftItemStack) bukkitItem).handle;
++        } else {
++            item = CraftItemStack.asNMSCopy(bukkitItem);
++        }
++        if (item == null) {
++            throw new NullPointerException("Could not set type for spawn egg");
++        }
++        if (item.tag == null) {
++            item.tag = new NBTTagCompound();
++        }
++        item.tag.setString("id", key.getName());
++        return CraftItemStack.asCraftMirror(item);
 +    }
 +
 +    public static void clearEntityMeta() {
