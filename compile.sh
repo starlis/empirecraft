@@ -11,23 +11,23 @@ basedir=$(dirname "$SOURCE")
 
 . scripts/init.sh
 
-if [ ! -d "${FORK_NAME}-API" ]; then
-git clone $API_REPO ${FORK_NAME}-API
-fi
+mc=$(cat $basedir/Paper/work/BuildData/info.json | grep minecraftVersion | cut -d '"' -f 4)
 
-if [ ! -d "${FORK_NAME}-Server" ]; then
-git clone $SERVER_REPO ${FORK_NAME}-Server
-fi
+function update() {
+	cd $basedir
+	folder=${FORK_NAME}-$1
+	if [ ! -d "$folder" ]; then
+		git clone $SERVER_REPO $folder
+	fi
 
-cd ${FORK_NAME}-API
-git fetch origin
-git reset --hard origin/master
+        cd $basedir/$folder
+        git fetch origin
+        git checkout master
+        git reset --hard origin/$mc
+}
 
-cd ..
-
-cd ${FORK_NAME}-Server
-git fetch origin
-git reset --hard origin/master
+update API
+update Server
 
 cd ..
 if [ "$1" != "--nocompile" ]; then

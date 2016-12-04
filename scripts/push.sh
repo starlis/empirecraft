@@ -8,5 +8,7 @@ while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symli
 done
 . $(dirname $SOURCE)/init.sh
 
-pushRepo ${FORK_NAME}-API $API_REPO master
-pushRepo ${FORK_NAME}-Server $SERVER_REPO master
+minecraftversion=$(cat $basedir/Paper/work/BuildData/info.json | grep minecraftVersion | cut -d '"' -f 4)
+
+pushRepo ${FORK_NAME}-API $API_REPO master:$minecraftversion
+pushRepo ${FORK_NAME}-Server $SERVER_REPO master:$minecraftversion
