@@ -1,112 +1,15 @@
-From fbff77cec49cc315b0db1cef38714b2307dbec00 Mon Sep 17 00:00:00 2001
+From 97bd32390eaa2e8174512847700fb5bb936747fe Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Mon, 16 Nov 2015 23:23:03 -0500
 Subject: [PATCH] Implement BatMoveEvent
 
 Control where the bat goes
 ---
- .../empireminecraft/customevents/BatMoveEvent.java | 89 ++++++++++++++++++++++
- src/main/java/net/minecraft/server/EntityBat.java  |  2 +-
- 2 files changed, 90 insertions(+), 1 deletion(-)
- create mode 100644 src/main/java/com/empireminecraft/customevents/BatMoveEvent.java
+ src/main/java/net/minecraft/server/EntityBat.java | 13 ++++++++++++-
+ 1 file changed, 12 insertions(+), 1 deletion(-)
 
-diff --git a/src/main/java/com/empireminecraft/customevents/BatMoveEvent.java b/src/main/java/com/empireminecraft/customevents/BatMoveEvent.java
-new file mode 100644
-index 0000000..2c48ce8
---- /dev/null
-+++ b/src/main/java/com/empireminecraft/customevents/BatMoveEvent.java
-@@ -0,0 +1,89 @@
-+/*
-+ * Copyright (c) 2015. Starlis LLC / dba Empire Minecraft
-+ *
-+ * This source code is proprietary software and must not be redistributed without Starlis LLC's approval
-+ *
-+ */
-+
-+package com.empireminecraft.customevents;
-+
-+import net.minecraft.server.BlockPosition;
-+import net.minecraft.server.Entity;
-+import net.minecraft.server.EntityBat;
-+import org.bukkit.Location;
-+import org.bukkit.entity.Bat;
-+import org.bukkit.event.Cancellable;
-+import org.bukkit.event.Event;
-+import org.bukkit.event.HandlerList;
-+import org.bukkit.event.entity.EntityEvent;
-+
-+import java.util.Random;
-+
-+public class BatMoveEvent extends EntityEvent implements Cancellable {
-+    private final Bat bat;
-+    private Location moveTarget;
-+
-+    public BatMoveEvent(Bat bat, Location moveTarget) {
-+        super(bat);
-+        this.bat = bat;
-+        this.moveTarget = moveTarget;
-+    }
-+
-+    public Bat getBat() {
-+        return bat;
-+    }
-+
-+    public Location getMoveTarget() {
-+        return moveTarget;
-+    }
-+
-+    public void setMoveTarget(Location moveTarget) {
-+        this.moveTarget = moveTarget;
-+    }
-+
-+    private static final HandlerList handlers = new HandlerList();
-+
-+    public HandlerList getHandlers() {
-+        return handlers;
-+    }
-+
-+    public static HandlerList getHandlerList() {
-+        return handlers;
-+    }
-+
-+    private boolean cancelled = false;
-+
-+    @Override
-+    public boolean isCancelled() {
-+        return cancelled;
-+    }
-+
-+    @Override
-+    public void setCancelled(boolean cancel) {
-+        cancelled = cancel;
-+    }
-+
-+    public static BlockPosition getBatMoveTarget(EntityBat bat) {
-+        Bat bukkitBat = (Bat) bat.getBukkitEntity();
-+        Location loc = generateLoc(bukkitBat);
-+        BatMoveEvent event = new BatMoveEvent(bukkitBat, loc);
-+        if (!event.callEvent()) {
-+            return new BlockPosition(bat.locX, bat.locY, bat.locZ);
-+        }
-+        Location target = event.getMoveTarget();
-+        return new BlockPosition(target.getBlockX(), target.getBlockY(), target.getBlockZ());
-+    }
-+
-+    public Location generateLoc() {
-+        return generateLoc(bat);
-+    }
-+    public static Location generateLoc(Bat bat) {
-+        Random random = Entity.SHARED_RANDOM;
-+        Location loc = bat.getLocation();
-+        return new Location(bat.getWorld(),
-+            loc.getBlockX() + random.nextInt(15) - 7,
-+            loc.getBlockY() + random.nextInt(6) - 2,
-+            loc.getBlockZ() + random.nextInt(15) - 7
-+        );
-+    }
-+}
 diff --git a/src/main/java/net/minecraft/server/EntityBat.java b/src/main/java/net/minecraft/server/EntityBat.java
-index 7af3b31..48ccb34 100644
+index 7af3b3171..1068b2564 100644
 --- a/src/main/java/net/minecraft/server/EntityBat.java
 +++ b/src/main/java/net/minecraft/server/EntityBat.java
 @@ -106,7 +106,7 @@ public class EntityBat extends EntityAmbient {
@@ -114,10 +17,28 @@ index 7af3b31..48ccb34 100644
  
              if (this.b == null || this.random.nextInt(30) == 0 || this.b.distanceSquared((double) ((int) this.locX), (double) ((int) this.locY), (double) ((int) this.locZ)) < 4.0D) {
 -                this.b = new BlockPosition((int) this.locX + this.random.nextInt(7) - this.random.nextInt(7), (int) this.locY + this.random.nextInt(6) - 2, (int) this.locZ + this.random.nextInt(7) - this.random.nextInt(7));
-+                this.b = com.empireminecraft.customevents.BatMoveEvent.getBatMoveTarget(this); // EMC
++                this.b = getBatMoveTarget(this); // EMC
              }
  
              double d0 = (double) this.b.getX() + 0.5D - this.locX;
+@@ -193,6 +193,17 @@ public class EntityBat extends EntityAmbient {
+         return this.length / 2.0F;
+     }
+ 
++
++    public static BlockPosition getBatMoveTarget(EntityBat bat) {
++        org.bukkit.entity.Bat bukkitBat = (org.bukkit.entity.Bat) bat.getBukkitEntity();
++        org.bukkit.Location loc = com.empireminecraft.customevents.BatMoveEvent.generateLoc(bukkitBat);
++        com.empireminecraft.customevents.BatMoveEvent event = new com.empireminecraft.customevents.BatMoveEvent(bukkitBat, loc);
++        if (!event.callEvent()) {
++            return new BlockPosition(bat.locX, bat.locY, bat.locZ);
++        }
++        org.bukkit.Location target = event.getMoveTarget();
++        return new BlockPosition(target.getBlockX(), target.getBlockY(), target.getBlockZ());
++    }
+     @Nullable
+     protected MinecraftKey J() {
+         return LootTables.ag;
 -- 
-2.10.2
+2.11.0
 
