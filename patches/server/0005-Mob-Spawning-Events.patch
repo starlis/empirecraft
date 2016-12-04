@@ -1,140 +1,16 @@
-From da7c5f0d1b781a0111ff29fa340d9b6a292d05f7 Mon Sep 17 00:00:00 2001
+From bcf8ef5e148e1655a3e15bd1f8491f4e2e7cd875 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Thu, 29 Nov 2012 10:48:07 -0500
 Subject: [PATCH] Mob Spawning Events
 
 Add 2 events for better control of mob spawning (Natural and Spawners) This allows us a much more powerful control over spawning and improve performance
 ---
- .../customevents/SpawnTickEvent.java               | 52 ++++++++++++++++++++
- .../customevents/SpawnerInitiateEvent.java         | 56 ++++++++++++++++++++++
- .../java/net/minecraft/server/EntityHuman.java     |  1 +
- .../net/minecraft/server/MobSpawnerAbstract.java   | 19 +++++++-
- .../java/net/minecraft/server/SpawnerCreature.java |  8 ++++
- src/main/java/net/minecraft/server/World.java      |  6 +++
- 6 files changed, 141 insertions(+), 1 deletion(-)
- create mode 100644 src/main/java/com/empireminecraft/customevents/SpawnTickEvent.java
- create mode 100644 src/main/java/com/empireminecraft/customevents/SpawnerInitiateEvent.java
+ src/main/java/net/minecraft/server/EntityHuman.java    |  1 +
+ .../java/net/minecraft/server/MobSpawnerAbstract.java  | 18 +++++++++++++++++-
+ .../java/net/minecraft/server/SpawnerCreature.java     |  8 ++++++++
+ src/main/java/net/minecraft/server/World.java          |  6 ++++++
+ 4 files changed, 32 insertions(+), 1 deletion(-)
 
-diff --git a/src/main/java/com/empireminecraft/customevents/SpawnTickEvent.java b/src/main/java/com/empireminecraft/customevents/SpawnTickEvent.java
-new file mode 100644
-index 000000000..f813eb58b
---- /dev/null
-+++ b/src/main/java/com/empireminecraft/customevents/SpawnTickEvent.java
-@@ -0,0 +1,52 @@
-+package com.empireminecraft.customevents;
-+
-+import org.bukkit.World;
-+import org.bukkit.entity.HumanEntity;
-+import org.bukkit.event.Cancellable;
-+import org.bukkit.event.Event;
-+import org.bukkit.event.HandlerList;
-+
-+public class SpawnTickEvent extends Event implements Cancellable {
-+    private static final HandlerList handlers = new HandlerList();
-+    private boolean canceled;
-+    byte radius;
-+    World world;
-+    HumanEntity entity;
-+    public SpawnTickEvent(World world, byte radius, HumanEntity entity) {
-+        this.world = world;
-+        this.radius = radius;
-+        this.entity = entity;
-+    }
-+
-+    public World getWorld() {
-+        return this.world;
-+    }
-+
-+    public HumanEntity getEntity() {
-+        return this.entity;
-+    }
-+
-+    public byte getSpawnRadius() {
-+        return this.radius;
-+    }
-+
-+    public void setSpawnRadius(byte radius) {
-+        this.radius = radius;
-+    }
-+
-+    public boolean isCancelled() {
-+        return canceled;
-+    }
-+
-+    public void setCancelled(boolean cancel) {
-+        canceled = cancel;
-+    }
-+
-+    public HandlerList getHandlers() {
-+        return handlers;
-+    }
-+
-+    public static HandlerList getHandlerList() {
-+        return handlers;
-+    }
-+}
-diff --git a/src/main/java/com/empireminecraft/customevents/SpawnerInitiateEvent.java b/src/main/java/com/empireminecraft/customevents/SpawnerInitiateEvent.java
-new file mode 100644
-index 000000000..d815515a6
---- /dev/null
-+++ b/src/main/java/com/empireminecraft/customevents/SpawnerInitiateEvent.java
-@@ -0,0 +1,56 @@
-+package com.empireminecraft.customevents;
-+
-+import org.bukkit.Location;
-+import org.bukkit.World;
-+import org.bukkit.entity.HumanEntity;
-+import org.bukkit.event.Cancellable;
-+import org.bukkit.event.Event;
-+import org.bukkit.event.HandlerList;
-+
-+public class SpawnerInitiateEvent extends Event implements Cancellable {
-+    private static final HandlerList handlers = new HandlerList();
-+    private boolean canceled;
-+    Location loc;
-+    World world;
-+    String mob;
-+    HumanEntity entity;
-+
-+    public SpawnerInitiateEvent(String mob, World world, Location loc, HumanEntity entity) {
-+        this.world = world;
-+        this.loc = loc;
-+        this.mob = mob;
-+        this.entity = entity;
-+    }
-+
-+    public World getWorld() {
-+        return this.world;
-+    }
-+
-+    public String getMobName() {
-+        return this.mob;
-+    }
-+
-+    public HumanEntity getTriggeringPlayer() {
-+        return this.entity;
-+    }
-+
-+    public Location getSpawnerLocation() {
-+        return this.loc;
-+    }
-+
-+    public boolean isCancelled() {
-+        return canceled;
-+    }
-+
-+    public void setCancelled(boolean cancel) {
-+        canceled = cancel;
-+    }
-+
-+    public HandlerList getHandlers() {
-+        return handlers;
-+    }
-+
-+    public static HandlerList getHandlerList() {
-+        return handlers;
-+    }
-+}
 diff --git a/src/main/java/net/minecraft/server/EntityHuman.java b/src/main/java/net/minecraft/server/EntityHuman.java
 index fd08195cf..45439f161 100644
 --- a/src/main/java/net/minecraft/server/EntityHuman.java
@@ -148,10 +24,10 @@ index fd08195cf..45439f161 100644
      // CraftBukkit start
      public boolean fauxSleeping;
 diff --git a/src/main/java/net/minecraft/server/MobSpawnerAbstract.java b/src/main/java/net/minecraft/server/MobSpawnerAbstract.java
-index e523267e3..fe89ec934 100644
+index e523267e3..51ec23754 100644
 --- a/src/main/java/net/minecraft/server/MobSpawnerAbstract.java
 +++ b/src/main/java/net/minecraft/server/MobSpawnerAbstract.java
-@@ -42,7 +42,24 @@ public abstract class MobSpawnerAbstract {
+@@ -42,7 +42,23 @@ public abstract class MobSpawnerAbstract {
      private boolean h() {
          BlockPosition blockposition = this.b();
  
@@ -171,14 +47,13 @@ index e523267e3..fe89ec934 100644
 +            return false;
 +        }
 +        org.bukkit.Location loc = new org.bukkit.Location(world.getWorld(), x, y, z);
-+        MinecraftKey mobName = this.getMobName();
-+        return new com.empireminecraft.customevents.SpawnerInitiateEvent(mobName != null ? mobName.toString() : null, world.getWorld(), loc, entity.getBukkitEntity()).callEvent();
++        return new com.empireminecraft.customevents.SpawnerInitiateEvent(this.getMobName(), world.getWorld(), loc, entity.getBukkitEntity()).callEvent();
 +        // EMC end
      }
  
      public void c() {
 diff --git a/src/main/java/net/minecraft/server/SpawnerCreature.java b/src/main/java/net/minecraft/server/SpawnerCreature.java
-index c1f6e63f6..9662c8120 100644
+index c1f6e63f6..9d3337327 100644
 --- a/src/main/java/net/minecraft/server/SpawnerCreature.java
 +++ b/src/main/java/net/minecraft/server/SpawnerCreature.java
 @@ -73,6 +73,14 @@ public final class SpawnerCreature {
@@ -186,7 +61,7 @@ index c1f6e63f6..9662c8120 100644
                      b0 = ( b0 > 8 ) ? 8 : b0;
  
 +                    // EMC start - SpawnTickEvent
-+                    com.empireminecraft.customevents.SpawnTickEvent event = new com.empireminecraft.customevents.SpawnTickEvent(worldserver.getWorld(), b0, entityhuman.getBukkitEntity());
++                    com.empireminecraft.customevents.SpawnTickEvent event = new com.empireminecraft.customevents.SpawnTickEvent(entityhuman.getBukkitEntity(), b0);
 +                    if (!event.callEvent()) {
 +                        continue;
 +                    }
