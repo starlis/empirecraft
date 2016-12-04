@@ -27,6 +27,7 @@ function applyPatch {
 		mkdir "$basedir/$target"
 		cd "$basedir/$target"
 		git init
+		git remote add origin $5
 		cd "$basedir"
 	fi
 	cd "$basedir/$target"
@@ -48,5 +49,5 @@ function applyPatch {
 		echo "  Patches applied cleanly to $target"
 	fi
 }
-applyPatch Paper/Paper-API ${FORK_NAME}-API HEAD api
-applyPatch Paper/Paper-Server ${FORK_NAME}-Server HEAD server
+applyPatch Paper/Paper-API ${FORK_NAME}-API HEAD api $API_REPO
+applyPatch Paper/Paper-Server ${FORK_NAME}-Server HEAD server $SERVER_REPO
