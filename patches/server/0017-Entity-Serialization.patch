@@ -1,42 +1,39 @@
-From b878c3928759862a6bd8e18d89535fae17919240 Mon Sep 17 00:00:00 2001
+From db7f321aa953dcb2fafea9c639dd1d7b06bc5895 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Fri, 12 Jul 2013 18:58:19 -0400
 Subject: [PATCH] Entity Serialization
 
 Allow serializing an Entity to raw NBT, and to get an Entity object without spawning it into the world.
 ---
- .../cbmisc/EntitySerialization.java                | 58 ++++++++++++++++++++++
+ .../com/empireminecraft/api/CraftEAPI_Entity.java  | 55 ++++++++++++++++++++++
  src/main/java/net/minecraft/server/Entity.java     |  1 +
  .../org/bukkit/craftbukkit/entity/CraftEntity.java | 10 ++++
- 3 files changed, 69 insertions(+)
- create mode 100644 src/main/java/com/empireminecraft/cbmisc/EntitySerialization.java
+ 3 files changed, 66 insertions(+)
 
-diff --git a/src/main/java/com/empireminecraft/cbmisc/EntitySerialization.java b/src/main/java/com/empireminecraft/cbmisc/EntitySerialization.java
-new file mode 100644
-index 000000000..508b62c3c
---- /dev/null
-+++ b/src/main/java/com/empireminecraft/cbmisc/EntitySerialization.java
-@@ -0,0 +1,58 @@
-+package com.empireminecraft.cbmisc;
-+
-+import net.minecraft.server.*;
+diff --git a/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java b/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
+index 5f5e249e6..3db70357c 100644
+--- a/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
++++ b/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
+@@ -23,5 +23,60 @@
+ 
+ package com.empireminecraft.api;
+ 
++import net.minecraft.server.EntityTypes;
++import net.minecraft.server.NBTCompressedStreamTools;
++import net.minecraft.server.NBTTagCompound;
 +import org.bukkit.craftbukkit.CraftWorld;
 +import org.bukkit.craftbukkit.entity.CraftEntity;
 +import org.bukkit.entity.Entity;
 +
 +import java.io.ByteArrayInputStream;
 +import java.io.ByteArrayOutputStream;
-+import java.io.DataInput;
 +import java.io.DataInputStream;
-+import java.io.DataOutput;
-+import java.io.DataOutputStream;
 +import java.io.IOException;
 +import java.io.InputStream;
-+import java.io.OutputStream;
-+import java.util.zip.GZIPOutputStream;
 +
-+public class EntitySerialization {
-+    public static byte[] serializeEntity(Entity craftentity) {
+ public class CraftEAPI_Entity extends EAPI_Entity {
++
++    public final byte[] serializeEntity(Entity craftentity) {
 +        if (craftentity == null) {
 +            throw new NullPointerException("Entity can not be null for serialization");
 +        }
@@ -46,6 +43,22 @@ index 000000000..508b62c3c
 +
 +        return NBTToBytes(cmp);
 +    }
++
++    public final Entity deserializeEntity(byte[] data, org.bukkit.World world) {
++        if (data == null || data.length == 0) {
++            throw new NullPointerException("Data can not be null or empty for deserialization");
++        }
++        ByteArrayInputStream stream = new ByteArrayInputStream(data);
++        final NBTTagCompound cmp;
++        try {
++            cmp = readNBT(stream);
++        } catch (IOException e) {
++            return null;
++        }
++        net.minecraft.server.Entity entity = EntityTypes.a(cmp, ((CraftWorld) world).getHandle());
++        return entity != null ? entity.getBukkitEntity() : null;
++    }
++
 +    private static byte[] NBTToBytes(NBTTagCompound nbttagcompound) {
 +        ByteArrayOutputStream bytearrayoutputstream = new ByteArrayOutputStream();
 +
@@ -61,20 +74,7 @@ index 000000000..508b62c3c
 +        return NBTCompressedStreamTools.a((InputStream) new DataInputStream(datainputstream));
 +    }
 +
-+    public static Entity deserializeEntity(byte[] data, org.bukkit.World world) {
-+        if (data == null || data.length == 0) {
-+            throw new NullPointerException("Data can not be null or empty for deserialization");
-+        }
-+        ByteArrayInputStream stream = new ByteArrayInputStream(data);
-+        final NBTTagCompound cmp;
-+        try {
-+            cmp = readNBT(stream);
-+        } catch (IOException e) {
-+            return null;
-+        }
-+        return EntityTypes.a(cmp, ((CraftWorld) world).getHandle()).getBukkitEntity();
-+    }
-+}
+ }
 diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
 index 3d7716488..23e34c8e2 100644
 --- a/src/main/java/net/minecraft/server/Entity.java
