@@ -1,0 +1,71 @@
+From 24ec3a086d4de11509eb2eb79862098a889814fc Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Sat, 3 Dec 2016 22:23:55 -0500
+Subject: [PATCH] Spawn Egg API
+
+---
+ .../com/empireminecraft/api/CraftEAPI_Misc.java    | 49 ++++++++++++++++++++++
+ 1 file changed, 49 insertions(+)
+
+diff --git a/src/main/java/com/empireminecraft/api/CraftEAPI_Misc.java b/src/main/java/com/empireminecraft/api/CraftEAPI_Misc.java
+index c44bd2543..4761da85a 100644
+--- a/src/main/java/com/empireminecraft/api/CraftEAPI_Misc.java
++++ b/src/main/java/com/empireminecraft/api/CraftEAPI_Misc.java
+@@ -23,5 +23,54 @@
+ 
+ package com.empireminecraft.api;
+ 
++import net.minecraft.server.ItemMonsterEgg;
++import net.minecraft.server.ItemStack;
++import net.minecraft.server.MinecraftKey;
++import net.minecraft.server.NBTTagCompound;
++import org.bukkit.Material;
++import org.bukkit.craftbukkit.inventory.CraftItemStack;
++import org.bukkit.entity.EntityType;
++
++import javax.annotation.Nonnull;
++
+ public class CraftEAPI_Misc extends EAPI_Misc {
++
++    public final EntityType getTypeForSpawnEgg(@Nonnull org.bukkit.inventory.ItemStack bukkitItem) {
++        if (bukkitItem.getType() != Material.MONSTER_EGG) {
++            return null;
++        }
++        MinecraftKey key = ItemMonsterEgg.getKey(CraftItemStack.asNMSCopy(bukkitItem));
++        return key != null ? EntityType.fromName(key.getName()) : null;
++    }
++
++    public final org.bukkit.inventory.ItemStack spawnEggAsType(@Nonnull org.bukkit.inventory.ItemStack bukkitItem,
++                                                               @Nonnull com.destroystokyo.paper.MinecraftKey key) {
++        if (bukkitItem.getType() != Material.MONSTER_EGG) {
++            return null;
++        }
++        if (!"minecraft".equals(key.getGroup())) {
++            throw new IllegalArgumentException("Group of key must be minecraft");
++        }
++        ItemStack item;
++        if (bukkitItem instanceof CraftItemStack && ((CraftItemStack) bukkitItem).handle != null) {
++            item = ((CraftItemStack) bukkitItem).handle;
++        } else {
++            item = CraftItemStack.asNMSCopy(bukkitItem);
++        }
++        if (item == null) {
++            throw new NullPointerException("Could not set type for spawn egg");
++        }
++        if (item.tag == null) {
++            item.tag = new NBTTagCompound();
++        }
++
++        NBTTagCompound nbttagcompound = (NBTTagCompound) item.tag.get("EntityTag");
++        if (nbttagcompound == null) {
++            nbttagcompound = new NBTTagCompound();
++        }
++        nbttagcompound.setString("id", key.toString());
++        item.tag.set("EntityTag", nbttagcompound);
++
++        return CraftItemStack.asCraftMirror(item);
++    }
+ }
+-- 
+2.11.0
+
