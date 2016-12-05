@@ -10,6 +10,7 @@ SOURCE=$([[ "$SOURCE" = /* ]] && echo "$SOURCE" || echo "$PWD/${SOURCE#./}")
 basedir=$(dirname "$SOURCE")
 
 . scripts/init.sh
+git submodule sync
 git submodule update --init
 (
 	cd Paper/
