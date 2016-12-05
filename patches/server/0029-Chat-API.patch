@@ -1,24 +1,68 @@
-From 57ecafbc8c4499f91f7e01393c97ef2c65120f9c Mon Sep 17 00:00:00 2001
+From cb69456d86506948b474474b099725b1b4cac70a Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Mon, 17 Feb 2014 00:05:26 -0500
-Subject: [PATCH] Fanciful Chat API
+Subject: [PATCH] Chat API
 
-Provides new 1.7 chat features and Title API
-
-Initial Credits to http://forums.bukkit.org/threads/lib-fanciful-pleasant-chat-message-formatting.195148/
-But did a lot of bug fixing and improving upon it.
+Initial for Fanciful Credits to http://forums.bukkit.org/threads/lib-fanciful-pleasant-chat-message-formatting.195148/
+But did a lot of bug fixing and improving upon it, and designing into the Empire API
 ---
- .../empireminecraft/emcapi/FancifulChatAPI.java    | 247 +++++++++++++++++++++
- 1 file changed, 247 insertions(+)
- create mode 100644 src/main/java/com/empireminecraft/emcapi/FancifulChatAPI.java
+ .../com/empireminecraft/api/CraftEmpireAPI.java    |   2 +
+ .../empireminecraft/api/FancifulChatAPIImpl.java   | 270 +++++++++++++++++++++
+ .../empireminecraft/api/meta/CraftEAPI_Chat.java   |  40 +++
+ 3 files changed, 312 insertions(+)
+ create mode 100644 src/main/java/com/empireminecraft/api/FancifulChatAPIImpl.java
+ create mode 100644 src/main/java/com/empireminecraft/api/meta/CraftEAPI_Chat.java
 
-diff --git a/src/main/java/com/empireminecraft/emcapi/FancifulChatAPI.java b/src/main/java/com/empireminecraft/emcapi/FancifulChatAPI.java
+diff --git a/src/main/java/com/empireminecraft/api/CraftEmpireAPI.java b/src/main/java/com/empireminecraft/api/CraftEmpireAPI.java
+index f3c9419c8..44ecf7fff 100644
+--- a/src/main/java/com/empireminecraft/api/CraftEmpireAPI.java
++++ b/src/main/java/com/empireminecraft/api/CraftEmpireAPI.java
+@@ -23,6 +23,7 @@
+ 
+ package com.empireminecraft.api;
+ 
++import com.empireminecraft.api.meta.CraftEAPI_Chat;
+ import com.empireminecraft.api.meta.CraftEAPI_Meta;
+ 
+ public final class CraftEmpireAPI extends API {
+@@ -34,6 +35,7 @@ public final class CraftEmpireAPI extends API {
+         entity = new CraftEAPI_Entity();
+         misc = new CraftEAPI_Misc();
+         meta = new CraftEAPI_Meta();
++        chat = new CraftEAPI_Chat();
+     }
+ 
+ }
+diff --git a/src/main/java/com/empireminecraft/api/FancifulChatAPIImpl.java b/src/main/java/com/empireminecraft/api/FancifulChatAPIImpl.java
 new file mode 100644
-index 000000000..1789f1c31
+index 000000000..d2f7276e3
 --- /dev/null
-+++ b/src/main/java/com/empireminecraft/emcapi/FancifulChatAPI.java
-@@ -0,0 +1,247 @@
-+package com.empireminecraft.emcapi;
++++ b/src/main/java/com/empireminecraft/api/FancifulChatAPIImpl.java
+@@ -0,0 +1,270 @@
++/*
++ * Copyright (c) 2016 Starlis LLC / Daniel Ennis (Aikar) - MIT License
++ *
++ *  Permission is hereby granted, free of charge, to any person obtaining
++ *  a copy of this software and associated documentation files (the
++ *  "Software"), to deal in the Software without restriction, including
++ *  without limitation the rights to use, copy, modify, merge, publish,
++ *  distribute, sublicense, and/or sell copies of the Software, and to
++ *  permit persons to whom the Software is furnished to do so, subject to
++ *  the following conditions:
++ *
++ *  The above copyright notice and this permission notice shall be
++ *  included in all copies or substantial portions of the Software.
++ *
++ *  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ *  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
++ *  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ *  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
++ *  LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
++ *  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
++ *  WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package com.empireminecraft.api;
 +
 +/**
 + * Credits to original version @
@@ -44,42 +88,42 @@ index 000000000..1789f1c31
 +import org.json.JSONException;
 +import org.json.JSONStringer;
 +
-+public class FancifulChatAPI {
-+    protected final List<MessagePart> messageParts = new ArrayList<MessagePart>();
-+    ChatComponentText component;
-+    boolean isDirty = true;
++public class FancifulChatAPIImpl implements EAPI_Chat.FancifulChat {
++    private final List<MessagePart> messageParts = new ArrayList<MessagePart>();
++    private ChatComponentText component;
++    private boolean isDirty = true;
 +
-+    public FancifulChatAPI file(final String path) {
++    public FancifulChatAPIImpl file(final String path) {
 +        onClick("open_file", path);
 +        return this;
 +    }
 +
-+    public FancifulChatAPI link(final String url) {
++    public FancifulChatAPIImpl link(final String url) {
 +        onClick("open_url", url);
 +        return this;
 +    }
 +
-+    public FancifulChatAPI suggest(final String command) {
++    public FancifulChatAPIImpl suggest(final String command) {
 +        onClick("suggest_command", command);
 +        return this;
 +    }
 +
-+    public FancifulChatAPI command(final String command) {
++    public FancifulChatAPIImpl command(final String command) {
 +        onClick("run_command", command);
 +        return this;
 +    }
 +
-+    public FancifulChatAPI achievementTooltip(final String name) {
++    public FancifulChatAPIImpl achievementTooltip(final String name) {
 +        onHover("show_achievement", "achievement." + name);
 +        return this;
 +    }
 +
-+    public FancifulChatAPI itemTooltip(final String itemJSON) {
++    public FancifulChatAPIImpl itemTooltip(final String itemJSON) {
 +        onHover("show_item", itemJSON);
 +        return this;
 +    }
 +
-+    public FancifulChatAPI itemTooltip(final ItemStack itemStack) {
++    public FancifulChatAPIImpl itemTooltip(final ItemStack itemStack) {
 +        NBTTagCompound root = CraftItemStack.asNMSCopy(itemStack).save(new NBTTagCompound());
 +        if (root.hasKey("tag")) {
 +            NBTTagCompound tag = HiddenItemMeta.filterItemLore(root.getCompound("tag"), false);
@@ -101,7 +145,7 @@ index 000000000..1789f1c31
 +        return itemTooltip(root.toString());
 +    }
 +
-+    public FancifulChatAPI tooltip(final String text) {
++    public FancifulChatAPIImpl tooltip(final String text) {
 +        final String[] lines = text.split("\\n");
 +        if (lines.length <= 1) {
 +            onHover("show_text", text);
@@ -111,7 +155,7 @@ index 000000000..1789f1c31
 +        return this;
 +    }
 +
-+    public FancifulChatAPI then(final Object obj) {
++    public FancifulChatAPIImpl then(final Object obj) {
 +        messageParts.add(new MessagePart(obj.toString()));
 +        isDirty = true;
 +        return this;
@@ -121,7 +165,7 @@ index 000000000..1789f1c31
 +        sendPacket(player, new PacketPlayOutChat(buildComponent()));
 +    }
 +
-+    public static void sendTitle(Player player, FancifulChatAPI title, FancifulChatAPI subtitle, Integer fadeIn, Integer stay, Integer fadeOut) {
++    public static void sendTitle(Player player, FancifulChatAPIImpl title, FancifulChatAPIImpl subtitle, Integer fadeIn, Integer stay, Integer fadeOut) {
 +        if (fadeIn != null && stay != null && fadeOut != null) {
 +            sendPacket(player, new PacketPlayOutTitle(fadeIn, stay, fadeOut));
 +        }
@@ -265,6 +309,52 @@ index 000000000..1789f1c31
 +    }
 +}
 +
+diff --git a/src/main/java/com/empireminecraft/api/meta/CraftEAPI_Chat.java b/src/main/java/com/empireminecraft/api/meta/CraftEAPI_Chat.java
+new file mode 100644
+index 000000000..1df6cc0b9
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/api/meta/CraftEAPI_Chat.java
+@@ -0,0 +1,40 @@
++/*
++ * Copyright (c) 2016 Starlis LLC / Daniel Ennis (Aikar) - MIT License
++ *
++ *  Permission is hereby granted, free of charge, to any person obtaining
++ *  a copy of this software and associated documentation files (the
++ *  "Software"), to deal in the Software without restriction, including
++ *  without limitation the rights to use, copy, modify, merge, publish,
++ *  distribute, sublicense, and/or sell copies of the Software, and to
++ *  permit persons to whom the Software is furnished to do so, subject to
++ *  the following conditions:
++ *
++ *  The above copyright notice and this permission notice shall be
++ *  included in all copies or substantial portions of the Software.
++ *
++ *  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ *  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
++ *  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ *  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
++ *  LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
++ *  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
++ *  WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package com.empireminecraft.api.meta;
++
++import com.empireminecraft.api.EAPI_Chat;
++import com.empireminecraft.api.FancifulChatAPIImpl;
++import org.bukkit.entity.Player;
++
++public class CraftEAPI_Chat extends EAPI_Chat {
++    @Override
++    public FancifulChat createFancy() {
++        return new FancifulChatAPIImpl();
++    }
++
++    @Override
++    public void sendTitle(Player player, FancifulChat title, FancifulChat subtitle, Integer fadeIn, Integer stay, Integer fadeOut) {
++        FancifulChatAPIImpl.sendTitle(player, (FancifulChatAPIImpl) title, (FancifulChatAPIImpl) subtitle, fadeIn, stay, fadeOut);
++    }
++}
 -- 
 2.11.0
 
