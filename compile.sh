@@ -10,7 +10,11 @@ SOURCE=$([[ "$SOURCE" = /* ]] && echo "$SOURCE" || echo "$PWD/${SOURCE#./}")
 basedir=$(dirname "$SOURCE")
 
 . scripts/init.sh
-
+git submodule update
+(
+	cd Paper/
+	git submodule update
+)
 mc=$(cat $basedir/Paper/work/BuildData/info.json | grep minecraftVersion | cut -d '"' -f 4)
 
 function update() {
