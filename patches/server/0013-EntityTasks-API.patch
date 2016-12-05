@@ -1,4 +1,4 @@
-From 592c320fb482c9edf1807a7ce14c6eec7b7736f2 Mon Sep 17 00:00:00 2001
+From 2ea6c908985515e4b57289e37e20a914d46edf98 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Tue, 11 Jun 2013 23:15:00 -0400
 Subject: [PATCH] EntityTasks API
@@ -6,23 +6,22 @@ Subject: [PATCH] EntityTasks API
 Allows scheduling repeating task timers on an entity level.
 Avoids Bukkit system so that tasks will simply maintain themselves on entity removal.
 ---
- .../empireminecraft/entityai/EntityTasksApi.java   | 52 ++++++++++++++++++++++
+ .../com/empireminecraft/api/CraftEAPI_Entity.java  | 27 ++++++++++++
  src/main/java/net/minecraft/server/Entity.java     |  1 +
- .../net/minecraft/server/EntityTasksHandler.java   | 51 +++++++++++++++++++++
+ .../net/minecraft/server/EntityTasksHandler.java   | 51 ++++++++++++++++++++++
  src/main/java/net/minecraft/server/World.java      |  1 +
  .../java/org/bukkit/craftbukkit/CraftServer.java   |  1 +
- 5 files changed, 106 insertions(+)
- create mode 100644 src/main/java/com/empireminecraft/entityai/EntityTasksApi.java
+ 5 files changed, 81 insertions(+)
  create mode 100644 src/main/java/net/minecraft/server/EntityTasksHandler.java
 
-diff --git a/src/main/java/com/empireminecraft/entityai/EntityTasksApi.java b/src/main/java/com/empireminecraft/entityai/EntityTasksApi.java
-new file mode 100644
-index 000000000..cae28f246
---- /dev/null
-+++ b/src/main/java/com/empireminecraft/entityai/EntityTasksApi.java
-@@ -0,0 +1,52 @@
-+package com.empireminecraft.entityai;
-+
+diff --git a/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java b/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
+index e7bb9003d..8f83db000 100644
+--- a/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
++++ b/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
+@@ -23,5 +23,32 @@
+ 
+ package com.empireminecraft.api;
+ 
 +import net.minecraft.server.EntityTasksHandler;
 +import org.bukkit.craftbukkit.entity.CraftEntity;
 +import org.bukkit.entity.Entity;
@@ -30,10 +29,9 @@ index 000000000..cae28f246
 +import java.util.ArrayList;
 +import java.util.List;
 +
-+public final class EntityTasksApi {
-+    private EntityTasksApi() {}
+ public class CraftEAPI_Entity implements EAPI_Entity {
 +
-+    public static EntityTask scheduleTask(Entity entity, int interval, final Runnable task) {
++    public EntityTask scheduleTask(Entity entity, int interval, final Runnable task) {
 +        return scheduleTask(entity, interval, new EntityTask() {
 +            @Override
 +            public void run(Entity entity) {
@@ -41,38 +39,18 @@ index 000000000..cae28f246
 +            }
 +        });
 +    }
-+    public static EntityTask scheduleTask(Entity entity, int interval, EntityTask task) {
++    public EntityTask scheduleTask(Entity entity, int interval, EntityTask task) {
 +        final EntityTasksHandler.TaskList entityTasks = ((CraftEntity) entity).getHandle().entityTasks;
-+        List<EntityTask> entityTasksList = entityTasks.get(interval);
-+        if (entityTasksList == null) {
-+            entityTasksList = new ArrayList<EntityTask>(8);
-+            entityTasks.put(interval, entityTasksList);
-+        }
++        List<EntityTask> entityTasksList = entityTasks.computeIfAbsent(interval, k -> new ArrayList<EntityTask>(8));
 +
 +        entityTasksList.add(task);
 +        return task;
 +    }
-+    public static void cancelTasks(Entity entity) {
++
++    public void cancelTasks(Entity entity) {
 +        ((CraftEntity) entity).getHandle().entityTasks.clear();
 +    }
-+
-+    public abstract static class EntityTask {
-+        public int limit = -1;
-+        public int count = 0;
-+
-+        public EntityTask() {}
-+        public EntityTask(int limit) {
-+            this.limit = limit;
-+        }
-+
-+        public abstract void run(Entity entity);
-+
-+        public void abort() {
-+            this.limit = 1;
-+            this.count = 1;
-+        }
-+    }
-+}
+ }
 diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
 index af8578ba4..03e776b73 100644
 --- a/src/main/java/net/minecraft/server/Entity.java
@@ -87,13 +65,13 @@ index af8578ba4..03e776b73 100644
      static boolean isLevelAtLeast(NBTTagCompound tag, int level) {
 diff --git a/src/main/java/net/minecraft/server/EntityTasksHandler.java b/src/main/java/net/minecraft/server/EntityTasksHandler.java
 new file mode 100644
-index 000000000..684480d85
+index 000000000..3cac97064
 --- /dev/null
 +++ b/src/main/java/net/minecraft/server/EntityTasksHandler.java
 @@ -0,0 +1,51 @@
 +package net.minecraft.server;
 +
-+import com.empireminecraft.entityai.EntityTasksApi;
++import com.empireminecraft.api.API;
 +import org.bukkit.*;
 +import org.bukkit.World;
 +
@@ -101,7 +79,7 @@ index 000000000..684480d85
 +import java.util.Iterator;
 +import java.util.List;
 +
-+import static com.empireminecraft.entityai.EntityTasksApi.EntityTask;
++import com.empireminecraft.api.EntityTask;
 +import static java.util.Map.Entry;
 +
 +public final class EntityTasksHandler {
@@ -133,7 +111,7 @@ index 000000000..684480d85
 +    public static void reload() {
 +        for (final World world : Bukkit.getWorlds()) {
 +            for (org.bukkit.entity.Entity entity : world.getEntities()) {
-+                EntityTasksApi.cancelTasks(entity);
++                API.entity.cancelTasks(entity);
 +            }
 +        }
 +    }
