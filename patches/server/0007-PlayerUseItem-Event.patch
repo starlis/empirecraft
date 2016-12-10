@@ -1,0 +1,78 @@
+From d2f7a464dcd4869455363363048ca418d87bd40f Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Sat, 22 Dec 2012 00:35:15 -0500
+Subject: [PATCH] PlayerUseItem Event
+
+This lets us control when an item is consumed and change the item.
+---
+ .../minecraft/server/PlayerInteractManager.java    | 27 ++++++++++++++++++++--
+ 1 file changed, 25 insertions(+), 2 deletions(-)
+
+diff --git a/src/main/java/net/minecraft/server/PlayerInteractManager.java b/src/main/java/net/minecraft/server/PlayerInteractManager.java
+index aa36d9969..7a2e7b09f 100644
+--- a/src/main/java/net/minecraft/server/PlayerInteractManager.java
++++ b/src/main/java/net/minecraft/server/PlayerInteractManager.java
+@@ -1,6 +1,7 @@
+ package net.minecraft.server;
+ 
+ // CraftBukkit start
++import org.bukkit.entity.Player;
+ import org.bukkit.event.block.BlockBreakEvent;
+ import org.bukkit.craftbukkit.event.CraftEventFactory;
+ import org.bukkit.event.Event;
+@@ -383,6 +384,16 @@ public class PlayerInteractManager {
+     }
+ 
+     public EnumInteractionResult a(EntityHuman entityhuman, World world, ItemStack itemstack, EnumHand enumhand) {
++        // EMC Start - Allow control over if item should be consumed or not.
++        org.bukkit.craftbukkit.inventory.CraftItemStack craftitem = org.bukkit.craftbukkit.inventory.CraftItemStack.asCraftMirror(itemstack);
++        com.empireminecraft.customevents.PlayerUseItemEvent event = new com.empireminecraft.customevents.PlayerUseItemEvent((org.bukkit.craftbukkit.entity.CraftPlayer)entityhuman.bukkitEntity, craftitem);
++        if (!event.callEvent()) {
++            return EnumInteractionResult.FAIL;
++        }
++        if (!craftitem.equals(event.getItem())) {
++            itemstack = org.bukkit.craftbukkit.inventory.CraftItemStack.asNMSCopy(event.getItem());
++        }
++        // EMC end
+         if (this.gamemode == EnumGamemode.SPECTATOR) {
+             return EnumInteractionResult.PASS;
+         } else if (entityhuman.di().a(itemstack.getItem())) {
+@@ -399,7 +410,7 @@ public class PlayerInteractManager {
+                 return interactionresultwrapper.a();
+             } else {
+                 entityhuman.a(enumhand, itemstack1);
+-                if (this.isCreative()) {
++                if (!event.getConsumeItem() || this.isCreative()) {  // EMC - add getConsumeItem
+                     itemstack1.setCount(i);
+                     if (itemstack1.f()) {
+                         itemstack1.setData(j);
+@@ -485,13 +496,25 @@ public class PlayerInteractManager {
+             }
+ 
+             if (!itemstack.isEmpty() && enuminteractionresult != EnumInteractionResult.SUCCESS && !interactResult) { // add !interactResult SPIGOT-764
++                // EMC Start - Allow control over if item should be consumed or not.
++                org.bukkit.craftbukkit.inventory.CraftItemStack craftitem = org.bukkit.craftbukkit.inventory.CraftItemStack.asCraftMirror(itemstack);
++                com.empireminecraft.customevents.PlayerUseItemEvent eventUse = new com.empireminecraft.customevents.PlayerUseItemEvent(
++                    (Player) entityhuman.getBukkitEntity(), craftitem);
++
++                if (!eventUse.callEvent()) {
++                    return EnumInteractionResult.FAIL;
++                }
++                if (!craftitem.equals(eventUse.getItem())) {
++                    itemstack = org.bukkit.craftbukkit.inventory.CraftItemStack.asNMSCopy(eventUse.getItem());
++                }
++                // EMC end
+                 int i = itemstack.getData();
+                 int j = itemstack.getCount();
+ 
+                 enuminteractionresult = itemstack.placeItem(entityhuman, world, blockposition, enumhand, enumdirection, f, f1, f2);
+ 
+                 // The item count should not decrement in Creative mode.
+-                if (this.isCreative()) {
++                if (!eventUse.getConsumeItem() || this.isCreative()) { // EMC - add getConsumeItem
+                     itemstack.setData(i);
+                     itemstack.setCount(j);
+                 }
+-- 
+2.11.0
+
