@@ -1,0 +1,84 @@
+From d02fd7f6e0bc661a5ec50182aaeeaf468b1f41fc Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Tue, 13 Dec 2016 00:40:10 -0500
+Subject: [PATCH] Villager Treasure Map Events / Changes
+
+---
+ .../java/net/minecraft/server/EntityVillager.java  | 43 ++++++++++++++++------
+ 1 file changed, 32 insertions(+), 11 deletions(-)
+
+diff --git a/src/main/java/net/minecraft/server/EntityVillager.java b/src/main/java/net/minecraft/server/EntityVillager.java
+index 424fa069c..76ee52c6f 100644
+--- a/src/main/java/net/minecraft/server/EntityVillager.java
++++ b/src/main/java/net/minecraft/server/EntityVillager.java
+@@ -4,6 +4,9 @@ import java.util.Iterator;
+ import java.util.Locale;
+ import java.util.Random;
+ import javax.annotation.Nullable;
++import com.empireminecraft.customevents.CreatePendingTreasureMapEvent;
++import com.empireminecraft.customevents.CreateTreasureMapEvent;
++import org.bukkit.craftbukkit.inventory.CraftItemStack;
+ import org.apache.logging.log4j.LogManager;
+ import org.apache.logging.log4j.Logger;
+ // CraftBukkit start
+@@ -827,8 +830,8 @@ public class EntityVillager extends EntityAgeable implements NPC, IMerchant {
+     static class h implements EntityVillager.IMerchantRecipeOption {
+ 
+         public EntityVillager.MerchantOptionRandomRange a;
+-        public String b;
+-        public MapIcon.Type c;
++        public String b;String getMapType() { return b; } // EMC - OBF HELPER
++        public MapIcon.Type c; MapIcon.Type getIconType() { return c; } // EMC - OBF HELPER
+ 
+         public h(EntityVillager.MerchantOptionRandomRange entityvillager_merchantoptionrandomrange, String s, MapIcon.Type mapicon_type) {
+             this.a = entityvillager_merchantoptionrandomrange;
+@@ -837,19 +840,37 @@ public class EntityVillager extends EntityAgeable implements NPC, IMerchant {
+         }
+ 
+         public void a(IMerchant imerchant, MerchantRecipeList merchantrecipelist, Random random) {
+-            int i = this.a.a(random);
++            int i = Math.min(64, 35 + this.a.a(random)); // EMC - boost cost due to modified behavior - each map is unique, when its not in vanilla
+             World world = imerchant.t_();
+             BlockPosition blockposition = world.a(this.b, imerchant.u_(), true);
+ 
+             if (blockposition != null) {
+-                ItemStack itemstack = ItemWorldMap.a(world, (double) blockposition.getX(), (double) blockposition.getZ(), (byte) 2, true, true);
+-
+-                ItemWorldMap.a(world, itemstack);
+-                WorldMap.a(itemstack, blockposition, "+", this.c);
+-                itemstack.f("filled_map." + this.b.toLowerCase(Locale.ROOT));
+-                merchantrecipelist.add(new MerchantRecipe(new ItemStack(Items.EMERALD, i), new ItemStack(Items.COMPASS), itemstack));
+-            }
+-
++                // EMC start - refactor treasure maps to be pending - ABSOLUTELY DEPENDS ON PLUGIN CODE!!!!!!!!!!!
++                String mapType = this.getMapType().toLowerCase(Locale.ROOT);
++                org.bukkit.inventory.ItemStack bukkitItem = new org.bukkit.inventory.ItemStack(org.bukkit.Material.MAP);
++                CreatePendingTreasureMapEvent event = new CreatePendingTreasureMapEvent(mapType, getIconType().ordinal(), bukkitItem);
++                event.callEvent();
++                ItemStack item = org.bukkit.craftbukkit.inventory.CraftItemStack.asNMSCopy(event.getItem());
++                merchantrecipelist.add(new MerchantRecipe(new ItemStack(Items.EMERALD, i), new ItemStack(Items.COMPASS), item, 0, 2)); // Max 2 purchase before lock
++            }
++        }
++        public static org.bukkit.inventory.ItemStack createTreasureMap(org.bukkit.entity.Player player, org.bukkit.inventory.ItemStack item) {
++            World world = MCUtil.getNMSWorld(player);
++            BlockPosition blockposition = MCUtil.toBlockPosition(player.getLocation());
++            ItemStack itemstack = ItemWorldMap.a(world, (double) blockposition.getX(), (double) blockposition.getZ(), (byte) 2, true, true);
++
++            ItemWorldMap.a(world, itemstack);
++            CreateTreasureMapEvent event = new CreateTreasureMapEvent(player, item);
++            event.callEvent();
++            if (event.getIconType() == null || event.getMapType() == null) {
++                MCLog.severe("Invalid pending treasure map: " + player + " - " + item + " - " + event.getIconType() + " - " + event.getMapType());
++                return null;
++            }
++            WorldMap.a(itemstack, blockposition, "+", MapIcon.Type.values()[event.getIconType()]);
++            itemstack.f("filled_map." + event.getMapType());
++            item.setAmount(item.getAmount()-1);
++            return CraftItemStack.asCraftMirror(itemstack);
++            // EMC end
+         }
+     }
+ 
+-- 
+2.11.0
+
