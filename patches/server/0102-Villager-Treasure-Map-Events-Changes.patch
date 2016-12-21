@@ -1,93 +1,88 @@
-From 348bd37c5fd196c1cfb198534a7d7624abd47974 Mon Sep 17 00:00:00 2001
+From 0acac794570d50fd50747dbd5055d9b67362c1b9 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Tue, 13 Dec 2016 00:40:10 -0500
 Subject: [PATCH] Villager Treasure Map Events / Changes
 
 ---
- .../com/empireminecraft/api/CraftEAPI_Misc.java    | 36 ++++++++++++++++++++++
- .../java/net/minecraft/server/EntityVillager.java  | 28 ++++++++---------
+ .../com/empireminecraft/api/CraftEAPI_Misc.java    | 32 ++++++++++++++++++++++
+ .../java/net/minecraft/server/EntityVillager.java  | 30 ++++++++++----------
  src/main/java/net/minecraft/server/ItemStack.java  |  2 +-
  .../java/net/minecraft/server/ItemWorldMap.java    |  4 +--
  src/main/java/net/minecraft/server/World.java      |  3 +-
  src/main/java/net/minecraft/server/WorldMap.java   |  2 +-
- 6 files changed, 54 insertions(+), 21 deletions(-)
+ 6 files changed, 52 insertions(+), 21 deletions(-)
 
 diff --git a/src/main/java/com/empireminecraft/api/CraftEAPI_Misc.java b/src/main/java/com/empireminecraft/api/CraftEAPI_Misc.java
-index 4761da85a..67eebab46 100644
+index 3512c3964..e59a3f86a 100644
 --- a/src/main/java/com/empireminecraft/api/CraftEAPI_Misc.java
 +++ b/src/main/java/com/empireminecraft/api/CraftEAPI_Misc.java
-@@ -23,15 +23,26 @@
+@@ -23,15 +23,24 @@
  
  package com.empireminecraft.api;
  
-+import com.empireminecraft.customevents.CreateTreasureMapEvent;
 +import net.minecraft.server.BlockPosition;
-+import net.minecraft.server.EntityVillager;
  import net.minecraft.server.ItemMonsterEgg;
  import net.minecraft.server.ItemStack;
 +import net.minecraft.server.ItemWorldMap;
-+import net.minecraft.server.MCLog;
 +import net.minecraft.server.MCUtil;
 +import net.minecraft.server.MapIcon;
++import net.minecraft.server.MapIcon.Type;
  import net.minecraft.server.MinecraftKey;
  import net.minecraft.server.NBTTagCompound;
 +import net.minecraft.server.World;
 +import net.minecraft.server.WorldMap;
++import org.bukkit.Location;
  import org.bukkit.Material;
  import org.bukkit.craftbukkit.inventory.CraftItemStack;
  import org.bukkit.entity.EntityType;
-+import org.bukkit.entity.Player;
  
  import javax.annotation.Nonnull;
 +import java.util.Locale;
  
- public class CraftEAPI_Misc extends EAPI_Misc {
+ public class CraftEAPI_Misc implements EAPI_Misc {
  
-@@ -73,4 +84,29 @@ public class CraftEAPI_Misc extends EAPI_Misc {
+@@ -73,4 +82,27 @@ public class CraftEAPI_Misc implements EAPI_Misc {
  
          return CraftItemStack.asCraftMirror(item);
      }
 +
 +    @Override
-+    public org.bukkit.inventory.ItemStack createTreasureMap(Player player, org.bukkit.inventory.ItemStack item) {
-+        World world = MCUtil.getNMSWorld(player);
-+        CreateTreasureMapEvent event = new CreateTreasureMapEvent(player, item);
-+        event.callEvent();
++    public Location findNearestStructure(@Nonnull String structure, @Nonnull Location center, boolean undiscoveredOnly) {
++        final World world = MCUtil.getNMSWorld(center.getWorld());
++        final BlockPosition blockposition = world.findNearestStructure(structure, MCUtil.toBlockPosition(center), undiscoveredOnly);
++        return blockposition != null ? MCUtil.toLocation(world, blockposition) : null;
++    }
 +
-+        String mapType = event.getMapType();
-+        Integer iconType = event.getIconType();
-+        if (iconType == null || mapType == null) {
-+            MCLog.severe("Invalid pending treasure map: " + player + " - " + item + " - " + iconType + " - " + mapType);
-+            return null;
++    @Override
++    public org.bukkit.inventory.ItemStack createTreasureMap(@Nonnull String mapType, int iconType, @Nonnull Location loc) {
++        Type[] values = Type.values();
++        if (iconType >= values.length) {
++            throw new IllegalArgumentException("Invalid Icon Type");
 +        }
-+
-+        BlockPosition blockposition = world.findNearestStructure(mapType, MCUtil.toBlockPosition(player.getLocation()), true);
-+        if (blockposition == null) {
-+            return null;
-+        }
-+        ItemStack itemstack = ItemWorldMap.createFilledMap(world, (double) blockposition.getX(), (double) blockposition.getZ(), (byte) 2, true, true);
-+
++        final World world = MCUtil.getNMSWorld(loc.getWorld());
++        final BlockPosition pos = MCUtil.toBlockPosition(loc);
++        ItemStack itemstack = ItemWorldMap.createFilledMap(world, (double) pos.getX(), (double) pos.getZ(), (byte) 2, true, true);
 +        ItemWorldMap.doTreasureMappyStuff(world, itemstack);
-+        WorldMap.decorateMap(itemstack, blockposition, "+", MapIcon.Type.values()[iconType]);
++
++        WorldMap.decorateMap(itemstack, pos, "+", values[iconType]);
 +        itemstack.setLocaleName("filled_map." + mapType.toLowerCase(Locale.ROOT));
 +        return CraftItemStack.asCraftMirror(itemstack);
 +    }
  }
 diff --git a/src/main/java/net/minecraft/server/EntityVillager.java b/src/main/java/net/minecraft/server/EntityVillager.java
-index 424fa069c..ba4d2d668 100644
+index 424fa069c..8024de1d6 100644
 --- a/src/main/java/net/minecraft/server/EntityVillager.java
 +++ b/src/main/java/net/minecraft/server/EntityVillager.java
-@@ -4,6 +4,9 @@ import java.util.Iterator;
+@@ -4,6 +4,8 @@ import java.util.Iterator;
  import java.util.Locale;
  import java.util.Random;
  import javax.annotation.Nullable;
++
 +import com.empireminecraft.customevents.CreatePendingTreasureMapEvent;
-+import com.empireminecraft.customevents.CreateTreasureMapEvent;
-+import org.bukkit.craftbukkit.inventory.CraftItemStack;
  import org.apache.logging.log4j.LogManager;
  import org.apache.logging.log4j.Logger;
  // CraftBukkit start
-@@ -827,8 +830,8 @@ public class EntityVillager extends EntityAgeable implements NPC, IMerchant {
+@@ -827,8 +829,8 @@ public class EntityVillager extends EntityAgeable implements NPC, IMerchant {
      static class h implements EntityVillager.IMerchantRecipeOption {
  
          public EntityVillager.MerchantOptionRandomRange a;
@@ -98,7 +93,7 @@ index 424fa069c..ba4d2d668 100644
  
          public h(EntityVillager.MerchantOptionRandomRange entityvillager_merchantoptionrandomrange, String s, MapIcon.Type mapicon_type) {
              this.a = entityvillager_merchantoptionrandomrange;
-@@ -837,19 +840,14 @@ public class EntityVillager extends EntityAgeable implements NPC, IMerchant {
+@@ -837,19 +839,17 @@ public class EntityVillager extends EntityAgeable implements NPC, IMerchant {
          }
  
          public void a(IMerchant imerchant, MerchantRecipeList merchantrecipelist, Random random) {
@@ -120,14 +115,17 @@ index 424fa069c..ba4d2d668 100644
 +            //BlockPosition blockposition = world.a(this.b, imerchant.u_(), true); // EMC - if this changes, investigate findNearestStructure
 +            CreatePendingTreasureMapEvent event = new CreatePendingTreasureMapEvent(this.getMapType(), getIconType().ordinal());
 +            event.callEvent();
-+            ItemStack item = org.bukkit.craftbukkit.inventory.CraftItemStack.asNMSCopy(event.getItem());
-+            merchantrecipelist.add(new MerchantRecipe(new ItemStack(Items.EMERALD, cost), new ItemStack(Items.COMPASS), item, 0, 2)); // Max 2 purchase before lock
++            if (event.getItem() != null) {
++                ItemStack item = org.bukkit.craftbukkit.inventory.CraftItemStack.asNMSCopy(event.getItem());
++                merchantrecipelist.add(
++                    new MerchantRecipe(new ItemStack(Items.EMERALD, cost), new ItemStack(Items.COMPASS), item, 0, 2)); // Max 2 purchase before lock
++            }
 +            // EMC end
          }
      }
  
 diff --git a/src/main/java/net/minecraft/server/ItemStack.java b/src/main/java/net/minecraft/server/ItemStack.java
-index e9ba5105f..35d3598eb 100644
+index e8eeb5af6..bd9a0a5bd 100644
 --- a/src/main/java/net/minecraft/server/ItemStack.java
 +++ b/src/main/java/net/minecraft/server/ItemStack.java
 @@ -609,7 +609,7 @@ public final class ItemStack {
@@ -162,10 +160,10 @@ index d4438fd9b..3049d7e8d 100644
              WorldMap worldmap = Items.FILLED_MAP.getSavedMap(itemstack, world);
  
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index ef060cc46..bcfc373d2 100644
+index d960c419b..e1e37cb91 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
-@@ -3249,8 +3249,7 @@ public abstract class World implements IBlockAccess {
+@@ -3269,8 +3269,7 @@ public abstract class World implements IBlockAccess {
          return this.B;
      }
  
