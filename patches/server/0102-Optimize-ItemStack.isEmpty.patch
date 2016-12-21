@@ -1,0 +1,34 @@
+From e4ad180104fef5850128c631f701b9a54881daf4 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Wed, 21 Dec 2016 03:48:29 -0500
+Subject: [PATCH] Optimize ItemStack.isEmpty()
+
+Remove hashMap lookup every check, simplify code to remove ternary
+---
+ src/main/java/net/minecraft/server/ItemStack.java | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/src/main/java/net/minecraft/server/ItemStack.java b/src/main/java/net/minecraft/server/ItemStack.java
+index bd9a0a5bd..016f4f3cd 100644
+--- a/src/main/java/net/minecraft/server/ItemStack.java
++++ b/src/main/java/net/minecraft/server/ItemStack.java
+@@ -122,9 +122,15 @@ public final class ItemStack {
+         this.F();
+     }
+ 
++    // Paper start - optimize isEmpty
++    private static Item airItem;
+     public boolean isEmpty() {
+-        return this == ItemStack.a ? true : (this.item != null && this.item != Item.getItemOf(Blocks.AIR) ? (this.count <= 0 ? true : this.damage < -32768 || this.damage > '\uffff') : true);
++        if (airItem == null) {
++            airItem = Item.REGISTRY.get(new MinecraftKey("air"));
++        }
++        return this == ItemStack.a || this.item == null || this.item == airItem || (this.count <= 0 || (this.damage < -32768 || this.damage > '\uffff'));
+     }
++    // Paper end
+ 
+     public static void a(DataConverterManager dataconvertermanager) {
+         dataconvertermanager.a(DataConverterTypes.ITEM_INSTANCE, (DataInspector) (new DataInspectorBlockEntity()));
+-- 
+2.11.0
+
