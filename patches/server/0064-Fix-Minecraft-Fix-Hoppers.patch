@@ -1,4 +1,4 @@
-From 728915240057d184d1d0d6e4d375d947561840bf Mon Sep 17 00:00:00 2001
+From 0aee802b6bf5897db2980299472d79aa48cb6dc8 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Fri, 29 May 2015 21:58:24 -0400
 Subject: [PATCH] Fix Minecraft: Fix Hoppers
@@ -11,14 +11,14 @@ Minor: Remove itemstack cloning until the hopper has actually performed an item 
 Minor: remove InventoryMoveEvent code for extra performance since we dont use it,
   is also full of item stack cloning
 ---
- src/main/java/net/minecraft/server/EntityItem.java | 15 +++++
+ src/main/java/net/minecraft/server/EntityItem.java | 15 ++++++
  .../net/minecraft/server/EntityMinecartHopper.java | 16 ++++++
  src/main/java/net/minecraft/server/IHopper.java    |  2 +
- .../net/minecraft/server/TileEntityHopper.java     | 65 ++++++++++++++++------
- 4 files changed, 81 insertions(+), 17 deletions(-)
+ .../net/minecraft/server/TileEntityHopper.java     | 63 ++++++++++++++++------
+ 4 files changed, 81 insertions(+), 15 deletions(-)
 
 diff --git a/src/main/java/net/minecraft/server/EntityItem.java b/src/main/java/net/minecraft/server/EntityItem.java
-index ccc8b187e..81f303678 100644
+index e7a9361fe..27310b832 100644
 --- a/src/main/java/net/minecraft/server/EntityItem.java
 +++ b/src/main/java/net/minecraft/server/EntityItem.java
 @@ -145,10 +145,24 @@ public class EntityItem extends Entity implements HopperPusher {
@@ -55,7 +55,7 @@ index ccc8b187e..81f303678 100644
      // Spigot end
  
 diff --git a/src/main/java/net/minecraft/server/EntityMinecartHopper.java b/src/main/java/net/minecraft/server/EntityMinecartHopper.java
-index 217b19724..6487027bb 100644
+index 535471756..f1ce36aaf 100644
 --- a/src/main/java/net/minecraft/server/EntityMinecartHopper.java
 +++ b/src/main/java/net/minecraft/server/EntityMinecartHopper.java
 @@ -59,6 +59,8 @@ public class EntityMinecartHopper extends EntityMinecartContainer implements IHo
@@ -98,7 +98,7 @@ index e830d8390..e89fe46b0 100644
 +    long getAndIncrementAttemptCounter(); // EMC
  }
 diff --git a/src/main/java/net/minecraft/server/TileEntityHopper.java b/src/main/java/net/minecraft/server/TileEntityHopper.java
-index bab9e62ff..7f1272e03 100644
+index 3ecbc924f..36dd4b09f 100644
 --- a/src/main/java/net/minecraft/server/TileEntityHopper.java
 +++ b/src/main/java/net/minecraft/server/TileEntityHopper.java
 @@ -94,6 +94,23 @@ public class TileEntityHopper extends TileEntityLootable implements IHopper, ITi
@@ -141,19 +141,18 @@ index bab9e62ff..7f1272e03 100644
                          // CraftBukkit start - Call event when pushing items into other inventories
                          CraftItemStack oitemstack = CraftItemStack.asCraftMirror(this.splitStack(i, world.spigotConfig.hopperAmount)); // Spigot
  
-@@ -231,19 +252,21 @@ public class TileEntityHopper extends TileEntityLootable implements IHopper, ITi
-                         }
-                         int origCount = event.getItem().getAmount(); // Spigot
-                         ItemStack itemstack1 = addItem(this, iinventory, CraftItemStack.asNMSCopy(event.getItem()), enumdirection);
--
+@@ -234,18 +255,21 @@ public class TileEntityHopper extends TileEntityLootable implements IHopper, ITi
+                         int origCount = eventStack.getAmount(); // Spigot
+                         ItemStack itemstack1 = addItem(this, iinventory, CraftItemStack.asNMSCopy(eventStack), enumdirection);
+                         // Paper end
 +                        */
                          if (itemstack1.isEmpty()) {
--                            if (event.getItem().equals(oitemstack)) {
+-                            if (eventStack.equals(oitemstack)) { // Paper
 +                            itemstack = itemstack.cloneItemStack();
 +                            itemstack.setCount(origCount - 1);
 +                            this.setItem(i, itemstack);
 +                            iinventory.update();
-+                            /*if (event.getItem().equals(oitemstack)) {
++                            /*if (eventStack.equals(oitemstack)) {
                                  iinventory.update();
                              } else {
                                  this.setItem(i, itemstack);
@@ -170,7 +169,7 @@ index bab9e62ff..7f1272e03 100644
                      }
                  }
  
-@@ -348,7 +371,7 @@ public class TileEntityHopper extends TileEntityLootable implements IHopper, ITi
+@@ -350,7 +374,7 @@ public class TileEntityHopper extends TileEntityLootable implements IHopper, ITi
                      }
                  }
              }
@@ -179,7 +178,7 @@ index bab9e62ff..7f1272e03 100644
              Iterator iterator = a(ihopper.getWorld(), ihopper.E(), ihopper.F(), ihopper.G()).iterator(); // Change getHopperLookupBoundingBox() if this ever changes
  
              while (iterator.hasNext()) {
-@@ -363,12 +386,16 @@ public class TileEntityHopper extends TileEntityLootable implements IHopper, ITi
+@@ -365,12 +389,16 @@ public class TileEntityHopper extends TileEntityLootable implements IHopper, ITi
          return false;
      }
  
@@ -198,19 +197,18 @@ index bab9e62ff..7f1272e03 100644
              // CraftBukkit start - Call event on collection of items from inventories into the hopper
              CraftItemStack oitemstack = CraftItemStack.asCraftMirror(iinventory.splitStack(i, ihopper.getWorld().spigotConfig.hopperAmount)); // Spigot
  
-@@ -395,19 +422,23 @@ public class TileEntityHopper extends TileEntityLootable implements IHopper, ITi
-             }
-             int origCount = event.getItem().getAmount(); // Spigot
-             ItemStack itemstack2 = addItem(iinventory, ihopper, CraftItemStack.asNMSCopy(event.getItem()), null);
--
+@@ -400,18 +428,23 @@ public class TileEntityHopper extends TileEntityLootable implements IHopper, ITi
+             int origCount = eventStack.getAmount(); // Spigot
+             ItemStack itemstack2 = addItem(iinventory, ihopper, CraftItemStack.asNMSCopy(eventStack), null);
+             // Paper end
 +            */
              if (itemstack2.isEmpty()) {
--                if (event.getItem().equals(oitemstack)) {
+-                if (eventStack.equals(oitemstack)) { // Paper
 +                itemstack = itemstack.cloneItemStack();
 +                itemstack.setCount(origCount - 1);
 +                iinventory.setItem(i, itemstack);
 +                iinventory.update();
-+                /*if (event.getItem().equals(oitemstack)) {
++                /*if (eventStack.equals(oitemstack)) {
                      iinventory.update();
                  } else {
                      iinventory.setItem(i, itemstack1);
