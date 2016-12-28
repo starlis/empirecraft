@@ -1,4 +1,4 @@
-From 0e7b4994086d8d473ce0f12616e9ae95cf6c19da Mon Sep 17 00:00:00 2001
+From 29849c7802de87acd0565f16f5078ed805b3c12f Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Sat, 22 Dec 2012 00:35:15 -0500
 Subject: [PATCH] PlayerUseItem Event
@@ -6,8 +6,8 @@ Subject: [PATCH] PlayerUseItem Event
 This lets us control when an item is consumed and change the item.
 ---
  .../java/net/minecraft/server/EntityLiving.java    |  2 +-
- .../minecraft/server/PlayerInteractManager.java    | 54 ++++++++++++++++++++--
- 2 files changed, 51 insertions(+), 5 deletions(-)
+ .../minecraft/server/PlayerInteractManager.java    | 60 ++++++++++++++++++++--
+ 2 files changed, 56 insertions(+), 6 deletions(-)
 
 diff --git a/src/main/java/net/minecraft/server/EntityLiving.java b/src/main/java/net/minecraft/server/EntityLiving.java
 index 132e03f40..83ad4f247 100644
@@ -23,7 +23,7 @@ index 132e03f40..83ad4f247 100644
              this.setSlot(EnumItemSlot.MAINHAND, itemstack);
          } else {
 diff --git a/src/main/java/net/minecraft/server/PlayerInteractManager.java b/src/main/java/net/minecraft/server/PlayerInteractManager.java
-index c5a6e8b29..08fbe1c45 100644
+index c5a6e8b29..35af7f68f 100644
 --- a/src/main/java/net/minecraft/server/PlayerInteractManager.java
 +++ b/src/main/java/net/minecraft/server/PlayerInteractManager.java
 @@ -1,6 +1,7 @@
@@ -81,14 +81,27 @@ index c5a6e8b29..08fbe1c45 100644
                      itemstack1.setCount(i);
                      if (itemstack1.f()) {
                          itemstack1.setData(j);
-@@ -485,16 +508,39 @@ public class PlayerInteractManager {
+@@ -422,7 +445,8 @@ public class PlayerInteractManager {
+     // CraftBukkit start - whole method
+     public boolean interactResult = false;
+     public boolean firedInteract = false;
+-    public EnumInteractionResult a(EntityHuman entityhuman, World world, ItemStack itemstack, EnumHand enumhand, BlockPosition blockposition, EnumDirection enumdirection, float f, float f1, float f2) {
++    public EnumInteractionResult a(EntityHuman entityhuman, World world, ItemStack itemstack, EnumHand enumhand, BlockPosition blockposition, EnumDirection enumdirection, float f, float f1, float f2) {org.bukkit.util.Vector hitVector = new org.bukkit.util.Vector(f, f1, f2); // EMC - OBF HELPER
++
+         IBlockData blockdata = world.getType(blockposition);
+         EnumInteractionResult enuminteractionresult = EnumInteractionResult.FAIL;
+         if (blockdata.getBlock() != Blocks.AIR) {
+@@ -485,16 +509,42 @@ public class PlayerInteractManager {
              }
  
              if (!itemstack.isEmpty() && enuminteractionresult != EnumInteractionResult.SUCCESS && !interactResult) { // add !interactResult SPIGOT-764
 +                // EMC Start - Allow control over if item should be consumed or not.
 +                org.bukkit.craftbukkit.inventory.CraftItemStack craftitem = org.bukkit.craftbukkit.inventory.CraftItemStack.asCraftMirror(itemstack);
-+                com.empireminecraft.customevents.PlayerUseItemEvent eventUse = new com.empireminecraft.customevents.PlayerUseItemEvent(
-+                    (Player) entityhuman.getBukkitEntity(), craftitem.clone());
++                com.empireminecraft.customevents.PlayerUseItemAtEvent eventUse = new com.empireminecraft.customevents.PlayerUseItemAtEvent(
++                    (Player) entityhuman.getBukkitEntity(), craftitem.clone(),
++                    MCUtil.toLocation(world, blockposition),
++                    org.bukkit.craftbukkit.block.CraftBlock.notchToBlockFace(enumdirection),
++                    hitVector);
 +
 +                if (!eventUse.callEvent()) {
 +                    return EnumInteractionResult.FAIL;
