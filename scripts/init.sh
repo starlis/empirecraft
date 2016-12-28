@@ -3,6 +3,7 @@ sourceBase=$(dirname $SOURCE)/../
 cd ${basedir:-$sourceBase}
 
 basedir=$(pwd -P)
+cd -
 
 FORK_NAME="EmpireCraft"
 API_REPO="git.starlis.com:starlis/EmpireCraft-API"

@@ -10,5 +10,6 @@ done
 
 minecraftversion=$(cat $basedir/Paper/work/BuildData/info.json | grep minecraftVersion | cut -d '"' -f 4)
 
+basedir
 pushRepo ${FORK_NAME}-API $API_REPO master:$minecraftversion
 pushRepo ${FORK_NAME}-Server $SERVER_REPO master:$minecraftversion
