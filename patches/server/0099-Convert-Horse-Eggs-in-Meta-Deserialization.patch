@@ -1,0 +1,146 @@
+From c947b190e1e3929fd96d5cc87ba9efb598f04061 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Thu, 29 Dec 2016 16:53:27 -0500
+Subject: [PATCH] Convert Horse Eggs in Meta Deserialization
+
+---
+ .../net/minecraft/server/DataConverterEntity.java  |  2 +-
+ .../craftbukkit/inventory/CraftMetaItem.java       |  4 +-
+ .../craftbukkit/inventory/CraftMetaSpawnEgg.java   | 64 +++++++++++++++++++++-
+ 3 files changed, 64 insertions(+), 6 deletions(-)
+
+diff --git a/src/main/java/net/minecraft/server/DataConverterEntity.java b/src/main/java/net/minecraft/server/DataConverterEntity.java
+index 040ec55a6..ab2f32ea6 100644
+--- a/src/main/java/net/minecraft/server/DataConverterEntity.java
++++ b/src/main/java/net/minecraft/server/DataConverterEntity.java
+@@ -5,7 +5,7 @@ import java.util.Map;
+ 
+ public class DataConverterEntity implements IDataConverter {
+ 
+-    private static final Map<String, String> a = Maps.newHashMap();
++    private static final Map<String, String> a = Maps.newHashMap();public static String getMapping(String key) { return a.get(key); } // Paper - OBFHELPER
+ 
+     public DataConverterEntity() {}
+ 
+diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java
+index a6cf14087..da951bcc3 100644
+--- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java
++++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java
+@@ -232,7 +232,7 @@ class CraftMetaItem implements ItemMeta, Repairable {
+ 
+     private static final Set<String> HANDLED_TAGS = Sets.newHashSet();
+ 
+-    private final Map<String, NBTBase> unhandledTags = new TreeMap<>(); // Paper
++    public final Map<String, NBTBase> unhandledTags = new TreeMap<>(); // Paper
+ 
+     CraftMetaItem(CraftMetaItem meta) {
+         if (meta == null) {
+@@ -976,7 +976,7 @@ class CraftMetaItem implements ItemMeta, Repairable {
+                         CraftMetaPotion.DEFAULT_POTION.NBT,
+                         CraftMetaSkull.SKULL_OWNER.NBT,
+                         CraftMetaSkull.SKULL_PROFILE.NBT,
+-                        CraftMetaSpawnEgg.ENTITY_TAG.NBT,
++                        //CraftMetaSpawnEgg.ENTITY_TAG.NBT, // Paper
+                         CraftMetaBlockState.BLOCK_ENTITY_TAG.NBT,
+                         CraftMetaBook.BOOK_TITLE.NBT,
+                         CraftMetaBook.BOOK_AUTHOR.NBT,
+diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaSpawnEgg.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaSpawnEgg.java
+index 22199ed7e..4fa0f1f14 100644
+--- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaSpawnEgg.java
++++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaSpawnEgg.java
+@@ -3,6 +3,7 @@ package org.bukkit.craftbukkit.inventory;
+ import com.google.common.base.Preconditions;
+ import com.google.common.collect.ImmutableMap.Builder;
+ import java.util.Map;
++
+ import net.minecraft.server.MinecraftKey;
+ import net.minecraft.server.NBTTagCompound;
+ import org.bukkit.Material;
+@@ -24,6 +25,20 @@ public class CraftMetaSpawnEgg extends CraftMetaItem implements SpawnEggMeta {
+         super(meta);
+ 
+         if (!(meta instanceof CraftMetaSpawnEgg)) {
++            // Paper start
++            net.minecraft.server.NBTBase nbt = unhandledTags.get("EntityTag");
++            if (nbt instanceof NBTTagCompound) {
++                NBTTagCompound cmp = (NBTTagCompound) nbt;
++                String id = cmp.getString("id");
++                if (id != null) {
++                    if ("EntityHorse".equals(id)) {
++                        id = convertHorse(cmp.hasKeyOfType("Type", 99) ? cmp.getInt("Type") : null);
++                    }
++                    id = convert(id);
++                    this.spawnedType = EntityType.fromName(id);
++                }
++            }
++            // Paper end
+             return;
+         }
+ 
+@@ -36,17 +51,60 @@ public class CraftMetaSpawnEgg extends CraftMetaItem implements SpawnEggMeta {
+ 
+         if (tag.hasKey(ENTITY_TAG.NBT)) {
+             entityTag = tag.getCompound(ENTITY_TAG.NBT);
+-
+             if (entityTag.hasKey(ENTITY_ID.NBT)) {
+-                this.spawnedType = EntityType.fromName(new MinecraftKey(entityTag.getString(ENTITY_ID.NBT)).a()); // PAIL: rename
++                // Paper start
++                String id = entityTag.getString(ENTITY_ID.NBT);
++                if ("EntityHorse".equals(id)) {
++                    id = convertHorse(entityTag.hasKeyOfType("Type", 99) ? entityTag.getInt("Type") : null);
++                }
++                this.spawnedType = EntityType.fromName(convert(id)); // PAIL: rename
++                // Paper end
+             }
+         }
+     }
+ 
++    // Paper start
++    private String convertHorse(Integer type) {
++        if (type == null) {
++            type = 0;
++        }
++        switch (type) {
++            case 0:
++            default:
++                return "Horse";
++
++            case 1:
++                return "Donkey";
++
++            case 2:
++                return "Mule";
++
++            case 3:
++                return "ZombieHorse";
++
++            case 4:
++                return "SkeletonHorse";
++        }
++    }
++    private String convert(String id) {
++        if (id == null) {
++            return null;
++        }
++        String converted = net.minecraft.server.DataConverterEntity.getMapping(id);
++        return new MinecraftKey(converted != null ? converted : id).getName();
++    }
++    // Paper end
++
+     CraftMetaSpawnEgg(Map<String, Object> map) {
+         super(map);
+ 
+-        String entityType = SerializableMeta.getString(map, ENTITY_ID.BUKKIT, true);
++        // Paper start
++        String id = SerializableMeta.getString(map, ENTITY_ID.BUKKIT, true);
++        if ("EntityHorse".equals(id)) {
++            id = "Horse"; // This is pre 1.10, where spawn eggs did not store variants
++        }
++        String entityType = convert(id);
++        // Paper end
+         setSpawnedType(EntityType.fromName(entityType));
+     }
+ 
+-- 
+2.11.0
+
