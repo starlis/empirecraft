@@ -1,4 +1,4 @@
-From 7fb3a096ddccce4094e4d41645a322a1c40d68ae Mon Sep 17 00:00:00 2001
+From e11c31d0ed3ab2bb09a1fc684aba81d0cb2114b6 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Wed, 27 Feb 2013 23:27:45 -0500
 Subject: [PATCH] Hidden Item Meta
@@ -13,18 +13,19 @@ Then you can store Data on 21+
 Also adds a &&::SHINY tag to send a fake enchantment aura if it does not exists.
 Must be set before META
 ---
- .../com/empireminecraft/api/HiddenItemMeta.java    | 85 ++++++++++++++++++++++
+ .../com/empireminecraft/api/HiddenItemMeta.java    | 90 ++++++++++++++++++++++
  src/main/java/net/minecraft/server/ItemStack.java  |  2 +-
  .../net/minecraft/server/PacketDataSerializer.java |  2 +
- 3 files changed, 88 insertions(+), 1 deletion(-)
+ .../net/minecraft/server/PlayerConnection.java     |  2 +-
+ 4 files changed, 94 insertions(+), 2 deletions(-)
  create mode 100644 src/main/java/com/empireminecraft/api/HiddenItemMeta.java
 
 diff --git a/src/main/java/com/empireminecraft/api/HiddenItemMeta.java b/src/main/java/com/empireminecraft/api/HiddenItemMeta.java
 new file mode 100644
-index 000000000..a734b5cb2
+index 000000000..2b476e94a
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/api/HiddenItemMeta.java
-@@ -0,0 +1,85 @@
+@@ -0,0 +1,90 @@
 +package com.empireminecraft.api;
 +
 +import net.minecraft.server.NBTTagCompound;
@@ -75,6 +76,8 @@ index 000000000..a734b5cb2
 +                            flags = nbttagcompound.getInt("HideFlags");
 +                            nbttagcompound.setInt("HideFlagsOrig", flags);
 +                            flags &= 1;
++                        } else {
++                            nbttagcompound.remove("HideFlagsOrig");
 +                        }
 +                        nbttagcompound.setInt("HideFlags", flags);
 +                        nbttagcompound.setInt("fakeench", 1);
@@ -100,18 +103,21 @@ index 000000000..a734b5cb2
 +        }
 +        // If shiny was used
 +        if (tag.hasKey("fakeench")) {
++            int orig = tag.getInt("HideFlagsOrig");
++            if (tag.hasKey("HideFlagsOrig") && orig != 1) {
++                tag.setInt("HideFlags", orig);
++            } else {
++                tag.remove("HideFlags");
++            }
 +            tag.remove("fakeench");
 +            tag.remove("ench");
-+            if (tag.hasKey("HideFlagsOrig")) {
-+                tag.setInt("HideFlags", tag.getInt("HideFlagsOrig"));
-+                tag.remove("HideFlagsOrig");
-+            }
++            tag.remove("HideFlagsOrig");
 +        }
 +        return tag;
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/ItemStack.java b/src/main/java/net/minecraft/server/ItemStack.java
-index 646a490f6..740125721 100644
+index 513335970..1f25a1807 100644
 --- a/src/main/java/net/minecraft/server/ItemStack.java
 +++ b/src/main/java/net/minecraft/server/ItemStack.java
 @@ -26,7 +26,7 @@ public final class ItemStack {
@@ -143,6 +149,19 @@ index 68e8c4671..8a785e83c 100644
                  CraftItemStack.setItemMeta(itemstack, CraftItemStack.getItemMeta(itemstack));
              }
              // CraftBukkit end
+diff --git a/src/main/java/net/minecraft/server/PlayerConnection.java b/src/main/java/net/minecraft/server/PlayerConnection.java
+index 9f721d88c..eb3e00da5 100644
+--- a/src/main/java/net/minecraft/server/PlayerConnection.java
++++ b/src/main/java/net/minecraft/server/PlayerConnection.java
+@@ -533,7 +533,7 @@ public class PlayerConnection implements PacketListenerPlayIn, ITickable {
+ 
+                                 if (d11 - d10 > Math.max(f2, Math.pow((double) (org.spigotmc.SpigotConfig.movedTooQuicklyMultiplier * (float) i * speed), 2)) && (!this.minecraftServer.R() || !this.minecraftServer.Q().equals(this.player.getName()))) { // Spigot
+                                 // CraftBukkit end
+-                                    PlayerConnection.LOGGER.warn("{} moved too quickly! {},{},{}", new Object[] { this.player.getName(), Double.valueOf(d7), Double.valueOf(d8), Double.valueOf(d9)});
++                                    //PlayerConnection.LOGGER.warn("{} moved too quickly! {},{},{}", new Object[] { this.player.getName(), Double.valueOf(d7), Double.valueOf(d8), Double.valueOf(d9)}); // EMC
+                                     this.a(this.player.locX, this.player.locY, this.player.locZ, this.player.yaw, this.player.pitch);
+                                     return;
+                                 }
 -- 
 2.11.0
 
