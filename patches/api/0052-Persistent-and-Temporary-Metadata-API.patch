@@ -1,4 +1,4 @@
-From a7fe14a419441f1101df44778ba916b0a29e6be3 Mon Sep 17 00:00:00 2001
+From dbe56972c8fecbaf3cb8929ea69d082a050ff4d0 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Thu, 4 Jul 2013 21:04:26 -0400
 Subject: [PATCH] Persistent and Temporary Metadata API
@@ -10,15 +10,15 @@ Entity, TileEntity, World, Chunk, Block, Inventory API's
  .../com/empireminecraft/api/meta/EAPI_Meta.java    |  50 +++
  .../java/com/empireminecraft/api/meta/Meta.java    | 410 +++++++++++++++++++++
  .../java/com/empireminecraft/api/meta/MetaKey.java |  51 +++
- .../api/meta/PersistentKeyImpl.java                |  38 ++
+ .../api/meta/PersistentKeyImpl.java                |  44 +++
  .../api/meta/PersistentMetaList.java               |  73 ++++
  .../api/meta/PersistentMetaMap.java                |  71 ++++
- .../com/empireminecraft/api/meta/TempKeyImpl.java  |  38 ++
+ .../com/empireminecraft/api/meta/TempKeyImpl.java  |  44 +++
  .../BlockWithPersistentMetaClearedEvent.java       |  49 +++
  src/main/java/org/bukkit/block/BlockState.java     |   2 +
  src/main/java/org/bukkit/entity/Entity.java        |   1 +
  src/main/java/org/bukkit/inventory/Inventory.java  |   1 +
- 13 files changed, 852 insertions(+)
+ 13 files changed, 864 insertions(+)
  create mode 100644 src/main/java/com/empireminecraft/api/Vector3i.java
  create mode 100644 src/main/java/com/empireminecraft/api/meta/EAPI_Meta.java
  create mode 100644 src/main/java/com/empireminecraft/api/meta/Meta.java
@@ -30,7 +30,7 @@ Entity, TileEntity, World, Chunk, Block, Inventory API's
  create mode 100644 src/main/java/com/empireminecraft/customevents/BlockWithPersistentMetaClearedEvent.java
 
 diff --git a/src/main/java/com/empireminecraft/api/API.java b/src/main/java/com/empireminecraft/api/API.java
-index 237e5575..9ff1db8c 100644
+index 237e55755..9ff1db8cd 100644
 --- a/src/main/java/com/empireminecraft/api/API.java
 +++ b/src/main/java/com/empireminecraft/api/API.java
 @@ -23,12 +23,14 @@
@@ -50,7 +50,7 @@ index 237e5575..9ff1db8c 100644
          return ExceptionUtils.getFullStackTrace(new Throwable());
 diff --git a/src/main/java/com/empireminecraft/api/Vector3i.java b/src/main/java/com/empireminecraft/api/Vector3i.java
 new file mode 100644
-index 00000000..75b2748e
+index 000000000..75b2748e2
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/api/Vector3i.java
 @@ -0,0 +1,66 @@
@@ -122,7 +122,7 @@ index 00000000..75b2748e
 +}
 diff --git a/src/main/java/com/empireminecraft/api/meta/EAPI_Meta.java b/src/main/java/com/empireminecraft/api/meta/EAPI_Meta.java
 new file mode 100644
-index 00000000..caa02c3e
+index 000000000..caa02c3e7
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/api/meta/EAPI_Meta.java
 @@ -0,0 +1,50 @@
@@ -178,7 +178,7 @@ index 00000000..caa02c3e
 +}
 diff --git a/src/main/java/com/empireminecraft/api/meta/Meta.java b/src/main/java/com/empireminecraft/api/meta/Meta.java
 new file mode 100644
-index 00000000..67c77721
+index 000000000..67c777218
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/api/meta/Meta.java
 @@ -0,0 +1,410 @@
@@ -594,7 +594,7 @@ index 00000000..67c77721
 +}
 diff --git a/src/main/java/com/empireminecraft/api/meta/MetaKey.java b/src/main/java/com/empireminecraft/api/meta/MetaKey.java
 new file mode 100644
-index 00000000..f0b62b48
+index 000000000..f0b62b481
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/api/meta/MetaKey.java
 @@ -0,0 +1,51 @@
@@ -651,10 +651,10 @@ index 00000000..f0b62b48
 +}
 diff --git a/src/main/java/com/empireminecraft/api/meta/PersistentKeyImpl.java b/src/main/java/com/empireminecraft/api/meta/PersistentKeyImpl.java
 new file mode 100644
-index 00000000..b650dcba
+index 000000000..0d62fbf07
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/api/meta/PersistentKeyImpl.java
-@@ -0,0 +1,38 @@
+@@ -0,0 +1,44 @@
 +/*
 + * Copyright (c) 2016 Starlis LLC / Daniel Ennis (Aikar) - MIT License
 + *
@@ -688,14 +688,20 @@ index 00000000..b650dcba
 +    PersistentKeyImpl(String key) {
 +        this.key = key;
 +    }
++
 +    @Override
 +    public final String key() {
++        return key;
++    }
++
++    @Override
++    public String toString() {
 +        return key;
 +    }
 +}
 diff --git a/src/main/java/com/empireminecraft/api/meta/PersistentMetaList.java b/src/main/java/com/empireminecraft/api/meta/PersistentMetaList.java
 new file mode 100644
-index 00000000..e4060252
+index 000000000..e40602522
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/api/meta/PersistentMetaList.java
 @@ -0,0 +1,73 @@
@@ -774,7 +780,7 @@ index 00000000..e4060252
 +}
 diff --git a/src/main/java/com/empireminecraft/api/meta/PersistentMetaMap.java b/src/main/java/com/empireminecraft/api/meta/PersistentMetaMap.java
 new file mode 100644
-index 00000000..8afef592
+index 000000000..8afef5926
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/api/meta/PersistentMetaMap.java
 @@ -0,0 +1,71 @@
@@ -851,10 +857,10 @@ index 00000000..8afef592
 +}
 diff --git a/src/main/java/com/empireminecraft/api/meta/TempKeyImpl.java b/src/main/java/com/empireminecraft/api/meta/TempKeyImpl.java
 new file mode 100644
-index 00000000..3793d776
+index 000000000..d3de8624a
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/api/meta/TempKeyImpl.java
-@@ -0,0 +1,38 @@
+@@ -0,0 +1,44 @@
 +/*
 + * Copyright (c) 2016 Starlis LLC / Daniel Ennis (Aikar) - MIT License
 + *
@@ -888,14 +894,20 @@ index 00000000..3793d776
 +    TempKeyImpl(String key) {
 +        this.key = key;
 +    }
++
 +    @Override
 +    public final String key() {
++        return key;
++    }
++
++    @Override
++    public String toString() {
 +        return key;
 +    }
 +}
 diff --git a/src/main/java/com/empireminecraft/customevents/BlockWithPersistentMetaClearedEvent.java b/src/main/java/com/empireminecraft/customevents/BlockWithPersistentMetaClearedEvent.java
 new file mode 100644
-index 00000000..4963d24f
+index 000000000..4963d24f2
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/customevents/BlockWithPersistentMetaClearedEvent.java
 @@ -0,0 +1,49 @@
@@ -949,7 +961,7 @@ index 00000000..4963d24f
 +    }
 +}
 diff --git a/src/main/java/org/bukkit/block/BlockState.java b/src/main/java/org/bukkit/block/BlockState.java
-index 866a73d9..7417574b 100644
+index 866a73d9e..7417574ba 100644
 --- a/src/main/java/org/bukkit/block/BlockState.java
 +++ b/src/main/java/org/bukkit/block/BlockState.java
 @@ -203,4 +203,6 @@ public interface BlockState extends Metadatable {
@@ -960,7 +972,7 @@ index 866a73d9..7417574b 100644
 +    boolean isTileEntity(); // EMC
  }
 diff --git a/src/main/java/org/bukkit/entity/Entity.java b/src/main/java/org/bukkit/entity/Entity.java
-index 4bdef783..30bdb4ee 100644
+index 4bdef783e..30bdb4ee4 100644
 --- a/src/main/java/org/bukkit/entity/Entity.java
 +++ b/src/main/java/org/bukkit/entity/Entity.java
 @@ -176,6 +176,7 @@ public interface Entity extends Metadatable, CommandSender, Nameable {
@@ -972,7 +984,7 @@ index 4bdef783..30bdb4ee 100644
       * Gets the primary passenger of a vehicle. For vehicles that could have
       * multiple passengers, this will only return the primary passenger.
 diff --git a/src/main/java/org/bukkit/inventory/Inventory.java b/src/main/java/org/bukkit/inventory/Inventory.java
-index c610262f..6a11b55f 100644
+index c610262f6..6a11b55f0 100644
 --- a/src/main/java/org/bukkit/inventory/Inventory.java
 +++ b/src/main/java/org/bukkit/inventory/Inventory.java
 @@ -15,6 +15,7 @@ import org.bukkit.event.inventory.InventoryType;
