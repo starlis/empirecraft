@@ -22,7 +22,7 @@ function update() {
 	cd $basedir
 	folder=${FORK_NAME}-$1
 	if [ ! -d "$folder" ]; then
-		git clone $SERVER_REPO $folder
+		git clone "$2" $folder
 	fi
 
         cd $basedir/$folder
@@ -31,8 +31,8 @@ function update() {
         git reset --hard origin/$mc
 }
 
-update API
-update Server
+update API "$API_REPO"
+update Server "$SERVER_REPO"
 
 cd ..
 if [ "$1" != "--nocompile" ]; then
