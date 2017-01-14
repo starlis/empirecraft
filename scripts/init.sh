@@ -41,7 +41,7 @@ function cleanupPatches {
 	done
 }
 function pushRepo {
-	if [ $(git config minecraft.push-${FORK_NAME}) == "1" ]; then
+	if [ "$(git config minecraft.push-${FORK_NAME})" == "1" ]; then
 	echo "Pushing - $1 ($3) to $2"
 	(
 		cd "$1"
