@@ -6,11 +6,11 @@ basedir=$(pwd -P)
 cd -
 
 FORK_NAME="EmpireCraft"
-API_REPO="git.starlis.com:starlis/EmpireCraft-API"
-SERVER_REPO="git.starlis.com:starlis/EmpireCraft-Server"
-PAPER_API_REPO="git.starlis.com:starlis/Paper-API"
-PAPER_SERVER_REPO="git.starlis.com:starlis/Paper-Server"
-MCDEV_REPO="git.starlis.com:starlis/mc-dev"
+API_REPO="git.starlis.com:emc/EmpireCraft-API"
+SERVER_REPO="git.starlis.com:emc/EmpireCraft-Server"
+PAPER_API_REPO="git.starlis.com:emc/Paper-API"
+PAPER_SERVER_REPO="git.starlis.com:emc/Paper-Server"
+MCDEV_REPO="git.starlis.com:emc/mc-dev"
 
 function bashColor {
 if [ $2 ]; then
