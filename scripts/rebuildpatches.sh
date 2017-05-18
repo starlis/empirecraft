@@ -39,6 +39,6 @@ function savePatches {
 }
 
 savePatches ${FORK_NAME}-API api
-savePatches ${FORK_NAME}-Server server
+#savePatches ${FORK_NAME}-Server server
 
 $basedir/scripts/push.sh
