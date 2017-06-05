@@ -49,5 +49,5 @@ function applyPatch {
 		echo "  Patches applied cleanly to $target"
 	fi
 }
-applyPatch Paper/Paper-API ${FORK_NAME}-API HEAD api $API_REPO
-#applyPatch Paper/Paper-Server ${FORK_NAME}-Server HEAD server $SERVER_REPO
+#applyPatch Paper/Paper-API ${FORK_NAME}-API HEAD api $API_REPO
+applyPatch Paper/Paper-Server ${FORK_NAME}-Server HEAD server $SERVER_REPO

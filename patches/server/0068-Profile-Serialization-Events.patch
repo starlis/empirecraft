@@ -1,0 +1,46 @@
+From da33770564f100ab99e98e4839e3a3c3ab4e21ee Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Tue, 21 Jul 2015 23:05:32 -0400
+Subject: [PATCH] Profile Serialization Events
+
+Lets us modify profile data before/after it is serialized/deserialized.
+---
+ src/main/java/net/minecraft/server/GameProfileSerializer.java | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/src/main/java/net/minecraft/server/GameProfileSerializer.java b/src/main/java/net/minecraft/server/GameProfileSerializer.java
+index a2da8913de..7a3d1ce3cc 100644
+--- a/src/main/java/net/minecraft/server/GameProfileSerializer.java
++++ b/src/main/java/net/minecraft/server/GameProfileSerializer.java
+@@ -61,6 +61,7 @@ public final class GameProfileSerializer {
+                 }
+             }
+ 
++            new com.empireminecraft.customevents.ProfileDeserializeEvent(gameprofile).callEvent(); // EMC
+             return gameprofile;
+         } catch (Throwable throwable1) {
+             return null;
+@@ -68,6 +69,12 @@ public final class GameProfileSerializer {
+     }
+ 
+     public static NBTTagCompound serialize(NBTTagCompound nbttagcompound, GameProfile gameprofile) {
++        // EMC start - defensive copy to prevent ConcurrentModificationExceptions if the event modifies the profile
++        GameProfile old = gameprofile;
++        gameprofile = new GameProfile(old.getId(), old.getName());
++        gameprofile.getProperties().putAll(old.getProperties());
++        new com.empireminecraft.customevents.ProfileSerializeEvent(gameprofile).callEvent();
++        // EMC end
+         if (!UtilColor.b(gameprofile.getName())) {
+             nbttagcompound.setString("Name", gameprofile.getName());
+         }
+@@ -255,6 +262,6 @@ public final class GameProfileSerializer {
+     }
+ 
+     private static <T extends Comparable<T>> String a(IBlockState<T> iblockstate, Comparable<?> comparable) {
+-        return iblockstate.a(comparable);
++        return iblockstate.a((T) comparable); // EMC - decompile error
+     }
+ }
+-- 
+2.13.0
+
