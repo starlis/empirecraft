@@ -22,6 +22,7 @@ if [ ! -d ".git" ]; then
 	git init
 fi
 
+rm src/net/minecraft/server/*.java
 cp $basedir/$decompile/net/minecraft/server/*.java src/net/minecraft/server
 
 base="$basedir/Paper/Paper-Server/src/main/java/net/minecraft/server"
