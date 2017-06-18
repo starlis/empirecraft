@@ -1,0 +1,72 @@
+From 90baba0e8ad7cb8f83f5ddd78b93928e41cf5246 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Sun, 14 Aug 2016 02:43:27 -0400
+Subject: [PATCH] Add SkullMeta Conversion Event
+
+---
+ src/main/java/net/minecraft/server/NBTTagCompound.java           | 1 +
+ .../java/org/bukkit/craftbukkit/inventory/CraftItemStack.java    | 2 ++
+ .../java/org/bukkit/craftbukkit/inventory/CraftMetaSkull.java    | 9 +++++++++
+ 3 files changed, 12 insertions(+)
+
+diff --git a/src/main/java/net/minecraft/server/NBTTagCompound.java b/src/main/java/net/minecraft/server/NBTTagCompound.java
+index 82c2537b30..b0a0b113dd 100644
+--- a/src/main/java/net/minecraft/server/NBTTagCompound.java
++++ b/src/main/java/net/minecraft/server/NBTTagCompound.java
+@@ -23,6 +23,7 @@ public class NBTTagCompound extends NBTBase {
+     private static final Logger b = LogManager.getLogger();
+     private static final Pattern c = Pattern.compile("[A-Za-z0-9._+-]+");
+     public final Map<String, NBTBase> map = Maps.newHashMap(); // Paper
++    public ItemStack itemStackRef; // EMC
+ 
+     public NBTTagCompound() {}
+ 
+diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftItemStack.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftItemStack.java
+index c6b7d9f8b8..6a0e988aef 100644
+--- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftItemStack.java
++++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftItemStack.java
+@@ -381,7 +381,9 @@ public final class CraftItemStack extends ItemStack {
+         NBTTagCompound tag = new NBTTagCompound();
+         item.setTag(tag);
+ 
++        tag.itemStackRef = item; // EMC
+         ((CraftMetaItem) itemMeta).applyToItem(tag);
++        tag.itemStackRef = null; // EMC
+         item.convertStack();
+ 
+         return true;
+diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaSkull.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaSkull.java
+index 8c81544f06..66e190853e 100644
+--- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaSkull.java
++++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaSkull.java
+@@ -73,6 +73,7 @@ class CraftMetaSkull extends CraftMetaItem implements SkullMeta {
+     @Override
+     void applyToItem(final NBTTagCompound tag) { // Spigot - make final
+         super.applyToItem(tag);
++        final net.minecraft.server.ItemStack item = tag.itemStackRef; // EMC
+ 
+         if (profile != null) {
+             NBTTagCompound owner = new NBTTagCompound();
+@@ -88,6 +89,7 @@ class CraftMetaSkull extends CraftMetaItem implements SkullMeta {
+                     NBTTagCompound owner = new NBTTagCompound();
+                     GameProfileSerializer.serialize( owner, input );
+                     tag.set( SKULL_OWNER.NBT, owner );
++                    if (convertEvent != null) convertEvent.accept(item.getBukkitStack()); // EMC
+                     return false;
+                 }
+             });
+@@ -184,4 +186,11 @@ class CraftMetaSkull extends CraftMetaItem implements SkullMeta {
+         }
+         return builder;
+     }
++
++    // EMC start
++    private java.util.function.Consumer<org.bukkit.inventory.ItemStack> convertEvent;
++    public void onConversion(java.util.function.Consumer<org.bukkit.inventory.ItemStack> run) {
++        convertEvent = run;
++    }
++    // EMC stop
+ }
+-- 
+2.13.0
+
