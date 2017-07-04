@@ -77,7 +77,7 @@ done
 ###############################################################################################
 
 # import Foo
-import DataConverterEntity
+import EnumItemSlot
 
 ################
 (
