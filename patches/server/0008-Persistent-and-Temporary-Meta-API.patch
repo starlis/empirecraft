@@ -1,4 +1,4 @@
-From e487aabb072a9d147133325408f941d44871139f Mon Sep 17 00:00:00 2001
+From 73686aad290948d2ea209d6bc1fbd8ff607a4fea Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Mon, 4 Mar 2013 23:35:02 -0500
 Subject: [PATCH] Persistent and Temporary Meta API
@@ -16,11 +16,12 @@ Subject: [PATCH] Persistent and Temporary Meta API
  src/main/java/net/minecraft/server/World.java      |   1 +
  src/main/java/net/minecraft/server/WorldData.java  |   4 +
  .../java/org/bukkit/craftbukkit/CraftServer.java   |   3 +
- .../bukkit/craftbukkit/block/CraftBlockState.java  |  10 +-
+ .../craftbukkit/block/CraftBlockEntityState.java   |   7 +
+ .../bukkit/craftbukkit/block/CraftBlockState.java  |   9 +-
  .../org/bukkit/craftbukkit/entity/CraftEntity.java |   2 +
  .../craftbukkit/event/CraftEventFactory.java       |   5 +
- .../craftbukkit/inventory/CraftInventory.java      |  11 +-
- 16 files changed, 595 insertions(+), 2 deletions(-)
+ .../craftbukkit/inventory/CraftInventory.java      |  11 +
+ 17 files changed, 602 insertions(+), 1 deletion(-)
  create mode 100644 src/main/java/com/empireminecraft/api/meta/CraftEAPI_Meta.java
  create mode 100644 src/main/java/net/minecraft/server/MetaApiAccessor.java
 
@@ -127,7 +128,7 @@ index 0000000000..8a0db8fda3
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/Chunk.java b/src/main/java/net/minecraft/server/Chunk.java
-index ed59595596..e501e23fd1 100644
+index 228792fa51..3faad888e6 100644
 --- a/src/main/java/net/minecraft/server/Chunk.java
 +++ b/src/main/java/net/minecraft/server/Chunk.java
 @@ -12,6 +12,7 @@ import java.util.Map;
@@ -148,18 +149,18 @@ index ed59595596..e501e23fd1 100644
  
      public Chunk(World world, ChunkSnapshot chunksnapshot, int i, int j) {
 diff --git a/src/main/java/net/minecraft/server/ChunkRegionLoader.java b/src/main/java/net/minecraft/server/ChunkRegionLoader.java
-index d275eb194e..3291a1a647 100644
+index 1b863d4dc0..ebc63dd600 100644
 --- a/src/main/java/net/minecraft/server/ChunkRegionLoader.java
 +++ b/src/main/java/net/minecraft/server/ChunkRegionLoader.java
-@@ -261,6 +261,7 @@ public class ChunkRegionLoader implements IChunkLoader, IAsyncChunkSaver {
-     private void a(Chunk chunk, World world, NBTTagCompound nbttagcompound) {
+@@ -290,6 +290,7 @@ public class ChunkRegionLoader implements IChunkLoader, IAsyncChunkSaver {
+     private static void saveBody(NBTTagCompound nbttagcompound, Chunk chunk, long worldTime, boolean worldHasSkyLight) { // Spigot
          nbttagcompound.setInt("xPos", chunk.locX);
          nbttagcompound.setInt("zPos", chunk.locZ);
 +        MetaApiAccessor.saveChunkMetaNbt(nbttagcompound, chunk); // EMC
-         nbttagcompound.setLong("LastUpdate", world.getTime());
+         nbttagcompound.setLong("LastUpdate", worldTime); // Spigot
          nbttagcompound.setIntArray("HeightMap", chunk.r());
          nbttagcompound.setBoolean("TerrainPopulated", chunk.isDone());
-@@ -367,6 +368,7 @@ public class ChunkRegionLoader implements IChunkLoader, IAsyncChunkSaver {
+@@ -405,6 +406,7 @@ public class ChunkRegionLoader implements IChunkLoader, IAsyncChunkSaver {
          Chunk chunk = new Chunk(world, i, j);
  
          chunk.a(nbttagcompound.getIntArray("HeightMap"));
@@ -168,7 +169,7 @@ index d275eb194e..3291a1a647 100644
          chunk.e(nbttagcompound.getBoolean("LightPopulated"));
          chunk.c(nbttagcompound.getLong("InhabitedTime"));
 diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
-index 27c28cfb11..928d40a6d4 100644
+index 18eee4944d..c1c8409ac4 100644
 --- a/src/main/java/net/minecraft/server/Entity.java
 +++ b/src/main/java/net/minecraft/server/Entity.java
 @@ -45,6 +45,7 @@ import org.bukkit.plugin.PluginManager;
@@ -694,7 +695,7 @@ index b30c97e3ff..77c7c8c55e 100644
          this.b = i;
          this.c = nbttagcompound;
 diff --git a/src/main/java/net/minecraft/server/TileEntity.java b/src/main/java/net/minecraft/server/TileEntity.java
-index ddea15cfef..8c3ea4bc07 100644
+index 237f7e6fe6..480af3a58d 100644
 --- a/src/main/java/net/minecraft/server/TileEntity.java
 +++ b/src/main/java/net/minecraft/server/TileEntity.java
 @@ -1,6 +1,8 @@
@@ -709,7 +710,7 @@ index ddea15cfef..8c3ea4bc07 100644
 @@ -48,6 +50,7 @@ public abstract class TileEntity {
      }
  
-     public void a(NBTTagCompound nbttagcompound) {
+     public void load(NBTTagCompound nbttagcompound) {
 +        MetaApiAccessor.loadTileEntityMeta(this, nbttagcompound); // EMC
          this.position = new BlockPosition(nbttagcompound.getInt("x"), nbttagcompound.getInt("y"), nbttagcompound.getInt("z"));
      }
@@ -731,10 +732,10 @@ index ddea15cfef..8c3ea4bc07 100644
      public InventoryHolder getOwner() {
          if (world == null) return null;
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index 6781ef6df7..4c417afe65 100644
+index dcc7532026..66c740e01f 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
-@@ -423,6 +423,7 @@ public abstract class World implements IBlockAccess {
+@@ -425,6 +425,7 @@ public abstract class World implements IBlockAccess {
                      this.c(blockposition, block);
                  }
                  */
@@ -743,7 +744,7 @@ index 6781ef6df7..4c417afe65 100644
                  // CraftBukkit start
                  if (!this.captureBlockStates) { // Don't notify clients or update physics while capturing blockstates
 diff --git a/src/main/java/net/minecraft/server/WorldData.java b/src/main/java/net/minecraft/server/WorldData.java
-index 2b23954ba0..0eaefd0aa2 100644
+index 57ec601aae..3c55dd777b 100644
 --- a/src/main/java/net/minecraft/server/WorldData.java
 +++ b/src/main/java/net/minecraft/server/WorldData.java
 @@ -1,5 +1,6 @@
@@ -778,10 +779,10 @@ index 2b23954ba0..0eaefd0aa2 100644
  
      public long getSeed() {
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-index b8144bea1c..feca12e334 100644
+index 1232d510e2..b88b6e32f0 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-@@ -785,6 +785,9 @@ public final class CraftServer implements Server {
+@@ -791,6 +791,9 @@ public final class CraftServer implements Server {
                  "This plugin is not properly shutting down its async tasks when it is being reloaded.  This may cause conflicts with the newly loaded version of the plugin"
              ));
          }
@@ -791,19 +792,27 @@ index b8144bea1c..feca12e334 100644
          loadPlugins();
          enablePlugins(PluginLoadOrder.STARTUP);
          enablePlugins(PluginLoadOrder.POSTWORLD);
+diff --git a/src/main/java/org/bukkit/craftbukkit/block/CraftBlockEntityState.java b/src/main/java/org/bukkit/craftbukkit/block/CraftBlockEntityState.java
+index 266f87d7f1..b06643968d 100644
+--- a/src/main/java/org/bukkit/craftbukkit/block/CraftBlockEntityState.java
++++ b/src/main/java/org/bukkit/craftbukkit/block/CraftBlockEntityState.java
+@@ -117,4 +117,11 @@ public class CraftBlockEntityState<T extends TileEntity> extends CraftBlockState
+ 
+         return result;
+     }
++
++    // EMC start
++    @Override
++    public boolean isTileEntity() {
++        return tileEntity != null;
++    }
++    // EMC end
+ }
 diff --git a/src/main/java/org/bukkit/craftbukkit/block/CraftBlockState.java b/src/main/java/org/bukkit/craftbukkit/block/CraftBlockState.java
-index 5d83155a12..ca564903f7 100644
+index 2a1b731c0c..4d3a1a0796 100644
 --- a/src/main/java/org/bukkit/craftbukkit/block/CraftBlockState.java
 +++ b/src/main/java/org/bukkit/craftbukkit/block/CraftBlockState.java
-@@ -1,6 +1,7 @@
- package org.bukkit.craftbukkit.block;
- 
- import net.minecraft.server.BlockPosition;
-+import net.minecraft.server.TileEntityBanner;
- import org.bukkit.Location;
- import org.bukkit.block.Block;
- import org.bukkit.block.BlockFace;
-@@ -290,4 +291,11 @@ public class CraftBlockState implements BlockState {
+@@ -283,4 +283,11 @@ public class CraftBlockState implements BlockState {
              throw new IllegalStateException("The blockState must be placed to call this method");
          }
      }
@@ -813,12 +822,12 @@ index 5d83155a12..ca564903f7 100644
 +    // EMC start
 +    @Override
 +    public boolean isTileEntity() {
-+        return getTileEntity() != null || world.getTileEntityAt(getX(), getY(), getZ()) != null;
++        return false;
 +    }
-+    // EMC enmd
++    // EMC end
 +}
 diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java
-index d23a72d668..a60ee49289 100644
+index 0ada29f4fe..66d60653eb 100644
 --- a/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java
 +++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java
 @@ -28,6 +28,8 @@ import org.bukkit.plugin.Plugin;
@@ -847,27 +856,27 @@ index 136880c9e1..a67632952f 100644
  
      public static void handleEditBookEvent(EntityPlayer player, ItemStack newBookItem) {
 diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftInventory.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftInventory.java
-index 4866d1aee6..8a0d732ee4 100644
+index 4866d1aee6..6bb5c6a85c 100644
 --- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftInventory.java
 +++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftInventory.java
-@@ -28,7 +28,16 @@ import org.bukkit.Material;
- 
+@@ -29,6 +29,17 @@ import org.bukkit.Material;
  public class CraftInventory implements Inventory {
      protected final IInventory inventory;
--
-+	// EMC start
-+	public static final java.util.WeakHashMap<IInventory, HashMap<String, Object>> meta = new java.util.WeakHashMap<IInventory, HashMap<String, Object>>(64);
-+	public HashMap<String, Object> getMeta() {
-+		HashMap<String, Object> metaMap = meta.get(inventory);
-+		if (metaMap == null) {
-+			metaMap = new HashMap<String, Object>(8);
-+			meta.put(inventory, metaMap);
-+		}
-+		return metaMap;
-+	} // EMC end
+ 
++    // EMC start
++    public static final java.util.WeakHashMap<IInventory, HashMap<String, Object>> meta = new java.util.WeakHashMap<IInventory, HashMap<String, Object>>(64);
++    public HashMap<String, Object> getMeta() {
++        HashMap<String, Object> metaMap = meta.get(inventory);
++        if (metaMap == null) {
++            metaMap = new HashMap<String, Object>();
++            meta.put(inventory, metaMap);
++        }
++        return metaMap;
++    } // EMC end
++
      public CraftInventory(IInventory inventory) {
          this.inventory = inventory;
      }
 -- 
-2.13.0
+2.14.1
 
