@@ -1,16 +1,16 @@
-From 18df1c88b2ef23f5b0ba75e4e9ff20ee6a032d12 Mon Sep 17 00:00:00 2001
+From 7a27472e3c90ed32d104e0bd3017c2d663775cc3 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Tue, 13 Dec 2016 00:40:10 -0500
 Subject: [PATCH] Villager Treasure Map Events / Changes
 
 ---
  .../com/empireminecraft/api/CraftEAPI_Misc.java    | 31 ++++++++++++++++++++++
- .../java/net/minecraft/server/EntityVillager.java  | 28 ++++++++++---------
+ .../java/net/minecraft/server/EntityVillager.java  | 26 +++++++++---------
  src/main/java/net/minecraft/server/ItemStack.java  |  2 +-
  .../java/net/minecraft/server/ItemWorldMap.java    |  4 +--
  src/main/java/net/minecraft/server/World.java      |  3 +--
  src/main/java/net/minecraft/server/WorldMap.java   |  2 +-
- 6 files changed, 51 insertions(+), 19 deletions(-)
+ 6 files changed, 50 insertions(+), 18 deletions(-)
 
 diff --git a/src/main/java/com/empireminecraft/api/CraftEAPI_Misc.java b/src/main/java/com/empireminecraft/api/CraftEAPI_Misc.java
 index 88c9eebc7b..6ca596bf5c 100644
@@ -69,7 +69,7 @@ index 88c9eebc7b..6ca596bf5c 100644
 +    }
  }
 diff --git a/src/main/java/net/minecraft/server/EntityVillager.java b/src/main/java/net/minecraft/server/EntityVillager.java
-index 08f38c8e6e..595283ce1a 100644
+index 9f42bef91c..184e753de1 100644
 --- a/src/main/java/net/minecraft/server/EntityVillager.java
 +++ b/src/main/java/net/minecraft/server/EntityVillager.java
 @@ -4,6 +4,8 @@ import java.util.Iterator;
@@ -92,7 +92,7 @@ index 08f38c8e6e..595283ce1a 100644
  
          public h(EntityVillager.MerchantOptionRandomRange entityvillager_merchantoptionrandomrange, String s, MapIcon.Type mapicon_type) {
              this.a = entityvillager_merchantoptionrandomrange;
-@@ -843,18 +845,18 @@ public class EntityVillager extends EntityAgeable implements NPC, IMerchant {
+@@ -843,20 +845,20 @@ public class EntityVillager extends EntityAgeable implements NPC, IMerchant {
          }
  
          public void a(IMerchant imerchant, MerchantRecipeList merchantrecipelist, Random random) {
@@ -100,28 +100,29 @@ index 08f38c8e6e..595283ce1a 100644
 +            // EMC start - refactor treasure maps to be pending - ABSOLUTELY DEPENDS ON PLUGIN CODE!!!!!!!!!!!
 +            int cost = Math.min(64, 35 + this.a.a(random)); // EMC - boost cost due to modified behavior - each map is unique, when its not in vanilla
              World world = imerchant.u_();
+             if (!world.paperConfig.enableTreasureMaps) return; //Paper
 -            BlockPosition blockposition = world.a(this.b, imerchant.v_(), world.paperConfig.treasureMapsAlreadyDiscovered); // Paper - pass false to return first structure, regardless of if its been discovered. true returns only undiscovered.
 -
 -            if (blockposition != null) {
 -                ItemStack itemstack = ItemWorldMap.a(world, (double) blockposition.getX(), (double) blockposition.getZ(), (byte) 2, true, true);
--
++            //BlockPosition blockposition = world.a(this.b, imerchant.v_(), world.paperConfig.treasureMapsAlreadyDiscovered); // Paper - pass false to return first structure, regardless of if its been discovered. true returns only undiscovered. // EMC - if this changes, investigate findNearestStructure
+ 
 -                ItemWorldMap.a(world, itemstack);
 -                WorldMap.a(itemstack, blockposition, "+", this.c);
 -                itemstack.f("filled_map." + this.b.toLowerCase(Locale.ROOT));
 -                merchantrecipelist.add(new MerchantRecipe(new ItemStack(Items.EMERALD, i), new ItemStack(Items.COMPASS), itemstack));
--            }
-+            if (!world.paperConfig.enableTreasureMaps) return; // Paper
-+            //BlockPosition blockposition = world.a(this.b, imerchant.u_(), true); // EMC - if this changes, investigate findNearestStructure
++            // EMC start - delete generate code, change to map
 +            CreatePendingTreasureMapEvent event = new CreatePendingTreasureMapEvent(this.getMapType(), getIconType().ordinal());
 +            event.callEvent();
 +            if (event.getItem() != null) {
 +                ItemStack item = org.bukkit.craftbukkit.inventory.CraftItemStack.asNMSCopy(event.getItem());
 +                merchantrecipelist.add(new MerchantRecipe(new ItemStack(Items.EMERALD, cost), new ItemStack(Items.COMPASS), item, 0, 2)); // Max 2 purchase before lock
-+            }
+             }
+-
 +            // EMC end
- 
          }
      }
+ 
 diff --git a/src/main/java/net/minecraft/server/ItemStack.java b/src/main/java/net/minecraft/server/ItemStack.java
 index 83622c91d1..4c4560c634 100644
 --- a/src/main/java/net/minecraft/server/ItemStack.java
@@ -158,10 +159,10 @@ index e0799ff00b..c9dbfe4df8 100644
              WorldMap worldmap = Items.FILLED_MAP.getSavedMap(itemstack, world);
  
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index 78b7255628..df11ef1264 100644
+index f67dae3d39..d09e8c03f3 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
-@@ -3261,8 +3261,7 @@ public abstract class World implements IBlockAccess {
+@@ -3266,8 +3266,7 @@ public abstract class World implements IBlockAccess {
          return this.B;
      }
  
@@ -185,5 +186,5 @@ index 59173605ee..a3239b812b 100644
  
          if (itemstack.hasTag() && itemstack.getTag().hasKeyOfType("Decorations", 9)) {
 -- 
-2.14.1
+2.14.2
 
