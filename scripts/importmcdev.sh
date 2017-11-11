@@ -77,7 +77,9 @@ done
 ###############################################################################################
 
 # import Foo
-import EnumItemSlot
+import StructureStart
+import StructurePiece
+import StructureBoundingBox
 
 ################
 (
