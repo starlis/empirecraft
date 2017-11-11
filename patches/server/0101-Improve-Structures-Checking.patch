@@ -1,4 +1,4 @@
-From bca54e6e6f766ca001109c85bb24d6902906b64d Mon Sep 17 00:00:00 2001
+From a52e961a57185f8a614c03d8d6307cb4c5bf6dc0 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Sat, 11 Nov 2017 17:57:39 -0500
 Subject: [PATCH] Improve Structures Checking
@@ -13,11 +13,11 @@ This should have pretty decent performance improvement to any standard world
 that has been around for a whilewith lots of structures due to ineffeciencies
 in how MC stores structures (even unloaded chunks has structured data loaded)
 ---
- .../net/minecraft/server/StructureBoundingBox.java | 15 ++++----
- .../net/minecraft/server/StructureGenerator.java   | 42 +++++++++++++++++++++-
+ .../net/minecraft/server/StructureBoundingBox.java | 15 +++++---
+ .../net/minecraft/server/StructureGenerator.java   | 43 +++++++++++++++++++++-
  .../java/net/minecraft/server/StructurePiece.java  |  1 +
- .../java/net/minecraft/server/StructureStart.java  |  2 ++
- 4 files changed, 53 insertions(+), 7 deletions(-)
+ .../java/net/minecraft/server/StructureStart.java  |  4 +-
+ 4 files changed, 55 insertions(+), 8 deletions(-)
 
 diff --git a/src/main/java/net/minecraft/server/StructureBoundingBox.java b/src/main/java/net/minecraft/server/StructureBoundingBox.java
 index db419cd99e..d9329bd424 100644
@@ -53,7 +53,7 @@ index db419cd99e..d9329bd424 100644
          return baseblockposition.getX() >= this.a && baseblockposition.getX() <= this.d && baseblockposition.getZ() >= this.c && baseblockposition.getZ() <= this.f && baseblockposition.getY() >= this.b && baseblockposition.getY() <= this.e;
      }
 diff --git a/src/main/java/net/minecraft/server/StructureGenerator.java b/src/main/java/net/minecraft/server/StructureGenerator.java
-index 66815373b8..6cfc4c8b7e 100644
+index 66815373b8..4a228613b0 100644
 --- a/src/main/java/net/minecraft/server/StructureGenerator.java
 +++ b/src/main/java/net/minecraft/server/StructureGenerator.java
 @@ -6,6 +6,7 @@ import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
@@ -72,16 +72,18 @@ index 66815373b8..6cfc4c8b7e 100644
  
      public StructureGenerator() {}
  
-@@ -107,6 +109,17 @@ public abstract class StructureGenerator extends WorldGenBase {
+@@ -107,6 +109,19 @@ public abstract class StructureGenerator extends WorldGenBase {
  
      @Nullable
      protected StructureStart c(BlockPosition blockposition) {
 +        // Paper start - replace method
 +        StructureStart structureStart = allStructures.get(ChunkCoordIntPair.asLong(blockposition));
-+        List<StructurePiece> structurePieces = structureStart.getStructurePieces();
-+        for (StructurePiece piece : structurePieces) {
-+            if (piece.getBoundingBox().contains(blockposition)) {
-+                return structureStart;
++        if (structureStart != null) {
++            List<StructurePiece> structurePieces = structureStart.getStructurePieces();
++            for (StructurePiece piece : structurePieces) {
++                if (piece.getBoundingBox().contains(blockposition)) {
++                    return structureStart;
++                }
 +            }
 +        }
 +
@@ -90,7 +92,7 @@ index 66815373b8..6cfc4c8b7e 100644
          ObjectIterator objectiterator = this.c.values().iterator();
  
          while (objectiterator.hasNext()) {
-@@ -126,11 +139,17 @@ public abstract class StructureGenerator extends WorldGenBase {
+@@ -126,11 +141,16 @@ public abstract class StructureGenerator extends WorldGenBase {
          }
  
          return null;
@@ -100,15 +102,14 @@ index 66815373b8..6cfc4c8b7e 100644
      public boolean a(World world, BlockPosition blockposition) {
          if (this.g == null) return false; // Paper
          this.a(world);
-+        // Paper start
-+
++        // Paper start - Replace method
 +        StructureStart structureStart = this.allStructures.get(ChunkCoordIntPair.asLong(blockposition));
-+        return structureStart != null && structureStart.getBoundingBox().contains(blockposition);
++        return structureStart != null && structureStart.someBoolCheck() && structureStart.getBoundingBox().contains(blockposition);
 +        /* // comment out rest
          ObjectIterator objectiterator = this.c.values().iterator();
  
          StructureStart structurestart;
-@@ -143,7 +162,7 @@ public abstract class StructureGenerator extends WorldGenBase {
+@@ -143,7 +163,7 @@ public abstract class StructureGenerator extends WorldGenBase {
              structurestart = (StructureStart) objectiterator.next();
          } while (!structurestart.a() || !structurestart.b().b((BaseBlockPosition) blockposition));
  
@@ -117,7 +118,7 @@ index 66815373b8..6cfc4c8b7e 100644
      }
  
      @Nullable
-@@ -178,6 +197,12 @@ public abstract class StructureGenerator extends WorldGenBase {
+@@ -178,6 +198,12 @@ public abstract class StructureGenerator extends WorldGenBase {
                              StructureStart structurestart = WorldGenFactory.a(nbttagcompound1, world);
  
                              if (structurestart != null) {
@@ -130,7 +131,7 @@ index 66815373b8..6cfc4c8b7e 100644
                                  this.c.put(ChunkCoordIntPair.a(i, j), structurestart);
                              }
                          }
-@@ -188,6 +213,21 @@ public abstract class StructureGenerator extends WorldGenBase {
+@@ -188,6 +214,21 @@ public abstract class StructureGenerator extends WorldGenBase {
  
      }
  
@@ -165,7 +166,7 @@ index 93903bc67c..fcc13f811f 100644
          return this.l;
      }
 diff --git a/src/main/java/net/minecraft/server/StructureStart.java b/src/main/java/net/minecraft/server/StructureStart.java
-index b6abc74e08..ba1f62024a 100644
+index b6abc74e08..4089ccdc2e 100644
 --- a/src/main/java/net/minecraft/server/StructureStart.java
 +++ b/src/main/java/net/minecraft/server/StructureStart.java
 @@ -19,10 +19,12 @@ public abstract class StructureStart {
@@ -181,6 +182,15 @@ index b6abc74e08..ba1f62024a 100644
      public List<StructurePiece> c() {
          return this.a;
      }
+@@ -137,7 +139,7 @@ public abstract class StructureStart {
+ 
+     }
+ 
+-    public boolean a() {
++    public boolean someBoolCheck() { return a(); } public boolean a() { // Paper - OBFHELPER
+         return true;
+     }
+ 
 -- 
 2.15.0
 
