@@ -77,9 +77,6 @@ done
 ###############################################################################################
 
 # import Foo
-import StructureStart
-import StructurePiece
-import StructureBoundingBox
 
 ################
 (
