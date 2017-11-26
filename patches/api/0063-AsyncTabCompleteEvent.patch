@@ -1,0 +1,144 @@
+From 0be727593d923d91607165f5b40d6eb0348d53ff Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Sun, 26 Nov 2017 13:17:09 -0500
+Subject: [PATCH] AsyncTabCompleteEvent
+
+Let plugins be able to control tab completion of commands and chat async.
+
+This will be useful for frameworks like ACF so we can define async safe completion handlers,
+and avoid going to main for tab completions.
+
+Especially useful if you need to query a database in order to obtain the results for tab
+completion, such as offline players.
+---
+ .../paper/event/server/AsyncTabCompleteEvent.java  | 91 ++++++++++++++++++++++
+ .../java/org/bukkit/command/SimpleCommandMap.java  |  1 +
+ .../org/bukkit/event/server/TabCompleteEvent.java  |  2 +-
+ 3 files changed, 93 insertions(+), 1 deletion(-)
+ create mode 100644 src/main/java/com/destroystokyo/paper/event/server/AsyncTabCompleteEvent.java
+
+diff --git a/src/main/java/com/destroystokyo/paper/event/server/AsyncTabCompleteEvent.java b/src/main/java/com/destroystokyo/paper/event/server/AsyncTabCompleteEvent.java
+new file mode 100644
+index 000000000..2cef321c0
+--- /dev/null
++++ b/src/main/java/com/destroystokyo/paper/event/server/AsyncTabCompleteEvent.java
+@@ -0,0 +1,91 @@
++/*
++ * Copyright (c) 2017 Daniel Ennis (Aikar) MIT License
++ *
++ *  Permission is hereby granted, free of charge, to any person obtaining
++ *  a copy of this software and associated documentation files (the
++ *  "Software"), to deal in the Software without restriction, including
++ *  without limitation the rights to use, copy, modify, merge, publish,
++ *  distribute, sublicense, and/or sell copies of the Software, and to
++ *  permit persons to whom the Software is furnished to do so, subject to
++ *  the following conditions:
++ *
++ *  The above copyright notice and this permission notice shall be
++ *  included in all copies or substantial portions of the Software.
++ *
++ *  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ *  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
++ *  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ *  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
++ *  LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
++ *  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
++ *  WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package com.destroystokyo.paper.event.server;
++
++import org.bukkit.Location;
++import org.bukkit.command.CommandSender;
++import org.bukkit.event.Event;
++import org.bukkit.event.HandlerList;
++
++import java.util.List;
++
++public class AsyncTabCompleteEvent extends Event {
++    private final CommandSender sender;
++    private final String currentInput;
++    private final boolean isCommand;
++    private final Location loc;
++    private List<String> completions;
++    private boolean fireSyncHandler = true;
++
++    public AsyncTabCompleteEvent(CommandSender sender, List<String> completions, String currentInput, boolean isCommand, Location loc) {
++        super(true);
++        this.sender = sender;
++        this.completions = completions;
++        this.currentInput = currentInput;
++        this.isCommand = isCommand;
++        this.loc = loc;
++    }
++
++    public CommandSender getSender() {
++        return sender;
++    }
++
++    public List<String> getCompletions() {
++        return completions;
++    }
++
++    public void setCompletions(List<String> completions) {
++        this.completions = completions;
++    }
++
++    public String getBuffer() {
++        return currentInput;
++    }
++
++    public boolean isCommand() {
++        return isCommand;
++    }
++
++    public Location getLoc() {
++        return loc;
++    }
++
++    public void setFireSyncHandler(boolean fireSyncHandler) {
++        this.fireSyncHandler = fireSyncHandler;
++    }
++
++    public boolean shouldFireSyncHandler() {
++        return this.fireSyncHandler;
++    }
++
++    private static final HandlerList handlers = new HandlerList();
++
++    public HandlerList getHandlers() {
++        return handlers;
++    }
++
++    public static HandlerList getHandlerList() {
++        return handlers;
++    }
++}
+diff --git a/src/main/java/org/bukkit/command/SimpleCommandMap.java b/src/main/java/org/bukkit/command/SimpleCommandMap.java
+index a45a18c64..41b56f084 100644
+--- a/src/main/java/org/bukkit/command/SimpleCommandMap.java
++++ b/src/main/java/org/bukkit/command/SimpleCommandMap.java
+@@ -189,6 +189,7 @@ public class SimpleCommandMap implements CommandMap {
+ 
+         if (spaceIndex == -1) {
+             ArrayList<String> completions = new ArrayList<String>();
++            if (org.bukkit.event.server.TabCompleteEvent.PREFILL_TAB_COMPLETIONS != null) { completions.addAll(org.bukkit.event.server.TabCompleteEvent.PREFILL_TAB_COMPLETIONS); } // Paper - Async Tab Completion
+             Map<String, Command> knownCommands = this.knownCommands;
+ 
+             final String prefix = (sender instanceof Player ? "/" : "");
+diff --git a/src/main/java/org/bukkit/event/server/TabCompleteEvent.java b/src/main/java/org/bukkit/event/server/TabCompleteEvent.java
+index 6ac437d5e..47a804f03 100644
+--- a/src/main/java/org/bukkit/event/server/TabCompleteEvent.java
++++ b/src/main/java/org/bukkit/event/server/TabCompleteEvent.java
+@@ -12,7 +12,7 @@ import org.bukkit.event.HandlerList;
+  * console) attempts to tab complete.
+  */
+ public class TabCompleteEvent extends Event implements Cancellable {
+-
++    public static List<String> PREFILL_TAB_COMPLETIONS;
+     private static final HandlerList handlers = new HandlerList();
+     //
+     private final CommandSender sender;
+-- 
+2.15.0
+
