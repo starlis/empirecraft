@@ -1,4 +1,4 @@
-From d53514bd7199e85f21fa66b11677c1cc79fd6975 Mon Sep 17 00:00:00 2001
+From 0765ef909ba62579c210ee14af020f134078d141 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Sun, 26 Nov 2017 13:19:58 -0500
 Subject: [PATCH] AsyncTabCompleteEvent
@@ -10,17 +10,19 @@ and avoid going to main for tab completions.
 
 Especially useful if you need to query a database in order to obtain the results for tab
 completion, such as offline players.
+
+Also adds isCommand and getLocation to the sync TabCompleteEvent
 ---
- .../net/minecraft/server/PlayerConnection.java     | 33 ++++++++++++++--------
- .../java/org/bukkit/craftbukkit/CraftServer.java   |  1 +
- .../command/ConsoleCommandCompleter.java           | 15 ++++++++++
- 3 files changed, 38 insertions(+), 11 deletions(-)
+ .../net/minecraft/server/PlayerConnection.java     | 47 +++++++++++++++++-----
+ .../java/org/bukkit/craftbukkit/CraftServer.java   |  2 +-
+ .../command/ConsoleCommandCompleter.java           | 33 +++++++++++++++
+ 3 files changed, 71 insertions(+), 11 deletions(-)
 
 diff --git a/src/main/java/net/minecraft/server/PlayerConnection.java b/src/main/java/net/minecraft/server/PlayerConnection.java
-index cabdb0b2f7..2c9334076f 100644
+index cabdb0b2f7..2783e3dace 100644
 --- a/src/main/java/net/minecraft/server/PlayerConnection.java
 +++ b/src/main/java/net/minecraft/server/PlayerConnection.java
-@@ -2290,24 +2290,35 @@ public class PlayerConnection implements PacketListenerPlayIn, ITickable {
+@@ -2290,24 +2290,51 @@ public class PlayerConnection implements PacketListenerPlayIn, ITickable {
          // CraftBukkit end
      }
  
@@ -40,27 +42,42 @@ index cabdb0b2f7..2c9334076f 100644
  
 -        while (iterator.hasNext()) {
 -            String s = (String) iterator.next();
--
--            arraylist.add(s);
 +        com.destroystokyo.paper.event.server.AsyncTabCompleteEvent event;
 +        java.util.List<String> completions = new ArrayList<>();
 +        BlockPosition blockpos = packet.b();
-+        String currentInput = packet.a();
++        String buffer = packet.a();
 +        boolean isCommand = packet.c();
 +        event = new com.destroystokyo.paper.event.server.AsyncTabCompleteEvent(this.getPlayer(), completions,
-+            currentInput, isCommand, blockpos != null ? MCUtil.toLocation(player.world, blockpos) : null);
++            buffer, isCommand, blockpos != null ? MCUtil.toLocation(player.world, blockpos) : null);
 +        event.callEvent();
-+        completions = event.getCompletions();
-+        if (!event.shouldFireSyncHandler()) {
++        completions = event.isCancelled() ? com.google.common.collect.ImmutableList.of() : event.getCompletions();
++        if (event.isCancelled() || !completions.isEmpty()) {
++            // Still fire sync event with the provided completions, if someone is listening
++            if (!event.isCancelled() && org.bukkit.event.server.TabCompleteEvent.getHandlerList().getRegisteredListeners().length > 0) {
++                java.util.List<String> finalCompletions = completions;
++                Waitable<java.util.List<String>> syncCompletions = new Waitable<java.util.List<String>>() {
++                    @Override
++                    protected java.util.List<String> evaluate() {
++                        org.bukkit.event.server.TabCompleteEvent syncEvent = new org.bukkit.event.server.TabCompleteEvent(PlayerConnection.this.getPlayer(), buffer, finalCompletions, isCommand, blockpos != null ? MCUtil.toLocation(player.world, blockpos) : null);
++                        return syncEvent.callEvent() ? syncEvent.getCompletions() : com.google.common.collect.ImmutableList.of();
++                    }
++                };
++                server.getServer().processQueue.add(syncCompletions);
++                try {
++                    completions = syncCompletions.get();
++                } catch (InterruptedException | ExecutionException e1) {
++                    e1.printStackTrace();
++                }
++            }
+ 
+-            arraylist.add(s);
 +            this.player.playerConnection.sendPacket(new PacketPlayOutTabComplete(completions.toArray(new String[completions.size()])));
 +            return;
          }
 -
 -        this.player.playerConnection.sendPacket(new PacketPlayOutTabComplete((String[]) arraylist.toArray(new String[arraylist.size()])));
 +        minecraftServer.postToMainThread(() -> {
-+            org.bukkit.event.server.TabCompleteEvent.PREFILL_TAB_COMPLETIONS = event.getCompletions();
-+            java.util.List<String> syncCompletions = this.minecraftServer.tabCompleteCommand(this.player, currentInput, blockpos, isCommand);
-+            org.bukkit.event.server.TabCompleteEvent.PREFILL_TAB_COMPLETIONS = null;
++            java.util.List<String> syncCompletions = this.minecraftServer.tabCompleteCommand(this.player, buffer, blockpos, isCommand);
 +            this.player.playerConnection.sendPacket(new PacketPlayOutTabComplete(syncCompletions.toArray(new String[syncCompletions.size()])));
 +        });
 +        // Paper end
@@ -68,22 +85,23 @@ index cabdb0b2f7..2c9334076f 100644
  
      public void a(PacketPlayInSettings packetplayinsettings) {
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-index 8d4def43a4..f979bb28cc 100644
+index 8d4def43a4..ce6c60413b 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-@@ -1683,6 +1683,7 @@ public final class CraftServer implements Server {
+@@ -1648,7 +1648,7 @@ public final class CraftServer implements Server {
+             offers = tabCompleteChat(player, message);
+         }
  
-     public List<String> tabCompleteChat(Player player, String message) {
-         List<String> completions = new ArrayList<String>();
-+        if (org.bukkit.event.server.TabCompleteEvent.PREFILL_TAB_COMPLETIONS != null) { completions.addAll(org.bukkit.event.server.TabCompleteEvent.PREFILL_TAB_COMPLETIONS); } // Paper - Async Tab Completion
-         PlayerChatTabCompleteEvent event = new PlayerChatTabCompleteEvent(player, message, completions);
-         String token = event.getLastToken();
-         for (Player p : getOnlinePlayers()) {
+-        TabCompleteEvent tabEvent = new TabCompleteEvent(player, message, offers);
++        TabCompleteEvent tabEvent = new TabCompleteEvent(player, message, offers, message.startsWith("/") || forceCommand, pos != null ? MCUtil.toLocation(((EntityPlayer) player).world, pos) : null); // Paper
+         getPluginManager().callEvent(tabEvent);
+ 
+         return tabEvent.isCancelled() ? Collections.EMPTY_LIST : tabEvent.getCompletions();
 diff --git a/src/main/java/org/bukkit/craftbukkit/command/ConsoleCommandCompleter.java b/src/main/java/org/bukkit/craftbukkit/command/ConsoleCommandCompleter.java
-index 1e3aae3b8f..4c0f8cae4c 100644
+index 1e3aae3b8f..6c3187af46 100644
 --- a/src/main/java/org/bukkit/craftbukkit/command/ConsoleCommandCompleter.java
 +++ b/src/main/java/org/bukkit/craftbukkit/command/ConsoleCommandCompleter.java
-@@ -28,11 +28,26 @@ public class ConsoleCommandCompleter implements Completer {
+@@ -28,6 +28,39 @@ public class ConsoleCommandCompleter implements Completer {
      public void complete(LineReader reader, ParsedLine line, List<Candidate> candidates) {
          final CraftServer server = this.server.server;
          final String buffer = line.line();
@@ -93,23 +111,36 @@ index 1e3aae3b8f..4c0f8cae4c 100644
 +        event = new com.destroystokyo.paper.event.server.AsyncTabCompleteEvent(server.getConsoleSender(), completions,
 +            buffer, true, null);
 +        event.callEvent();
-+        completions = event.getCompletions();
++        completions = event.isCancelled() ? com.google.common.collect.ImmutableList.of() : event.getCompletions();
 +
-+        if (!event.shouldFireSyncHandler()) {
-+            candidates.addAll(completions.stream().map(Candidate::new).collect(java.util.stream.Collectors.toList()));
++        if (event.isCancelled() || !completions.isEmpty()) {
++            // Still fire sync event with the provided completions, if someone is listening
++            if (!event.isCancelled() && TabCompleteEvent.getHandlerList().getRegisteredListeners().length > 0) {
++                List<String> finalCompletions = completions;
++                Waitable<List<String>> syncCompletions = new Waitable<List<String>>() {
++                    @Override
++                    protected List<String> evaluate() {
++                        org.bukkit.event.server.TabCompleteEvent syncEvent = new org.bukkit.event.server.TabCompleteEvent(server.getConsoleSender(), buffer, finalCompletions);
++                        return syncEvent.callEvent() ? syncEvent.getCompletions() : com.google.common.collect.ImmutableList.of();
++                    }
++                };
++                server.getServer().processQueue.add(syncCompletions);
++                try {
++                    completions = syncCompletions.get();
++                } catch (InterruptedException | ExecutionException e1) {
++                    e1.printStackTrace();
++                }
++            }
++
++            if (!completions.isEmpty()) {
++                candidates.addAll(completions.stream().map(Candidate::new).collect(java.util.stream.Collectors.toList()));
++            }
 +            return;
 +        }
 +
          // Paper end
          Waitable<List<String>> waitable = new Waitable<List<String>>() {
              @Override
-             protected List<String> evaluate() {
-+                org.bukkit.event.server.TabCompleteEvent.PREFILL_TAB_COMPLETIONS = event.getCompletions(); // Paper
-                 List<String> offers = server.getCommandMap().tabComplete(server.getConsoleSender(), buffer);
-+                org.bukkit.event.server.TabCompleteEvent.PREFILL_TAB_COMPLETIONS = null; // Paper
- 
-                 TabCompleteEvent tabEvent = new TabCompleteEvent(server.getConsoleSender(), buffer, (offers == null) ? Collections.EMPTY_LIST : offers);
-                 server.getPluginManager().callEvent(tabEvent);
 -- 
 2.15.0
 

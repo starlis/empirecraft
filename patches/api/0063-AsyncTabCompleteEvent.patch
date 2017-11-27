@@ -1,4 +1,4 @@
-From 19f610f533ca3f310d0ade76881d256038f7e2a3 Mon Sep 17 00:00:00 2001
+From bca6865d73be722f8390df422c8cb78a0e503a84 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Sun, 26 Nov 2017 13:17:09 -0500
 Subject: [PATCH] AsyncTabCompleteEvent
@@ -11,18 +11,17 @@ and avoid going to main for tab completions.
 Especially useful if you need to query a database in order to obtain the results for tab
 completion, such as offline players.
 ---
- .../paper/event/server/AsyncTabCompleteEvent.java  | 91 ++++++++++++++++++++++
- .../java/org/bukkit/command/SimpleCommandMap.java  |  1 +
- .../org/bukkit/event/server/TabCompleteEvent.java  |  2 +-
- 3 files changed, 93 insertions(+), 1 deletion(-)
+ .../paper/event/server/AsyncTabCompleteEvent.java  | 140 +++++++++++++++++++++
+ .../org/bukkit/event/server/TabCompleteEvent.java  |  25 ++++
+ 2 files changed, 165 insertions(+)
  create mode 100644 src/main/java/com/destroystokyo/paper/event/server/AsyncTabCompleteEvent.java
 
 diff --git a/src/main/java/com/destroystokyo/paper/event/server/AsyncTabCompleteEvent.java b/src/main/java/com/destroystokyo/paper/event/server/AsyncTabCompleteEvent.java
 new file mode 100644
-index 000000000..a48d14ea4
+index 000000000..622abd039
 --- /dev/null
 +++ b/src/main/java/com/destroystokyo/paper/event/server/AsyncTabCompleteEvent.java
-@@ -0,0 +1,91 @@
+@@ -0,0 +1,140 @@
 +/*
 + * Copyright (c) 2017 Daniel Ennis (Aikar) MIT License
 + *
@@ -49,18 +48,26 @@ index 000000000..a48d14ea4
 +package com.destroystokyo.paper.event.server;
 +
 +import org.bukkit.Location;
++import org.bukkit.command.Command;
 +import org.bukkit.command.CommandSender;
++import org.bukkit.event.Cancellable;
 +import org.bukkit.event.Event;
 +import org.bukkit.event.HandlerList;
 +
 +import java.util.List;
 +
-+public class AsyncTabCompleteEvent extends Event {
++/**
++ * Allows plugins to compute tab completion results asynchronously. If this event provides completions, then the standard synchronous process will not be fired to populate the results. However, the synchronous TabCompleteEvent will fire with the Async results.
++ *
++ * Only 1 process will be allowed to provide completions, the Async Event, or the standard process.
++ */
++public class AsyncTabCompleteEvent extends Event implements Cancellable {
 +    private final CommandSender sender;
 +    private final String buffer;
 +    private final boolean isCommand;
 +    private final Location loc;
 +    private List<String> completions;
++    private boolean cancelled;
 +    private boolean fireSyncHandler = true;
 +
 +    public AsyncTabCompleteEvent(CommandSender sender, List<String> completions, String buffer, boolean isCommand, Location loc) {
@@ -72,39 +79,80 @@ index 000000000..a48d14ea4
 +        this.loc = loc;
 +    }
 +
++    /**
++     * Get the sender completing this command.
++     *
++     * @return the {@link CommandSender} instance
++     */
 +    public CommandSender getSender() {
 +        return sender;
 +    }
 +
++    /**
++     * The list of completions which will be offered to the sender, in order.
++     * This list is mutable and reflects what will be offered.
++     *
++     * If this collection is not empty after the event is fired, then
++     * the standard process of calling {@link Command#tabComplete(CommandSender, String, String[])}
++     * or current player names will not be called.
++     *
++     * @return a list of offered completions
++     */
 +    public List<String> getCompletions() {
 +        return completions;
 +    }
 +
++    /**
++     * Set the completions offered, overriding any already set.
++     * If this collection is not empty after the event is fired, then
++     * the standard process of calling {@link Command#tabComplete(CommandSender, String, String[])}
++     * or current player names will not be called.
++     *
++     * @param completions the new completions
++     */
 +    public void setCompletions(List<String> completions) {
 +        this.completions = completions;
 +    }
 +
++    /**
++     * Return the entire buffer which formed the basis of this completion.
++     *
++     * @return command buffer, as entered
++     */
 +    public String getBuffer() {
 +        return buffer;
 +    }
 +
++    /**
++     * @return True if it is a command being tab completed, false if it is a chat message.
++     */
 +    public boolean isCommand() {
 +        return isCommand;
 +    }
 +
-+    public Location getLoc() {
++    /**
++     * @return The position looked at by the sender, or null if none
++     */
++    public Location getLocation() {
 +        return loc;
 +    }
 +
-+    public void setFireSyncHandler(boolean fireSyncHandler) {
-+        this.fireSyncHandler = fireSyncHandler;
-+    }
-+
-+    public boolean shouldFireSyncHandler() {
-+        return this.fireSyncHandler;
-+    }
-+
 +    private static final HandlerList handlers = new HandlerList();
++
++
++    @Override
++    public boolean isCancelled() {
++        return cancelled;
++    }
++
++    /**
++     * Will provide no completions, and will not fire the synchronous process
++     * @param cancelled
++     */
++    @Override
++    public void setCancelled(boolean cancelled) {
++        this.cancelled = cancelled;
++    }
 +
 +    public HandlerList getHandlers() {
 +        return handlers;
@@ -114,31 +162,49 @@ index 000000000..a48d14ea4
 +        return handlers;
 +    }
 +}
-diff --git a/src/main/java/org/bukkit/command/SimpleCommandMap.java b/src/main/java/org/bukkit/command/SimpleCommandMap.java
-index a45a18c64..41b56f084 100644
---- a/src/main/java/org/bukkit/command/SimpleCommandMap.java
-+++ b/src/main/java/org/bukkit/command/SimpleCommandMap.java
-@@ -189,6 +189,7 @@ public class SimpleCommandMap implements CommandMap {
- 
-         if (spaceIndex == -1) {
-             ArrayList<String> completions = new ArrayList<String>();
-+            if (org.bukkit.event.server.TabCompleteEvent.PREFILL_TAB_COMPLETIONS != null) { completions.addAll(org.bukkit.event.server.TabCompleteEvent.PREFILL_TAB_COMPLETIONS); } // Paper - Async Tab Completion
-             Map<String, Command> knownCommands = this.knownCommands;
- 
-             final String prefix = (sender instanceof Player ? "/" : "");
 diff --git a/src/main/java/org/bukkit/event/server/TabCompleteEvent.java b/src/main/java/org/bukkit/event/server/TabCompleteEvent.java
-index 6ac437d5e..db7f75592 100644
+index 6ac437d5e..fef57f5f8 100644
 --- a/src/main/java/org/bukkit/event/server/TabCompleteEvent.java
 +++ b/src/main/java/org/bukkit/event/server/TabCompleteEvent.java
-@@ -12,7 +12,7 @@ import org.bukkit.event.HandlerList;
-  * console) attempts to tab complete.
-  */
- public class TabCompleteEvent extends Event implements Cancellable {
--
-+    public static List<String> PREFILL_TAB_COMPLETIONS; // Paper - from AsyncTabCompleteEvent, prefilled into the precursors to this event. Needed a place in -API to expose this
-     private static final HandlerList handlers = new HandlerList();
-     //
-     private final CommandSender sender;
+@@ -21,6 +21,13 @@ public class TabCompleteEvent extends Event implements Cancellable {
+     private boolean cancelled;
+ 
+     public TabCompleteEvent(CommandSender sender, String buffer, List<String> completions) {
++        // Paper start
++        this(sender, buffer, completions, sender instanceof org.bukkit.command.ConsoleCommandSender || buffer.startsWith("/"), null);
++    }
++    public TabCompleteEvent(CommandSender sender, String buffer, List<String> completions, boolean isCommand, org.bukkit.Location location) {
++        this.isCommand = isCommand;
++        this.loc = location;
++        // Paper end
+         Validate.notNull(sender, "sender");
+         Validate.notNull(buffer, "buffer");
+         Validate.notNull(completions, "completions");
+@@ -58,6 +65,24 @@ public class TabCompleteEvent extends Event implements Cancellable {
+         return completions;
+     }
+ 
++    // Paper start
++    private final boolean isCommand;
++    private final org.bukkit.Location loc;
++    /**
++     * @return True if it is a command being tab completed, false if it is a chat message.
++     */
++    public boolean isCommand() {
++        return isCommand;
++    }
++
++    /**
++     * @return The position looked at by the sender, or null if none
++     */
++    public org.bukkit.Location getLocation() {
++        return loc;
++    }
++    // Paper end
++
+     /**
+      * Set the completions offered, overriding any already set.
+      *
 -- 
 2.15.0
 
