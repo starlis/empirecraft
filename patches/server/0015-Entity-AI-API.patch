@@ -1,4 +1,4 @@
-From 479c8882e76de7446f73b519a6c5aafa2e58c293 Mon Sep 17 00:00:00 2001
+From d231058d796b01ce420eac8a8f874a304c3ebc7b Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Tue, 6 Dec 2016 22:22:14 -0500
 Subject: [PATCH] Entity AI API
@@ -10,6 +10,7 @@ Subject: [PATCH] Entity AI API
  src/main/java/net/minecraft/server/Entity.java     |  15 +-
  .../java/net/minecraft/server/EntityAnimal.java    |   2 +-
  .../net/minecraft/server/EntityArmorStand.java     |   2 +-
+ .../java/net/minecraft/server/EntityBlaze.java     |  28 ++-
  .../net/minecraft/server/EntityEnderSignal.java    |  15 +-
  .../net/minecraft/server/EntityGoalAccessor.java   |  20 ++
  src/main/java/net/minecraft/server/EntityItem.java |   3 +-
@@ -20,9 +21,10 @@ Subject: [PATCH] Entity AI API
  .../net/minecraft/server/PathfinderGoalPanic.java  |   3 +-
  .../minecraft/server/PathfinderGoalSelector.java   |  10 +-
  src/main/java/net/minecraft/server/World.java      |   2 +-
+ .../org/bukkit/craftbukkit/entity/CraftBlaze.java  |  18 ++
  .../craftbukkit/inventory/CraftItemStack.java      |   2 +-
  src/main/java/org/spigotmc/ActivationRange.java    |   1 +
- 18 files changed, 430 insertions(+), 23 deletions(-)
+ 20 files changed, 473 insertions(+), 26 deletions(-)
  create mode 100644 src/main/java/com/empireminecraft/api/EntityAIApi.java
  create mode 100644 src/main/java/net/minecraft/server/EntityGoalAccessor.java
 
@@ -537,6 +539,59 @@ index df0d66ad0c..6ed1ed5999 100644
      private boolean bC;
      public Vector3f headPose;
      public Vector3f bodyPose;
+diff --git a/src/main/java/net/minecraft/server/EntityBlaze.java b/src/main/java/net/minecraft/server/EntityBlaze.java
+index cd532371c5..d44a8f0b27 100644
+--- a/src/main/java/net/minecraft/server/EntityBlaze.java
++++ b/src/main/java/net/minecraft/server/EntityBlaze.java
+@@ -32,6 +32,25 @@ public class EntityBlaze extends EntityMonster {
+         this.targetSelector.a(2, new PathfinderGoalNearestAttackableTarget(this, EntityHuman.class, true));
+     }
+ 
++    // EMC start
++    int numFireballs = 4;
++    int timeBetweenFireballs = 6;
++    public void setFireballs(int num) {
++        this.numFireballs = num;
++    }
++    public int getNumFireballs() {
++        return this.numFireballs;
++    }
++
++    public int getTimeBetweenFireballs() {
++        return timeBetweenFireballs;
++    }
++
++    public void setTimeBetweenFireballs(int timeBetweenFireballs) {
++        this.timeBetweenFireballs = timeBetweenFireballs;
++    }
++    // EMC end
++
+     protected void initAttributes() {
+         super.initAttributes();
+         this.getAttributeInstance(GenericAttributes.ATTACK_DAMAGE).setValue(6.0D);
+@@ -177,8 +196,8 @@ public class EntityBlaze extends EntityMonster {
+                     if (this.b == 1) {
+                         this.c = 60;
+                         this.a.a(true);
+-                    } else if (this.b <= 4) {
+-                        this.c = 6;
++                    } else if (this.b <= this.a.numFireballs) { // EMC
++                        this.c = this.a.timeBetweenFireballs; // EMC
+                     } else {
+                         this.c = 100;
+                         this.b = 0;
+@@ -194,7 +213,10 @@ public class EntityBlaze extends EntityMonster {
+                             EntitySmallFireball entitysmallfireball = new EntitySmallFireball(this.a.world, this.a, d1 + this.a.getRandom().nextGaussian() * (double) f, d2, d3 + this.a.getRandom().nextGaussian() * (double) f);
+ 
+                             entitysmallfireball.locY = this.a.locY + (double) (this.a.length / 2.0F) + 0.5D;
+-                            this.a.world.addEntity(entitysmallfireball);
++                            if (new com.empireminecraft.customevents.BlazeLaunchFireballEvent((org.bukkit.entity.Blaze) this.a.getBukkitEntity(), (org.bukkit.entity.SmallFireball) entitysmallfireball.getBukkitEntity()).callEvent()) { // EMC
++                                this.a.world.addEntity(entitysmallfireball);
++                            } else { entitysmallfireball.kill(); }// EMC
++
+                         }
+                     }
+                 }
 diff --git a/src/main/java/net/minecraft/server/EntityEnderSignal.java b/src/main/java/net/minecraft/server/EntityEnderSignal.java
 index fab9d1ea62..27a607272c 100644
 --- a/src/main/java/net/minecraft/server/EntityEnderSignal.java
@@ -780,6 +835,33 @@ index b43070dc0e..b8737764c4 100644
              ++entity.ticksLived;
              ++co.aikar.timings.TimingHistory.activatedEntityTicks; // Paper
              if (entity.isPassenger()) {
+diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftBlaze.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftBlaze.java
+index 830d7a8406..19f65a3300 100644
+--- a/src/main/java/org/bukkit/craftbukkit/entity/CraftBlaze.java
++++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftBlaze.java
+@@ -24,4 +24,22 @@ public class CraftBlaze extends CraftMonster implements Blaze {
+     public EntityType getType() {
+         return EntityType.BLAZE;
+     }
++
++    // EMC start
++    public void setFireballs(int num) {
++        getHandle().setFireballs(num);
++    }
++
++    public int getNumFireballs() {
++        return getHandle().getNumFireballs();
++    }
++
++    public int getTimeBetweenFireballs() {
++        return getHandle().getTimeBetweenFireballs();
++    }
++
++    public void setTimeBetweenFireballs(int timeBetweenFireballs) {
++        getHandle().setTimeBetweenFireballs(timeBetweenFireballs);
++    }
++    // EMC end
+ }
 diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftItemStack.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftItemStack.java
 index cdf16e15aa..46c238ee8b 100644
 --- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftItemStack.java
