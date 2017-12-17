@@ -1,17 +1,19 @@
-From eacabdd234df9085359eae1b6002c36019b1595e Mon Sep 17 00:00:00 2001
+From 479c8882e76de7446f73b519a6c5aafa2e58c293 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Tue, 6 Dec 2016 22:22:14 -0500
 Subject: [PATCH] Entity AI API
 
 ---
- .../com/empireminecraft/api/CraftEAPI_Entity.java  | 123 +++++++++++++
- .../java/com/empireminecraft/api/EntityAIApi.java  | 205 +++++++++++++++++++++
- src/main/java/net/minecraft/server/Entity.java     |  14 +-
+ .../com/empireminecraft/api/CraftEAPI_Entity.java  | 133 +++++++++++++
+ .../java/com/empireminecraft/api/EntityAIApi.java  | 218 +++++++++++++++++++++
+ .../net/minecraft/server/AttributesAccessor.java   |   1 +
+ src/main/java/net/minecraft/server/Entity.java     |  15 +-
  .../java/net/minecraft/server/EntityAnimal.java    |   2 +-
  .../net/minecraft/server/EntityArmorStand.java     |   2 +-
- .../net/minecraft/server/EntityEnderSignal.java    |   2 +-
+ .../net/minecraft/server/EntityEnderSignal.java    |  15 +-
  .../net/minecraft/server/EntityGoalAccessor.java   |  20 ++
  src/main/java/net/minecraft/server/EntityItem.java |   3 +-
+ .../java/net/minecraft/server/EntityLiving.java    |  13 +-
  .../net/minecraft/server/NavigationAbstract.java   |   1 +
  .../server/PathfinderGoalArrowAttack.java          |   8 +-
  .../minecraft/server/PathfinderGoalFleeSun.java    |   4 +-
@@ -20,12 +22,12 @@ Subject: [PATCH] Entity AI API
  src/main/java/net/minecraft/server/World.java      |   2 +-
  .../craftbukkit/inventory/CraftItemStack.java      |   2 +-
  src/main/java/org/spigotmc/ActivationRange.java    |   1 +
- 16 files changed, 382 insertions(+), 20 deletions(-)
+ 18 files changed, 430 insertions(+), 23 deletions(-)
  create mode 100644 src/main/java/com/empireminecraft/api/EntityAIApi.java
  create mode 100644 src/main/java/net/minecraft/server/EntityGoalAccessor.java
 
 diff --git a/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java b/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
-index 8f83db000d..03557d0bdc 100644
+index 8f83db000d..5d9e376e94 100644
 --- a/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
 +++ b/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
 @@ -24,8 +24,16 @@
@@ -45,7 +47,7 @@ index 8f83db000d..03557d0bdc 100644
  
  import java.util.ArrayList;
  import java.util.List;
-@@ -48,6 +56,121 @@ public class CraftEAPI_Entity implements EAPI_Entity {
+@@ -48,6 +56,131 @@ public class CraftEAPI_Entity implements EAPI_Entity {
          return task;
      }
  
@@ -145,6 +147,16 @@ index 8f83db000d..03557d0bdc 100644
 +    }
 +
 +    @Override
++    public void setEnderSignalLife(EnderSignal enderSignal, int lifeTime) {
++        EntityAIApi.setEnderSignalLife(enderSignal, lifeTime);
++    }
++
++    @Override
++    public int getEnderSignalLife(EnderSignal enderSignal) {
++        return EntityAIApi.getEnderSignalLife(enderSignal);
++    }
++
++    @Override
 +    public boolean hasEntityPath(Creature entity) {
 +        return EntityAIApi.hasEntityPath(entity);
 +    }
@@ -169,10 +181,10 @@ index 8f83db000d..03557d0bdc 100644
      }
 diff --git a/src/main/java/com/empireminecraft/api/EntityAIApi.java b/src/main/java/com/empireminecraft/api/EntityAIApi.java
 new file mode 100644
-index 0000000000..51c53a003f
+index 0000000000..6ceab82301
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/api/EntityAIApi.java
-@@ -0,0 +1,205 @@
+@@ -0,0 +1,218 @@
 +package com.empireminecraft.api;
 +
 +import com.empireminecraft.api.API;
@@ -323,6 +335,19 @@ index 0000000000..51c53a003f
 +        }
 +    }
 +
++    public static void setEnderSignalLife(EnderSignal enderSignal, int lifeTime) {
++        if (enderSignal != null) {
++            ((CraftEnderSignal) enderSignal).getHandle().setLifeTime(lifeTime);
++        }
++    }
++
++    public static int getEnderSignalLife(EnderSignal enderSignal) {
++        if (enderSignal != null) {
++            return ((CraftEnderSignal) enderSignal).getHandle().getLifeTime();
++        }
++        return 0;
++    }
++
 +    private static PathEntity getPathEntity(Creature entity) {
 +        return ((CraftCreature) entity).getHandle().getNavigation().getPathEntity();
 +    }
@@ -378,8 +403,20 @@ index 0000000000..51c53a003f
 +        return path != null;
 +    }
 +}
+diff --git a/src/main/java/net/minecraft/server/AttributesAccessor.java b/src/main/java/net/minecraft/server/AttributesAccessor.java
+index 106efbb382..8ddf16888b 100644
+--- a/src/main/java/net/minecraft/server/AttributesAccessor.java
++++ b/src/main/java/net/minecraft/server/AttributesAccessor.java
+@@ -38,6 +38,7 @@ public final class AttributesAccessor {
+     }
+ 
+     public static void initializeAttributes(EntityLiving entity, AttributeMapBase map) {
++        entity.getAttributeMap().registerAttribute(GenericAttributes.ATTACK_DAMAGE).setValue(2.0D);
+         if (entity instanceof EntityInsentient) {
+             map.registerAttribute(targetRange);
+             if (entity instanceof Wither) {
 diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
-index ade132d25d..5c5696119c 100644
+index ade132d25d..cbc1d91630 100644
 --- a/src/main/java/net/minecraft/server/Entity.java
 +++ b/src/main/java/net/minecraft/server/Entity.java
 @@ -131,7 +131,9 @@ public abstract class Entity implements ICommandListener {
@@ -466,6 +503,14 @@ index ade132d25d..5c5696119c 100644
      }
  
      public boolean be() {
+@@ -2746,6 +2756,7 @@ public abstract class Entity implements ICommandListener {
+         return false;
+     }
+ 
++    protected void processEnchantsForAttack(EntityLiving entityliving, Entity entity) { this.a(entityliving, entity); } // EMC - OBF HELPER
+     protected void a(EntityLiving entityliving, Entity entity) {
+         if (entity instanceof EntityLiving) {
+             EnchantmentManager.a((EntityLiving) entity, (Entity) entityliving);
 diff --git a/src/main/java/net/minecraft/server/EntityAnimal.java b/src/main/java/net/minecraft/server/EntityAnimal.java
 index b768434eda..3b98cd6325 100644
 --- a/src/main/java/net/minecraft/server/EntityAnimal.java
@@ -493,10 +538,27 @@ index df0d66ad0c..6ed1ed5999 100644
      public Vector3f headPose;
      public Vector3f bodyPose;
 diff --git a/src/main/java/net/minecraft/server/EntityEnderSignal.java b/src/main/java/net/minecraft/server/EntityEnderSignal.java
-index fab9d1ea62..fa80a78e41 100644
+index fab9d1ea62..27a607272c 100644
 --- a/src/main/java/net/minecraft/server/EntityEnderSignal.java
 +++ b/src/main/java/net/minecraft/server/EntityEnderSignal.java
-@@ -22,7 +22,7 @@ public class EntityEnderSignal extends Entity {
+@@ -8,6 +8,16 @@ public class EntityEnderSignal extends Entity {
+     private int d;
+     private boolean e;
+ 
++    // EMC start
++    private int lifeTime = 80;
++    public void setLifeTime(int lifeTime) {
++        this.lifeTime = lifeTime;
++    }
++    public int getLifeTime() {
++        return this.lifeTime;
++    }
++    // EMC end
++
+     public EntityEnderSignal(World world) {
+         super(world);
+         this.setSize(0.25F, 0.25F);
+@@ -22,7 +32,7 @@ public class EntityEnderSignal extends Entity {
          this.setPosition(d0, d1, d2);
      }
  
@@ -505,6 +567,18 @@ index fab9d1ea62..fa80a78e41 100644
          double d0 = (double) blockposition.getX();
          int i = blockposition.getY();
          double d1 = (double) blockposition.getZ();
+@@ -108,9 +118,10 @@ public class EntityEnderSignal extends Entity {
+         if (!this.world.isClientSide) {
+             this.setPosition(this.locX, this.locY, this.locZ);
+             ++this.d;
+-            if (this.d > 80 && !this.world.isClientSide) {
++            if (this.d > this.lifeTime && !this.world.isClientSide) { // EMC
+                 this.a(SoundEffects.bb, 1.0F, 1.0F);
+                 this.die();
++                if (!(new com.empireminecraft.customevents.EnderSignalArriveEvent((org.bukkit.entity.EnderSignal) this.getBukkitEntity()).callEvent())) {return;} // EMC
+                 if (this.e) {
+                     this.world.addEntity(new EntityItem(this.world, this.locX, this.locY, this.locZ, new ItemStack(Items.ENDER_EYE)));
+                 } else {
 diff --git a/src/main/java/net/minecraft/server/EntityGoalAccessor.java b/src/main/java/net/minecraft/server/EntityGoalAccessor.java
 new file mode 100644
 index 0000000000..d0ee7f3042
@@ -552,6 +626,37 @@ index 0b7fc327f3..fb09824c88 100644
                  // CraftBukkit start - fire ItemDespawnEvent
                  if (org.bukkit.craftbukkit.event.CraftEventFactory.callItemDespawnEvent(this).isCancelled()) {
                      this.age = 0;
+diff --git a/src/main/java/net/minecraft/server/EntityLiving.java b/src/main/java/net/minecraft/server/EntityLiving.java
+index 8d8f237a3b..8fc1144b57 100644
+--- a/src/main/java/net/minecraft/server/EntityLiving.java
++++ b/src/main/java/net/minecraft/server/EntityLiving.java
+@@ -412,6 +412,7 @@ public abstract class EntityLiving extends Entity {
+         return this.bB;
+     }
+ 
++    public void setLastAttacker(Entity entity) { this.z(entity); } // EMC - OBF HELPER
+     public void z(Entity entity) {
+         if (entity instanceof EntityLiving) {
+             this.bA = (EntityLiving) entity;
+@@ -1883,8 +1884,16 @@ public abstract class EntityLiving extends Entity {
+     }
+ 
+     public boolean B(Entity entity) {
+-        this.z(entity);
+-        return false;
++        // EMC start - make all mobs able to attack
++        boolean flag = entity.damageEntity(DamageSource.mobAttack(this), (float) ((int) this.getAttributeInstance(GenericAttributes.ATTACK_DAMAGE).getValue()));
++
++        if (flag) {
++            this.processEnchantsForAttack(this, entity);
++            this.setLastAttacker(entity);
++        }
++
++        return flag;
++        // EMC endii
+     }
+ 
+     public boolean isSleeping() {
 diff --git a/src/main/java/net/minecraft/server/NavigationAbstract.java b/src/main/java/net/minecraft/server/NavigationAbstract.java
 index 935b2e81e5..85d92534da 100644
 --- a/src/main/java/net/minecraft/server/NavigationAbstract.java
