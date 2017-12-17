@@ -33,7 +33,7 @@ version=$(echo -e "Paper: $paperVer\nmc-dev:$importedmcdev")
 tag="${minecraftversion}-${mcVer}-$(echo -e $version | shasum | awk '{print $1}')"
 echo "$tag" > $basedir/current-paper
 
-scripts/generatesources.sh
+$basedir/scripts/generatesources.sh
 
 cd Paper/
 
