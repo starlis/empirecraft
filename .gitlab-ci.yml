@@ -1,0 +1,18 @@
+stages:
+  - build
+  - server
+
+build:
+  stage: build
+  script: 
+    - (cd api && mvn clean deploy -B -U) || exit 1
+    - (cd server && mvn clean install -B -U) || exit 1
+    - cp server/target/empirecraft.jar /test-server/minecraft_server.jar
+
+server:
+  stage: server
+  script:
+    - cd /test-server
+    - echo "Failed to load plugin" > TEST_RESULTS
+    - java  -DIReallyKnowWhatIAmDoingISwear=1 -XX:+UseG1GC -DCISERVER=1 -Xmx1G -jar minecraft_server.jar
+    - test ! -s TEST_RESULTS || (cat TEST_RESULTS ; echo "" ; exit 1)
