@@ -1,0 +1,224 @@
+From 6de728290562750f92f4dac419e5cbcf88a7b205 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Tue, 29 Aug 2017 23:58:48 -0400
+Subject: [PATCH] Expand World.spawnParticle API and add Builder
+
+Adds ability to control who receives it and who is the source/sender (vanish API)
+the standard API is to send the packet to everyone in the world, which is ineffecient.
+
+This adds a new Builder API which is much friendlier to use.
+---
+ .../com/destroystokyo/paper/ParticleBuilder.java   | 147 +++++++++++++++++++++
+ src/main/java/org/bukkit/Particle.java             |   6 +
+ src/main/java/org/bukkit/World.java                |  26 +++-
+ 3 files changed, 178 insertions(+), 1 deletion(-)
+ create mode 100644 src/main/java/com/destroystokyo/paper/ParticleBuilder.java
+
+diff --git a/src/main/java/com/destroystokyo/paper/ParticleBuilder.java b/src/main/java/com/destroystokyo/paper/ParticleBuilder.java
+new file mode 100644
+index 000000000..cf413b7ad
+--- /dev/null
++++ b/src/main/java/com/destroystokyo/paper/ParticleBuilder.java
+@@ -0,0 +1,147 @@
++package com.destroystokyo.paper;
++
++import com.google.common.collect.Lists;
++import org.bukkit.Color;
++import org.bukkit.Location;
++import org.bukkit.Particle;
++import org.bukkit.World;
++import org.bukkit.entity.Player;
++
++import java.util.List;
++
++public class ParticleBuilder {
++    private Particle particle;
++    private List<Player> receivers;
++    private Player source;
++    private Location location;
++    private int count = 1;
++    private double offsetX = 0, offsetY = 0, offsetZ = 0;
++    private double extra = 1;
++    private Object data;
++
++    public ParticleBuilder(Particle particle) {
++        this.particle = particle;
++    }
++
++    public ParticleBuilder spawn() {
++        if (this.location == null) {
++            throw new IllegalStateException("Please specify location for this particle");
++        }
++        location.getWorld().spawnParticle(particle, receivers, source,
++            location.getX(), location.getY(), location.getZ(),
++            count, offsetX, offsetY, offsetZ, extra, data
++        );
++        return this;
++    }
++
++    public Particle particle() {
++        return particle;
++    }
++    public ParticleBuilder particle(Particle particle) {
++        this.particle = particle;
++        return this;
++    }
++
++    public List<Player> receivers() {
++        return receivers;
++    }
++
++    public ParticleBuilder receivers(List<Player> receivers) {
++        this.receivers = Lists.newArrayList(receivers);
++        return this;
++    }
++
++    public ParticleBuilder receivers(Player... receivers) {
++        this.receivers = Lists.newArrayList(receivers);
++        return this;
++    }
++
++    public Player source() {
++        return source;
++    }
++
++    public ParticleBuilder source(Player source) {
++        this.source = source;
++        return this;
++    }
++
++    public Location location() {
++        return location;
++    }
++
++    public ParticleBuilder location(Location location) {
++        this.location = location.clone();
++        return this;
++    }
++
++    public ParticleBuilder location(World world, double x, double y, double z) {
++        this.location = new Location(world, x, y, z);
++        return this;
++    }
++
++    public int count() {
++        return count;
++    }
++
++    public ParticleBuilder count(int count) {
++        this.count = count;
++        return this;
++    }
++
++    public double offsetX() {
++        return offsetX;
++    }
++    public double offsetY() {
++        return offsetY;
++    }
++    public double offsetZ() {
++        return offsetZ;
++    }
++
++    public ParticleBuilder offset(double offsetX, double offsetY, double offsetZ) {
++        this.offsetX = offsetX;
++        this.offsetY = offsetY;
++        this.offsetZ = offsetZ;
++        return this;
++    }
++
++    public double extra() {
++        return extra;
++    }
++
++    public ParticleBuilder extra(double extra) {
++        this.extra = extra;
++        return this;
++    }
++
++    public <T> T data() {
++        return (T) data;
++    }
++
++    public <T> ParticleBuilder data(T data) {
++        this.data = data;
++        return this;
++    }
++
++    public ParticleBuilder color(Color color) {
++        return color(color.getRed(), color.getGreen(), color.getBlue());
++    }
++
++    public ParticleBuilder color(int r, int g, int b) {
++        if (particle != Particle.REDSTONE && particle != Particle.SPELL_MOB && particle != Particle.SPELL_MOB_AMBIENT) {
++            throw new IllegalStateException("Color may only be set on REDSTONE, SPELL_MOB, or SPELL_MOB_AMBIENT");
++        }
++        offsetX = convertColorValue(r);
++        offsetY = convertColorValue(g);
++        offsetZ = convertColorValue(b);
++        return this;
++    }
++
++    private static double convertColorValue(double value) {
++        if (value <= 0.0D) {
++            value = -1.0D;
++        }
++
++        return value / 255.0D;
++    }
++}
+diff --git a/src/main/java/org/bukkit/Particle.java b/src/main/java/org/bukkit/Particle.java
+index 9794c13e5..9dec95c38 100644
+--- a/src/main/java/org/bukkit/Particle.java
++++ b/src/main/java/org/bukkit/Particle.java
+@@ -71,4 +71,10 @@ public enum Particle {
+     public Class<?> getDataType() {
+         return dataType;
+     }
++
++    // Paper start - Particle API expansion
++    public com.destroystokyo.paper.ParticleBuilder builder() {
++        return new com.destroystokyo.paper.ParticleBuilder(this);
++    }
++    // Paper end
+ }
+diff --git a/src/main/java/org/bukkit/World.java b/src/main/java/org/bukkit/World.java
+index 0806fcec3..e129c5ff8 100644
+--- a/src/main/java/org/bukkit/World.java
++++ b/src/main/java/org/bukkit/World.java
+@@ -1614,7 +1614,31 @@ public interface World extends PluginMessageRecipient, Metadatable {
+      *             the type of this depends on {@link Particle#getDataType()}
+      * @param <T> Type
+      */
+-    public <T> void spawnParticle(Particle particle, double x, double y, double z, int count, double offsetX, double offsetY, double offsetZ, double extra, T data);
++    public default <T> void spawnParticle(Particle particle, double x, double y, double z, int count, double offsetX, double offsetY, double offsetZ, double extra, T data) { spawnParticle(particle, null, null, x, y, z, count, offsetX, offsetY, offsetZ, extra, data); }// Paper start - Expand Particle API
++    /**
++     * Spawns the particle (the number of times specified by count)
++     * at the target location. The position of each particle will be
++     * randomized positively and negatively by the offset parameters
++     * on each axis.
++     *
++     * @param particle the particle to spawn
++     * @param receivers List of players to receive the particles, or null for all in world
++     * @param source Source of the particles to be used in visibility checks, or null if no player source
++     * @param x the position on the x axis to spawn at
++     * @param y the position on the y axis to spawn at
++     * @param z the position on the z axis to spawn at
++     * @param count the number of particles
++     * @param offsetX the maximum random offset on the X axis
++     * @param offsetY the maximum random offset on the Y axis
++     * @param offsetZ the maximum random offset on the Z axis
++     * @param extra the extra data for this particle, depends on the
++     *              particle used (normally speed)
++     * @param data the data to use for the particle or null,
++     *             the type of this depends on {@link Particle#getDataType()}
++     * @param <T> Type
++     */
++    public <T> void spawnParticle(Particle particle, List<Player> receivers, Player source, double x, double y, double z, int count, double offsetX, double offsetY, double offsetZ, double extra, T data);
++    // Paper end
+ 
+     // Spigot start
+     public class Spigot
+-- 
+2.15.1
+
