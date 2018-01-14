@@ -1,11 +1,11 @@
-From f49c3b4dbaed4cfeee9f9c2e504c805871ac5dcf Mon Sep 17 00:00:00 2001
+From d9d34b8bafa26e4040ab329f4f341151b6459b75 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Tue, 6 Dec 2016 22:22:14 -0500
 Subject: [PATCH] Entity AI API
 
 ---
- .../com/empireminecraft/api/CraftEAPI_Entity.java  | 133 +++++++++++++
- .../java/com/empireminecraft/api/EntityAIApi.java  | 218 +++++++++++++++++++++
+ .../com/empireminecraft/api/CraftEAPI_Entity.java  | 145 ++++++++++++
+ .../java/com/empireminecraft/api/EntityAIApi.java  | 261 +++++++++++++++++++++
  .../net/minecraft/server/AttributesAccessor.java   |   1 +
  src/main/java/net/minecraft/server/Entity.java     |  15 +-
  .../java/net/minecraft/server/EntityAnimal.java    |   2 +-
@@ -15,6 +15,7 @@ Subject: [PATCH] Entity AI API
  .../net/minecraft/server/EntityGoalAccessor.java   |  20 ++
  src/main/java/net/minecraft/server/EntityItem.java |   3 +-
  .../java/net/minecraft/server/EntityLiving.java    |  13 +-
+ .../java/net/minecraft/server/EntitySpider.java    |   4 +
  .../net/minecraft/server/NavigationAbstract.java   |   1 +
  .../server/PathfinderGoalArrowAttack.java          |   8 +-
  .../minecraft/server/PathfinderGoalFleeSun.java    |   4 +-
@@ -24,20 +25,21 @@ Subject: [PATCH] Entity AI API
  .../org/bukkit/craftbukkit/entity/CraftBlaze.java  |  18 ++
  .../craftbukkit/inventory/CraftItemStack.java      |   2 +-
  src/main/java/org/spigotmc/ActivationRange.java    |   1 +
- 20 files changed, 473 insertions(+), 26 deletions(-)
+ 21 files changed, 532 insertions(+), 26 deletions(-)
  create mode 100644 src/main/java/com/empireminecraft/api/EntityAIApi.java
  create mode 100644 src/main/java/net/minecraft/server/EntityGoalAccessor.java
 
 diff --git a/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java b/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
-index 8f83db000d..5d9e376e94 100644
+index 8f83db000d..08ec45e23b 100644
 --- a/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
 +++ b/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
-@@ -24,8 +24,16 @@
+@@ -24,8 +24,18 @@
  package com.empireminecraft.api;
  
  import net.minecraft.server.EntityTasksHandler;
 +import org.bukkit.Location;
  import org.bukkit.craftbukkit.entity.CraftEntity;
++import org.bukkit.craftbukkit.entity.CraftSpider;
 +import org.bukkit.entity.Animals;
 +import org.bukkit.entity.ArmorStand;
 +import org.bukkit.entity.Creature;
@@ -46,10 +48,11 @@ index 8f83db000d..5d9e376e94 100644
 +import org.bukkit.entity.Item;
 +import org.bukkit.entity.LivingEntity;
 +import org.bukkit.entity.Monster;
++import org.bukkit.entity.Spider;
  
  import java.util.ArrayList;
  import java.util.List;
-@@ -48,6 +56,131 @@ public class CraftEAPI_Entity implements EAPI_Entity {
+@@ -48,6 +58,141 @@ public class CraftEAPI_Entity implements EAPI_Entity {
          return task;
      }
  
@@ -94,12 +97,22 @@ index 8f83db000d..5d9e376e94 100644
 +    }
 +
 +    @Override
++    public void makeAggressiveDuringDay(Spider spider, boolean attack) {
++        ((CraftSpider) spider).getHandle().attackDuringDay = attack;
++    }
++
++    @Override
 +    public void makePeaceful(Creature creature) {
 +        EntityAIApi.makePeaceful(creature);
 +    }
 +
 +    @Override
-+    public void removeGoalByName(Creature creature, String goalName) {
++    public void addGoalByName(LivingEntity creature, String goalName, boolean isTargetGoal, int tickRate, Class<?>[] argClasses, Object... args) {
++        EntityAIApi.addGoalByName(creature, goalName, isTargetGoal, tickRate, argClasses, args);
++    }
++
++    @Override
++    public void removeGoalByName(LivingEntity creature, String goalName) {
 +        EntityAIApi.removeGoalByName(creature, goalName);
 +    }
 +
@@ -183,13 +196,12 @@ index 8f83db000d..5d9e376e94 100644
      }
 diff --git a/src/main/java/com/empireminecraft/api/EntityAIApi.java b/src/main/java/com/empireminecraft/api/EntityAIApi.java
 new file mode 100644
-index 0000000000..6ceab82301
+index 0000000000..715bad732a
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/api/EntityAIApi.java
-@@ -0,0 +1,218 @@
+@@ -0,0 +1,261 @@
 +package com.empireminecraft.api;
 +
-+import com.empireminecraft.api.API;
 +import com.empireminecraft.api.attributes.Attribute;
 +import net.minecraft.server.*;
 +import net.minecraft.server.Entity;
@@ -198,6 +210,7 @@ index 0000000000..6ceab82301
 +import org.bukkit.entity.*;
 +import org.bukkit.entity.Item;
 +
++import java.lang.reflect.Constructor;
 +import java.util.ArrayList;
 +import java.util.List;
 +import java.util.Set;
@@ -256,11 +269,54 @@ index 0000000000..6ceab82301
 +        }));
 +    }
 +
-+    public static void removeGoalByName(Creature creature, String goalName) {
++    public static void removeGoalByName(LivingEntity creature, String goalName) {
++        EntityCreature handle = ((CraftCreature) creature).getHandle();
++        String nms = handle.getClass().getPackage().getName() + ".";
 +        EntityCreature entity = (EntityCreature) ((CraftEntity)creature).getHandle();
 +        getGoalSets(entity).forEach(set -> set.removeIf(o -> {
-+            return o.getGoal().getClass().getSimpleName().equalsIgnoreCase(goalName);
++            return o.getGoal().getClass().getName().replaceAll(nms, "").equalsIgnoreCase(goalName);
 +        }));
++    }
++
++    public static void addGoalByName(LivingEntity creature, String goalName, boolean isTargetGoal, int tickRate, Class<?>[] argClasses, Object... args) {
++        EntityCreature handle = ((CraftCreature) creature).getHandle();
++        String nms = handle.getClass().getPackage().getName();
++        String className = nms + "." + goalName;
++        try {
++            PathfinderGoal goal = getPathfinderGoal(handle, argClasses, className, args);
++            if (goal == null) {
++                MinecraftServer.LOGGER.error("Could not create goal for " + className);
++                return;
++            }
++            if (isTargetGoal) {
++                handle.targetSelector.addGoal(tickRate, goal);
++            } else {
++                handle.goalSelector.addGoal(tickRate, goal);
++            }
++        } catch (Exception e) {
++            MinecraftServer.LOGGER.error("Error adding goal by name");
++            e.printStackTrace();
++        }
++    }
++
++    static PathfinderGoal getPathfinderGoal(EntityLiving handle, Class<?>[] argClasses, String className, Object[] args) throws Exception {
++        Class<?> aClass = Class.forName(className);
++        CTOR:
++        for (Constructor<?> ctor : aClass.getDeclaredConstructors()) {
++            Class<?>[] parameterTypes = ctor.getParameterTypes();
++            if (!parameterTypes[0].isAssignableFrom(handle.getClass())) {
++                continue;
++            }
++            for (int i = 1; i < parameterTypes.length; i++) {
++                Class<?> pCls = parameterTypes[i];
++                // TODO: Map argClasses from CB counterparts to NMS such as LivingEntity.class => EntityLiving.class
++                if (!pCls.isAssignableFrom(argClasses[i-1])) {
++                    continue CTOR;
++                }
++            }
++            return (PathfinderGoal) ctor.newInstance(args);
++        }
++        return null;
 +    }
 +
 +    private static List<Set<PathfinderGoalSelector.PathfinderGoalSelectorItem>> getGoalSets(EntityCreature entity) {
@@ -710,6 +766,35 @@ index 2614400c94..313156ea39 100644
      }
  
      public boolean isSleeping() {
+diff --git a/src/main/java/net/minecraft/server/EntitySpider.java b/src/main/java/net/minecraft/server/EntitySpider.java
+index 957fa5779f..77fe425dd6 100644
+--- a/src/main/java/net/minecraft/server/EntitySpider.java
++++ b/src/main/java/net/minecraft/server/EntitySpider.java
+@@ -141,6 +141,8 @@ public class EntitySpider extends EntityMonster {
+         return 0.65F;
+     }
+ 
++    public boolean attackDuringDay = false; // EMC
++
+     static class PathfinderGoalSpiderNearestAttackableTarget<T extends EntityLiving> extends PathfinderGoalNearestAttackableTarget<T> {
+ 
+         public PathfinderGoalSpiderNearestAttackableTarget(EntitySpider entityspider, Class<T> oclass) {
+@@ -149,6 +151,7 @@ public class EntitySpider extends EntityMonster {
+ 
+         public boolean a() {
+             float f = this.e.aw();
++            if (((EntitySpider)this.e).attackDuringDay) f = 1.0F; // EMC
+ 
+             return f >= 0.5F ? false : super.a();
+         }
+@@ -162,6 +165,7 @@ public class EntitySpider extends EntityMonster {
+ 
+         public boolean b() {
+             float f = this.b.aw();
++            if (((EntitySpider)this.b).attackDuringDay) f = 1.0F; // EMC
+ 
+             if (f >= 0.5F && this.b.getRandom().nextInt(100) == 0) {
+                 this.b.setGoalTarget((EntityLiving) null);
 diff --git a/src/main/java/net/minecraft/server/NavigationAbstract.java b/src/main/java/net/minecraft/server/NavigationAbstract.java
 index 935b2e81e5..85d92534da 100644
 --- a/src/main/java/net/minecraft/server/NavigationAbstract.java
@@ -821,7 +906,7 @@ index c15961602c..bbf31c2727 100644
          public boolean c;
  
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index b43070dc0e..b8737764c4 100644
+index 422e302373..6fd375bf34 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
 @@ -1764,7 +1764,7 @@ public abstract class World implements IBlockAccess {
