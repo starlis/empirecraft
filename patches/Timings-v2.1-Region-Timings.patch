@@ -1,0 +1,687 @@
+From abd93acc2dc6b7fd4116a21ceebfb5c03c84c6d7 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Wed, 28 Feb 2018 20:32:53 -0500
+Subject: [PATCH] Timings v2.1 Region Timings
+
+---
+ .../co/aikar/timings/FullServerTickHandler.java    |   2 +
+ .../aikar/timings/StaticTimingRegionProvider.java  |  38 +++++++
+ src/main/java/co/aikar/timings/TimingHandler.java  |  13 +++
+ src/main/java/co/aikar/timings/TimingHistory.java  | 121 +--------------------
+ src/main/java/co/aikar/timings/TimingRegion.java   | 120 ++++++++++++++++++++
+ src/main/java/co/aikar/timings/TimingRegionId.java |  56 ++++++++++
+ .../co/aikar/timings/TimingRegionProvider.java     |  28 +++++
+ src/main/java/co/aikar/timings/TimingRegions.java  |  61 +++++++++++
+ src/main/java/co/aikar/timings/TimingsManager.java |  17 ++-
+ src/main/java/co/aikar/util/Counter.java           |  43 ++++++++
+ 10 files changed, 373 insertions(+), 126 deletions(-)
+ create mode 100644 src/main/java/co/aikar/timings/StaticTimingRegionProvider.java
+ create mode 100644 src/main/java/co/aikar/timings/TimingRegion.java
+ create mode 100644 src/main/java/co/aikar/timings/TimingRegionId.java
+ create mode 100644 src/main/java/co/aikar/timings/TimingRegionProvider.java
+ create mode 100644 src/main/java/co/aikar/timings/TimingRegions.java
+ create mode 100644 src/main/java/co/aikar/util/Counter.java
+
+diff --git a/src/main/java/co/aikar/timings/FullServerTickHandler.java b/src/main/java/co/aikar/timings/FullServerTickHandler.java
+index 4d8b633ed..b2361e926 100644
+--- a/src/main/java/co/aikar/timings/FullServerTickHandler.java
++++ b/src/main/java/co/aikar/timings/FullServerTickHandler.java
+@@ -65,8 +65,10 @@ public class FullServerTickHandler extends TimingHandler {
+ 
+ 
+         if (TimingHistory.timedTicks % 1200 == 0) {
++            TimingRegions.calculateCounts();
+             MINUTE_REPORTS.add(new TimingHistory.MinuteReport());
+             TimingHistory.resetTicks(false);
++
+             minuteData.reset();
+         }
+         if (TimingHistory.timedTicks % Timings.getHistoryInterval() == 0) {
+diff --git a/src/main/java/co/aikar/timings/StaticTimingRegionProvider.java b/src/main/java/co/aikar/timings/StaticTimingRegionProvider.java
+new file mode 100644
+index 000000000..29fc83955
+--- /dev/null
++++ b/src/main/java/co/aikar/timings/StaticTimingRegionProvider.java
+@@ -0,0 +1,38 @@
++/*
++ * Copyright (c) 2018 Daniel Ennis (Aikar) MIT License
++ *
++ *  Permission is hereby granted, free of charge, to any person obtaining
++ *  a copy of this software and associated documentation files (the
++ *  "Software"), to deal in the Software without restriction, including
++ *  without limitation the rights to use, copy, modify, merge, publish,
++ *  distribute, sublicense, and/or sell copies of the Software, and to
++ *  permit persons to whom the Software is furnished to do so, subject to
++ *  the following conditions:
++ *
++ *  The above copyright notice and this permission notice shall be
++ *  included in all copies or substantial portions of the Software.
++ *
++ *  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ *  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
++ *  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ *  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
++ *  LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
++ *  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
++ *  WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package co.aikar.timings;
++
++import org.bukkit.Location;
++
++public class StaticTimingRegionProvider implements TimingRegionProvider {
++    private final TimingRegion region;
++    StaticTimingRegionProvider(Location loc) {
++        this.region = TimingRegions.getRegion(loc.getChunk());
++    }
++
++    @Override
++    public TimingRegion getTimingRegion() {
++        return this.region;
++    }
++}
+diff --git a/src/main/java/co/aikar/timings/TimingHandler.java b/src/main/java/co/aikar/timings/TimingHandler.java
+index 916b6f9d6..1d28e02b5 100644
+--- a/src/main/java/co/aikar/timings/TimingHandler.java
++++ b/src/main/java/co/aikar/timings/TimingHandler.java
+@@ -41,6 +41,8 @@ class TimingHandler implements Timing {
+ 
+     final TimingData record;
+     private final TimingHandler groupHandler;
++    private TimingRegionProvider regionProvider;
++    private TimingRegion region;
+ 
+     private long start = 0;
+     private int timingDepth = 0;
+@@ -82,6 +84,10 @@ class TimingHandler implements Timing {
+         }
+     }
+ 
++    public void setRegionProvider(TimingRegionProvider regionProvider) {
++        this.regionProvider = regionProvider;
++    }
++
+     @Override
+     public Timing startTimingIfSync() {
+         if (Bukkit.isPrimaryThread()) {
+@@ -99,6 +105,9 @@ class TimingHandler implements Timing {
+ 
+     public Timing startTiming() {
+         if (enabled && ++timingDepth == 1) {
++            if (this.regionProvider != null) {
++                this.region = this.regionProvider.getTimingRegion();
++            }
+             start = System.nanoTime();
+             parent = TimingsManager.CURRENT;
+             TimingsManager.CURRENT = this;
+@@ -115,6 +124,7 @@ class TimingHandler implements Timing {
+                 return;
+             }
+             addDiff(System.nanoTime() - start);
++            region = null;
+             start = 0;
+         }
+     }
+@@ -139,6 +149,9 @@ class TimingHandler implements Timing {
+             timed = true;
+             TimingsManager.HANDLERS.add(this);
+         }
++        if (region != null) {
++            region.add(this, diff);
++        }
+         if (groupHandler != null) {
+             groupHandler.addDiff(diff);
+             groupHandler.children.get(id).add(diff);
+diff --git a/src/main/java/co/aikar/timings/TimingHistory.java b/src/main/java/co/aikar/timings/TimingHistory.java
+index c2c2fb838..70e54f6ec 100644
+--- a/src/main/java/co/aikar/timings/TimingHistory.java
++++ b/src/main/java/co/aikar/timings/TimingHistory.java
+@@ -23,25 +23,18 @@
+  */
+ package co.aikar.timings;
+ 
+-import co.aikar.timings.TimingHistory.RegionData.RegionId;
+-import co.aikar.util.JSONUtil;
++import co.aikar.util.Counter;
+ import com.google.common.base.Function;
+-import com.google.common.collect.Maps;
+ import com.google.common.collect.Sets;
+ import org.bukkit.Bukkit;
+-import org.bukkit.Chunk;
+ import org.bukkit.Material;
+ import org.bukkit.World;
+-import org.bukkit.block.BlockState;
+-import org.bukkit.entity.Entity;
+ import org.bukkit.entity.EntityType;
+ import org.bukkit.entity.Player;
+ import co.aikar.util.LoadingMap;
+-import co.aikar.util.MRUMapCache;
+ 
+ import java.lang.management.ManagementFactory;
+ import java.util.Collection;
+-import java.util.EnumMap;
+ import java.util.List;
+ import java.util.Map;
+ import java.util.Set;
+@@ -98,40 +91,17 @@ public class TimingHistory {
+             entries[i++] = new TimingHistoryEntry(handler);
+         }
+ 
+-
+         // Information about all loaded chunks/entities
+         //noinspection unchecked
+         this.worlds = toObjectMapper(Bukkit.getWorlds(), new Function<World, JSONPair>() {
+             @Override
+             public JSONPair apply(World world) {
+-                Map<RegionId, RegionData> regions = LoadingMap.newHashMap(RegionData.LOADER);
+-
+-                for (Chunk chunk : world.getLoadedChunks()) {
+-                    RegionData data = regions.get(new RegionId(chunk.getX(), chunk.getZ()));
+-
+-                    for (Entity entity : chunk.getEntities()) {
+-                        if (entity == null) {
+-                            Bukkit.getLogger().warning("Null entity detected in chunk at position x: " + chunk.getX() + ", z: " + chunk.getZ());
+-                            continue;
+-                        }
+-
+-                        data.entityCounts.get(entity.getType()).increment();
+-                    }
+-
+-                    for (BlockState tileEntity : chunk.getTileEntities()) {
+-                        if (tileEntity == null) {
+-                            Bukkit.getLogger().warning("Null tileentity detected in chunk at position x: " + chunk.getX() + ", z: " + chunk.getZ());
+-                            continue;
+-                        }
+-
+-                        data.tileEntityCounts.get(tileEntity.getBlock().getType()).increment();
+-                    }
+-                }
++                Map<TimingRegionId, TimingRegion> regions = TimingRegions.REGIONS.row(world.getUID());
+                 return pair(
+                     worldMap.get(world.getName()),
+-                    toArrayMapper(regions.values(),new Function<RegionData, Object>() {
++                    toArrayMapper(regions.values(),new Function<TimingRegion, Object>() {
+                         @Override
+-                        public Object apply(RegionData input) {
++                        public Object apply(TimingRegion input) {
+                             return toArray(
+                                 input.regionId.x,
+                                 input.regionId.z,
+@@ -166,74 +136,7 @@ public class TimingHistory {
+             }
+         });
+     }
+-    static class RegionData {
+-        final RegionId regionId;
+-        @SuppressWarnings("Guava")
+-        static Function<RegionId, RegionData> LOADER = new Function<RegionId, RegionData>() {
+-            @Override
+-            public RegionData apply(RegionId id) {
+-                return new RegionData(id);
+-            }
+-        };
+-        RegionData(RegionId id) {
+-            this.regionId = id;
+-        }
+-
+-        @Override
+-        public boolean equals(Object o) {
+-            if (this == o) {
+-                return true;
+-            }
+-            if (o == null || getClass() != o.getClass()) {
+-                return false;
+-            }
+-
+-            RegionData that = (RegionData) o;
+-
+-            return regionId.equals(that.regionId);
+-
+-        }
+ 
+-        @Override
+-        public int hashCode() {
+-            return regionId.hashCode();
+-        }
+-
+-        @SuppressWarnings("unchecked")
+-        final Map<EntityType, Counter> entityCounts = MRUMapCache.of(LoadingMap.of(
+-                new EnumMap<EntityType, Counter>(EntityType.class), Counter.LOADER
+-        ));
+-        @SuppressWarnings("unchecked")
+-        final Map<Material, Counter> tileEntityCounts = MRUMapCache.of(LoadingMap.of(
+-                new EnumMap<Material, Counter>(Material.class), Counter.LOADER
+-        ));
+-
+-        static class RegionId {
+-            final int x, z;
+-            final long regionId;
+-            RegionId(int x, int z) {
+-                this.x = x >> 5 << 5;
+-                this.z = z >> 5 << 5;
+-                this.regionId = ((long) (this.x) << 32) + (this.z >> 5 << 5) - Integer.MIN_VALUE;
+-            }
+-
+-            @Override
+-            public boolean equals(Object o) {
+-                if (this == o) return true;
+-                if (o == null || getClass() != o.getClass()) return false;
+-
+-                RegionId regionId1 = (RegionId) o;
+-
+-                return regionId == regionId1.regionId;
+-
+-            }
+-
+-            @Override
+-            public int hashCode() {
+-                return (int) (regionId ^ (regionId >>> 32));
+-            }
+-        }
+-    }
+     static void resetTicks(boolean fullReset) {
+         if (fullReset) {
+             // Non full is simply for 1 minute reports
+@@ -333,20 +236,4 @@ public class TimingHistory {
+     }
+ 
+ 
+-    private static class Counter {
+-        private int count = 0;
+-        @SuppressWarnings({"rawtypes", "SuppressionAnnotation", "Guava"})
+-        static Function LOADER = new LoadingMap.Feeder<Counter>() {
+-            @Override
+-            public Counter apply() {
+-                return new Counter();
+-            }
+-        };
+-        public int increment() {
+-            return ++count;
+-        }
+-        public int count() {
+-            return count;
+-        }
+-    }
+ }
+diff --git a/src/main/java/co/aikar/timings/TimingRegion.java b/src/main/java/co/aikar/timings/TimingRegion.java
+new file mode 100644
+index 000000000..ee57146c1
+--- /dev/null
++++ b/src/main/java/co/aikar/timings/TimingRegion.java
+@@ -0,0 +1,120 @@
++/*
++ * Copyright (c) 2018 Daniel Ennis (Aikar) MIT License
++ *
++ *  Permission is hereby granted, free of charge, to any person obtaining
++ *  a copy of this software and associated documentation files (the
++ *  "Software"), to deal in the Software without restriction, including
++ *  without limitation the rights to use, copy, modify, merge, publish,
++ *  distribute, sublicense, and/or sell copies of the Software, and to
++ *  permit persons to whom the Software is furnished to do so, subject to
++ *  the following conditions:
++ *
++ *  The above copyright notice and this permission notice shall be
++ *  included in all copies or substantial portions of the Software.
++ *
++ *  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ *  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
++ *  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ *  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
++ *  LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
++ *  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
++ *  WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package co.aikar.timings;
++
++import co.aikar.util.Counter;
++import co.aikar.util.LoadingIntMap;
++import co.aikar.util.LoadingMap;
++import co.aikar.util.MRUMapCache;
++import com.google.common.base.Function;
++import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
++import org.bukkit.Bukkit;
++import org.bukkit.Chunk;
++import org.bukkit.Material;
++import org.bukkit.block.BlockState;
++import org.bukkit.entity.Entity;
++import org.bukkit.entity.EntityType;
++
++import java.util.Collections;
++import java.util.EnumMap;
++import java.util.Map;
++import java.util.Objects;
++
++public class TimingRegion {
++    final TimingRegionId regionId;
++    int seen = 0;
++
++    @SuppressWarnings("unchecked")
++    final Map<EntityType, Counter> entityCounts = MRUMapCache.of(LoadingMap.of(
++        new EnumMap<EntityType, Counter>(EntityType.class), Counter.LOADER
++    ));
++    @SuppressWarnings("unchecked")
++    final Map<Material, Counter> tileEntityCounts = MRUMapCache.of(LoadingMap.of(
++        new EnumMap<Material, Counter>(Material.class), Counter.LOADER
++    ));
++
++    private final Int2ObjectOpenHashMap<TimingData> timings = new LoadingIntMap<>(TimingData::new);
++
++    TimingRegion(TimingRegionId id) {
++        this.regionId = id;
++    }
++
++    @Override
++    public boolean equals(Object o) {
++        if (this == o) {
++            return true;
++        }
++        if (o == null || getClass() != o.getClass()) {
++            return false;
++        }
++
++        TimingRegion that = (TimingRegion) o;
++
++        return regionId.equals(that.regionId);
++
++    }
++
++    @Override
++    public int hashCode() {
++        return regionId.hashCode();
++    }
++
++    public void add(TimingHandler handler, long diff) {
++        this.timings.get(handler.id).add(diff);
++    }
++
++    public void reset() {
++        seen = 0;
++        this.timings.clear();
++        this.tileEntityCounts.clear();
++        this.entityCounts.clear();
++    }
++
++    public void resetCounts() {
++        entityCounts.clear();
++        tileEntityCounts.clear();
++    }
++
++    public void tickChunk(Chunk chunk) {
++        seen++;
++        for (Entity entity : chunk.getEntities()) {
++            if (entity == null) {
++                Bukkit.getLogger().warning("Null entity detected in chunk at position x: " + chunk.getX() + ", z: " + chunk.getZ());
++                continue;
++            }
++
++            entityCounts.get(entity.getType()).increment();
++        }
++
++        for (BlockState tileEntity : chunk.getTileEntities()) {
++            if (tileEntity == null) {
++                Bukkit.getLogger().warning("Null tileentity detected in chunk at position x: " + chunk.getX() + ", z: " + chunk.getZ());
++                continue;
++            }
++
++            tileEntityCounts.get(tileEntity.getBlock().getType()).increment();
++        }
++
++    }
++}
+diff --git a/src/main/java/co/aikar/timings/TimingRegionId.java b/src/main/java/co/aikar/timings/TimingRegionId.java
+new file mode 100644
+index 000000000..9bc662dbd
+--- /dev/null
++++ b/src/main/java/co/aikar/timings/TimingRegionId.java
+@@ -0,0 +1,56 @@
++/*
++ * Copyright (c) 2018 Daniel Ennis (Aikar) MIT License
++ *
++ *  Permission is hereby granted, free of charge, to any person obtaining
++ *  a copy of this software and associated documentation files (the
++ *  "Software"), to deal in the Software without restriction, including
++ *  without limitation the rights to use, copy, modify, merge, publish,
++ *  distribute, sublicense, and/or sell copies of the Software, and to
++ *  permit persons to whom the Software is furnished to do so, subject to
++ *  the following conditions:
++ *
++ *  The above copyright notice and this permission notice shall be
++ *  included in all copies or substantial portions of the Software.
++ *
++ *  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ *  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
++ *  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ *  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
++ *  LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
++ *  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
++ *  WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package co.aikar.timings;
++
++import org.bukkit.Chunk;
++
++class TimingRegionId {
++    final int x;
++    final int z;
++    final long regionId;
++    TimingRegionId(Chunk chunk) {
++        this(chunk.getX(), chunk.getZ());
++    }
++    TimingRegionId(int x, int z) {
++        this.x = x >> 5 << 5;
++        this.z = z >> 5 << 5;
++        this.regionId = ((long) (this.x) << 32) + (this.z >> 5 << 5) - Integer.MIN_VALUE;
++    }
++
++    @Override
++    public boolean equals(Object o) {
++        if (this == o) return true;
++        if (o == null || getClass() != o.getClass()) return false;
++
++        TimingRegionId regionId1 = (TimingRegionId) o;
++
++        return regionId == regionId1.regionId;
++
++    }
++
++    @Override
++    public int hashCode() {
++        return (int) (regionId ^ (regionId >>> 32));
++    }
++}
+diff --git a/src/main/java/co/aikar/timings/TimingRegionProvider.java b/src/main/java/co/aikar/timings/TimingRegionProvider.java
+new file mode 100644
+index 000000000..f6fb08f55
+--- /dev/null
++++ b/src/main/java/co/aikar/timings/TimingRegionProvider.java
+@@ -0,0 +1,28 @@
++/*
++ * Copyright (c) 2018 Daniel Ennis (Aikar) MIT License
++ *
++ *  Permission is hereby granted, free of charge, to any person obtaining
++ *  a copy of this software and associated documentation files (the
++ *  "Software"), to deal in the Software without restriction, including
++ *  without limitation the rights to use, copy, modify, merge, publish,
++ *  distribute, sublicense, and/or sell copies of the Software, and to
++ *  permit persons to whom the Software is furnished to do so, subject to
++ *  the following conditions:
++ *
++ *  The above copyright notice and this permission notice shall be
++ *  included in all copies or substantial portions of the Software.
++ *
++ *  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ *  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
++ *  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ *  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
++ *  LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
++ *  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
++ *  WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package co.aikar.timings;
++
++public interface TimingRegionProvider {
++    TimingRegion getTimingRegion();
++}
+diff --git a/src/main/java/co/aikar/timings/TimingRegions.java b/src/main/java/co/aikar/timings/TimingRegions.java
+new file mode 100644
+index 000000000..e46a8211a
+--- /dev/null
++++ b/src/main/java/co/aikar/timings/TimingRegions.java
+@@ -0,0 +1,61 @@
++/*
++ * Copyright (c) 2018 Daniel Ennis (Aikar) MIT License
++ *
++ *  Permission is hereby granted, free of charge, to any person obtaining
++ *  a copy of this software and associated documentation files (the
++ *  "Software"), to deal in the Software without restriction, including
++ *  without limitation the rights to use, copy, modify, merge, publish,
++ *  distribute, sublicense, and/or sell copies of the Software, and to
++ *  permit persons to whom the Software is furnished to do so, subject to
++ *  the following conditions:
++ *
++ *  The above copyright notice and this permission notice shall be
++ *  included in all copies or substantial portions of the Software.
++ *
++ *  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ *  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
++ *  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ *  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
++ *  LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
++ *  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
++ *  WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package co.aikar.timings;
++
++import com.google.common.collect.HashBasedTable;
++import com.google.common.collect.Table;
++import org.bukkit.Bukkit;
++import org.bukkit.Chunk;
++
++import javax.annotation.Nonnull;
++import java.util.UUID;
++
++public final class TimingRegions {
++    static final Table<UUID, TimingRegionId, TimingRegion> REGIONS = HashBasedTable.create();
++
++    private TimingRegions() {
++    }
++
++    public static void calculateCounts() {
++        for (TimingRegion region : REGIONS.values()) {
++            region.resetCounts();
++        }
++        Bukkit.getWorlds().forEach(world -> {
++            for (Chunk chunk : world.getLoadedChunks()) {
++                getRegion(chunk).tickChunk(chunk);
++            }
++        });
++    }
++
++    @Nonnull public static TimingRegion getRegion(Chunk chunk) {
++        TimingRegionId regionId = new TimingRegionId(chunk);
++        UUID worldId = chunk.getWorld().getUID();
++        TimingRegion region = REGIONS.get(worldId, regionId);
++        if (region == null) {
++            region = new TimingRegion(regionId);
++            REGIONS.put(worldId, regionId, region);
++        }
++        return region;
++    }
++}
+diff --git a/src/main/java/co/aikar/timings/TimingsManager.java b/src/main/java/co/aikar/timings/TimingsManager.java
+index 58ed35e00..195918a22 100644
+--- a/src/main/java/co/aikar/timings/TimingsManager.java
++++ b/src/main/java/co/aikar/timings/TimingsManager.java
+@@ -38,20 +38,16 @@ import java.util.Collection;
+ import java.util.Collections;
+ import java.util.List;
+ import java.util.Map;
++import java.util.Objects;
+ import java.util.logging.Level;
+ 
+ public final class TimingsManager {
+     static final Map<TimingIdentifier, TimingHandler> TIMING_MAP =
+         Collections.synchronizedMap(LoadingMap.newHashMap(
+-            new Function<TimingIdentifier, TimingHandler>() {
+-                @Override
+-                public TimingHandler apply(TimingIdentifier id) {
+-                    return (id.protect ?
+-                        new UnsafeTimingHandler(id) :
+-                        new TimingHandler(id)
+-                    );
+-                }
+-            },
++            (Function<TimingIdentifier, TimingHandler>) id -> (Objects.requireNonNull(id).protect ?
++                new UnsafeTimingHandler(id) :
++                new TimingHandler(id)
++            ),
+             256, .5F
+         ));
+     public static final FullServerTickHandler FULL_SERVER_TICK = new FullServerTickHandler();
+@@ -133,6 +129,9 @@ public final class TimingsManager {
+                 timings.reset(false);
+             }
+         }
++        for (TimingRegion timingRegion : TimingRegions.REGIONS.values()) {
++            timingRegion.reset();
++        }
+ 
+         HANDLERS.clear();
+         MINUTE_REPORTS.clear();
+diff --git a/src/main/java/co/aikar/util/Counter.java b/src/main/java/co/aikar/util/Counter.java
+new file mode 100644
+index 000000000..6709077f6
+--- /dev/null
++++ b/src/main/java/co/aikar/util/Counter.java
+@@ -0,0 +1,43 @@
++/*
++ * Copyright (c) 2018 Daniel Ennis (Aikar) MIT License
++ *
++ *  Permission is hereby granted, free of charge, to any person obtaining
++ *  a copy of this software and associated documentation files (the
++ *  "Software"), to deal in the Software without restriction, including
++ *  without limitation the rights to use, copy, modify, merge, publish,
++ *  distribute, sublicense, and/or sell copies of the Software, and to
++ *  permit persons to whom the Software is furnished to do so, subject to
++ *  the following conditions:
++ *
++ *  The above copyright notice and this permission notice shall be
++ *  included in all copies or substantial portions of the Software.
++ *
++ *  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ *  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
++ *  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ *  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
++ *  LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
++ *  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
++ *  WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package co.aikar.util;
++
++import com.google.common.base.Function;
++
++public class Counter {
++    private long count = 0;
++    @SuppressWarnings({"rawtypes", "SuppressionAnnotation", "Guava"})
++    public static Function LOADER = new LoadingMap.Feeder<Counter>() {
++        @Override
++        public Counter apply() {
++            return new Counter();
++        }
++    };
++    public long increment() {
++        return ++count;
++    }
++    public long count() {
++        return count;
++    }
++}
+-- 
+2.16.2
+
