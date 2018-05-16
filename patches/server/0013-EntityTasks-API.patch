@@ -1,4 +1,4 @@
-From bc9aab3ef418fbbbda4dfa6f4c5ee5ffdc60df8d Mon Sep 17 00:00:00 2001
+From e483d06261e7298de31d247b7482b71a5d4eed85 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Tue, 11 Jun 2013 23:15:00 -0400
 Subject: [PATCH] EntityTasks API
@@ -6,12 +6,12 @@ Subject: [PATCH] EntityTasks API
 Allows scheduling repeating task timers on an entity level.
 Avoids Bukkit system so that tasks will simply maintain themselves on entity removal.
 ---
- .../empireminecraft/api/CraftEAPI_Entity.java | 20 ++++++++
+ .../empireminecraft/api/CraftEAPI_Entity.java | 20 +++++++
  .../java/net/minecraft/server/Entity.java     |  1 +
- .../minecraft/server/EntityTasksHandler.java  | 51 +++++++++++++++++++
+ .../minecraft/server/EntityTasksHandler.java  | 59 +++++++++++++++++++
  src/main/java/net/minecraft/server/World.java |  1 +
  .../org/bukkit/craftbukkit/CraftServer.java   |  1 +
- 5 files changed, 74 insertions(+)
+ 5 files changed, 82 insertions(+)
  create mode 100644 src/main/java/net/minecraft/server/EntityTasksHandler.java
 
 diff --git a/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java b/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
@@ -58,21 +58,24 @@ index 983ecdc08c..87643a7ade 100644
      static boolean isLevelAtLeast(NBTTagCompound tag, int level) {
 diff --git a/src/main/java/net/minecraft/server/EntityTasksHandler.java b/src/main/java/net/minecraft/server/EntityTasksHandler.java
 new file mode 100644
-index 0000000000..3cac97064f
+index 0000000000..83dec2419e
 --- /dev/null
 +++ b/src/main/java/net/minecraft/server/EntityTasksHandler.java
-@@ -0,0 +1,51 @@
+@@ -0,0 +1,59 @@
 +package net.minecraft.server;
 +
 +import com.empireminecraft.api.API;
 +import org.bukkit.*;
 +import org.bukkit.World;
 +
++import java.util.ArrayList;
 +import java.util.HashMap;
 +import java.util.Iterator;
 +import java.util.List;
 +
 +import com.empireminecraft.api.EntityTask;
++import org.bukkit.craftbukkit.entity.CraftEntity;
++
 +import static java.util.Map.Entry;
 +
 +public final class EntityTasksHandler {
@@ -84,6 +87,7 @@ index 0000000000..3cac97064f
 +            return;
 +        }
 +        int entityKey = entity.ticksLived - entity.getId();
++        List<EntityTask> tasksToRun = new ArrayList<>();
 +        for (Entry<Integer, List<EntityTask>> entry : entity.entityTasks.entrySet()) {
 +            int runEvery = entry.getKey();
 +            if (entityKey % runEvery != 0 || entry.getValue().isEmpty()) {
@@ -96,8 +100,12 @@ index 0000000000..3cac97064f
 +                    it.remove();
 +                    break;
 +                }
-+                task.run(entity.getBukkitEntity());
++                tasksToRun.add(task);
 +            }
++        }
++        CraftEntity bukkitEntity = entity.getBukkitEntity();
++        for (EntityTask entityTask : tasksToRun) {
++            entityTask.run(bukkitEntity);
 +        }
 +    }
 +
