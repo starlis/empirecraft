@@ -1,4 +1,4 @@
-From e483d06261e7298de31d247b7482b71a5d4eed85 Mon Sep 17 00:00:00 2001
+From 769974d5acd2878932a7b35d3de57aa61b010207 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Tue, 11 Jun 2013 23:15:00 -0400
 Subject: [PATCH] EntityTasks API
@@ -6,19 +6,19 @@ Subject: [PATCH] EntityTasks API
 Allows scheduling repeating task timers on an entity level.
 Avoids Bukkit system so that tasks will simply maintain themselves on entity removal.
 ---
- .../empireminecraft/api/CraftEAPI_Entity.java | 20 +++++++
+ .../empireminecraft/api/CraftEAPI_Entity.java | 18 +++++++
  .../java/net/minecraft/server/Entity.java     |  1 +
- .../minecraft/server/EntityTasksHandler.java  | 59 +++++++++++++++++++
+ .../minecraft/server/EntityTasksHandler.java  | 50 +++++++++++++++++++
  src/main/java/net/minecraft/server/World.java |  1 +
  .../org/bukkit/craftbukkit/CraftServer.java   |  1 +
- 5 files changed, 82 insertions(+)
+ 5 files changed, 71 insertions(+)
  create mode 100644 src/main/java/net/minecraft/server/EntityTasksHandler.java
 
 diff --git a/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java b/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
-index e7bb9003da..1480bcf2cb 100644
+index e7bb9003da..0a1f690690 100644
 --- a/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
 +++ b/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
-@@ -23,5 +23,25 @@
+@@ -23,5 +23,23 @@
  
  package com.empireminecraft.api;
  
@@ -31,12 +31,10 @@ index e7bb9003da..1480bcf2cb 100644
 +
  public class CraftEAPI_Entity implements EAPI_Entity {
 +
-+    public <T extends Entity> EntityTask<T> scheduleTask(Entity entity, int interval, EntityTask<T> task) {
++    public <T extends Entity> EntityTask<T> scheduleTask(T entity, int interval, EntityTask<T> task) {
 +        final EntityTasksHandler.TaskList entityTasks = ((CraftEntity) entity).getHandle().entityTasks;
-+        //noinspection rawtypes
-+        List<EntityTask> entityTasksList = entityTasks.computeIfAbsent(interval, k -> new ArrayList<>(8));
-+
-+        entityTasksList.add(task);
++        entityTasks.add(task);
++        task.init(entity, interval);
 +        return task;
 +    }
 +
@@ -58,10 +56,10 @@ index 983ecdc08c..87643a7ade 100644
      static boolean isLevelAtLeast(NBTTagCompound tag, int level) {
 diff --git a/src/main/java/net/minecraft/server/EntityTasksHandler.java b/src/main/java/net/minecraft/server/EntityTasksHandler.java
 new file mode 100644
-index 0000000000..83dec2419e
+index 0000000000..c4ab9ebdc8
 --- /dev/null
 +++ b/src/main/java/net/minecraft/server/EntityTasksHandler.java
-@@ -0,0 +1,59 @@
+@@ -0,0 +1,50 @@
 +package net.minecraft.server;
 +
 +import com.empireminecraft.api.API;
@@ -86,27 +84,20 @@ index 0000000000..83dec2419e
 +        if (entity.entityTasks.isEmpty()) {
 +            return;
 +        }
-+        int entityKey = entity.ticksLived - entity.getId();
 +        List<EntityTask> tasksToRun = new ArrayList<>();
-+        for (Entry<Integer, List<EntityTask>> entry : entity.entityTasks.entrySet()) {
-+            int runEvery = entry.getKey();
-+            if (entityKey % runEvery != 0 || entry.getValue().isEmpty()) {
++        final Iterator<EntityTask> it = entity.entityTasks.iterator();
++        while (it.hasNext()) {
++            EntityTask task = it.next();
++            if (!task.isValid()) {
++                it.remove();
 +                continue;
 +            }
-+            final Iterator<EntityTask> it = entry.getValue().iterator();
-+            while (it.hasNext()) {
-+                EntityTask task = it.next();
-+                if (task.limit > 0 && task.count++ > task.limit) {
-+                    it.remove();
-+                    break;
-+                }
++            if (task.isReady()) {
 +                tasksToRun.add(task);
 +            }
 +        }
-+        CraftEntity bukkitEntity = entity.getBukkitEntity();
-+        for (EntityTask entityTask : tasksToRun) {
-+            entityTask.run(bukkitEntity);
-+        }
++
++        tasksToRun.forEach(EntityTask::tick);
 +    }
 +
 +    public static void reload() {
@@ -117,9 +108,7 @@ index 0000000000..83dec2419e
 +        }
 +    }
 +
-+    public static class TaskList extends HashMap<Integer, List<EntityTask>> {
-+
-+    }
++    public static class TaskList extends ArrayList<EntityTask> {}
 +}
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
 index e8a5b1e42d..422e302373 100644
