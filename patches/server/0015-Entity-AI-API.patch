@@ -1,17 +1,17 @@
-From 6f6a3561d94b67c14babcc61a0190fa99933c6ce Mon Sep 17 00:00:00 2001
+From a0382176d237c13783b8565f4209d75275365964 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Tue, 6 Dec 2016 22:22:14 -0500
 Subject: [PATCH] Entity AI API
 
 ---
- .../empireminecraft/api/CraftEAPI_Entity.java | 145 ++++++++++
- .../com/empireminecraft/api/EntityAIApi.java  | 268 ++++++++++++++++++
+ .../empireminecraft/api/CraftEAPI_Entity.java | 148 ++++++++++
+ .../com/empireminecraft/api/EntityAIApi.java  | 275 ++++++++++++++++++
  .../minecraft/server/AttributesAccessor.java  |   1 +
  .../java/net/minecraft/server/Entity.java     |  15 +-
  .../net/minecraft/server/EntityAnimal.java    |   2 +-
  .../minecraft/server/EntityArmorStand.java    |   2 +-
  .../net/minecraft/server/EntityBlaze.java     |  28 +-
- .../minecraft/server/EntityEnderSignal.java   |  15 +-
+ .../minecraft/server/EntityEnderSignal.java   |  23 +-
  .../minecraft/server/EntityGoalAccessor.java  |  20 ++
  .../java/net/minecraft/server/EntityItem.java |   3 +-
  .../net/minecraft/server/EntityLiving.java    |  13 +-
@@ -23,14 +23,15 @@ Subject: [PATCH] Entity AI API
  .../server/PathfinderGoalSelector.java        |  10 +-
  src/main/java/net/minecraft/server/World.java |   2 +-
  .../bukkit/craftbukkit/entity/CraftBlaze.java |  18 ++
+ .../craftbukkit/entity/CraftEnderSignal.java  |   1 +
  .../craftbukkit/inventory/CraftItemStack.java |   2 +-
  .../java/org/spigotmc/ActivationRange.java    |   1 +
- 21 files changed, 539 insertions(+), 26 deletions(-)
+ 22 files changed, 556 insertions(+), 28 deletions(-)
  create mode 100644 src/main/java/com/empireminecraft/api/EntityAIApi.java
  create mode 100644 src/main/java/net/minecraft/server/EntityGoalAccessor.java
 
 diff --git a/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java b/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
-index 0a1f690690..7db2d0b751 100644
+index 0a1f690690..0914ec17ba 100644
 --- a/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
 +++ b/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
 @@ -24,8 +24,18 @@
@@ -52,7 +53,7 @@ index 0a1f690690..7db2d0b751 100644
  
  import java.util.ArrayList;
  import java.util.List;
-@@ -39,6 +49,141 @@ public class CraftEAPI_Entity implements EAPI_Entity {
+@@ -39,6 +49,144 @@ public class CraftEAPI_Entity implements EAPI_Entity {
          return task;
      }
  
@@ -157,6 +158,9 @@ index 0a1f690690..7db2d0b751 100644
 +    }
 +
 +    @Override
++    public void setEnderSignalSpeed(EnderSignal enderSignal, double speed) {
++        EntityAIApi.setEnderSignalSpeed(enderSignal, speed);
++    }
 +    public void setEnderSignalDestination(EnderSignal enderSignal, Location target) {
 +        EntityAIApi.setEnderSignalDestination(enderSignal, target);
 +    }
@@ -196,10 +200,10 @@ index 0a1f690690..7db2d0b751 100644
      }
 diff --git a/src/main/java/com/empireminecraft/api/EntityAIApi.java b/src/main/java/com/empireminecraft/api/EntityAIApi.java
 new file mode 100644
-index 0000000000..fca3cbfe59
+index 0000000000..026e028ef7
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/api/EntityAIApi.java
-@@ -0,0 +1,268 @@
+@@ -0,0 +1,275 @@
 +package com.empireminecraft.api;
 +
 +import com.empireminecraft.api.attributes.Attribute;
@@ -396,7 +400,14 @@ index 0000000000..fca3cbfe59
 +            if (target.getWorld() != enderSignal.getWorld()) {
 +                throw new IllegalStateException("Worlds must be the same.");
 +            }
-+            ((CraftEnderSignal) enderSignal).getHandle().setSignalTarget(new BlockPosition(target.getBlockX(), target.getBlockY(), target.getBlockZ()));
++            EntityEnderSignal handle = ((CraftEnderSignal) enderSignal).getHandle();
++            handle.exactTarget = true;
++            handle.setSignalTarget(new BlockPosition(target.getBlockX(), target.getBlockY(), target.getBlockZ()));
++        }
++    }
++    public static void setEnderSignalSpeed(EnderSignal enderSignal, double speed) {
++        if (enderSignal != null) {
++            ((CraftEnderSignal) enderSignal).getHandle().speed = speed / 10000D;
 +        }
 +    }
 +
@@ -656,10 +667,10 @@ index cd532371c5..d44a8f0b27 100644
                      }
                  }
 diff --git a/src/main/java/net/minecraft/server/EntityEnderSignal.java b/src/main/java/net/minecraft/server/EntityEnderSignal.java
-index c8c75445ea..1e3378c51c 100644
+index c8c75445ea..da2538bac1 100644
 --- a/src/main/java/net/minecraft/server/EntityEnderSignal.java
 +++ b/src/main/java/net/minecraft/server/EntityEnderSignal.java
-@@ -8,6 +8,16 @@ public class EntityEnderSignal extends Entity {
+@@ -8,6 +8,18 @@ public class EntityEnderSignal extends Entity {
      public int d; // CraftBukkit private -> public // PAIL rename despawnTimer
      public boolean e; // CraftBukkit private -> public // PAIL rename shouldDropItem
  
@@ -671,21 +682,43 @@ index c8c75445ea..1e3378c51c 100644
 +    public int getLifeTime() {
 +        return this.lifeTime;
 +    }
++    public double speed = 0.0025D;
++    public boolean exactTarget = false;
 +    // EMC end
 +
      public EntityEnderSignal(World world) {
          super(world);
          this.setSize(0.25F, 0.25F);
-@@ -22,7 +32,7 @@ public class EntityEnderSignal extends Entity {
+@@ -22,13 +34,14 @@ public class EntityEnderSignal extends Entity {
          this.setPosition(d0, d1, d2);
      }
  
 -    public void a(BlockPosition blockposition) {
-+    public void setSignalTarget(BlockPosition blockposition) { a(blockposition);} public void a(BlockPosition blockposition) { // EMC OBF HELPER
++    public void setSignalTarget(BlockPosition pos) { a(pos); } public void a(BlockPosition blockposition) { // EMC - OBF HELPER
          double d0 = (double) blockposition.getX();
          int i = blockposition.getY();
          double d1 = (double) blockposition.getZ();
-@@ -108,7 +118,8 @@ public class EntityEnderSignal extends Entity {
+         double d2 = d0 - this.locX;
+         double d3 = d1 - this.locZ;
+         float f = MathHelper.sqrt(d2 * d2 + d3 * d3);
++        if (exactTarget) f = 0; // EMC
+ 
+         if (f > 12.0F) {
+             this.a = this.locX + d2 / (double) f * 12.0D;
+@@ -77,9 +90,10 @@ public class EntityEnderSignal extends Entity {
+         if (!this.world.isClientSide) {
+             double d0 = this.a - this.locX;
+             double d1 = this.c - this.locZ;
+-            float f1 = (float) Math.sqrt(d0 * d0 + d1 * d1);
++            double dY = this.b - this.locY; // EMC
++            float f1 = (float) Math.sqrt(d0 * d0 + d1 * d1 + (exactTarget ? dY * dY : 0)); // EMC
+             float f2 = (float) MathHelper.c(d1, d0);
+-            double d2 = (double) f + (double) (f1 - f) * 0.0025D;
++            double d2 = (double) f + (double) (f1 - f) * speed; // EMC
+ 
+             if (f1 < 1.0F) {
+                 d2 *= 0.8D;
+@@ -108,7 +122,8 @@ public class EntityEnderSignal extends Entity {
          if (!this.world.isClientSide) {
              this.setPosition(this.locX, this.locY, this.locZ);
              ++this.d;
@@ -913,7 +946,7 @@ index c15961602c..bbf31c2727 100644
          public boolean c;
  
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index 5298e51ec1..75f9345c1c 100644
+index 18eb9d420b..c1474137c2 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
 @@ -1770,7 +1770,7 @@ public abstract class World implements IBlockAccess {
@@ -952,8 +985,20 @@ index 830d7a8406..19f65a3300 100644
 +    }
 +    // EMC end
  }
+diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftEnderSignal.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftEnderSignal.java
+index aaa624aeec..9debaff4b4 100644
+--- a/src/main/java/org/bukkit/craftbukkit/entity/CraftEnderSignal.java
++++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftEnderSignal.java
+@@ -36,6 +36,7 @@ public class CraftEnderSignal extends CraftEntity implements EnderSignal {
+     @Override
+     public void setTargetLocation(Location location) {
+         Preconditions.checkArgument(getWorld().equals(location.getWorld()), "Cannot target EnderSignal across worlds");
++        getHandle().exactTarget = true; // EMC
+         getHandle().a(new BlockPosition(location.getX(), location.getY(), location.getZ()));
+     }
+ 
 diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftItemStack.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftItemStack.java
-index aa99254ff8..225a897786 100644
+index be6589dbf3..1929d953ab 100644
 --- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftItemStack.java
 +++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftItemStack.java
 @@ -91,7 +91,7 @@ public final class CraftItemStack extends ItemStack {
