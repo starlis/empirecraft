@@ -1,0 +1,80 @@
+From 646d864df9cd4d0d12c162f25a68502f66ce33c5 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Thu, 29 Nov 2012 10:48:07 -0500
+Subject: [PATCH] SpawnerInitiateEvent
+
+---
+ .../net/minecraft/server/EntityHuman.java     |  1 +
+ .../minecraft/server/MobSpawnerAbstract.java  | 19 ++++++++++++++++++-
+ src/main/java/net/minecraft/server/World.java |  6 ++++++
+ 3 files changed, 25 insertions(+), 1 deletion(-)
+
+diff --git a/src/main/java/net/minecraft/server/EntityHuman.java b/src/main/java/net/minecraft/server/EntityHuman.java
+index 0b51903e23..2d71a0c6d1 100644
+--- a/src/main/java/net/minecraft/server/EntityHuman.java
++++ b/src/main/java/net/minecraft/server/EntityHuman.java
+@@ -65,6 +65,7 @@ public abstract class EntityHuman extends EntityLiving {
+     @Nullable
+     public EntityFishingHook hookedFish;
+     public boolean affectsSpawning = true;
++    static com.google.common.base.Predicate<Entity> affectsSpawningPredicate = (player) -> (player instanceof EntityHuman && ((EntityHuman) player).affectsSpawning); // EMC
+ 
+     // CraftBukkit start
+     public boolean fauxSleeping;
+diff --git a/src/main/java/net/minecraft/server/MobSpawnerAbstract.java b/src/main/java/net/minecraft/server/MobSpawnerAbstract.java
+index 9466bcdc7f..6087e205bd 100644
+--- a/src/main/java/net/minecraft/server/MobSpawnerAbstract.java
++++ b/src/main/java/net/minecraft/server/MobSpawnerAbstract.java
+@@ -1,6 +1,7 @@
+ package net.minecraft.server;
+ 
+ import com.google.common.collect.Lists;
++import org.bukkit.craftbukkit.util.CraftNamespacedKey;
+ 
+ import java.util.Iterator;
+ import java.util.List;
+@@ -42,7 +43,23 @@ public abstract class MobSpawnerAbstract {
+     private boolean h() {
+         BlockPosition blockposition = this.b();
+ 
+-        return this.a().isPlayerNearby((double) blockposition.getX() + 0.5D, (double) blockposition.getY() + 0.5D, (double) blockposition.getZ() + 0.5D, (double) this.requiredPlayerRange);
++        //return this.a().isPlayerNearby((double) blockposition.getX() + 0.5D, (double) blockposition.getY() + 0.5D, (double) blockposition.getZ() + 0.5D, (double) this.requiredPlayerRange); // Paper - affectsSpawning filter
++
++        // EMC start - Add in SpawnerInitiateEvent
++        final World world = this.a();
++        final int x = blockposition.getX();
++        final int y = blockposition.getY();
++        final int z = blockposition.getZ();
++        EntityHuman entity = world.findNearbyPlayer((double) x + 0.5D,
++            (double) y + 0.5D,
++            (double) z + 0.5D,
++            (double) this.requiredPlayerRange, EntityHuman.affectsSpawningPredicate);
++        if (entity == null) {
++            return false;
++        }
++        org.bukkit.Location loc = new org.bukkit.Location(world.getWorld(), x, y, z);
++        return new com.empireminecraft.customevents.SpawnerInitiateEvent(CraftNamespacedKey.fromMinecraft(this.getMobName()), world.getWorld(), loc, entity.getBukkitEntity()).callEvent();
++        // EMC end
+     }
+ 
+     public void c() {
+diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
+index c0816b9f8c..c3f260fc8e 100644
+--- a/src/main/java/net/minecraft/server/World.java
++++ b/src/main/java/net/minecraft/server/World.java
+@@ -2861,6 +2861,12 @@ public abstract class World implements IBlockAccess {
+         return this.a(d0, d1, d2, d3, predicate);
+     }
+ 
++    // EMC start // OBF HELPER
++    @Nullable
++    public EntityHuman findNearbyPlayer(double d0, double d1, double d2, double d3, Predicate<Entity> predicate) {
++        return this.a(d0, d1, d2, d3, predicate);
++    }
++    // EMC end
+     @Nullable
+     public EntityHuman a(double d0, double d1, double d2, double d3, Predicate<Entity> predicate) {
+         double d4 = -1.0D;
+-- 
+2.17.1
+
