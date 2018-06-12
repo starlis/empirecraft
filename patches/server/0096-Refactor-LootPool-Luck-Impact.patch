@@ -1,4 +1,4 @@
-From 392204701e90a628611c98f4917ac3756ac5f6b4 Mon Sep 17 00:00:00 2001
+From aebcd78a886b1fa678b2754d396ea158435d248a Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Sun, 10 Jun 2018 12:43:51 -0400
 Subject: [PATCH] Refactor LootPool Luck Impact
@@ -34,11 +34,11 @@ This change will result in some major changes to fishing formulas.
 
 I would love to see this change in Vanilla, so Mojang please pull :)
 ---
- .../minecraft/server/LotoSelectorEntry.java   | 42 +++++++++++++++++--
- 1 file changed, 39 insertions(+), 3 deletions(-)
+ .../minecraft/server/LotoSelectorEntry.java   | 51 +++++++++++++++++--
+ 1 file changed, 48 insertions(+), 3 deletions(-)
 
 diff --git a/src/main/java/net/minecraft/server/LotoSelectorEntry.java b/src/main/java/net/minecraft/server/LotoSelectorEntry.java
-index a42c7755e5..24ba1a393f 100644
+index a42c7755e5..205487c824 100644
 --- a/src/main/java/net/minecraft/server/LotoSelectorEntry.java
 +++ b/src/main/java/net/minecraft/server/LotoSelectorEntry.java
 @@ -14,8 +14,8 @@ import java.util.Random;
@@ -52,11 +52,14 @@ index a42c7755e5..24ba1a393f 100644
      protected final LootItemCondition[] e;
  
      protected LotoSelectorEntry(int i, int j, LootItemCondition[] alootitemcondition) {
-@@ -25,7 +25,43 @@ public abstract class LotoSelectorEntry {
+@@ -25,8 +25,53 @@ public abstract class LotoSelectorEntry {
      }
  
      public int a(float f) {
 -        return Math.max(MathHelper.d((float) this.c + (float) this.d * f), 0);
++        if (lastLuck != null && lastLuck == f) {
++            return lastWeight;
++        }
 +        // EMC - Refactor how Loot bonus applies
 +        /* base does not include vanilla quality modifer in this table, but does in code
 +                BASE    IMPACTED    REDUCED V PCT   M PCT   PCT CHANGE
@@ -78,8 +81,9 @@ index a42c7755e5..24ba1a393f 100644
 +        // This is vanilla
 +        float qualityModifer = (float) this.getQuality() * f;
 +        double baseWeight = (this.getWeight() + qualityModifer);
++        int origVanilla = (int) Math.max(0, Math.floor(baseWeight));
 +        if (!Boolean.getBoolean("use-new-luck")) {
-+            return (int) Math.max(0, Math.floor(baseWeight));
++            return origVanilla;
 +        }
 +        // Random boost to avoid losing precision in the final int cast on return
 +        final int weightBoost = 100;
@@ -92,11 +96,17 @@ index a42c7755e5..24ba1a393f 100644
 +        float luckModifier = Math.min(100, f * 10) / 100;
 +        // =B2 - (C2 *($B$7/100))
 +        double reduced = Math.ceil(baseWeight - (impacted * luckModifier));
-+        return (int) Math.max(0, reduced);
-+        // EMC
++        // Cache
++        lastWeight = (int) Math.max(0, reduced);
++        lastLuck = f;
++        return lastWeight;
      }
++    private Float lastLuck = null;
++    private int lastWeight = 0;
++    // EMC end
  
      public abstract void a(Collection<ItemStack> collection, Random random, LootTableInfo loottableinfo);
+ 
 -- 
 2.17.1
 
