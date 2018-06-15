@@ -1,4 +1,4 @@
-From 6b74df19913616685b63ecff9a02d0bb6524dd16 Mon Sep 17 00:00:00 2001
+From 3e041eab7401bc06e357f4d6e7cf5065580e3f85 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Tue, 6 Dec 2016 22:22:14 -0500
 Subject: [PATCH] Entity AI API
@@ -11,7 +11,7 @@ Subject: [PATCH] Entity AI API
  .../net/minecraft/server/EntityAnimal.java    |   2 +-
  .../minecraft/server/EntityArmorStand.java    |   2 +-
  .../net/minecraft/server/EntityBlaze.java     |  28 +-
- .../net/minecraft/server/EntityCreature.java  |  14 +
+ .../net/minecraft/server/EntityCreature.java  |   2 +
  .../minecraft/server/EntityEnderSignal.java   |  23 +-
  .../minecraft/server/EntityGoalAccessor.java  |  20 ++
  .../java/net/minecraft/server/EntityItem.java |   3 +-
@@ -23,12 +23,12 @@ Subject: [PATCH] Entity AI API
  .../server/PathfinderGoalFleeSun.java         |   4 +-
  .../minecraft/server/PathfinderGoalPanic.java |   3 +-
  .../server/PathfinderGoalSelector.java        |  10 +-
- src/main/java/net/minecraft/server/World.java |   2 +-
+ src/main/java/net/minecraft/server/World.java |  12 +-
  .../bukkit/craftbukkit/entity/CraftBlaze.java |  18 ++
  .../craftbukkit/entity/CraftEnderSignal.java  |   1 +
  .../craftbukkit/inventory/CraftItemStack.java |   2 +-
  .../java/org/spigotmc/ActivationRange.java    |   1 +
- 24 files changed, 606 insertions(+), 28 deletions(-)
+ 24 files changed, 604 insertions(+), 28 deletions(-)
  create mode 100644 src/main/java/com/empireminecraft/api/EntityAIApi.java
  create mode 100644 src/main/java/net/minecraft/server/EntityGoalAccessor.java
 
@@ -703,30 +703,25 @@ index cd532371c5..d44a8f0b27 100644
                      }
                  }
 diff --git a/src/main/java/net/minecraft/server/EntityCreature.java b/src/main/java/net/minecraft/server/EntityCreature.java
-index 9659a45efa..0b5f46af58 100644
+index 9659a45efa..ebec489a3b 100644
 --- a/src/main/java/net/minecraft/server/EntityCreature.java
 +++ b/src/main/java/net/minecraft/server/EntityCreature.java
-@@ -21,6 +21,20 @@ public abstract class EntityCreature extends EntityInsentient {
-         this.b = -1.0F;
+@@ -15,6 +15,7 @@ public abstract class EntityCreature extends EntityInsentient {
+     private float b;
+     private final float c;
+ 
++    public boolean markedAggressive = false; // EMC
+     public EntityCreature(World world) {
+         super(world);
+         this.a = BlockPosition.ZERO;
+@@ -22,6 +23,7 @@ public abstract class EntityCreature extends EntityInsentient {
          this.c = PathType.WATER.a();
      }
-+    // EMC start
-+    public boolean markedAggressive = false;
-+    @Override
-+    public GroupDataEntity prepare(DifficultyDamageScaler difficultydamagescaler, GroupDataEntity groupdataentity) {
-+        GroupDataEntity result = super.prepare(difficultydamagescaler, groupdataentity);
-+        Integer range = com.empireminecraft.api.meta.Meta.getEntityMeta(this.getBukkitEntity(), com.empireminecraft.api.EntityAIApi.ENTITY_AGGRESSIVE_RANGE_KEY);
-+        if (range != null) {
-+            com.empireminecraft.api.EntityAIApi.makeAggressive((org.bukkit.entity.Creature)this.getBukkitEntity(), range);
-+        }
-+        return result;
-+    }
-+
-+    // EMC end
-+
  
++
      public float a(BlockPosition blockposition) {
          return 0.0F;
+     }
 diff --git a/src/main/java/net/minecraft/server/EntityEnderSignal.java b/src/main/java/net/minecraft/server/EntityEnderSignal.java
 index c8c75445ea..da2538bac1 100644
 --- a/src/main/java/net/minecraft/server/EntityEnderSignal.java
@@ -1027,10 +1022,28 @@ index c15961602c..bbf31c2727 100644
          public boolean c;
  
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index 18eb9d420b..c1474137c2 100644
+index 18eb9d420b..6cdeb24f98 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
-@@ -1770,7 +1770,7 @@ public abstract class World implements IBlockAccess {
+@@ -1215,7 +1215,17 @@ public abstract class World implements IBlockAccess {
+         }
+ 
+         entity.valid = true; // CraftBukkit
++        // EMC start
++        if (entity instanceof EntityCreature) {
++            Number range =
++                com.empireminecraft.api.meta.Meta.getEntityMeta(entity.getBukkitEntity(), com.empireminecraft.api.EntityAIApi.ENTITY_AGGRESSIVE_RANGE_KEY);
++            if (range != null) {
++                com.empireminecraft.api.EntityAIApi.makeAggressive((org.bukkit.entity.Creature) entity.getBukkitEntity(), range.floatValue());
++            }
++        }
++        // EMC end
+         new com.destroystokyo.paper.event.entity.EntityAddToWorldEvent(entity.getBukkitEntity()).callEvent(); // Paper - fire while valid
++
+     }
+ 
+     protected void c(Entity entity) {
+@@ -1770,7 +1780,7 @@ public abstract class World implements IBlockAccess {
          entity.O = entity.locZ;
          entity.lastYaw = entity.yaw;
          entity.lastPitch = entity.pitch;
