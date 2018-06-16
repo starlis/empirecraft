@@ -1,11 +1,11 @@
-From 88f263d80531356cecc6273f2f16f95cfc6cb29e Mon Sep 17 00:00:00 2001
+From a8817e69c57b745730858a59aec2b99a2164f8c6 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Mon, 4 Mar 2013 23:35:02 -0500
 Subject: [PATCH] Persistent and Temporary Meta API
 
 ---
  .../empireminecraft/api/CraftEmpireAPI.java   |   3 +
- .../api/meta/CraftEAPI_Meta.java              |  75 +++
+ .../api/meta/CraftEAPI_Meta.java              |  80 +++
  src/main/java/net/minecraft/server/Chunk.java |   3 +
  .../minecraft/server/ChunkRegionLoader.java   |   2 +
  .../java/net/minecraft/server/Entity.java     |   3 +
@@ -15,18 +15,19 @@ Subject: [PATCH] Persistent and Temporary Meta API
  .../java/net/minecraft/server/TileEntity.java |   5 +
  src/main/java/net/minecraft/server/World.java |   1 +
  .../java/net/minecraft/server/WorldData.java  |   4 +
+ .../org/bukkit/craftbukkit/CraftChunk.java    |   4 +
  .../org/bukkit/craftbukkit/CraftServer.java   |   3 +
  .../block/CraftBlockEntityState.java          |   7 +
  .../craftbukkit/block/CraftBlockState.java    |   9 +-
- .../craftbukkit/entity/CraftEntity.java       |   2 +
+ .../craftbukkit/entity/CraftEntity.java       |   3 +
  .../craftbukkit/event/CraftEventFactory.java  |   5 +
  .../craftbukkit/inventory/CraftInventory.java |  11 +
- 17 files changed, 602 insertions(+), 1 deletion(-)
+ 18 files changed, 612 insertions(+), 1 deletion(-)
  create mode 100644 src/main/java/com/empireminecraft/api/meta/CraftEAPI_Meta.java
  create mode 100644 src/main/java/net/minecraft/server/MetaApiAccessor.java
 
 diff --git a/src/main/java/com/empireminecraft/api/CraftEmpireAPI.java b/src/main/java/com/empireminecraft/api/CraftEmpireAPI.java
-index 7b295bc869..f3c9419c81 100644
+index 7b295bc8..f3c9419c 100644
 --- a/src/main/java/com/empireminecraft/api/CraftEmpireAPI.java
 +++ b/src/main/java/com/empireminecraft/api/CraftEmpireAPI.java
 @@ -23,6 +23,8 @@
@@ -48,10 +49,10 @@ index 7b295bc869..f3c9419c81 100644
  }
 diff --git a/src/main/java/com/empireminecraft/api/meta/CraftEAPI_Meta.java b/src/main/java/com/empireminecraft/api/meta/CraftEAPI_Meta.java
 new file mode 100644
-index 0000000000..8a0db8fda3
+index 00000000..a9a194b3
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/api/meta/CraftEAPI_Meta.java
-@@ -0,0 +1,75 @@
+@@ -0,0 +1,80 @@
 +/*
 + * Copyright (c) 2016 Starlis LLC / Daniel Ennis (Aikar) - MIT License
 + *
@@ -108,6 +109,11 @@ index 0000000000..8a0db8fda3
 +    }
 +
 +    @Override
++    public TempMetaMap getChunkTempMetaMap(Chunk chunk, boolean isWrite) {
++        return chunk.getTempMeta();
++    }
++
++    @Override
 +    public Map<Vector3i, PersistentMetaMap> getChunkMetaData(Chunk chunk) {
 +        return ((CraftChunk) chunk).getHandle().chunkMeta;
 +    }
@@ -128,7 +134,7 @@ index 0000000000..8a0db8fda3
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/Chunk.java b/src/main/java/net/minecraft/server/Chunk.java
-index 7cd537a59c..0a709700a1 100644
+index 7cd537a5..0a709700 100644
 --- a/src/main/java/net/minecraft/server/Chunk.java
 +++ b/src/main/java/net/minecraft/server/Chunk.java
 @@ -12,6 +12,7 @@ import java.util.Map;
@@ -149,7 +155,7 @@ index 7cd537a59c..0a709700a1 100644
  
      public Chunk(World world, ChunkSnapshot chunksnapshot, int i, int j) {
 diff --git a/src/main/java/net/minecraft/server/ChunkRegionLoader.java b/src/main/java/net/minecraft/server/ChunkRegionLoader.java
-index bcce5e8b7e..ce645ee07a 100644
+index bcce5e8b..ce645ee0 100644
 --- a/src/main/java/net/minecraft/server/ChunkRegionLoader.java
 +++ b/src/main/java/net/minecraft/server/ChunkRegionLoader.java
 @@ -290,6 +290,7 @@ public class ChunkRegionLoader implements IChunkLoader, IAsyncChunkSaver {
@@ -169,7 +175,7 @@ index bcce5e8b7e..ce645ee07a 100644
          chunk.e(nbttagcompound.getBoolean("LightPopulated"));
          chunk.c(nbttagcompound.getLong("InhabitedTime"));
 diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
-index 4431f6e997..45a1accdd6 100644
+index 4431f6e9..45a1accd 100644
 --- a/src/main/java/net/minecraft/server/Entity.java
 +++ b/src/main/java/net/minecraft/server/Entity.java
 @@ -45,6 +45,7 @@ import org.bukkit.plugin.PluginManager;
@@ -198,7 +204,7 @@ index 4431f6e997..45a1accdd6 100644
          } catch (Throwable throwable) {
 diff --git a/src/main/java/net/minecraft/server/MetaApiAccessor.java b/src/main/java/net/minecraft/server/MetaApiAccessor.java
 new file mode 100644
-index 0000000000..a06dd6c500
+index 00000000..a06dd6c5
 --- /dev/null
 +++ b/src/main/java/net/minecraft/server/MetaApiAccessor.java
 @@ -0,0 +1,468 @@
@@ -671,7 +677,7 @@ index 0000000000..a06dd6c500
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/PacketPlayOutMapChunk.java b/src/main/java/net/minecraft/server/PacketPlayOutMapChunk.java
-index 306a6b7cd3..ee6dc6524a 100644
+index 306a6b7c..ee6dc652 100644
 --- a/src/main/java/net/minecraft/server/PacketPlayOutMapChunk.java
 +++ b/src/main/java/net/minecraft/server/PacketPlayOutMapChunk.java
 @@ -55,6 +55,7 @@ public class PacketPlayOutMapChunk implements Packet<PacketListenerPlayOut> {
@@ -683,7 +689,7 @@ index 306a6b7cd3..ee6dc6524a 100644
                  this.e.add(nbttagcompound);
              }
 diff --git a/src/main/java/net/minecraft/server/PacketPlayOutTileEntityData.java b/src/main/java/net/minecraft/server/PacketPlayOutTileEntityData.java
-index b30c97e3ff..77c7c8c55e 100644
+index b30c97e3..77c7c8c5 100644
 --- a/src/main/java/net/minecraft/server/PacketPlayOutTileEntityData.java
 +++ b/src/main/java/net/minecraft/server/PacketPlayOutTileEntityData.java
 @@ -11,6 +11,7 @@ public class PacketPlayOutTileEntityData implements Packet<PacketListenerPlayOut
@@ -695,7 +701,7 @@ index b30c97e3ff..77c7c8c55e 100644
          this.b = i;
          this.c = nbttagcompound;
 diff --git a/src/main/java/net/minecraft/server/TileEntity.java b/src/main/java/net/minecraft/server/TileEntity.java
-index fe2df18df7..1a2e140ed5 100644
+index fe2df18d..1a2e140e 100644
 --- a/src/main/java/net/minecraft/server/TileEntity.java
 +++ b/src/main/java/net/minecraft/server/TileEntity.java
 @@ -1,6 +1,8 @@
@@ -732,7 +738,7 @@ index fe2df18df7..1a2e140ed5 100644
      // Paper start
      public InventoryHolder getOwner() {
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index c3f260fc8e..2765d28d1a 100644
+index c3f260fc..2765d28d 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
 @@ -429,6 +429,7 @@ public abstract class World implements IBlockAccess {
@@ -744,7 +750,7 @@ index c3f260fc8e..2765d28d1a 100644
                  // CraftBukkit start
                  if (!this.captureBlockStates) { // Don't notify clients or update physics while capturing blockstates
 diff --git a/src/main/java/net/minecraft/server/WorldData.java b/src/main/java/net/minecraft/server/WorldData.java
-index 7f0baf17a2..bb10d37f89 100644
+index 7f0baf17..bb10d37f 100644
 --- a/src/main/java/net/minecraft/server/WorldData.java
 +++ b/src/main/java/net/minecraft/server/WorldData.java
 @@ -1,5 +1,6 @@
@@ -778,8 +784,30 @@ index 7f0baf17a2..bb10d37f89 100644
      }
  
      public long getSeed() {
+diff --git a/src/main/java/org/bukkit/craftbukkit/CraftChunk.java b/src/main/java/org/bukkit/craftbukkit/CraftChunk.java
+index ba3676b6..cbf87aab 100644
+--- a/src/main/java/org/bukkit/craftbukkit/CraftChunk.java
++++ b/src/main/java/org/bukkit/craftbukkit/CraftChunk.java
+@@ -4,6 +4,8 @@ import java.lang.ref.WeakReference;
+ import java.util.Arrays;
+ 
+ import java.util.Random;
++
++import com.empireminecraft.api.meta.TempMetaMap;
+ import net.minecraft.server.*;
+ 
+ import org.bukkit.Chunk;
+@@ -16,6 +18,8 @@ import org.bukkit.ChunkSnapshot;
+ 
+ public class CraftChunk implements Chunk {
+     private WeakReference<net.minecraft.server.Chunk> weakChunk;
++    private final TempMetaMap tempMeta = new TempMetaMap(); // EMC
++    public TempMetaMap getTempMeta() { return tempMeta; } // EMC
+     private final WorldServer worldServer;
+     private final int x;
+     private final int z;
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-index d3699ceb95..6a7e0012bd 100644
+index d3699ceb..6a7e0012 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 @@ -804,6 +804,9 @@ public final class CraftServer implements Server {
@@ -793,7 +821,7 @@ index d3699ceb95..6a7e0012bd 100644
          enablePlugins(PluginLoadOrder.STARTUP);
          enablePlugins(PluginLoadOrder.POSTWORLD);
 diff --git a/src/main/java/org/bukkit/craftbukkit/block/CraftBlockEntityState.java b/src/main/java/org/bukkit/craftbukkit/block/CraftBlockEntityState.java
-index 3b5a90c39a..6224b81782 100644
+index 3b5a90c3..6224b817 100644
 --- a/src/main/java/org/bukkit/craftbukkit/block/CraftBlockEntityState.java
 +++ b/src/main/java/org/bukkit/craftbukkit/block/CraftBlockEntityState.java
 @@ -136,4 +136,11 @@ public class CraftBlockEntityState<T extends TileEntity> extends CraftBlockState
@@ -809,7 +837,7 @@ index 3b5a90c39a..6224b81782 100644
 +    // EMC end
  }
 diff --git a/src/main/java/org/bukkit/craftbukkit/block/CraftBlockState.java b/src/main/java/org/bukkit/craftbukkit/block/CraftBlockState.java
-index 2a1b731c0c..4d3a1a0796 100644
+index 2a1b731c..4d3a1a07 100644
 --- a/src/main/java/org/bukkit/craftbukkit/block/CraftBlockState.java
 +++ b/src/main/java/org/bukkit/craftbukkit/block/CraftBlockState.java
 @@ -283,4 +283,11 @@ public class CraftBlockState implements BlockState {
@@ -827,20 +855,27 @@ index 2a1b731c0c..4d3a1a0796 100644
 +    // EMC end
 +}
 diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java
-index 22a1a49651..1ecbbc3049 100644
+index 22a1a496..2685bcdf 100644
 --- a/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java
 +++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java
-@@ -28,6 +28,8 @@ import org.bukkit.plugin.Plugin;
+@@ -1,5 +1,6 @@
+ package org.bukkit.craftbukkit.entity;
+ 
++import com.empireminecraft.api.meta.TempMetaMap;
+ import com.google.common.base.Function;
+ import com.google.common.base.Preconditions;
+ import com.google.common.collect.Lists;
+@@ -28,6 +29,8 @@ import org.bukkit.plugin.Plugin;
  import org.bukkit.util.Vector;
  
  public abstract class CraftEntity implements org.bukkit.entity.Entity {
-+    private final java.util.Map<String, Object> tempMeta = com.google.common.collect.Maps.newHashMapWithExpectedSize(0); // EMC
-+    public java.util.Map<String, Object> getTempMeta() { return tempMeta; } // EMC
++    private final TempMetaMap tempMeta = new TempMetaMap(); // EMC
++    public TempMetaMap getTempMeta() { return tempMeta; } // EMC
      private static PermissibleBase perm;
  
      protected final CraftServer server;
 diff --git a/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java b/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
-index 691ef8c439..5626a301a9 100644
+index 691ef8c4..5626a301 100644
 --- a/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
 +++ b/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
 @@ -933,6 +933,11 @@ public class CraftEventFactory {
@@ -856,7 +891,7 @@ index 691ef8c439..5626a301a9 100644
  
      public static void handleEditBookEvent(EntityPlayer player, ItemStack newBookItem) {
 diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftInventory.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftInventory.java
-index 4866d1aee6..6bb5c6a85c 100644
+index 4866d1ae..6bb5c6a8 100644
 --- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftInventory.java
 +++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftInventory.java
 @@ -29,6 +29,17 @@ import org.bukkit.Material;
