@@ -1,23 +1,23 @@
-From e5e0651141b7fe36733572ce4eb69a26fd92dcd0 Mon Sep 17 00:00:00 2001
+From d488a8b1126e81106b819b2fc5a25e1af3c0e2a7 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Wed, 7 Dec 2016 00:22:09 -0500
 Subject: [PATCH] PlayerUseItemEvent
 
 ---
- .../event/player/PlayerPostUseItemEvent.java  |  62 +++++++++++
- .../customevents/PlayerPlaceItemAtEvent.java  | 102 ++++++++++++++++++
- .../customevents/PlayerUseItemEvent.java      |  86 +++++++++++++++
- 3 files changed, 250 insertions(+)
+ .../event/player/PlayerPostUseItemEvent.java  |  69 +++++++++++
+ .../customevents/PlayerPlaceItemAtEvent.java  | 109 ++++++++++++++++++
+ .../customevents/PlayerUseItemEvent.java      |  89 ++++++++++++++
+ 3 files changed, 267 insertions(+)
  create mode 100644 src/main/java/com/destroystokyo/paper/event/player/PlayerPostUseItemEvent.java
  create mode 100644 src/main/java/com/empireminecraft/customevents/PlayerPlaceItemAtEvent.java
  create mode 100644 src/main/java/com/empireminecraft/customevents/PlayerUseItemEvent.java
 
 diff --git a/src/main/java/com/destroystokyo/paper/event/player/PlayerPostUseItemEvent.java b/src/main/java/com/destroystokyo/paper/event/player/PlayerPostUseItemEvent.java
 new file mode 100644
-index 00000000..11884482
+index 00000000..511082ea
 --- /dev/null
 +++ b/src/main/java/com/destroystokyo/paper/event/player/PlayerPostUseItemEvent.java
-@@ -0,0 +1,62 @@
+@@ -0,0 +1,69 @@
 +/*
 + * Copyright (c) 2018 Daniel Ennis (Aikar) MIT License
 + *
@@ -46,20 +46,27 @@ index 00000000..11884482
 +import org.bukkit.entity.Player;
 +import org.bukkit.event.HandlerList;
 +import org.bukkit.event.player.PlayerEvent;
++import org.bukkit.inventory.EquipmentSlot;
 +import org.bukkit.inventory.ItemStack;
 +
 +public class PlayerPostUseItemEvent extends PlayerEvent {
-+    private final ItemStack used;
++    private final ItemStack usedItem;
 +    private ItemStack newItem;
++    private final EquipmentSlot hand;
 +
-+    public PlayerPostUseItemEvent(Player player, ItemStack used, ItemStack newItem) {
++    public PlayerPostUseItemEvent(Player player, ItemStack usedItem, ItemStack newItem, EquipmentSlot hand) {
 +        super(player);
-+        this.used = used;
++        this.usedItem = usedItem;
 +        this.newItem = newItem;
++        this.hand = hand;
++    }
++
++    public EquipmentSlot getHand() {
++        return hand;
 +    }
 +
 +    public ItemStack getUsedItem() {
-+        return used;
++        return usedItem;
 +    }
 +
 +    public ItemStack getNewItem() {
@@ -82,10 +89,10 @@ index 00000000..11884482
 +}
 diff --git a/src/main/java/com/empireminecraft/customevents/PlayerPlaceItemAtEvent.java b/src/main/java/com/empireminecraft/customevents/PlayerPlaceItemAtEvent.java
 new file mode 100644
-index 00000000..b0afc279
+index 00000000..c67e3d35
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/customevents/PlayerPlaceItemAtEvent.java
-@@ -0,0 +1,102 @@
+@@ -0,0 +1,109 @@
 +/*
 + * Copyright (c) 2016 Starlis LLC / Daniel Ennis (Aikar) - MIT License
 + *
@@ -116,6 +123,7 @@ index 00000000..b0afc279
 +import org.bukkit.entity.Player;
 +import org.bukkit.event.HandlerList;
 +import org.bukkit.event.player.PlayerEvent;
++import org.bukkit.inventory.EquipmentSlot;
 +import org.bukkit.inventory.ItemStack;
 +import org.bukkit.util.Vector;
 +
@@ -126,20 +134,26 @@ index 00000000..b0afc279
 +    private final Location targetLoc;
 +    private final BlockFace clickFace;
 +    private final Vector hitVector;
++    private final EquipmentSlot hand;
 +    private ItemStack tempItem;
 +    private boolean consume = true;
 +
 +
-+    public PlayerPlaceItemAtEvent(Player player, ItemStack item, Location targetLoc, BlockFace clickFace, Vector hitVector) {
++    public PlayerPlaceItemAtEvent(Player player, ItemStack item, Location targetLoc, BlockFace clickFace, Vector hitVector, EquipmentSlot hand) {
 +        super(player);
 +        this.item = item;
 +        this.targetLoc = targetLoc;
 +        this.clickFace = clickFace;
 +        this.hitVector = hitVector;
++        this.hand = hand;
 +    }
 +
 +    public ItemStack getItem() {
 +        return item;
++    }
++
++    public EquipmentSlot getHand() {
++        return hand;
 +    }
 +
 +    public Location getTargetLoc() {
@@ -190,10 +204,10 @@ index 00000000..b0afc279
 +}
 diff --git a/src/main/java/com/empireminecraft/customevents/PlayerUseItemEvent.java b/src/main/java/com/empireminecraft/customevents/PlayerUseItemEvent.java
 new file mode 100644
-index 00000000..9f90cff6
+index 00000000..c61c6a44
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/customevents/PlayerUseItemEvent.java
-@@ -0,0 +1,86 @@
+@@ -0,0 +1,89 @@
 +/*
 + * Copyright (c) 2016 Starlis LLC / Daniel Ennis (Aikar) - MIT License
 + *
@@ -221,25 +235,27 @@ index 00000000..9f90cff6
 +
 +import org.bukkit.entity.Player;
 +import org.bukkit.event.Cancellable;
-+import org.bukkit.event.Event;
 +import org.bukkit.event.HandlerList;
++import org.bukkit.event.player.PlayerEvent;
++import org.bukkit.inventory.EquipmentSlot;
 +import org.bukkit.inventory.ItemStack;
 +
-+public class PlayerUseItemEvent extends Event implements Cancellable {
++public class PlayerUseItemEvent extends PlayerEvent implements Cancellable {
 +    private static final HandlerList handlers = new HandlerList();
 +    private boolean canceled;
-+    private final Player player;
 +    private final ItemStack item;
++    private final EquipmentSlot hand;
 +    private ItemStack tempItem;
-+    private boolean consume = true;
++    private boolean consumeItem = true;
 +
-+    public PlayerUseItemEvent(Player player, ItemStack item) {
-+        this.player = player;
++    public PlayerUseItemEvent(Player player, ItemStack item, EquipmentSlot hand) {
++        super(player);
 +        this.item = item;
++        this.hand = hand;
 +    }
 +
-+    public Player getPlayer() {
-+        return this.player;
++    public EquipmentSlot getHand() {
++        return hand;
 +    }
 +
 +    public ItemStack getItem() {
@@ -257,13 +273,14 @@ index 00000000..9f90cff6
 +        this.tempItem = item;
 +    }
 +
-+    public boolean getConsumeItem() {
-+        return this.consume;
++    public boolean shouldConsumeItem() {
++        return this.consumeItem;
 +    }
 +
 +    public void setConsumeItem(boolean consume) {
-+        this.consume = consume;
++        this.consumeItem = consume;
 +    }
++
 +    public boolean isCancelled() {
 +        return canceled;
 +    }
