@@ -1,23 +1,23 @@
-From 481ab94d78a25f208344602dc2799c2444113ebf Mon Sep 17 00:00:00 2001
+From e5e0651141b7fe36733572ce4eb69a26fd92dcd0 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Wed, 7 Dec 2016 00:22:09 -0500
 Subject: [PATCH] PlayerUseItemEvent
 
 ---
- .../event/player/PlayerPostUseItemEvent.java  | 58 +++++++++++++
- .../customevents/PlayerUseItemAtEvent.java    | 55 ++++++++++++
- .../customevents/PlayerUseItemEvent.java      | 86 +++++++++++++++++++
- 3 files changed, 199 insertions(+)
+ .../event/player/PlayerPostUseItemEvent.java  |  62 +++++++++++
+ .../customevents/PlayerPlaceItemAtEvent.java  | 102 ++++++++++++++++++
+ .../customevents/PlayerUseItemEvent.java      |  86 +++++++++++++++
+ 3 files changed, 250 insertions(+)
  create mode 100644 src/main/java/com/destroystokyo/paper/event/player/PlayerPostUseItemEvent.java
- create mode 100644 src/main/java/com/empireminecraft/customevents/PlayerUseItemAtEvent.java
+ create mode 100644 src/main/java/com/empireminecraft/customevents/PlayerPlaceItemAtEvent.java
  create mode 100644 src/main/java/com/empireminecraft/customevents/PlayerUseItemEvent.java
 
 diff --git a/src/main/java/com/destroystokyo/paper/event/player/PlayerPostUseItemEvent.java b/src/main/java/com/destroystokyo/paper/event/player/PlayerPostUseItemEvent.java
 new file mode 100644
-index 00000000..b31a01f8
+index 00000000..11884482
 --- /dev/null
 +++ b/src/main/java/com/destroystokyo/paper/event/player/PlayerPostUseItemEvent.java
-@@ -0,0 +1,58 @@
+@@ -0,0 +1,62 @@
 +/*
 + * Copyright (c) 2018 Daniel Ennis (Aikar) MIT License
 + *
@@ -50,7 +50,7 @@ index 00000000..b31a01f8
 +
 +public class PlayerPostUseItemEvent extends PlayerEvent {
 +    private final ItemStack used;
-+    private final ItemStack newItem;
++    private ItemStack newItem;
 +
 +    public PlayerPostUseItemEvent(Player player, ItemStack used, ItemStack newItem) {
 +        super(player);
@@ -66,6 +66,10 @@ index 00000000..b31a01f8
 +        return newItem;
 +    }
 +
++    public void setNewItem(ItemStack newItem) {
++        this.newItem = newItem;
++    }
++
 +    private static final HandlerList handlers = new HandlerList();
 +
 +    public HandlerList getHandlers() {
@@ -76,12 +80,12 @@ index 00000000..b31a01f8
 +        return handlers;
 +    }
 +}
-diff --git a/src/main/java/com/empireminecraft/customevents/PlayerUseItemAtEvent.java b/src/main/java/com/empireminecraft/customevents/PlayerUseItemAtEvent.java
+diff --git a/src/main/java/com/empireminecraft/customevents/PlayerPlaceItemAtEvent.java b/src/main/java/com/empireminecraft/customevents/PlayerPlaceItemAtEvent.java
 new file mode 100644
-index 00000000..b207ad51
+index 00000000..b0afc279
 --- /dev/null
-+++ b/src/main/java/com/empireminecraft/customevents/PlayerUseItemAtEvent.java
-@@ -0,0 +1,55 @@
++++ b/src/main/java/com/empireminecraft/customevents/PlayerPlaceItemAtEvent.java
+@@ -0,0 +1,102 @@
 +/*
 + * Copyright (c) 2016 Starlis LLC / Daniel Ennis (Aikar) - MIT License
 + *
@@ -110,19 +114,32 @@ index 00000000..b207ad51
 +import org.bukkit.Location;
 +import org.bukkit.block.BlockFace;
 +import org.bukkit.entity.Player;
++import org.bukkit.event.HandlerList;
++import org.bukkit.event.player.PlayerEvent;
 +import org.bukkit.inventory.ItemStack;
 +import org.bukkit.util.Vector;
 +
-+public class PlayerUseItemAtEvent extends PlayerUseItemEvent {
++public class PlayerPlaceItemAtEvent extends PlayerEvent {
++    private static final HandlerList handlers = new HandlerList();
++    private boolean canceled;
++    private final ItemStack item;
 +    private final Location targetLoc;
 +    private final BlockFace clickFace;
 +    private final Vector hitVector;
++    private ItemStack tempItem;
++    private boolean consume = true;
 +
-+    public PlayerUseItemAtEvent(Player player, ItemStack item, Location targetLoc, BlockFace clickFace, Vector hitVector) {
-+        super(player, item);
++
++    public PlayerPlaceItemAtEvent(Player player, ItemStack item, Location targetLoc, BlockFace clickFace, Vector hitVector) {
++        super(player);
++        this.item = item;
 +        this.targetLoc = targetLoc;
 +        this.clickFace = clickFace;
 +        this.hitVector = hitVector;
++    }
++
++    public ItemStack getItem() {
++        return item;
 +    }
 +
 +    public Location getTargetLoc() {
@@ -135,6 +152,40 @@ index 00000000..b207ad51
 +
 +    public Vector getHitVector() {
 +        return hitVector;
++    }
++
++    public ItemStack getTempItem() {
++        return this.tempItem;
++    }
++
++    public void setTempItem(ItemStack item) {
++        if (item == null) {
++            canceled = true;
++        }
++        this.tempItem = item;
++    }
++
++    public boolean getConsumeItem() {
++        return this.consume;
++    }
++
++    public void setConsumeItem(boolean consume) {
++        this.consume = consume;
++    }
++    public boolean isCancelled() {
++        return canceled;
++    }
++
++    public void setCancelled(boolean cancel) {
++        canceled = cancel;
++    }
++
++    public HandlerList getHandlers() {
++        return handlers;
++    }
++
++    public static HandlerList getHandlerList() {
++        return handlers;
 +    }
 +}
 diff --git a/src/main/java/com/empireminecraft/customevents/PlayerUseItemEvent.java b/src/main/java/com/empireminecraft/customevents/PlayerUseItemEvent.java
