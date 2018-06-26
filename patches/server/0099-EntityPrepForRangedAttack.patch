@@ -1,0 +1,62 @@
+From 62fbf8b7363f62c15f4fe418b4d8ab60c3174f42 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Mon, 25 Jun 2018 22:55:42 -0400
+Subject: [PATCH] EntityPrepForRangedAttack
+
+---
+ .../server/PathfinderGoalArrowAttack.java     | 25 +++++++++++++------
+ 1 file changed, 18 insertions(+), 7 deletions(-)
+
+diff --git a/src/main/java/net/minecraft/server/PathfinderGoalArrowAttack.java b/src/main/java/net/minecraft/server/PathfinderGoalArrowAttack.java
+index d387a22fb..1d551e3b1 100644
+--- a/src/main/java/net/minecraft/server/PathfinderGoalArrowAttack.java
++++ b/src/main/java/net/minecraft/server/PathfinderGoalArrowAttack.java
+@@ -1,17 +1,20 @@
+ package net.minecraft.server;
+ 
++import com.destroystokyo.paper.entity.SentientNPC;
++import com.destroystokyo.paper.event.entity.EntityPrepForRangedAttack;
++
+ public class PathfinderGoalArrowAttack extends PathfinderGoal {
+ 
+-    private final EntityInsentient a;
++    private final EntityInsentient a; EntityInsentient getEntity() { return a; } // EMC - OBF HELPER
+     private final IRangedEntity b;
+-    private EntityLiving c;
++    private EntityLiving c; EntityLiving getTarget() { return c; } // EMC - OBF HELPER
+     private int d;
+     private final double e;
+-    private int f;
++    private int f;int getTimeLOS() { return f; } // EMC - OBF HELPER
+     public int g;public void setMinTime(int time) { this.g = time; } // EMC - OBF HELPER - min ranged time
+     public int h;public void setMaxTime(int time) { this.h = time; } // EMC - OBF HELPER - max ranged time
+     public float i;public void setDist(float range) { this.i = range; j = range*range; } // EMC - OBF HELPER - max ranged dist
+-    public float j; // EMC - max ranged dist square
++    public float j;public float getDistSq() { return j; } // EMC - OBF HELPER - max ranged dist square
+ 
+     public PathfinderGoalArrowAttack(IRangedEntity irangedentity, double d0, int i, float f) {
+         this(irangedentity, d0, i, i, f);
+@@ -64,9 +67,17 @@ public class PathfinderGoalArrowAttack extends PathfinderGoal {
+             this.f = 0;
+         }
+ 
+-        if (d0 <= (double) this.j && this.f >= 20) {
+-            this.a.getNavigation().p();
+-        } else {
++        // EMC start
++        boolean isInRange = d0 <= (double) this.getDistSq();
++        boolean readyforAttack = getTimeLOS() >= 20;
++        EntityPrepForRangedAttack event = new EntityPrepForRangedAttack((SentientNPC) getEntity().getBukkitEntity(), this.c.getBukkitEntity(), readyforAttack, !isInRange, getTimeLOS());
++        if (!event.callEvent()) {
++            return;
++        }
++        if (event.shouldStop()) {
++            this.a.getNavigation().stopPathfinding();
++        } else if (event.shouldMoveNear()) {
++            // EMC end
+             this.a.getNavigation().a((Entity) this.c, this.e);
+         }
+ 
+-- 
+2.18.0
+

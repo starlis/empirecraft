@@ -1,11 +1,11 @@
-From 9a3fe50bf266da584cd197ea7752fdea5d639f7b Mon Sep 17 00:00:00 2001
+From 02af714fda23178d927cfb584bdef8af4ac606f6 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Tue, 6 Dec 2016 22:22:14 -0500
 Subject: [PATCH] Entity AI API
 
 ---
  .../empireminecraft/api/CraftEAPI_Entity.java | 192 +++++++++-
- .../com/empireminecraft/api/EntityAIApi.java  | 350 ++++++++++++++++++
+ .../com/empireminecraft/api/EntityAIApi.java  | 349 ++++++++++++++++++
  .../minecraft/server/AttributesAccessor.java  |   1 +
  .../java/net/minecraft/server/Entity.java     |  15 +-
  .../net/minecraft/server/EntityAnimal.java    |   2 +-
@@ -19,7 +19,7 @@ Subject: [PATCH] Entity AI API
  .../net/minecraft/server/EntityLiving.java    |  13 +-
  .../net/minecraft/server/EntitySpider.java    |   4 +
  .../java/net/minecraft/server/EntityWolf.java |   2 +
- .../minecraft/server/NavigationAbstract.java  |   6 +-
+ .../minecraft/server/NavigationAbstract.java  |   7 +-
  .../java/net/minecraft/server/PathEntity.java |  10 +-
  .../server/PathfinderGoalArrowAttack.java     |   8 +-
  .../server/PathfinderGoalFleeSun.java         |   4 +-
@@ -36,7 +36,7 @@ Subject: [PATCH] Entity AI API
  create mode 100644 src/main/java/net/minecraft/server/EntityGoalAccessor.java
 
 diff --git a/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java b/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
-index 0a1f69069..dcbb788cd 100644
+index 0a1f69069..af4c3386b 100644
 --- a/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
 +++ b/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
 @@ -23,11 +23,24 @@
@@ -237,13 +237,13 @@ index 0a1f69069..dcbb788cd 100644
 +    }
 +
 +    @Override
-+    public boolean setEntityDestination(SentientNPC entity, Location loc) {
-+        return EntityAIApi.setEntityDestination(entity, loc);
++    public boolean setEntityDestination(SentientNPC entity, Location loc, double speed) {
++        return EntityAIApi.setEntityDestination(entity, loc, speed);
 +    }
 +
 +    @Override
-+    public boolean setEntityDestination(SentientNPC entity, LivingEntity target) {
-+        return EntityAIApi.setEntityDestination(entity, target);
++    public boolean setEntityDestination(SentientNPC entity, LivingEntity target, double speed) {
++        return EntityAIApi.setEntityDestination(entity, target, speed);
 +    }
 +
      public void cancelTasks(Entity entity) {
@@ -251,10 +251,10 @@ index 0a1f69069..dcbb788cd 100644
      }
 diff --git a/src/main/java/com/empireminecraft/api/EntityAIApi.java b/src/main/java/com/empireminecraft/api/EntityAIApi.java
 new file mode 100644
-index 000000000..816f2d4ee
+index 000000000..ec87af64e
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/api/EntityAIApi.java
-@@ -0,0 +1,350 @@
+@@ -0,0 +1,349 @@
 +package com.empireminecraft.api;
 +
 +import com.destroystokyo.paper.entity.SentientNPC;
@@ -522,18 +522,17 @@ index 000000000..816f2d4ee
 +        return getFinalLocation(entity, path);
 +    }
 +
-+
-+    public static boolean setEntityDestination(SentientNPC entity, Location loc) {
++    public static boolean setEntityDestination(SentientNPC entity, Location loc, double speed) {
 +        final EntityInsentient handle = getInsentientHandle(entity);
 +        PathEntity path = getPathEntity(loc, handle);
-+        handle.getNavigation().a(path, 1);
++        handle.getNavigation().a(path, speed);
 +        return path != null;
 +    }
 +
-+    public static boolean setEntityDestination(SentientNPC entity, LivingEntity target) {
++    public static boolean setEntityDestination(SentientNPC entity, LivingEntity target, double speed) {
 +        final EntityInsentient handle = getInsentientHandle(entity);
 +        PathEntity path = getPathEntity(target, handle);
-+        handle.getNavigation().a(path, 1);
++        handle.getNavigation().a(path, speed);
 +        return path != null;
 +    }
 +
@@ -943,7 +942,7 @@ index 0b7fc327f..fb09824c8 100644
                  if (org.bukkit.craftbukkit.event.CraftEventFactory.callItemDespawnEvent(this).isCancelled()) {
                      this.age = 0;
 diff --git a/src/main/java/net/minecraft/server/EntityLiving.java b/src/main/java/net/minecraft/server/EntityLiving.java
-index 26fd77060..6f4c5f588 100644
+index ea32aadb4..454f6c3d9 100644
 --- a/src/main/java/net/minecraft/server/EntityLiving.java
 +++ b/src/main/java/net/minecraft/server/EntityLiving.java
 @@ -413,6 +413,7 @@ public abstract class EntityLiving extends Entity {
@@ -1023,7 +1022,7 @@ index f5fd4acad..b3be35c31 100644
  
          if (flag) {
 diff --git a/src/main/java/net/minecraft/server/NavigationAbstract.java b/src/main/java/net/minecraft/server/NavigationAbstract.java
-index 935b2e81e..556561713 100644
+index 935b2e81e..cc4c5cf03 100644
 --- a/src/main/java/net/minecraft/server/NavigationAbstract.java
 +++ b/src/main/java/net/minecraft/server/NavigationAbstract.java
 @@ -62,8 +62,9 @@ public abstract class NavigationAbstract {
@@ -1054,6 +1053,14 @@ index 935b2e81e..556561713 100644
      @Nullable
      public PathEntity l() {
          return this.c;
+@@ -275,6 +277,7 @@ public abstract class NavigationAbstract {
+         return this.c == null || this.c.b();
+     }
+ 
++    public void stopPathfinding() { p(); } // EMC - OBF HELPER
+     public void p() {
+         this.pathfindFailures = 0; this.lastFailure = 0; // Paper - Pathfinding optimizations
+         this.c = null;
 diff --git a/src/main/java/net/minecraft/server/PathEntity.java b/src/main/java/net/minecraft/server/PathEntity.java
 index f87270f94..535a72cc3 100644
 --- a/src/main/java/net/minecraft/server/PathEntity.java
@@ -1303,5 +1310,5 @@ index 6b94aec0e..d315f90a2 100644
          // PAIL: inChunk - boolean under datawatchers
          if ( !entity.aa || entity instanceof EntityFireworks ) {
 -- 
-2.17.1
+2.18.0
 
