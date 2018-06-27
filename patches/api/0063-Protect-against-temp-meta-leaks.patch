@@ -1,0 +1,39 @@
+From 4df733e2e26918248321e4feaafd05aacd7efc25 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Tue, 26 Jun 2018 22:51:07 -0400
+Subject: [PATCH] Protect against temp meta leaks
+
+---
+ .../empireminecraft/api/meta/TempMetaMap.java    | 16 ++++++++++++++++
+ 1 file changed, 16 insertions(+)
+
+diff --git a/src/main/java/com/empireminecraft/api/meta/TempMetaMap.java b/src/main/java/com/empireminecraft/api/meta/TempMetaMap.java
+index 8177936f..e6b6f89a 100644
+--- a/src/main/java/com/empireminecraft/api/meta/TempMetaMap.java
++++ b/src/main/java/com/empireminecraft/api/meta/TempMetaMap.java
+@@ -24,6 +24,22 @@
+ package com.empireminecraft.api.meta;
+ 
+ import com.empireminecraft.api.meta.MetaKey.TempKey;
++import org.bukkit.plugin.Plugin;
++import org.bukkit.plugin.java.PluginClassLoader;
+ 
+ public class TempMetaMap extends MetaMap<TempKey> {
++    public static boolean DETECT_LEAKS = false;
++    @Override
++    public Object put(String key, Object value) {
++        if (DETECT_LEAKS && value != null) {
++            ClassLoader loader = value.getClass().getClassLoader();
++            if (loader instanceof PluginClassLoader) {
++                Plugin plugin = ((PluginClassLoader) loader).getPlugin();
++                if (plugin != null && !plugin.isEnabled()) {
++                    throw new IllegalStateException("Setting Meta from a disabled plugin: " + key + " - " + value);
++                }
++            }
++        }
++        return super.put(key, value);
++    }
+ }
+-- 
+2.18.0
+
