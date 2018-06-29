@@ -1,11 +1,11 @@
-From 6f248cf61b83722595b7c85a9483047205704c24 Mon Sep 17 00:00:00 2001
+From f064097192c48d67efc5b44a0522f75a202c3d67 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Tue, 6 Dec 2016 22:22:14 -0500
 Subject: [PATCH] Entity AI API
 
 ---
  .../empireminecraft/api/CraftEAPI_Entity.java | 193 +++++++++-
- .../com/empireminecraft/api/EntityAIApi.java  | 350 ++++++++++++++++++
+ .../com/empireminecraft/api/EntityAIApi.java  | 358 ++++++++++++++++++
  .../minecraft/server/AttributesAccessor.java  |   1 +
  .../java/net/minecraft/server/Entity.java     |  15 +-
  .../net/minecraft/server/EntityAnimal.java    |   2 +-
@@ -22,6 +22,7 @@ Subject: [PATCH] Entity AI API
  .../minecraft/server/NavigationAbstract.java  |   7 +-
  .../java/net/minecraft/server/PathEntity.java |  10 +-
  .../server/PathfinderGoalArrowAttack.java     |   8 +-
+ .../server/PathfinderGoalBowShoot.java        |   4 +-
  .../server/PathfinderGoalFleeSun.java         |   4 +-
  .../minecraft/server/PathfinderGoalPanic.java |   3 +-
  .../server/PathfinderGoalSelector.java        |  10 +-
@@ -31,7 +32,7 @@ Subject: [PATCH] Entity AI API
  .../bukkit/craftbukkit/entity/CraftGhast.java |   9 +
  .../craftbukkit/inventory/CraftItemStack.java |   2 +-
  .../java/org/spigotmc/ActivationRange.java    |   1 +
- 27 files changed, 709 insertions(+), 37 deletions(-)
+ 28 files changed, 719 insertions(+), 39 deletions(-)
  create mode 100644 src/main/java/com/empireminecraft/api/EntityAIApi.java
  create mode 100644 src/main/java/net/minecraft/server/EntityGoalAccessor.java
 
@@ -252,10 +253,10 @@ index 0a1f69069..77042174e 100644
      }
 diff --git a/src/main/java/com/empireminecraft/api/EntityAIApi.java b/src/main/java/com/empireminecraft/api/EntityAIApi.java
 new file mode 100644
-index 000000000..7f3e1d039
+index 000000000..6f56d1c8e
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/api/EntityAIApi.java
-@@ -0,0 +1,350 @@
+@@ -0,0 +1,358 @@
 +package com.empireminecraft.api;
 +
 +import com.destroystokyo.paper.entity.RangedEntity;
@@ -428,17 +429,22 @@ index 000000000..7f3e1d039
 +
 +    public static void setRangedAttackDistance(RangedEntity monster, float range) {
 +        setTargetRange(monster, range);
-+        EntityInsentient entity = (EntityMonster) ((CraftEntity)monster).getHandle();
++        EntityInsentient entity = (EntityInsentient) ((CraftEntity) monster).getHandle();
 +        getGoalSets(entity).forEach(set -> set.forEach(o -> {
 +            PathfinderGoal goal = o.getGoal();
 +            if (goal instanceof PathfinderGoalArrowAttack) {
 +                ((PathfinderGoalArrowAttack) goal).setDist(range);
++            } else if (entity instanceof Monster && goal instanceof PathfinderGoalBowShoot) {
++                ((PathfinderGoalBowShoot) goal).setDist(range);
 +            }
 +        }));
 +    }
 +
 +    public static void setRangedAttackSpeed(RangedEntity monster, Integer min, Integer max) {
-+        EntityInsentient entity = (EntityMonster) ((CraftEntity)monster).getHandle();
++        if (min == null && max == null) {
++            return;
++        }
++        EntityInsentient entity = (EntityInsentient) ((CraftEntity) monster).getHandle();
 +        getGoalSets(entity).forEach(set -> set.forEach(o -> {
 +            PathfinderGoal goal = o.getGoal();
 +            if (goal instanceof PathfinderGoalArrowAttack) {
@@ -448,6 +454,9 @@ index 000000000..7f3e1d039
 +                if (max != null) {
 +                    ((PathfinderGoalArrowAttack) goal).setMaxTime(max);
 +                }
++            } else if (entity instanceof Monster && goal instanceof PathfinderGoalBowShoot) {
++                int speed = min != null && max != null ? Math.min(min, max) : (min != null ? min : max);
++                ((PathfinderGoalBowShoot) goal).setSpeed(speed);
 +            }
 +        }));
 +    }
@@ -944,7 +953,7 @@ index 0b7fc327f..fb09824c8 100644
                  if (org.bukkit.craftbukkit.event.CraftEventFactory.callItemDespawnEvent(this).isCancelled()) {
                      this.age = 0;
 diff --git a/src/main/java/net/minecraft/server/EntityLiving.java b/src/main/java/net/minecraft/server/EntityLiving.java
-index ea32aadb4..454f6c3d9 100644
+index 756e9a94f..c13f911f2 100644
 --- a/src/main/java/net/minecraft/server/EntityLiving.java
 +++ b/src/main/java/net/minecraft/server/EntityLiving.java
 @@ -413,6 +413,7 @@ public abstract class EntityLiving extends Entity {
@@ -1119,6 +1128,21 @@ index 5f45110d9..d387a22fb 100644
  
      public PathfinderGoalArrowAttack(IRangedEntity irangedentity, double d0, int i, float f) {
          this(irangedentity, d0, i, i, f);
+diff --git a/src/main/java/net/minecraft/server/PathfinderGoalBowShoot.java b/src/main/java/net/minecraft/server/PathfinderGoalBowShoot.java
+index f294fd363..581031348 100644
+--- a/src/main/java/net/minecraft/server/PathfinderGoalBowShoot.java
++++ b/src/main/java/net/minecraft/server/PathfinderGoalBowShoot.java
+@@ -4,8 +4,8 @@ public class PathfinderGoalBowShoot<T extends EntityMonster & IRangedEntity> ext
+ 
+     private final T a;
+     private final double b;
+-    private int c;
+-    private final float d;
++    private int c;public void setSpeed(int speed) { this.c = speed; } // EMC - OBF HELPER
++    private float d;public float getDistSq() { return d; } public void setDist(float range) { this.d = range*range; } // EMC - OBF HELPER - max ranged dist // EMC - OBF HELPER - max ranged dist square
+     private int e = -1;
+     private int f;
+     private boolean g;
 diff --git a/src/main/java/net/minecraft/server/PathfinderGoalFleeSun.java b/src/main/java/net/minecraft/server/PathfinderGoalFleeSun.java
 index b1b2de76f..bc27ede8a 100644
 --- a/src/main/java/net/minecraft/server/PathfinderGoalFleeSun.java
