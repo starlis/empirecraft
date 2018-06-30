@@ -1,11 +1,11 @@
-From f064097192c48d67efc5b44a0522f75a202c3d67 Mon Sep 17 00:00:00 2001
+From 3db2519909cb8e599de05a8af2ee1f5ad9b00d75 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Tue, 6 Dec 2016 22:22:14 -0500
 Subject: [PATCH] Entity AI API
 
 ---
  .../empireminecraft/api/CraftEAPI_Entity.java | 193 +++++++++-
- .../com/empireminecraft/api/EntityAIApi.java  | 358 ++++++++++++++++++
+ .../com/empireminecraft/api/EntityAIApi.java  | 356 ++++++++++++++++++
  .../minecraft/server/AttributesAccessor.java  |   1 +
  .../java/net/minecraft/server/Entity.java     |  15 +-
  .../net/minecraft/server/EntityAnimal.java    |   2 +-
@@ -20,7 +20,7 @@ Subject: [PATCH] Entity AI API
  .../net/minecraft/server/EntitySpider.java    |   4 +
  .../java/net/minecraft/server/EntityWolf.java |   2 +
  .../minecraft/server/NavigationAbstract.java  |   7 +-
- .../java/net/minecraft/server/PathEntity.java |  10 +-
+ .../java/net/minecraft/server/PathEntity.java |  11 +-
  .../server/PathfinderGoalArrowAttack.java     |   8 +-
  .../server/PathfinderGoalBowShoot.java        |   4 +-
  .../server/PathfinderGoalFleeSun.java         |   4 +-
@@ -32,7 +32,7 @@ Subject: [PATCH] Entity AI API
  .../bukkit/craftbukkit/entity/CraftGhast.java |   9 +
  .../craftbukkit/inventory/CraftItemStack.java |   2 +-
  .../java/org/spigotmc/ActivationRange.java    |   1 +
- 28 files changed, 719 insertions(+), 39 deletions(-)
+ 28 files changed, 718 insertions(+), 39 deletions(-)
  create mode 100644 src/main/java/com/empireminecraft/api/EntityAIApi.java
  create mode 100644 src/main/java/net/minecraft/server/EntityGoalAccessor.java
 
@@ -253,10 +253,10 @@ index 0a1f69069..77042174e 100644
      }
 diff --git a/src/main/java/com/empireminecraft/api/EntityAIApi.java b/src/main/java/com/empireminecraft/api/EntityAIApi.java
 new file mode 100644
-index 000000000..6f56d1c8e
+index 000000000..bbbbb0f77
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/api/EntityAIApi.java
-@@ -0,0 +1,358 @@
+@@ -0,0 +1,356 @@
 +package com.empireminecraft.api;
 +
 +import com.destroystokyo.paper.entity.RangedEntity;
@@ -559,12 +559,10 @@ index 000000000..6f56d1c8e
 +        if (pathEntity == null) {
 +            return null;
 +        }
-+
-+        Vec3D nextPoint = pathEntity.getNext();
-+        if (nextPoint == null) {
++        if (!pathEntity.hasNext()) {
 +            return null;
 +        }
-+
++        Vec3D nextPoint = pathEntity.getNext();
 +        return new Location(entity.getWorld(), nextPoint.x, nextPoint.y, nextPoint.z);
 +    }
 +    public static List<Location> getEntityPathPoints(SentientNPC entity) {
@@ -1073,7 +1071,7 @@ index 935b2e81e..cc4c5cf03 100644
          this.pathfindFailures = 0; this.lastFailure = 0; // Paper - Pathfinding optimizations
          this.c = null;
 diff --git a/src/main/java/net/minecraft/server/PathEntity.java b/src/main/java/net/minecraft/server/PathEntity.java
-index f87270f94..535a72cc3 100644
+index f87270f94..e15960cae 100644
 --- a/src/main/java/net/minecraft/server/PathEntity.java
 +++ b/src/main/java/net/minecraft/server/PathEntity.java
 @@ -4,10 +4,10 @@ import javax.annotation.Nullable;
@@ -1089,7 +1087,12 @@ index f87270f94..535a72cc3 100644
      private int f;
  
      public PathEntity(PathPoint[] apathpoint) {
-@@ -23,8 +23,7 @@ public class PathEntity {
+@@ -19,12 +19,12 @@ public class PathEntity {
+         ++this.e;
+     }
+ 
++    public boolean hasNext() { return b(); } // EMC - OBF HELPER
+     public boolean b() {
          return this.e >= this.f;
      }
  
@@ -1099,7 +1102,7 @@ index f87270f94..535a72cc3 100644
          return this.f > 0 ? this.a[this.f - 1] : null;
      }
  
-@@ -64,7 +63,8 @@ public class PathEntity {
+@@ -64,7 +64,8 @@ public class PathEntity {
          return this.a(entity, this.e);
      }
  
