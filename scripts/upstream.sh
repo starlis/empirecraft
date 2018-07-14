@@ -26,14 +26,19 @@ cd "Paper-Server"
 mcVer=$(mvn -o org.apache.maven.plugins:maven-help-plugin:2.1.1:evaluate -Dexpression=minecraft_version | sed -n -e '/^\[.*\]/ !{ /^[0-9]/ { p; q } }')
 
 basedir
-. $basedir/scripts/importmcdev.sh
+#todo: remove
+# . $basedir/scripts/importmcdev.sh
 
 minecraftversion=$(cat $basedir/Paper/work/BuildData/info.json | grep minecraftVersion | cut -d '"' -f 4)
+#todo: remove
+minecraftversion="1.13-pre"
+mcVer="1.13-pre-R0.1"
+
 version=$(echo -e "Paper: $paperVer\nmc-dev:$importedmcdev")
 tag="${minecraftversion}-${mcVer}-$(echo -e $version | shasum | awk '{print $1}')"
 echo "$tag" > $basedir/current-paper
-
-$basedir/scripts/generatesources.sh
+#todo: remove
+# $basedir/scripts/generatesources.sh
 
 cd Paper/
 
@@ -55,8 +60,10 @@ if [ "$(cat $basedir/current-paper)" != "$tag" ]; then
 fi
 
 tag Paper-API $forcetag
-tag Paper-Server $forcetag
+#todo: remove
+# tag Paper-Server $forcetag
 
 pushRepo Paper-API $PAPER_API_REPO $tag
-pushRepo Paper-Server $PAPER_SERVER_REPO $tag
+#todo: remove
+# pushRepo Paper-Server $PAPER_SERVER_REPO $tag
 

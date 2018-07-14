@@ -9,7 +9,9 @@ done
 . $(dirname $SOURCE)/init.sh
 
 minecraftversion=$(cat $basedir/Paper/work/BuildData/info.json | grep minecraftVersion | cut -d '"' -f 4)
-
+#todo: remove
+minecraftversion="1.13-pre"
 basedir
 pushRepo ${FORK_NAME}-API $API_REPO master:$minecraftversion
-pushRepo ${FORK_NAME}-Server $SERVER_REPO master:$minecraftversion
+#todo: remove
+# pushRepo ${FORK_NAME}-Server $SERVER_REPO master:$minecraftversion
