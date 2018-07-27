@@ -64,8 +64,8 @@ function enableCommitSigningIfNeeded {
 }
 
 (
-	(applyPatch Paper/Paper-API ${FORK_NAME}-API HEAD api $API_REPO) || exit 1 # &&
-	#applyPatch Paper/Paper-Server ${FORK_NAME}-Server HEAD server $SERVER_REPO) || exit 1
+	(applyPatch Paper/Paper-API ${FORK_NAME}-API HEAD api $API_REPO &&
+	applyPatch Paper/Paper-Server ${FORK_NAME}-Server HEAD server $SERVER_REPO) || exit 1
 	enableCommitSigningIfNeeded
 ) || (
 	echo "Failed to apply patches"
