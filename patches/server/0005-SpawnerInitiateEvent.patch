@@ -1,50 +1,46 @@
-From b16e1d713f4b58d7602d2e28c829c36ccb4469f4 Mon Sep 17 00:00:00 2001
+From dcdf2e5c44891cc5bd1acd96a6f5ee66f0ff1283 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Thu, 29 Nov 2012 10:48:07 -0500
 Subject: [PATCH] SpawnerInitiateEvent
 
 ---
  .../net/minecraft/server/EntityHuman.java     |  1 +
- .../minecraft/server/MobSpawnerAbstract.java  | 19 ++++++++++++++++++-
- src/main/java/net/minecraft/server/World.java |  6 ++++++
- 3 files changed, 25 insertions(+), 1 deletion(-)
+ .../minecraft/server/MobSpawnerAbstract.java  | 23 ++++++++++++++++++-
+ src/main/java/net/minecraft/server/World.java |  1 +
+ 3 files changed, 24 insertions(+), 1 deletion(-)
 
 diff --git a/src/main/java/net/minecraft/server/EntityHuman.java b/src/main/java/net/minecraft/server/EntityHuman.java
-index aa0b27f0e..0b70c66da 100644
+index 14a61f68e1..1e1aad3632 100644
 --- a/src/main/java/net/minecraft/server/EntityHuman.java
 +++ b/src/main/java/net/minecraft/server/EntityHuman.java
-@@ -65,6 +65,7 @@ public abstract class EntityHuman extends EntityLiving {
-     @Nullable
+@@ -74,6 +74,7 @@ public abstract class EntityHuman extends EntityLiving {
      public EntityFishingHook hookedFish;
+     // Paper start
      public boolean affectsSpawning = true;
-+    static com.google.common.base.Predicate<Entity> affectsSpawningPredicate = (player) -> (player instanceof EntityHuman && ((EntityHuman) player).affectsSpawning); // EMC
++    static Predicate<Entity> affectsSpawningPredicate = (player) -> (player instanceof EntityHuman && ((EntityHuman) player).affectsSpawning);
+     // Paper end
  
      // CraftBukkit start
-     public boolean fauxSleeping;
 diff --git a/src/main/java/net/minecraft/server/MobSpawnerAbstract.java b/src/main/java/net/minecraft/server/MobSpawnerAbstract.java
-index 9466bcdc7..6087e205b 100644
+index d10196fcbd..ed9baaf82d 100644
 --- a/src/main/java/net/minecraft/server/MobSpawnerAbstract.java
 +++ b/src/main/java/net/minecraft/server/MobSpawnerAbstract.java
-@@ -1,6 +1,7 @@
- package net.minecraft.server;
- 
- import com.google.common.collect.Lists;
-+import org.bukkit.craftbukkit.util.CraftNamespacedKey;
- 
- import java.util.Iterator;
- import java.util.List;
-@@ -42,7 +43,23 @@ public abstract class MobSpawnerAbstract {
+@@ -49,7 +49,28 @@ public abstract class MobSpawnerAbstract {
      private boolean h() {
          BlockPosition blockposition = this.b();
  
 -        return this.a().isPlayerNearby((double) blockposition.getX() + 0.5D, (double) blockposition.getY() + 0.5D, (double) blockposition.getZ() + 0.5D, (double) this.requiredPlayerRange);
-+        //return this.a().isPlayerNearby((double) blockposition.getX() + 0.5D, (double) blockposition.getY() + 0.5D, (double) blockposition.getZ() + 0.5D, (double) this.requiredPlayerRange); // Paper - affectsSpawning filter
++        // Paper start - Add in SpawnerInitiateEvent
++        //return this.a().isPlayerNearby((double) blockposition.getX() + 0.5D, (double) blockposition.getY() + 0.5D, (double) blockposition.getZ() + 0.5D, (double) this.requiredPlayerRange);
 +
-+        // EMC start - Add in SpawnerInitiateEvent
 +        final World world = this.a();
 +        final int x = blockposition.getX();
 +        final int y = blockposition.getY();
 +        final int z = blockposition.getZ();
++        MinecraftKey mobName = this.getMobName();
++        if (mobName == null) {
++            return false;
++        }
 +        EntityHuman entity = world.findNearbyPlayer((double) x + 0.5D,
 +            (double) y + 0.5D,
 +            (double) z + 0.5D,
@@ -53,25 +49,21 @@ index 9466bcdc7..6087e205b 100644
 +            return false;
 +        }
 +        org.bukkit.Location loc = new org.bukkit.Location(world.getWorld(), x, y, z);
-+        return new com.empireminecraft.customevents.SpawnerInitiateEvent(CraftNamespacedKey.fromMinecraft(this.getMobName()), world.getWorld(), loc, entity.getBukkitEntity()).callEvent();
-+        // EMC end
++
++        return new com.empireminecraft.customevents.SpawnerInitiateEvent(org.bukkit.craftbukkit.util.CraftNamespacedKey.fromMinecraft(mobName), world.getWorld(), loc, entity.getBukkitEntity()).callEvent();
++        // Paper end
      }
  
      public void c() {
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index 33ac57e6b..d4a93aaa3 100644
+index 4fc3c2c354..fd9c4f9024 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
-@@ -2872,6 +2872,12 @@ public abstract class World implements IBlockAccess {
-         return this.a(d0, d1, d2, d3, predicate);
+@@ -2565,6 +2565,7 @@ public abstract class World implements GeneratorAccess, IIBlockAccess, AutoClose
+         return i;
      }
  
-+    // EMC start // OBF HELPER
-+    @Nullable
-+    public EntityHuman findNearbyPlayer(double d0, double d1, double d2, double d3, Predicate<Entity> predicate) {
-+        return this.a(d0, d1, d2, d3, predicate);
-+    }
-+    // EMC end
++    @Nullable public EntityHuman findNearbyPlayer(double d0, double d1, double d2, double d3, Predicate<Entity> predicate) { return this.a(d0, d1, d2, d3, predicate); } // Paper - OBFHELPER
      @Nullable
      public EntityHuman a(double d0, double d1, double d2, double d3, Predicate<Entity> predicate) {
          double d4 = -1.0D;

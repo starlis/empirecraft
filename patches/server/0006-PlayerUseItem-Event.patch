@@ -1,4 +1,4 @@
-From 433c632736cc12a123b2c448ee008603076558da Mon Sep 17 00:00:00 2001
+From 7623c6abc33927187a50f1ba0dbbdefdb538b7a3 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Sat, 22 Dec 2012 00:35:15 -0500
 Subject: [PATCH] PlayerUseItem Event
@@ -7,13 +7,13 @@ This lets us control when an item is consumed and change the item.
 ---
  .../net/minecraft/server/EntityLiving.java    |  2 +-
  .../server/PlayerInteractManager.java         | 89 ++++++++++++++++---
- 2 files changed, 80 insertions(+), 11 deletions(-)
+ 2 files changed, 76 insertions(+), 15 deletions(-)
 
 diff --git a/src/main/java/net/minecraft/server/EntityLiving.java b/src/main/java/net/minecraft/server/EntityLiving.java
-index 14637be49f..de366d0e68 100644
+index 8be1ba5269..7f1f3ef088 100644
 --- a/src/main/java/net/minecraft/server/EntityLiving.java
 +++ b/src/main/java/net/minecraft/server/EntityLiving.java
-@@ -1546,7 +1546,7 @@ public abstract class EntityLiving extends Entity {
+@@ -1633,7 +1633,7 @@ public abstract class EntityLiving extends Entity {
          }
      }
  
@@ -23,18 +23,10 @@ index 14637be49f..de366d0e68 100644
              this.setSlot(EnumItemSlot.MAINHAND, itemstack);
          } else {
 diff --git a/src/main/java/net/minecraft/server/PlayerInteractManager.java b/src/main/java/net/minecraft/server/PlayerInteractManager.java
-index fcb64666e3..c774b00caf 100644
+index e83b4fb4b0..696959bd7a 100644
 --- a/src/main/java/net/minecraft/server/PlayerInteractManager.java
 +++ b/src/main/java/net/minecraft/server/PlayerInteractManager.java
-@@ -2,6 +2,7 @@ package net.minecraft.server;
- 
- // CraftBukkit start
- import java.util.ArrayList;
-+import org.bukkit.entity.Player;
- import org.bukkit.event.block.BlockBreakEvent;
- import org.bukkit.craftbukkit.event.CraftEventFactory;
- import org.bukkit.event.Event;
-@@ -420,6 +421,14 @@ public class PlayerInteractManager {
+@@ -418,6 +418,14 @@ public class PlayerInteractManager {
      }
  
      public EnumInteractionResult a(EntityHuman entityhuman, World world, ItemStack itemstack, EnumHand enumhand) {
@@ -49,10 +41,10 @@ index fcb64666e3..c774b00caf 100644
          if (this.gamemode == EnumGamemode.SPECTATOR) {
              return EnumInteractionResult.PASS;
          } else if (entityhuman.getCooldownTracker().a(itemstack.getItem())) {
-@@ -427,27 +436,52 @@ public class PlayerInteractManager {
+@@ -425,27 +433,52 @@ public class PlayerInteractManager {
          } else {
              int i = itemstack.getCount();
-             int j = itemstack.getData();
+             int j = itemstack.getDamage();
 +            // Paper start
 +            ItemStack orig = itemstack;
 +            if (event.getTempItem() != null) {
@@ -68,21 +60,21 @@ index fcb64666e3..c774b00caf 100644
 +                entityhuman.setHand(enumhand, itemstack1 = orig);
 +            }
  
--            if (itemstack1 == itemstack && itemstack1.getCount() == i && itemstack1.m() <= 0 && itemstack1.getData() == j) {
+-            if (itemstack1 == itemstack && itemstack1.getCount() == i && itemstack1.k() <= 0 && itemstack1.getDamage() == j) {
 -                return interactionresultwrapper.a();
--            } else if (interactionresultwrapper.a() == EnumInteractionResult.FAIL && itemstack1.m() > 0 && !entityhuman.isHandRaised()) {
+-            } else if (interactionresultwrapper.a() == EnumInteractionResult.FAIL && itemstack1.k() > 0 && !entityhuman.isHandRaised()) {
++            boolean isSame = itemstack1 == itemstack && itemstack1.getCount() == i && itemstack1.k() <= 0 && itemstack1.getDamage() == j;
 +            // This was just a short circuit, always run post use on success
-+            boolean isSame = itemstack1 == itemstack && itemstack1.getCount() == i && itemstack1.getItemUseMaxDuration() <= 0 && itemstack1.getData() == j;
++            if (interactionresultwrapper.a() == EnumInteractionResult.FAIL && itemstack1.k() > 0 && !entityhuman.isHandRaised()) {
 +            // if fail, abort - this is vanilla
-+            if (interactionresultwrapper.a() == EnumInteractionResult.FAIL && itemstack1.m() > 0 && !entityhuman.isHandRaised()) {
                  return interactionresultwrapper.a();
              } else {
 -                entityhuman.a(enumhand, itemstack1);
 -                if (this.isCreative()) {
 +                if (!event.shouldConsumeItem() || this.isCreative()) {  // Paper - add getConsumeItem - moved up
                      itemstack1.setCount(i);
-                     if (itemstack1.f()) {
-                         itemstack1.setData(j);
+                     if (itemstack1.e()) {
+                         itemstack1.setDamage(j);
                      }
                  }
 +                org.bukkit.inventory.ItemStack craftNew = org.bukkit.craftbukkit.inventory.CraftItemStack.asCraftMirror(itemstack1);
@@ -108,25 +100,25 @@ index fcb64666e3..c774b00caf 100644
                      ((EntityPlayer) entityhuman).updateInventory(entityhuman.defaultContainer);
                  }
  
-@@ -459,7 +493,8 @@ public class PlayerInteractManager {
+@@ -457,7 +490,7 @@ public class PlayerInteractManager {
      // CraftBukkit start - whole method
      public boolean interactResult = false;
      public boolean firedInteract = false;
 -    public EnumInteractionResult a(EntityHuman entityhuman, World world, ItemStack itemstack, EnumHand enumhand, BlockPosition blockposition, EnumDirection enumdirection, float f, float f1, float f2) {
-+    public EnumInteractionResult a(EntityHuman entityhuman, World world, ItemStack itemstack, EnumHand enumhand, BlockPosition blockposition, EnumDirection enumdirection, float f, float f1, float f2) {org.bukkit.util.Vector hitVector = new org.bukkit.util.Vector(f, f1, f2); // Paper - OBFHELPER
-+
-         IBlockData blockdata = world.getType(blockposition);
-         EnumInteractionResult enuminteractionresult = EnumInteractionResult.FAIL;
-         if (blockdata.getBlock() != Blocks.AIR) {
-@@ -544,16 +579,50 @@ public class PlayerInteractManager {
++    public EnumInteractionResult a(EntityHuman entityhuman, World world, ItemStack itemstack, EnumHand enumhand, BlockPosition blockposition, EnumDirection enumdirection, float f, float f1, float f2) {org.bukkit.util.Vector hitVector = new org.bukkit.util.Vector(f, f1, f2); // Paper - Ensure last 3 floats line up as vector params
+         IBlockData iblockdata = world.getType(blockposition);
+         EnumInteractionResult enuminteractionresult = EnumInteractionResult.PASS;
+         if (iblockdata.isAir()) return enuminteractionresult;
+@@ -534,17 +567,45 @@ public class PlayerInteractManager {
              }
  
              if (!itemstack.isEmpty() && enuminteractionresult != EnumInteractionResult.SUCCESS && !interactResult) { // add !interactResult SPIGOT-764
+-                ItemActionContext itemactioncontext = new ItemActionContext(entityhuman, entityhuman.b(enumhand), blockposition, enumdirection, f, f1, f2);
 +                // Paper start - Allow control over if item should be consumed or not.
 +                org.bukkit.inventory.EquipmentSlot bukkitHand = enumhand == EnumHand.MAIN_HAND ? org.bukkit.inventory.EquipmentSlot.HAND : org.bukkit.inventory.EquipmentSlot.OFF_HAND;
 +                org.bukkit.craftbukkit.inventory.CraftItemStack craftitem = org.bukkit.craftbukkit.inventory.CraftItemStack.asCraftMirror(itemstack);
 +                com.empireminecraft.customevents.PlayerPlaceItemAtEvent eventPlace = new com.empireminecraft.customevents.PlayerPlaceItemAtEvent(
-+                    (Player) entityhuman.getBukkitEntity(), craftitem,
++                    (org.bukkit.entity.Player) entityhuman.getBukkitEntity(), craftitem,
 +                    MCUtil.toLocation(world, blockposition),
 +                    org.bukkit.craftbukkit.block.CraftBlock.notchToBlockFace(enumdirection),
 +                    hitVector, bukkitHand);
@@ -134,32 +126,29 @@ index fcb64666e3..c774b00caf 100644
 +                if (!eventPlace.callEvent()) {
 +                    return EnumInteractionResult.FAIL;
 +                }
-+                // Paper end
-                 int i = itemstack.getData();
-                 int j = itemstack.getCount();
--
-+                // Paper start
+ 
+-                if (this.isCreative()) {
+-                    int i = itemstack.getCount();
+-                    enuminteractionresult = itemstack.placeItem(itemactioncontext, enumhand);
 +                ItemStack orig = itemstack;
 +                if (eventPlace.getTempItem() != null) {
 +                    itemstack = org.bukkit.craftbukkit.inventory.CraftItemStack.asNMSCopy(eventPlace.getTempItem());
 +                    entityhuman.setHand(enumhand, itemstack);
 +                }
-+                // Paper end
-                 enuminteractionresult = itemstack.placeItem(entityhuman, world, blockposition, enumhand, enumdirection, f, f1, f2);
--
-+                // Paper start
++                //replace  entityhuman.b(enumhand) with itemstack
++                ItemActionContext itemactioncontext = new ItemActionContext(entityhuman, itemstack, blockposition, enumdirection, f, f1, f2);
+ 
++                int i = itemstack.getCount();
++                enuminteractionresult = itemstack.placeItem(itemactioncontext, enumhand);
 +                if (eventPlace.getTempItem() != null) {
 +                    entityhuman.setHand(enumhand, itemstack = orig);
 +                }
-                 // The item count should not decrement in Creative mode.
--                if (this.isCreative()) {
-+                if (!eventPlace.getConsumeItem() || this.isCreative()) { // Paper - add getConsumeItem
-+                    // Paper end
-                     itemstack.setData(i);
-                     itemstack.setCount(j);
++                if (!eventPlace.getConsumeItem() || this.isCreative()) {
+                     itemstack.setCount(i);
+-                    return enuminteractionresult;
+-                } else {
+-                    return itemstack.placeItem(itemactioncontext, enumhand);
                  }
-+
-+                // Paper start
 +                if (enuminteractionresult != EnumInteractionResult.FAIL) {
 +                    com.destroystokyo.paper.event.player.PlayerPostPlaceItemAtEvent postUseItemEvent =
 +                        new com.destroystokyo.paper.event.player.PlayerPostPlaceItemAtEvent(player.getBukkitEntity(), craftitem,
@@ -168,6 +157,7 @@ index fcb64666e3..c774b00caf 100644
 +                            hitVector, bukkitHand);
 +                    postUseItemEvent.callEvent();
 +                }
++                return enuminteractionresult;
 +                // Paper end
              }
          }
