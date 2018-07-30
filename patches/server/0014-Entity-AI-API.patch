@@ -1,15 +1,15 @@
-From 35de4a5e8cf187c0cf1f2af3cc147f537d2c570d Mon Sep 17 00:00:00 2001
+From 0192538a449e5d73e1c45a89c1a01c702193d8fc Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Tue, 6 Dec 2016 22:22:14 -0500
 Subject: [PATCH] Entity AI API
 
 ---
- .../empireminecraft/api/CraftEAPI_Entity.java | 193 +++++++++-
- .../com/empireminecraft/api/EntityAIApi.java  | 356 ++++++++++++++++++
+ .../empireminecraft/api/CraftEAPI_Entity.java | 183 ++++++++-
+ .../com/empireminecraft/api/EntityAIApi.java  | 349 ++++++++++++++++++
  .../minecraft/server/AttributesAccessor.java  |   1 +
  .../java/net/minecraft/server/Entity.java     |  16 +-
  .../net/minecraft/server/EntityAnimal.java    |   2 +-
- .../minecraft/server/EntityArmorStand.java    |   3 +-
+ .../minecraft/server/EntityArmorStand.java    |   1 +
  .../net/minecraft/server/EntityBlaze.java     |  28 +-
  .../net/minecraft/server/EntityCreature.java  |   2 +
  .../minecraft/server/EntityEnderSignal.java   |  22 +-
@@ -33,12 +33,12 @@ Subject: [PATCH] Entity AI API
  .../bukkit/craftbukkit/entity/CraftGhast.java |   9 +
  .../craftbukkit/inventory/CraftItemStack.java |   2 +-
  .../java/org/spigotmc/ActivationRange.java    |   1 +
- 29 files changed, 725 insertions(+), 44 deletions(-)
+ 29 files changed, 707 insertions(+), 43 deletions(-)
  create mode 100644 src/main/java/com/empireminecraft/api/EntityAIApi.java
  create mode 100644 src/main/java/net/minecraft/server/EntityGoalAccessor.java
 
 diff --git a/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java b/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
-index 0a1f690690..77042174ea 100644
+index 0a1f690690..5a3e52cf1a 100644
 --- a/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
 +++ b/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
 @@ -23,11 +23,25 @@
@@ -68,7 +68,7 @@ index 0a1f690690..77042174ea 100644
  import java.util.List;
  
  public class CraftEAPI_Entity implements EAPI_Entity {
-@@ -39,6 +53,183 @@ public class CraftEAPI_Entity implements EAPI_Entity {
+@@ -39,6 +53,173 @@ public class CraftEAPI_Entity implements EAPI_Entity {
          return task;
      }
  
@@ -172,16 +172,6 @@ index 0a1f690690..77042174ea 100644
 +    }
 +
 +    @Override
-+    public int getDisabledSlots(ArmorStand armorStand) {
-+        return EntityAIApi.getDisabledSlots(armorStand);
-+    }
-+
-+    @Override
-+    public void setDisabledSlots(ArmorStand armorStand, int flags) {
-+        EntityAIApi.setDisabledSlots(armorStand, flags);
-+    }
-+
-+    @Override
 +    public void respawnEntity(Entity entity) {
 +        EntityAIApi.respawnEntity(entity);
 +    }
@@ -254,10 +244,10 @@ index 0a1f690690..77042174ea 100644
      }
 diff --git a/src/main/java/com/empireminecraft/api/EntityAIApi.java b/src/main/java/com/empireminecraft/api/EntityAIApi.java
 new file mode 100644
-index 0000000000..4507bd3572
+index 0000000000..902d67be88
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/api/EntityAIApi.java
-@@ -0,0 +1,356 @@
+@@ -0,0 +1,349 @@
 +package com.empireminecraft.api;
 +
 +import com.destroystokyo.paper.entity.RangedEntity;
@@ -465,13 +455,6 @@ index 0000000000..4507bd3572
 +        API.attributes.setAttribute(entity, Attribute.FOLLOW_RANGE, range);
 +    }
 +
-+    public static int getDisabledSlots(ArmorStand armorStand) {
-+        return ((CraftArmorStand)armorStand).getHandle().getDisabledSlots();
-+    }
-+    public static void setDisabledSlots(ArmorStand armorStand, int i) {
-+        ((CraftArmorStand)armorStand).getHandle().setDisabledSlots(i);
-+    }
-+
 +    public static void respawnEntity(org.bukkit.entity.Entity entity) {
 +        CraftEntity craft = (CraftEntity) entity;
 +        Entity newHandle = craft.getHandle().teleportTo(entity.getLocation(), false);
@@ -627,7 +610,7 @@ index 106efbb382..8ddf16888b 100644
              map.registerAttribute(targetRange);
              if (entity instanceof Wither) {
 diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
-index d652008e27..22edda6974 100644
+index 084d3b7f43..552ae75595 100644
 --- a/src/main/java/net/minecraft/server/Entity.java
 +++ b/src/main/java/net/minecraft/server/Entity.java
 @@ -1,5 +1,6 @@
@@ -648,7 +631,7 @@ index d652008e27..22edda6974 100644
      protected DataWatcher datawatcher;
      protected static final DataWatcherObject<Byte> ac = DataWatcher.a(Entity.class, DataWatcherRegistry.a);
      private static final DataWatcherObject<Integer> aD = DataWatcher.a(Entity.class, DataWatcherRegistry.b);
-@@ -337,6 +340,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+@@ -338,6 +341,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
      }
  
      public void setPosition(double d0, double d1, double d2) {
@@ -656,7 +639,7 @@ index d652008e27..22edda6974 100644
          this.locX = d0;
          this.locY = d1;
          this.locZ = d2;
-@@ -401,6 +405,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+@@ -402,6 +406,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
      // CraftBukkit end
  
      public void W() {
@@ -664,7 +647,7 @@ index d652008e27..22edda6974 100644
          this.world.methodProfiler.a("entityBaseTick");
          if (this.isPassenger() && this.getVehicle().dead) {
              this.stopRiding();
-@@ -579,6 +584,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+@@ -580,6 +585,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
      }
  
      public void move(EnumMoveType enummovetype, double d0, double d1, double d2) {
@@ -672,7 +655,7 @@ index d652008e27..22edda6974 100644
          if (this.noclip) {
              this.a(this.getBoundingBox().d(d0, d1, d2));
              this.recalcPosition();
-@@ -1366,6 +1372,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+@@ -1347,6 +1353,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
      }
  
      public void setLocation(double d0, double d1, double d2, float f, float f1) {
@@ -680,7 +663,7 @@ index d652008e27..22edda6974 100644
          this.locX = MathHelper.a(d0, -3.0E7D, 3.0E7D);
          this.locY = d1;
          this.locZ = MathHelper.a(d2, -3.0E7D, 3.0E7D);
-@@ -1396,6 +1403,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+@@ -1377,6 +1384,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
      }
  
      public void setPositionRotation(double d0, double d1, double d2, float f, float f1) {
@@ -688,7 +671,7 @@ index d652008e27..22edda6974 100644
          this.locX = d0;
          this.locY = d1;
          this.locZ = d2;
-@@ -1461,6 +1469,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+@@ -1442,6 +1450,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
      public void d(EntityHuman entityhuman) {}
  
      public void collide(Entity entity) {
@@ -696,7 +679,7 @@ index d652008e27..22edda6974 100644
          if (!this.x(entity)) {
              if (!entity.noclip && !this.noclip) {
                  double d0 = entity.locX - this.locX;
-@@ -1497,6 +1506,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+@@ -1478,6 +1487,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
      }
  
      public void f(double d0, double d1, double d2) {
@@ -704,7 +687,7 @@ index d652008e27..22edda6974 100644
          this.motX += d0;
          this.motY += d1;
          this.motZ += d2;
-@@ -1508,6 +1518,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+@@ -1489,6 +1499,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
      }
  
      public boolean damageEntity(DamageSource damagesource, float f) {
@@ -712,7 +695,7 @@ index d652008e27..22edda6974 100644
          if (this.isInvulnerable(damagesource)) {
              return false;
          } else {
-@@ -2519,7 +2530,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+@@ -2500,7 +2511,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
      }
  
      public boolean isInvulnerable(DamageSource damagesource) {
@@ -721,7 +704,7 @@ index d652008e27..22edda6974 100644
      }
  
      public boolean bl() {
-@@ -2900,6 +2911,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+@@ -2881,6 +2892,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
          return false;
      }
  
@@ -743,7 +726,7 @@ index abefe40ffa..ba778064b1 100644
      public ItemStack breedItem; // CraftBukkit - Add breedItem variable
  
 diff --git a/src/main/java/net/minecraft/server/EntityArmorStand.java b/src/main/java/net/minecraft/server/EntityArmorStand.java
-index e9a746f138..c952243587 100644
+index 3b2b94d8c6..c3083bf5e6 100644
 --- a/src/main/java/net/minecraft/server/EntityArmorStand.java
 +++ b/src/main/java/net/minecraft/server/EntityArmorStand.java
 @@ -6,6 +6,7 @@ import java.util.function.Predicate;
@@ -754,15 +737,6 @@ index e9a746f138..c952243587 100644
  import org.bukkit.inventory.EquipmentSlot;
  import org.bukkit.craftbukkit.CraftEquipmentSlot;
  import org.bukkit.craftbukkit.inventory.CraftItemStack;
-@@ -36,7 +37,7 @@ public class EntityArmorStand extends EntityLiving {
-     private final NonNullList<ItemStack> bF;
-     private boolean bG;
-     public long h;
--    private int bH;
-+    private int bH;public void setDisabledSlots(int i) { bH = i;} public int getDisabledSlots() { return bH ;} // EMC // OBF HELPER
-     private boolean bI;
-     public Vector3f headPose;
-     public Vector3f bodyPose;
 diff --git a/src/main/java/net/minecraft/server/EntityBlaze.java b/src/main/java/net/minecraft/server/EntityBlaze.java
 index 0149b35ac5..9bcccd11f7 100644
 --- a/src/main/java/net/minecraft/server/EntityBlaze.java
@@ -1270,7 +1244,7 @@ index a7a13a2cac..3ad39117fb 100644
          public boolean c;
  
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index 3e65839baf..fb763da017 100644
+index cfbfc432f9..a8335e96ad 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
 @@ -1077,7 +1077,17 @@ public abstract class World implements GeneratorAccess, IIBlockAccess, AutoClose

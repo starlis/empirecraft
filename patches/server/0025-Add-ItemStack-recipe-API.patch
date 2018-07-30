@@ -1,110 +1,105 @@
-From 8b13002d3a929db7df2fa0ff6eecea89415f2c46 Mon Sep 17 00:00:00 2001
+From 52aa751f15c8c0461aeaea549fbe7d22b27a13b9 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Tue, 28 Jan 2014 21:04:24 -0500
 Subject: [PATCH] Add ItemStack recipe API
 
 Allows using custom items in Crafting Recipes
 ---
- src/main/java/net/minecraft/server/ItemStack.java   | 13 +++++++++++++
- .../java/net/minecraft/server/ShapedRecipes.java    |  5 +++--
- .../java/net/minecraft/server/ShapelessRecipes.java |  5 +++--
- .../craftbukkit/inventory/CraftShapedRecipe.java    |  2 +-
- .../craftbukkit/inventory/CraftShapelessRecipe.java |  2 +-
- 5 files changed, 21 insertions(+), 6 deletions(-)
+ .../java/net/minecraft/server/RecipeItemStack.java   | 12 ++++++++----
+ .../java/net/minecraft/server/ShapedRecipes.java     |  3 ++-
+ .../java/net/minecraft/server/ShapelessRecipes.java  |  3 ++-
+ .../craftbukkit/inventory/CraftShapedRecipe.java     |  2 +-
+ .../craftbukkit/inventory/CraftShapelessRecipe.java  |  2 +-
+ 5 files changed, 14 insertions(+), 8 deletions(-)
 
-diff --git a/src/main/java/net/minecraft/server/ItemStack.java b/src/main/java/net/minecraft/server/ItemStack.java
-index 71fc8b79a..21a5dcede 100644
---- a/src/main/java/net/minecraft/server/ItemStack.java
-+++ b/src/main/java/net/minecraft/server/ItemStack.java
-@@ -29,6 +29,19 @@ public final class ItemStack {
+diff --git a/src/main/java/net/minecraft/server/RecipeItemStack.java b/src/main/java/net/minecraft/server/RecipeItemStack.java
+index dcc6d9bafe..c20964ca34 100644
+--- a/src/main/java/net/minecraft/server/RecipeItemStack.java
++++ b/src/main/java/net/minecraft/server/RecipeItemStack.java
+@@ -62,7 +62,11 @@ public final class RecipeItemStack implements Predicate<ItemStack> {
+             for (int j = 0; j < i; ++j) {
+                 ItemStack itemstack1 = aitemstack[j];
+ 
+-                if (itemstack1.getItem() == itemstack.getItem()) {
++                // EMC start
++                org.bukkit.inventory.ItemStack bukkitStack = itemstack.getBukkitStack();
++                // 32767 is some magic code for "don't care what the durability of the block is"
++                if (bukkitStack.isSimilar(itemstack1.getBukkitStack(), itemstack1.getDamage() == 32767, true)) {
++                    // EMC end
+                     return true;
+                 }
              }
-         return bukkitStack;
+@@ -156,8 +160,8 @@ public final class RecipeItemStack implements Predicate<ItemStack> {
+                 if (jsonarray.size() == 0) {
+                     throw new JsonSyntaxException("Item array cannot be empty, at least one item must be defined");
+                 } else {
+-                    return a(StreamSupport.stream(jsonarray.spliterator(), false).map((jsonelement) -> {
+-                        return a(ChatDeserializer.m(jsonelement, "item"));
++                    return a(StreamSupport.stream(jsonarray.spliterator(), false).map((m) -> { // EMC - decompile fix, rename to m
++                        return a(ChatDeserializer.m(m, "item")); // EMC - decompile fix, rename to m
+                     }));
+                 }
+             } else {
+@@ -198,7 +202,7 @@ public final class RecipeItemStack implements Predicate<ItemStack> {
+         }
      }
-+    public boolean satisfiesRecipeRequirement(RecipeItemStack recipeItemStack) {
-+        if (recipeItemStack.choices.length == 0) {
-+            return this.isEmpty();
-+        }
-+        getBukkitStack();
-+        for (ItemStack choice : recipeItemStack.choices) {
-+            // 32767 is some magic code for "don't care what the durability of the block is"
-+            if (bukkitStack.isSimilar(choice.getBukkitStack(), choice.getData() == 32767, true)) {
-+                return true;
-+            }
-+        }
-+        return false;
-+    }
-     // EMC end
-     public static final ItemStack a = new ItemStack((Item) null);public static final ItemStack NULL_ITEM = a; // EMC
-     public static final DecimalFormat b = new DecimalFormat("#.##");
+ 
+-    public boolean test(@Nullable Object object) {
++    public boolean test(@Nullable ItemStack object) { // EMC - decompile fix
+         return this.a((ItemStack) object);
+     }
+ 
 diff --git a/src/main/java/net/minecraft/server/ShapedRecipes.java b/src/main/java/net/minecraft/server/ShapedRecipes.java
-index dd42c47dd..d0ffb951d 100644
+index 833eaf7b90..04cafa4cdb 100644
 --- a/src/main/java/net/minecraft/server/ShapedRecipes.java
 +++ b/src/main/java/net/minecraft/server/ShapedRecipes.java
-@@ -92,7 +92,8 @@ public class ShapedRecipes implements IRecipe {
-         for (RecipeItemStack list : this.items) {
-             if (list != null && list.choices.length > 0) {
+@@ -86,7 +86,8 @@ public class ShapedRecipes implements IRecipe {
+             list.buildChoices();
+             if (list.choices.length > 0) {
                  net.minecraft.server.ItemStack stack = list.choices[0];
--                recipe.setIngredient(c, org.bukkit.craftbukkit.util.CraftMagicNumbers.getMaterial(stack.getItem()), (list.choices.length) > 1 ? 32767 : stack.getData());
-+                //recipe.setIngredient(c, org.bukkit.craftbukkit.util.CraftMagicNumbers.getMaterial(stack.getItem()), (list.choices.length) > 1 ? 32767 : stack.getData()); // EMC
+-                recipe.setIngredient(c, org.bukkit.craftbukkit.util.CraftMagicNumbers.getMaterial(stack.getItem()), (list.choices.length) > 1 ? 32767 : 0);
++                //recipe.setIngredient(c, org.bukkit.craftbukkit.util.CraftMagicNumbers.getMaterial(stack.getItem()), (list.choices.length) > 1 ? 32767 : 0); // EMC
 +                recipe.setIngredient(c, stack.getBukkitStack()); // EMC
              }
              c++;
          }
-@@ -153,7 +154,7 @@ public class ShapedRecipes implements IRecipe {
-                     }
-                 }
- 
--                if (!recipeitemstack.a(inventorycrafting.c(k, l))) {
-+                if (!inventorycrafting.c(k, l).satisfiesRecipeRequirement(recipeitemstack)) { // EMC
-                     return false;
-                 }
-             }
 diff --git a/src/main/java/net/minecraft/server/ShapelessRecipes.java b/src/main/java/net/minecraft/server/ShapelessRecipes.java
-index 9c69f92f2..bd77dde6b 100644
+index 044df2b125..ffd5e9ccf6 100644
 --- a/src/main/java/net/minecraft/server/ShapelessRecipes.java
 +++ b/src/main/java/net/minecraft/server/ShapelessRecipes.java
-@@ -39,7 +39,8 @@ public class ShapelessRecipes implements IRecipe {
+@@ -32,7 +32,8 @@ public class ShapelessRecipes implements IRecipe {
          for (RecipeItemStack list : this.ingredients) {
-             if (list != null) {
-                 net.minecraft.server.ItemStack stack = list.choices[0];
--                recipe.addIngredient(org.bukkit.craftbukkit.util.CraftMagicNumbers.getMaterial(stack.getItem()), (list.choices.length) > 1 ? 32767 : stack.getData());
-+                //recipe.addIngredient(org.bukkit.craftbukkit.util.CraftMagicNumbers.getMaterial(stack.getItem()), (list.choices.length) > 1 ? 32767 : stack.getData()); // EMC
-+                recipe.addIngredient(stack.getBukkitStack()); // EMC
-             }
+             list.buildChoices();
+             net.minecraft.server.ItemStack stack = list.choices[0];
+-            recipe.addIngredient(org.bukkit.craftbukkit.util.CraftMagicNumbers.getMaterial(stack.getItem()), (list.choices.length) > 1 ? 32767 : 0);
++            //recipe.addIngredient(org.bukkit.craftbukkit.util.CraftMagicNumbers.getMaterial(stack.getItem()), (list.choices.length) > 1 ? 32767 : 0); // EMC
++            recipe.addIngredient(stack.getBukkitStack()); // EMC
          }
          return recipe;
-@@ -82,7 +83,7 @@ public class ShapelessRecipes implements IRecipe {
-                     while (iterator.hasNext()) {
-                         RecipeItemStack recipeitemstack = (RecipeItemStack) iterator.next();
- 
--                        if (recipeitemstack.a(itemstack)) {
-+                        if (itemstack.satisfiesRecipeRequirement(recipeitemstack)) { // EMC
-                             flag = true;
-                             arraylist.remove(recipeitemstack);
-                             break;
+     }
 diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftShapedRecipe.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftShapedRecipe.java
-index 44df93019..3358d56ce 100644
+index efd0e76a1b..f3dc2a6b40 100644
 --- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftShapedRecipe.java
 +++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftShapedRecipe.java
-@@ -36,7 +36,7 @@ public class CraftShapedRecipe extends ShapedRecipe implements CraftRecipe {
+@@ -37,7 +37,7 @@ public class CraftShapedRecipe extends ShapedRecipe implements CraftRecipe {
          for (char c : ingredientMap.keySet()) {
              ItemStack stack = ingredientMap.get(c);
              if (stack != null) {
 -                ret.setIngredient(c, stack.getType(), stack.getDurability());
-+                ret.setIngredient(c, stack); // EMC
++                ret.setIngredient(c, stack.clone()); // EMC
              }
          }
          return ret;
 diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftShapelessRecipe.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftShapelessRecipe.java
-index 211898c51..cc7326f7e 100644
+index dbbcb67925..e5ad84fc3d 100644
 --- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftShapelessRecipe.java
 +++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftShapelessRecipe.java
-@@ -31,7 +31,7 @@ public class CraftShapelessRecipe extends ShapelessRecipe implements CraftRecipe
+@@ -32,7 +32,7 @@ public class CraftShapelessRecipe extends ShapelessRecipe implements CraftRecipe
          }
          CraftShapelessRecipe ret = new CraftShapelessRecipe(recipe.getKey(), recipe.getResult());
          for (ItemStack ingred : recipe.getIngredientList()) {
 -            ret.addIngredient(ingred.getType(), ingred.getDurability());
-+            ret.addIngredient(ingred); // EMC
++            ret.addIngredient(ingred.clone()); // EMC
          }
          return ret;
      }
