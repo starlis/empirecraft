@@ -1,4 +1,4 @@
-From c2d517ecbb8de7f067fbfdbe9ec2b2c5c25c01cf Mon Sep 17 00:00:00 2001
+From c9373ff16b0b29a069ee22c371495a502a9a463f Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Tue, 21 Jul 2015 23:05:32 -0400
 Subject: [PATCH] Profile Serialization Events
@@ -9,7 +9,7 @@ Lets us modify profile data before/after it is serialized/deserialized.
  1 file changed, 11 insertions(+), 3 deletions(-)
 
 diff --git a/src/main/java/net/minecraft/server/GameProfileSerializer.java b/src/main/java/net/minecraft/server/GameProfileSerializer.java
-index a2da8913d..06b6669da 100644
+index 9b0ebb802..f1182a1e3 100644
 --- a/src/main/java/net/minecraft/server/GameProfileSerializer.java
 +++ b/src/main/java/net/minecraft/server/GameProfileSerializer.java
 @@ -1,5 +1,6 @@
@@ -17,9 +17,9 @@ index a2da8913d..06b6669da 100644
  
 +import com.destroystokyo.paper.profile.CraftPlayerProfile;
  import com.google.common.annotations.VisibleForTesting;
- import com.google.common.base.Optional;
+ import com.google.common.collect.ImmutableMap;
  import com.google.common.collect.UnmodifiableIterator;
-@@ -61,6 +62,7 @@ public final class GameProfileSerializer {
+@@ -65,6 +66,7 @@ public final class GameProfileSerializer {
                  }
              }
  
@@ -27,7 +27,7 @@ index a2da8913d..06b6669da 100644
              return gameprofile;
          } catch (Throwable throwable1) {
              return null;
-@@ -68,6 +70,12 @@ public final class GameProfileSerializer {
+@@ -72,6 +74,12 @@ public final class GameProfileSerializer {
      }
  
      public static NBTTagCompound serialize(NBTTagCompound nbttagcompound, GameProfile gameprofile) {
@@ -40,27 +40,28 @@ index a2da8913d..06b6669da 100644
          if (!UtilColor.b(gameprofile.getName())) {
              nbttagcompound.setString("Name", gameprofile.getName());
          }
-@@ -225,10 +233,10 @@ public final class GameProfileSerializer {
+@@ -229,10 +237,10 @@ public final class GameProfileSerializer {
      }
  
-     private static <T extends Comparable<T>> IBlockData a(IBlockData iblockdata, IBlockState<T> iblockstate, String s, NBTTagCompound nbttagcompound, NBTTagCompound nbttagcompound1) {
+     private static <S extends IBlockDataHolder<S>, T extends Comparable<T>> S a(S s0, IBlockState<T> iblockstate, String s, NBTTagCompound nbttagcompound, NBTTagCompound nbttagcompound1) {
 -        Optional optional = iblockstate.b(nbttagcompound.getString(s));
-+        Optional<T> optional = iblockstate.b(nbttagcompound.getString(s)); // EMC - decompile error- add <T>
++        Optional<T> optional = iblockstate.b(nbttagcompound.getString(s)); // EMC - decompile fix - add <T> to optional
  
          if (optional.isPresent()) {
--            return iblockdata.set(iblockstate, (Comparable) optional.get());
-+            return iblockdata.set(iblockstate, optional.get()); // EMC - decompile error - remove cast
+-            return (IBlockDataHolder) s0.set(iblockstate, (Comparable) optional.get());
++            return s0.set(iblockstate, optional.get()); // EMC - decompile fix, remove cast
          } else {
              GameProfileSerializer.a.warn("Unable to read property: {} with value: {} for blockstate: {}", s, nbttagcompound.getString(s), nbttagcompound1.toString());
-             return iblockdata;
-@@ -255,6 +263,6 @@ public final class GameProfileSerializer {
+             return s0;
+@@ -263,7 +271,7 @@ public final class GameProfileSerializer {
      }
  
      private static <T extends Comparable<T>> String a(IBlockState<T> iblockstate, Comparable<?> comparable) {
 -        return iblockstate.a(comparable);
 +        return iblockstate.a((T) comparable); // EMC - decompile error
      }
- }
+ 
+     public static NBTTagCompound a(DataFixer datafixer, TypeReference typereference, NBTTagCompound nbttagcompound, int i) {
 -- 
-2.17.1
+2.18.0
 
