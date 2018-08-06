@@ -1,4 +1,4 @@
-From dacfecdbc2a101a84cf514fe935d95c406de1286 Mon Sep 17 00:00:00 2001
+From 635e97a271e033413aadbafcb9a963e05838b516 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Wed, 27 Feb 2013 23:27:45 -0500
 Subject: [PATCH] Hidden Item Meta
@@ -21,7 +21,7 @@ Must be set before META
 
 diff --git a/src/main/java/com/empireminecraft/api/HiddenItemMeta.java b/src/main/java/com/empireminecraft/api/HiddenItemMeta.java
 new file mode 100644
-index 0000000000..2b476e94aa
+index 000000000..2b476e94a
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/api/HiddenItemMeta.java
 @@ -0,0 +1,90 @@
@@ -116,38 +116,38 @@ index 0000000000..2b476e94aa
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/ItemStack.java b/src/main/java/net/minecraft/server/ItemStack.java
-index c57be3bcc0..c1cd9a8b38 100644
+index 7ff56eafc..0db8cf1a8 100644
 --- a/src/main/java/net/minecraft/server/ItemStack.java
 +++ b/src/main/java/net/minecraft/server/ItemStack.java
 @@ -44,7 +44,7 @@ public final class ItemStack {
      private int e;
      @Deprecated
      private Item item;
--    private NBTTagCompound tag;
-+    public NBTTagCompound tag; // EMC
+-    NBTTagCompound tag; // Paper -> package private
++    public NBTTagCompound tag; // Paper -> package private // EMC
      private boolean h;
      private EntityItemFrame i;
      private ShapeDetectorBlock j;
 diff --git a/src/main/java/net/minecraft/server/PacketDataSerializer.java b/src/main/java/net/minecraft/server/PacketDataSerializer.java
-index d04afceb70..72267b8ffa 100644
+index b0e8ffc4b..9e7a07c2e 100644
 --- a/src/main/java/net/minecraft/server/PacketDataSerializer.java
 +++ b/src/main/java/net/minecraft/server/PacketDataSerializer.java
-@@ -251,6 +251,7 @@ public class PacketDataSerializer extends ByteBuf {
-                 CraftItemStack.setItemMeta(itemstack, CraftItemStack.getItemMeta(itemstack));
+@@ -252,6 +252,7 @@ public class PacketDataSerializer extends ByteBuf {
                  // Spigot end
                  nbttagcompound = itemstack.getTag();
+                 // Paper start
 +                nbttagcompound = com.empireminecraft.api.HiddenItemMeta.filterItemLore(nbttagcompound, true); // EMC
-             }
- 
-             this.a(nbttagcompound);
-@@ -271,6 +272,7 @@ public class PacketDataSerializer extends ByteBuf {
-             itemstack.setTag(this.j());
+                 if (nbttagcompound != null && nbttagcompound.hasKeyOfType("SkullOwner", 10)) {
+                     NBTTagCompound owner = nbttagcompound.getCompound("SkullOwner");
+                     if (owner.hasKey("Id")) {
+@@ -281,6 +282,7 @@ public class PacketDataSerializer extends ByteBuf {
              // CraftBukkit start
              if (itemstack.getTag() != null) {
+                 // Paper start - Fix skulls of same owner - restore orig ID since we changed it on send to client
 +                itemstack.tag = com.empireminecraft.api.HiddenItemMeta.restoreItemLore(itemstack.tag); // EMC - get around creative menu having ultimate control of the NBT...
-                 CraftItemStack.setItemMeta(itemstack, CraftItemStack.getItemMeta(itemstack));
-             }
-             // CraftBukkit end
+                 if (itemstack.tag.hasKey("SkullOwnerOrig")) {
+                     NBTTagCompound owner = itemstack.tag.getCompound("SkullOwner");
+                     String ownerOrig = itemstack.tag.getString("SkullOwnerOrig");
 -- 
 2.18.0
 

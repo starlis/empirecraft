@@ -1,4 +1,4 @@
-From f71cb167eb847642702eba64d8115fd318f43563 Mon Sep 17 00:00:00 2001
+From ce20d06b1e5efec27c7363b258f1c23132222e21 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Mon, 4 Mar 2013 23:35:02 -0500
 Subject: [PATCH] Persistent and Temporary Meta API
@@ -10,7 +10,7 @@ Subject: [PATCH] Persistent and Temporary Meta API
  .../minecraft/server/ChunkRegionLoader.java   |   4 +-
  .../java/net/minecraft/server/Entity.java     |   3 +
  .../net/minecraft/server/MetaApiAccessor.java | 473 ++++++++++++++++++
- .../server/PacketPlayOutMapChunk.java         |   3 +-
+ .../server/PacketPlayOutMapChunk.java         |   2 +
  .../server/PacketPlayOutTileEntityData.java   |   1 +
  .../java/net/minecraft/server/TileEntity.java |   5 +
  src/main/java/net/minecraft/server/World.java |   1 +
@@ -22,7 +22,7 @@ Subject: [PATCH] Persistent and Temporary Meta API
  .../craftbukkit/entity/CraftEntity.java       |   3 +
  .../craftbukkit/event/CraftEventFactory.java  |   5 +
  .../craftbukkit/inventory/CraftInventory.java |  11 +
- 18 files changed, 619 insertions(+), 3 deletions(-)
+ 18 files changed, 619 insertions(+), 2 deletions(-)
  create mode 100644 src/main/java/com/empireminecraft/api/meta/CraftEAPI_Meta.java
  create mode 100644 src/main/java/net/minecraft/server/MetaApiAccessor.java
 
@@ -683,26 +683,24 @@ index 000000000..200f6ed17
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/PacketPlayOutMapChunk.java b/src/main/java/net/minecraft/server/PacketPlayOutMapChunk.java
-index 1aa36156a..91891d508 100644
+index c5f0b8530..1cef90677 100644
 --- a/src/main/java/net/minecraft/server/PacketPlayOutMapChunk.java
 +++ b/src/main/java/net/minecraft/server/PacketPlayOutMapChunk.java
-@@ -38,6 +38,7 @@ public class PacketPlayOutMapChunk implements Packet<PacketListenerPlayOut> {
+@@ -1,5 +1,6 @@
+ package net.minecraft.server;
  
++import com.empireminecraft.api.API;
+ import com.google.common.collect.Lists;
+ import io.netty.buffer.ByteBuf;
+ import io.netty.buffer.Unpooled;
+@@ -39,6 +40,7 @@ public class PacketPlayOutMapChunk implements Packet<PacketListenerPlayOut> {
              if (this.f() || (i & 1 << j) != 0) {
                  NBTTagCompound nbttagcompound = tileentity.aa_();
+                 if (tileentity instanceof TileEntitySkull) { TileEntitySkull.sanitizeTileEntityUUID(nbttagcompound); } // Paper
 +                MetaApiAccessor.filterTileEntityMeta(nbttagcompound); // EMC
  
                  this.e.add(nbttagcompound);
              }
-@@ -121,7 +122,7 @@ public class PacketPlayOutMapChunk implements Packet<PacketListenerPlayOut> {
-             BiomeBase[] abiomebase = chunk.getBiomeIndex();
- 
-             for (l = 0; l < abiomebase.length; ++l) {
--                packetdataserializer.writeInt(BiomeBase.REGISTRY_ID.a((Object) abiomebase[l]));
-+                packetdataserializer.writeInt(BiomeBase.REGISTRY_ID.a(abiomebase[l])); // EMC - decompile fix
-             }
-         }
- 
 diff --git a/src/main/java/net/minecraft/server/PacketPlayOutTileEntityData.java b/src/main/java/net/minecraft/server/PacketPlayOutTileEntityData.java
 index b30c97e3f..77c7c8c55 100644
 --- a/src/main/java/net/minecraft/server/PacketPlayOutTileEntityData.java
@@ -753,7 +751,7 @@ index 536fd3725..601bc1edc 100644
      // Paper start
      public InventoryHolder getOwner() {
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index 31c773a08..b2dae53d4 100644
+index b8a4405ae..a9e25ffac 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
 @@ -425,6 +425,7 @@ public abstract class World implements GeneratorAccess, IIBlockAccess, AutoClose
