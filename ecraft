@@ -20,21 +20,21 @@ paperunstash() {
 		git stash pop
 	fi
 }
-
+failed=0
 case "$1" in
 	"rb" | "rbp" | "rebuild")
 	(
 		set -e
 		cd "$basedir"
 		scripts/rebuildpatches.sh "$basedir" || exit 1
-	)
+	) || failed=1
 	;;
 	"p" | "patch" | "apply")
 	(
 		set -e
 		cd "$basedir"
 		scripts/apply.sh "$basedir" || exit 1
-	)
+	) || failed=1
 	;;
 	"b" | "bu" | "build")
 	(
@@ -42,7 +42,7 @@ case "$1" in
 		mvn -N install
 		cd ${FORK_NAME}-API
 		mvn clean install && cd ../${FORK_NAME}-Server && mvn clean install
-	)
+	) || failed=1
 	;;
 	"d" | "de" | "deploy")
 	(
@@ -50,16 +50,22 @@ case "$1" in
 		mvn -N install
 		cd ${FORK_NAME}-API
 		mvn clean deploy && cd ../${FORK_NAME}-Server && mvn clean install
-	)
+	) || failed=1
 	;;
 	"up" | "upstream")
 	(
 		cd "$basedir"
 		scripts/upstream.sh "$2" || exit 1
 		if [ "$2" == "up" ]; then
-			./ecraft patch && ./ecraft rb
+			(scripts/apply.sh "$basedir" && scripts/rebuildpatches.sh "$basedir" && scripts/commitup.sh) || exit 1
 		fi
-	)
+	) || failed=1
+	;;
+	"cup" | "commitup" | "upc" | "upcommit")
+	(
+		cd "$basedir"
+		scripts/commitup.sh || exit 1
+	) || failed=1
 	;;
 	"r" | "root")
 		cd "$basedir"
@@ -113,3 +119,10 @@ esac
 
 unset -f paperstash
 unset -f paperunstash
+if [ "$failed" == "1" ]; then
+	unset failed
+	false
+else
+	unset failed
+	true
+fi
