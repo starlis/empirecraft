@@ -1,4 +1,4 @@
-From ce20d06b1e5efec27c7363b258f1c23132222e21 Mon Sep 17 00:00:00 2001
+From 44523a4376287369ec1231ca5178392db798a123 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Mon, 4 Mar 2013 23:35:02 -0500
 Subject: [PATCH] Persistent and Temporary Meta API
@@ -10,6 +10,7 @@ Subject: [PATCH] Persistent and Temporary Meta API
  .../minecraft/server/ChunkRegionLoader.java   |   4 +-
  .../java/net/minecraft/server/Entity.java     |   3 +
  .../net/minecraft/server/MetaApiAccessor.java | 473 ++++++++++++++++++
+ .../java/net/minecraft/server/NBTBase.java    |   1 +
  .../server/PacketPlayOutMapChunk.java         |   2 +
  .../server/PacketPlayOutTileEntityData.java   |   1 +
  .../java/net/minecraft/server/TileEntity.java |   5 +
@@ -22,7 +23,7 @@ Subject: [PATCH] Persistent and Temporary Meta API
  .../craftbukkit/entity/CraftEntity.java       |   3 +
  .../craftbukkit/event/CraftEventFactory.java  |   5 +
  .../craftbukkit/inventory/CraftInventory.java |  11 +
- 18 files changed, 619 insertions(+), 2 deletions(-)
+ 19 files changed, 620 insertions(+), 2 deletions(-)
  create mode 100644 src/main/java/com/empireminecraft/api/meta/CraftEAPI_Meta.java
  create mode 100644 src/main/java/net/minecraft/server/MetaApiAccessor.java
 
@@ -205,7 +206,7 @@ index ce33cd5b8..389010e8b 100644
          } catch (Throwable throwable) {
 diff --git a/src/main/java/net/minecraft/server/MetaApiAccessor.java b/src/main/java/net/minecraft/server/MetaApiAccessor.java
 new file mode 100644
-index 000000000..200f6ed17
+index 000000000..ef03753ed
 --- /dev/null
 +++ b/src/main/java/net/minecraft/server/MetaApiAccessor.java
 @@ -0,0 +1,473 @@
@@ -397,7 +398,7 @@ index 000000000..200f6ed17
 +        ChunkPersistentMeta meta = chunk.chunkMeta;
 +        if (cmp.hasKey(CHUNK_META)) {
 +            NBTTagCompound chunkMeta = cmp.getCompound(CHUNK_META);
-+            for (String key : chunkMeta.c()) {
++            for (String key : chunkMeta.getKeys()) {
 +                NBTTagCompound e = chunkMeta.getCompound(key);
 +                meta = loadBlockMeta(meta, deserializeOldLoc(key), e);
 +            }
@@ -405,7 +406,7 @@ index 000000000..200f6ed17
 +            NBTTagList chunkMeta = cmp.getList(CHUNK_META_LIST, 10);
 +            final int size = chunkMeta.size();
 +            for (int i = 0; i < size; i++) {
-+                NBTTagCompound e = chunkMeta.get(i);
++                NBTTagCompound e = chunkMeta.getCompound(i);
 +                if (e.hasKey(BLOCK_POS)) {
 +                    NBTTagCompound blockPos = e.getCompound(BLOCK_POS);
 +                    meta = loadBlockMeta(meta, getBlockPosFromCompound(blockPos), e);
@@ -489,7 +490,7 @@ index 000000000..200f6ed17
 +            return null;
 +        }
 +        if (nbt instanceof NBTTagString) {
-+            return (String) nbt.c_();
++            return (String) nbt.getStringValue();
 +            // Redundant casts added to each number so that it will fail to compile
 +            // If the method names change for each type. Do not remove.
 +        } else if (nbt instanceof NBTTagInt) {
@@ -519,7 +520,7 @@ index 000000000..200f6ed17
 +                String type = cmp.getString(META_TYPE);
 +                cmp.remove(META_TYPE);
 +                if (ITEM.equals(type)) {
-+                    return CraftItemStack.asBukkitCopy(new ItemStack(cmp));
++                    return CraftItemStack.asCraftMirror(ItemStack.a(cmp));
 +                } else if (META_MAP.equals(type)) {
 +                    final PersistentMetaMap metaMap = getMetaMapFromCompound(cmp);
 +                    if (metaMap == null || metaMap.isEmpty()) {
@@ -682,6 +683,18 @@ index 000000000..200f6ed17
 +        }
 +    }
 +}
+diff --git a/src/main/java/net/minecraft/server/NBTBase.java b/src/main/java/net/minecraft/server/NBTBase.java
+index e21e60b00..e58774137 100644
+--- a/src/main/java/net/minecraft/server/NBTBase.java
++++ b/src/main/java/net/minecraft/server/NBTBase.java
+@@ -117,6 +117,7 @@ public interface NBTBase {
+ 
+     NBTBase clone();
+ 
++    default String getStringValue() { return b_(); } // EMC - OBF HELPER
+     default String b_() {
+         return this.toString();
+     }
 diff --git a/src/main/java/net/minecraft/server/PacketPlayOutMapChunk.java b/src/main/java/net/minecraft/server/PacketPlayOutMapChunk.java
 index c5f0b8530..1cef90677 100644
 --- a/src/main/java/net/minecraft/server/PacketPlayOutMapChunk.java
