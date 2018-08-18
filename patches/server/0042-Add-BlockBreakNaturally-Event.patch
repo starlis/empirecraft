@@ -1,0 +1,63 @@
+From 6b03e718766d1eb0aa23f6a722e0fd63dc01034e Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Thu, 18 Dec 2014 22:48:46 -0500
+Subject: [PATCH] Add BlockBreakNaturally Event
+
+To give reliable control over all blocks dropping to world to restore custom item meta
+---
+ src/main/java/net/minecraft/server/Block.java              | 3 ++-
+ .../java/net/minecraft/server/PlayerInteractManager.java   | 7 +++++--
+ src/main/java/net/minecraft/server/World.java              | 2 +-
+ 3 files changed, 8 insertions(+), 4 deletions(-)
+
+diff --git a/src/main/java/net/minecraft/server/Block.java b/src/main/java/net/minecraft/server/Block.java
+index fd1aec43bd..43ea9ae7f2 100644
+--- a/src/main/java/net/minecraft/server/Block.java
++++ b/src/main/java/net/minecraft/server/Block.java
+@@ -463,9 +463,10 @@ public class Block implements IMaterial {
+             entityitem.n();
+             // CraftBukkit start
+             if (world.captureDrops != null) {
+-                world.captureDrops.add(entityitem);
++                world.captureDrops.add(new Tuple<>(blockposition, entityitem)); // EMC
+             } else {
+                 world.addEntity(entityitem);
++                new com.empireminecraft.customevents.BlockBreakNaturallyEvent(MCUtil.toLocation(world, blockposition), (org.bukkit.entity.Item) entityitem.getBukkitEntity()).callEvent(); // EMC
+             }
+             // CraftBukkit end
+         }
+diff --git a/src/main/java/net/minecraft/server/PlayerInteractManager.java b/src/main/java/net/minecraft/server/PlayerInteractManager.java
+index e9657ecac9..17d7533d78 100644
+--- a/src/main/java/net/minecraft/server/PlayerInteractManager.java
++++ b/src/main/java/net/minecraft/server/PlayerInteractManager.java
+@@ -367,9 +367,12 @@ public class PlayerInteractManager {
+                 world.captureDrops = new ArrayList<>();
+                 boolean flag = this.c(blockposition);
+                 if (event.isDropItems()) {
+-                    for (EntityItem item : world.captureDrops) {
+-                        world.addEntity(item);
++                    // EMC start - use tuple
++                    for (Tuple<BlockPosition, EntityItem> item : world.captureDrops) {
++                        world.addEntity(item.b());
++                        new com.empireminecraft.customevents.BlockBreakNaturallyEvent(MCUtil.toLocation(world, item.a()), (org.bukkit.entity.Item) item.b().getBukkitEntity()).callEvent();
+                     }
++                    // EMC end
+                 }
+                 world.captureDrops = null;
+                 // CraftBukkit end
+diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
+index c6087f6e8e..f136f44d13 100644
+--- a/src/main/java/net/minecraft/server/World.java
++++ b/src/main/java/net/minecraft/server/World.java
+@@ -132,7 +132,7 @@ public abstract class World implements GeneratorAccess, IIBlockAccess, AutoClose
+             return super.add(blockState);
+         }
+     };
+-    public List<EntityItem> captureDrops;
++    public List<Tuple<BlockPosition, EntityItem>> captureDrops; // EMC
+     public long ticksPerAnimalSpawns;
+     public long ticksPerMonsterSpawns;
+     public boolean populating;
+-- 
+2.18.0
+
