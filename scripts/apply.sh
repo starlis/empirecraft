@@ -42,18 +42,23 @@ function applyPatch {
 	echo "Resetting $target to $what_name..."
 	git remote rm upstream > /dev/null 2>&1
 	git remote add upstream $basedir/$what >/dev/null 2>&1
-	git checkout master 2>/dev/null || git checkout -b master
+	(git am --abort ; git rebase --abort) 1>&2 2>/dev/null || true
+	git checkout master 2>/dev/null
 	git fetch upstream >/dev/null 2>&1
 	git reset --hard upstream/upstream
 	echo "  Applying patches to $target..."
+	statusfile=".git/patch-apply-failed"
+	rm -f "$statusfile"
 	git am --abort >/dev/null 2>&1
 	git am --3way --ignore-whitespace "$basedir/patches/$patch_folder/"*.patch
 	if [ "$?" != "0" ]; then
+		echo 1 > "$statusfile"
 		echo "  Something did not apply cleanly to $target."
 		echo "  Please review above details and finish the apply then"
 		echo "  save the changes with rebuildPatches.sh"
 		exit 1
 	else
+		rm -f "$statusfile"
 		echo "  Patches applied cleanly to $target"
 	fi
 }

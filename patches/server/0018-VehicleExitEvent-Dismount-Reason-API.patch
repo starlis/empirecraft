@@ -1,4 +1,4 @@
-From 59c6296d5dd70272c20a9640d5766f2bb3683f20 Mon Sep 17 00:00:00 2001
+From 4b1d8c2f2ba88824e5220d11829a564e3a3f4190 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Wed, 7 Aug 2013 19:52:14 -0400
 Subject: [PATCH] VehicleExitEvent Dismount Reason API
@@ -12,10 +12,10 @@ Subject: [PATCH] VehicleExitEvent Dismount Reason API
  5 files changed, 11 insertions(+)
 
 diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
-index d268b53505..e0334137a2 100644
+index 6d2c373638..e84158e86b 100644
 --- a/src/main/java/net/minecraft/server/Entity.java
 +++ b/src/main/java/net/minecraft/server/Entity.java
-@@ -2077,6 +2077,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+@@ -2073,6 +2073,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
              return false;
          } else {
              if (this.isPassenger()) {
@@ -23,16 +23,16 @@ index d268b53505..e0334137a2 100644
                  this.stopRiding();
              }
  
-@@ -2147,6 +2148,8 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+@@ -2143,6 +2144,8 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
      }
  
-     protected boolean p(Entity entity) { // CraftBukkit
+     protected boolean removePassenger(Entity entity) { // CraftBukkit
 +        VehicleExitEvent.DismountReason reason = dismountReason; // EMC
 +        dismountReason = VehicleExitEvent.DismountReason.UNKNOWN; // EMC
          if (entity.getVehicle() == this) {
              throw new IllegalStateException("Use x.stopRiding(y), not y.removePassenger(x)");
          } else {
-@@ -2158,6 +2161,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+@@ -2154,6 +2157,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
                          (Vehicle) getBukkitEntity(),
                          (LivingEntity) entity.getBukkitEntity()
                  );
@@ -40,7 +40,7 @@ index d268b53505..e0334137a2 100644
                  Bukkit.getPluginManager().callEvent(event);
                  CraftEntity craftn = (CraftEntity) entity.getBukkitEntity().getVehicle();
                  Entity n = craftn == null ? null : craftn.getHandle();
-@@ -2521,6 +2525,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+@@ -2519,6 +2523,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
          return String.format(Locale.ROOT, "%s[\'%s\'/%d, uuid=\'%s\', l=\'%s\', x=%.2f, y=%.2f, z=%.2f, cx=%d, cz=%d, tl=%d, v=%b, d=%b]", new Object[] { this.getClass().getSimpleName(), this.getDisplayName().getText(), Integer.valueOf(this.id), this.uniqueID.toString(), this.world == null ? "~NULL~" : this.world.getWorldData().getName(), Double.valueOf(this.locX), Double.valueOf(this.locY), Double.valueOf(this.locZ), getChunkX(), getChunkZ(), this.ticksLived, this.valid, this.dead}); // Paper - add more information
      }
  
@@ -49,7 +49,7 @@ index d268b53505..e0334137a2 100644
          return this.invulnerable && damagesource != DamageSource.OUT_OF_WORLD && !damagesource.v() && !isDisabled; // EMC - add && !isDisabled
      }
 diff --git a/src/main/java/net/minecraft/server/EntityHuman.java b/src/main/java/net/minecraft/server/EntityHuman.java
-index 366d5efe06..804b484d51 100644
+index f3f911b955..f8227a916e 100644
 --- a/src/main/java/net/minecraft/server/EntityHuman.java
 +++ b/src/main/java/net/minecraft/server/EntityHuman.java
 @@ -369,6 +369,7 @@ public abstract class EntityHuman extends EntityLiving {
@@ -60,7 +60,7 @@ index 366d5efe06..804b484d51 100644
              this.stopRiding();
              this.setSneaking(false);
          } else {
-@@ -1301,6 +1302,7 @@ public abstract class EntityHuman extends EntityLiving {
+@@ -1307,6 +1308,7 @@ public abstract class EntityHuman extends EntityLiving {
          }
  
          if (this.isPassenger()) {
@@ -69,7 +69,7 @@ index 366d5efe06..804b484d51 100644
          }
  
 diff --git a/src/main/java/net/minecraft/server/EntityLiving.java b/src/main/java/net/minecraft/server/EntityLiving.java
-index 9149d5a7f1..6b0d5cfa6c 100644
+index 6044725613..6329e47e4c 100644
 --- a/src/main/java/net/minecraft/server/EntityLiving.java
 +++ b/src/main/java/net/minecraft/server/EntityLiving.java
 @@ -257,6 +257,7 @@ public abstract class EntityLiving extends Entity {
@@ -81,7 +81,7 @@ index 9149d5a7f1..6b0d5cfa6c 100644
                  }
              } else if (this.getAirTicks() < this.bf()) {
 diff --git a/src/main/java/net/minecraft/server/PlayerList.java b/src/main/java/net/minecraft/server/PlayerList.java
-index efb1e1ddd2..7498ff0aa1 100644
+index e49f12deed..3b3816b0bc 100644
 --- a/src/main/java/net/minecraft/server/PlayerList.java
 +++ b/src/main/java/net/minecraft/server/PlayerList.java
 @@ -447,6 +447,7 @@ public abstract class PlayerList {
@@ -93,10 +93,10 @@ index efb1e1ddd2..7498ff0aa1 100644
                  worldserver.removeEntity(entity);
                  Iterator iterator = entity.bQ().iterator();
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index 2a85712f99..c6087f6e8e 100644
+index bc450a6e94..9beb48145f 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
-@@ -1102,10 +1102,12 @@ public abstract class World implements GeneratorAccess, IIBlockAccess, AutoClose
+@@ -1128,10 +1128,12 @@ public abstract class World implements IEntityAccess, GeneratorAccess, IIBlockAc
      public void kill(Entity entity) {
          org.spigotmc.AsyncCatcher.catchOp( "entity kill"); // Spigot
          if (entity.isVehicle()) {

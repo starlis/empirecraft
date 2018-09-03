@@ -1,19 +1,62 @@
-From 18d860496f66854e4dd112ecf8db631755551448 Mon Sep 17 00:00:00 2001
+From 534e68f8abb6ee020982261861d551c4b77032a3 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Tue, 28 Jan 2014 19:13:57 -0500
 Subject: [PATCH] Add ItemStack recipe API
 
 Allows using custom items in Crafting Recipes
 ---
- .../org/bukkit/inventory/ShapedRecipe.java    |  9 +++++++
- .../org/bukkit/inventory/ShapelessRecipe.java | 26 +++++++++++++++++++
- 2 files changed, 35 insertions(+)
+ .../org/bukkit/inventory/RecipeChoice.java    | 31 +++++++++++++++++++
+ .../org/bukkit/inventory/ShapedRecipe.java    |  9 ++++++
+ .../org/bukkit/inventory/ShapelessRecipe.java | 27 ++++++++++++++++
+ 3 files changed, 67 insertions(+)
 
+diff --git a/src/main/java/org/bukkit/inventory/RecipeChoice.java b/src/main/java/org/bukkit/inventory/RecipeChoice.java
+index 2dd722429..0b63fbd64 100644
+--- a/src/main/java/org/bukkit/inventory/RecipeChoice.java
++++ b/src/main/java/org/bukkit/inventory/RecipeChoice.java
+@@ -30,6 +30,37 @@ public interface RecipeChoice extends Predicate<ItemStack>, Cloneable {
+ 
+     RecipeChoice clone();
+ 
++    // EMC start
++    public static class ItemStackChoice implements RecipeChoice {
++
++        private ItemStack item;
++
++        public ItemStackChoice(ItemStack item) {
++            this.item = item;
++        }
++        @Override
++        public ItemStack getItemStack() {
++            return item;
++        }
++
++        @Override
++        public RecipeChoice clone() {
++            try {
++                ItemStackChoice clone = (ItemStackChoice) super.clone();
++                clone.item = this.item.clone();
++                return clone;
++            } catch (CloneNotSupportedException ex) {
++                throw new AssertionError(ex);
++            }
++        }
++
++        @Override
++        public boolean test(ItemStack itemStack) {
++            return item.isSimilar(itemStack, true, true);
++        }
++    }
++    // EMC end
++
+     /**
+      * Represents a choice of multiple matching Materials.
+      */
 diff --git a/src/main/java/org/bukkit/inventory/ShapedRecipe.java b/src/main/java/org/bukkit/inventory/ShapedRecipe.java
-index fc06c7b6b..bc86799d9 100644
+index 80af6cf52..af0cf4913 100644
 --- a/src/main/java/org/bukkit/inventory/ShapedRecipe.java
 +++ b/src/main/java/org/bukkit/inventory/ShapedRecipe.java
-@@ -131,6 +131,15 @@ public class ShapedRecipe implements Recipe, Keyed {
+@@ -139,6 +139,15 @@ public class ShapedRecipe implements Recipe, Keyed {
          return this;
      }
  
@@ -21,7 +64,7 @@ index fc06c7b6b..bc86799d9 100644
 +    public ShapedRecipe setIngredient(char key, ItemStack item) {
 +        Validate.isTrue(ingredients.containsKey(key), "Symbol does not appear in the shape:", key);
 +
-+        ingredients.put(key, item);
++        ingredients.put(key, new RecipeChoice.ItemStackChoice(item));
 +        return this;
 +    }
 +    // EMC end
@@ -30,13 +73,13 @@ index fc06c7b6b..bc86799d9 100644
       * Get a copy of the ingredients map.
       *
 diff --git a/src/main/java/org/bukkit/inventory/ShapelessRecipe.java b/src/main/java/org/bukkit/inventory/ShapelessRecipe.java
-index 7d60a0a92..4dad8e08e 100644
+index 7347e7464..7cef07e0a 100644
 --- a/src/main/java/org/bukkit/inventory/ShapelessRecipe.java
 +++ b/src/main/java/org/bukkit/inventory/ShapelessRecipe.java
-@@ -126,6 +126,32 @@ public class ShapelessRecipe implements Recipe, Keyed {
-         }
+@@ -128,6 +128,33 @@ public class ShapelessRecipe implements Recipe, Keyed {
          return this;
      }
+ 
 +    // EMC start
 +    public ShapelessRecipe addIngredient(ItemStack item) {
 +        return addIngredient(1, item);
@@ -44,7 +87,7 @@ index 7d60a0a92..4dad8e08e 100644
 +    public ShapelessRecipe addIngredient(int count, ItemStack item) {
 +        Validate.isTrue(ingredients.size() + count <= 9, "Shapeless recipes cannot have more than 9 ingredients");
 +        while (count-- > 0) {
-+            ingredients.add(item);
++            ingredients.add(new RecipeChoice.ItemStackChoice(item));
 +        }
 +        return this;
 +    }
@@ -52,9 +95,9 @@ index 7d60a0a92..4dad8e08e 100644
 +        return removeIngredient(1, item);
 +    }
 +    public ShapelessRecipe removeIngredient(int count, ItemStack item) {
-+        Iterator<ItemStack> iterator = ingredients.iterator();
++        Iterator<RecipeChoice> iterator = ingredients.iterator();
 +        while (count > 0 && iterator.hasNext()) {
-+            ItemStack stack = iterator.next();
++            ItemStack stack = iterator.next().getItemStack();
 +            if (stack.isSimilar(item)) {
 +                iterator.remove();
 +                count--;
@@ -63,9 +106,10 @@ index 7d60a0a92..4dad8e08e 100644
 +        return this;
 +    }
 +    // EMC end
++
+     public ShapelessRecipe addIngredient(RecipeChoice ingredient) {
+         Validate.isTrue(ingredients.size() + 1 <= 9, "Shapeless recipes cannot have more than 9 ingredients");
  
-     /**
-      * Removes an ingredient from the list. If the ingredient occurs multiple
 -- 
 2.18.0
 
