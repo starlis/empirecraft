@@ -1,4 +1,4 @@
-From 44f33fb2dfbf6c76cfebb674d163d367cb30beeb Mon Sep 17 00:00:00 2001
+From 554bfbcd6048028cb2fa2bacd2e55c38924cd21a Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Tue, 6 Dec 2016 22:22:14 -0500
 Subject: [PATCH] Entity AI API
@@ -7,21 +7,18 @@ Subject: [PATCH] Entity AI API
  .../empireminecraft/api/CraftEAPI_Entity.java | 183 ++++++++-
  .../com/empireminecraft/api/EntityAIApi.java  | 360 ++++++++++++++++++
  .../minecraft/server/AttributesAccessor.java  |   1 +
- .../java/net/minecraft/server/Entity.java     |  16 +-
+ .../java/net/minecraft/server/Entity.java     |  15 +-
  .../net/minecraft/server/EntityAnimal.java    |   2 +-
- .../minecraft/server/EntityArmorStand.java    |   1 +
  .../net/minecraft/server/EntityBlaze.java     |  25 +-
- .../net/minecraft/server/EntityCreature.java  |   2 +
- .../minecraft/server/EntityEnderSignal.java   |  22 +-
+ .../net/minecraft/server/EntityCreature.java  |   1 +
+ .../minecraft/server/EntityEnderSignal.java   |  20 +-
  .../net/minecraft/server/EntityGhast.java     |   3 +-
  .../minecraft/server/EntityGoalAccessor.java  |  20 +
  .../java/net/minecraft/server/EntityItem.java |   3 +-
  .../net/minecraft/server/EntityLiving.java    |  13 +-
- .../net/minecraft/server/EntitySpider.java    |   6 +
+ .../net/minecraft/server/EntitySpider.java    |   4 +
  .../server/EntityTameableAnimal.java          |   2 +-
  .../java/net/minecraft/server/EntityWolf.java |   2 +
- .../minecraft/server/NavigationAbstract.java  |   9 +-
- .../java/net/minecraft/server/PathEntity.java |  13 +-
  .../server/PathfinderGoalArrowAttack.java     |   8 +-
  .../server/PathfinderGoalBowShoot.java        |   4 +-
  .../server/PathfinderGoalFleeSun.java         |   4 +-
@@ -31,9 +28,8 @@ Subject: [PATCH] Entity AI API
  .../bukkit/craftbukkit/entity/CraftBlaze.java |  18 +
  .../craftbukkit/entity/CraftEnderSignal.java  |   3 +-
  .../bukkit/craftbukkit/entity/CraftGhast.java |   9 +
- .../craftbukkit/inventory/CraftItemStack.java |   2 +-
  .../java/org/spigotmc/ActivationRange.java    |   1 +
- 29 files changed, 709 insertions(+), 39 deletions(-)
+ 25 files changed, 688 insertions(+), 29 deletions(-)
  create mode 100644 src/main/java/com/empireminecraft/api/EntityAIApi.java
  create mode 100644 src/main/java/net/minecraft/server/EntityGoalAccessor.java
 
@@ -621,17 +617,10 @@ index 106efbb382..8ddf16888b 100644
              map.registerAttribute(targetRange);
              if (entity instanceof Wither) {
 diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
-index 5bcd4addee..b9dedf7e8c 100644
+index 152540bece..ec36cc5650 100644
 --- a/src/main/java/net/minecraft/server/Entity.java
 +++ b/src/main/java/net/minecraft/server/Entity.java
-@@ -1,5 +1,6 @@
- package net.minecraft.server;
- 
-+import com.empireminecraft.api.API;
- import com.google.common.collect.Iterables;
- import com.google.common.collect.Lists;
- import com.google.common.collect.Sets;
-@@ -149,7 +150,9 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+@@ -149,7 +149,9 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
      protected boolean X;
      public int noDamageTicks;
      protected boolean justCreated;
@@ -642,7 +631,7 @@ index 5bcd4addee..b9dedf7e8c 100644
      protected DataWatcher datawatcher;
      protected static final DataWatcherObject<Byte> ac = DataWatcher.a(Entity.class, DataWatcherRegistry.a);
      private static final DataWatcherObject<Integer> aD = DataWatcher.a(Entity.class, DataWatcherRegistry.b);
-@@ -341,6 +344,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+@@ -341,6 +343,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
      }
  
      public void setPosition(double d0, double d1, double d2) {
@@ -650,7 +639,7 @@ index 5bcd4addee..b9dedf7e8c 100644
          this.locX = d0;
          this.locY = d1;
          this.locZ = d2;
-@@ -405,6 +409,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+@@ -405,6 +408,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
      // CraftBukkit end
  
      public void W() {
@@ -658,7 +647,7 @@ index 5bcd4addee..b9dedf7e8c 100644
          this.world.methodProfiler.a("entityBaseTick");
          if (this.isPassenger() && this.getVehicle().dead) {
              this.stopRiding();
-@@ -578,6 +583,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+@@ -578,6 +582,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
      }
  
      public void move(EnumMoveType enummovetype, double d0, double d1, double d2) {
@@ -666,7 +655,7 @@ index 5bcd4addee..b9dedf7e8c 100644
          if (this.noclip) {
              this.a(this.getBoundingBox().d(d0, d1, d2));
              this.recalcPosition();
-@@ -1346,6 +1352,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+@@ -1346,6 +1351,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
      }
  
      public void setLocation(double d0, double d1, double d2, float f, float f1) {
@@ -674,7 +663,7 @@ index 5bcd4addee..b9dedf7e8c 100644
          this.locX = MathHelper.a(d0, -3.0E7D, 3.0E7D);
          this.locY = d1;
          this.locZ = MathHelper.a(d2, -3.0E7D, 3.0E7D);
-@@ -1377,6 +1384,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+@@ -1377,6 +1383,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
      }
  
      public void setPositionRotation(double d0, double d1, double d2, float f, float f1) {
@@ -682,7 +671,7 @@ index 5bcd4addee..b9dedf7e8c 100644
          this.locX = d0;
          this.locY = d1;
          this.locZ = d2;
-@@ -1442,6 +1450,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+@@ -1442,6 +1449,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
      public void d(EntityHuman entityhuman) {}
  
      public void collide(Entity entity) {
@@ -690,7 +679,7 @@ index 5bcd4addee..b9dedf7e8c 100644
          if (!this.x(entity)) {
              if (!entity.noclip && !this.noclip) {
                  double d0 = entity.locX - this.locX;
-@@ -1478,6 +1487,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+@@ -1478,6 +1486,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
      }
  
      public void f(double d0, double d1, double d2) {
@@ -698,7 +687,7 @@ index 5bcd4addee..b9dedf7e8c 100644
          this.motX += d0;
          this.motY += d1;
          this.motZ += d2;
-@@ -1489,6 +1499,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+@@ -1489,6 +1498,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
      }
  
      public boolean damageEntity(DamageSource damagesource, float f) {
@@ -706,7 +695,7 @@ index 5bcd4addee..b9dedf7e8c 100644
          if (this.isInvulnerable(damagesource)) {
              return false;
          } else {
-@@ -2508,7 +2519,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+@@ -2527,7 +2537,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
      }
  
      public boolean isInvulnerable(DamageSource damagesource) {
@@ -715,7 +704,7 @@ index 5bcd4addee..b9dedf7e8c 100644
      }
  
      public boolean bl() {
-@@ -2885,6 +2896,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+@@ -2905,6 +2915,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
          return false;
      }
  
@@ -736,18 +725,6 @@ index 1cac62a4f7..42021759c4 100644
      public UUID bD; // PAIL
      public ItemStack breedItem; // CraftBukkit - Add breedItem variable
  
-diff --git a/src/main/java/net/minecraft/server/EntityArmorStand.java b/src/main/java/net/minecraft/server/EntityArmorStand.java
-index 35afffedef..4c22e1bd9f 100644
---- a/src/main/java/net/minecraft/server/EntityArmorStand.java
-+++ b/src/main/java/net/minecraft/server/EntityArmorStand.java
-@@ -6,6 +6,7 @@ import java.util.function.Predicate;
- import javax.annotation.Nullable;
- 
- // CraftBukkit start
-+import com.empireminecraft.api.API;
- import org.bukkit.inventory.EquipmentSlot;
- import org.bukkit.craftbukkit.CraftEquipmentSlot;
- import org.bukkit.craftbukkit.inventory.CraftItemStack;
 diff --git a/src/main/java/net/minecraft/server/EntityBlaze.java b/src/main/java/net/minecraft/server/EntityBlaze.java
 index 4feb7ab164..99cfd632d6 100644
 --- a/src/main/java/net/minecraft/server/EntityBlaze.java
@@ -800,10 +777,10 @@ index 4feb7ab164..99cfd632d6 100644
                      }
                  }
 diff --git a/src/main/java/net/minecraft/server/EntityCreature.java b/src/main/java/net/minecraft/server/EntityCreature.java
-index 9e88897a07..526a9c997b 100644
+index 9e88897a07..6bf43ec608 100644
 --- a/src/main/java/net/minecraft/server/EntityCreature.java
 +++ b/src/main/java/net/minecraft/server/EntityCreature.java
-@@ -11,12 +11,14 @@ public abstract class EntityCreature extends EntityInsentient {
+@@ -11,6 +11,7 @@ public abstract class EntityCreature extends EntityInsentient {
      private BlockPosition a;
      private float b;
  
@@ -811,26 +788,11 @@ index 9e88897a07..526a9c997b 100644
      protected EntityCreature(EntityTypes<?> entitytypes, World world) {
          super(entitytypes, world);
          this.a = BlockPosition.ZERO;
-         this.b = -1.0F;
-     }
- 
-+
-     public float a(BlockPosition blockposition) {
-         return this.a(blockposition, (IWorldReader) this.world);
-     }
 diff --git a/src/main/java/net/minecraft/server/EntityEnderSignal.java b/src/main/java/net/minecraft/server/EntityEnderSignal.java
-index 4792f36dce..e4403ce09a 100644
+index 4792f36dce..7ef7c164fc 100644
 --- a/src/main/java/net/minecraft/server/EntityEnderSignal.java
 +++ b/src/main/java/net/minecraft/server/EntityEnderSignal.java
-@@ -1,5 +1,7 @@
- package net.minecraft.server;
- 
-+import com.empireminecraft.api.API;
-+
- public class EntityEnderSignal extends Entity {
-     public double targetX;
-     public double targetY;
-@@ -7,6 +9,18 @@ public class EntityEnderSignal extends Entity {
+@@ -7,6 +7,18 @@ public class EntityEnderSignal extends Entity {
      public int despawnTimer;
      public boolean shouldDropItem;
  
@@ -849,7 +811,7 @@ index 4792f36dce..e4403ce09a 100644
      public EntityEnderSignal(World world) {
          super(EntityTypes.EYE_OF_ENDER, world);
          this.setSize(0.25F, 0.25F);
-@@ -21,6 +35,7 @@ public class EntityEnderSignal extends Entity {
+@@ -21,6 +33,7 @@ public class EntityEnderSignal extends Entity {
      protected void x_() {
      }
  
@@ -857,7 +819,7 @@ index 4792f36dce..e4403ce09a 100644
      public void a(BlockPosition blockposition) {
          double d0 = (double)blockposition.getX();
          int i = blockposition.getY();
-@@ -28,6 +43,7 @@ public class EntityEnderSignal extends Entity {
+@@ -28,6 +41,7 @@ public class EntityEnderSignal extends Entity {
          double d2 = d0 - this.locX;
          double d3 = d1 - this.locZ;
          float f = MathHelper.sqrt(d2 * d2 + d3 * d3);
@@ -865,7 +827,7 @@ index 4792f36dce..e4403ce09a 100644
          if (f > 12.0F) {
              this.targetX = this.locX + d2 / (double)f * 12.0D;
              this.targetZ = this.locZ + d3 / (double)f * 12.0D;
-@@ -74,9 +90,10 @@ public class EntityEnderSignal extends Entity {
+@@ -74,9 +88,10 @@ public class EntityEnderSignal extends Entity {
          if (!this.world.isClientSide) {
              double d0 = this.targetX - this.locX;
              double d1 = this.targetZ - this.locZ;
@@ -878,7 +840,7 @@ index 4792f36dce..e4403ce09a 100644
              if (f1 < 1.0F) {
                  d2 *= 0.8D;
                  this.motY *= 0.8D;
-@@ -104,6 +121,7 @@ public class EntityEnderSignal extends Entity {
+@@ -104,6 +119,7 @@ public class EntityEnderSignal extends Entity {
              this.setPosition(this.locX, this.locY, this.locZ);
              ++this.despawnTimer;
              if (this.despawnTimer > 80 && !this.world.isClientSide) {
@@ -955,10 +917,10 @@ index f596b4351b..7ff8ddc695 100644
                  if (org.bukkit.craftbukkit.event.CraftEventFactory.callItemDespawnEvent(this).isCancelled()) {
                      this.age = 0;
 diff --git a/src/main/java/net/minecraft/server/EntityLiving.java b/src/main/java/net/minecraft/server/EntityLiving.java
-index fd0998fa95..6044725613 100644
+index 7afe599607..72a9e040a3 100644
 --- a/src/main/java/net/minecraft/server/EntityLiving.java
 +++ b/src/main/java/net/minecraft/server/EntityLiving.java
-@@ -424,6 +424,7 @@ public abstract class EntityLiving extends Entity {
+@@ -425,6 +425,7 @@ public abstract class EntityLiving extends Entity {
          return this.bH;
      }
  
@@ -966,7 +928,7 @@ index fd0998fa95..6044725613 100644
      public void z(Entity entity) {
          if (entity instanceof EntityLiving) {
              this.bG = (EntityLiving) entity;
-@@ -2054,8 +2055,16 @@ public abstract class EntityLiving extends Entity {
+@@ -2084,8 +2085,16 @@ public abstract class EntityLiving extends Entity {
      }
  
      public boolean B(Entity entity) {
@@ -986,18 +948,10 @@ index fd0998fa95..6044725613 100644
  
      public boolean isSleeping() {
 diff --git a/src/main/java/net/minecraft/server/EntitySpider.java b/src/main/java/net/minecraft/server/EntitySpider.java
-index 761c94bdf3..397350151c 100644
+index 761c94bdf3..28576b1f4c 100644
 --- a/src/main/java/net/minecraft/server/EntitySpider.java
 +++ b/src/main/java/net/minecraft/server/EntitySpider.java
-@@ -1,5 +1,7 @@
- package net.minecraft.server;
- 
-+import com.empireminecraft.api.API;
-+
- import java.util.Random;
- import javax.annotation.Nullable;
- 
-@@ -141,6 +143,8 @@ public class EntitySpider extends EntityMonster {
+@@ -141,6 +141,8 @@ public class EntitySpider extends EntityMonster {
          return 0.65F;
      }
  
@@ -1006,7 +960,7 @@ index 761c94bdf3..397350151c 100644
      static class PathfinderGoalSpiderNearestAttackableTarget<T extends EntityLiving> extends PathfinderGoalNearestAttackableTarget<T> {
  
          public PathfinderGoalSpiderNearestAttackableTarget(EntitySpider entityspider, Class<T> oclass) {
-@@ -149,6 +153,7 @@ public class EntitySpider extends EntityMonster {
+@@ -149,6 +151,7 @@ public class EntitySpider extends EntityMonster {
  
          public boolean a() {
              float f = this.e.az();
@@ -1014,7 +968,7 @@ index 761c94bdf3..397350151c 100644
  
              return f >= 0.5F ? false : super.a();
          }
-@@ -162,6 +167,7 @@ public class EntitySpider extends EntityMonster {
+@@ -162,6 +165,7 @@ public class EntitySpider extends EntityMonster {
  
          public boolean b() {
              float f = this.a.az();
@@ -1055,89 +1009,6 @@ index e8fa5ccd92..f3829d9c8b 100644
          byte b0 = ((Byte) this.datawatcher.get(EntityWolf.bC)).byteValue();
  
          if (flag) {
-diff --git a/src/main/java/net/minecraft/server/NavigationAbstract.java b/src/main/java/net/minecraft/server/NavigationAbstract.java
-index 452da80f11..ff624aa233 100644
---- a/src/main/java/net/minecraft/server/NavigationAbstract.java
-+++ b/src/main/java/net/minecraft/server/NavigationAbstract.java
-@@ -62,8 +62,9 @@ public abstract class NavigationAbstract {
- 
-     }
- 
-+
-     @Nullable
--    public final PathEntity a(double d0, double d1, double d2) {
-+    public final PathEntity calculateDestination(double d0, double d1, double d2) { return a(d0, d1, d2); } @Nullable public final PathEntity a(double d0, double d1, double d2) { // EMC OBF HELPER
-         return this.b(new BlockPosition(d0, d1, d2));
-     }
- 
-@@ -89,7 +90,7 @@ public abstract class NavigationAbstract {
-     }
- 
-     @Nullable
--    public PathEntity a(Entity entity) {
-+    public PathEntity calculateDestination(Entity entity) { return a(entity); } @Nullable public PathEntity a(Entity entity) { // EMC OBF HELPER
-         if (!this.b()) {
-             return null;
-         } else {
-@@ -160,7 +161,8 @@ public abstract class NavigationAbstract {
-         }
-     }
- 
--    @Nullable
-+
-+    @Nullable public PathEntity getPathEntity() { return m(); } @Nullable // EMC // OBF HELPER
-     public PathEntity m() {
-         return this.c;
-     }
-@@ -261,6 +263,7 @@ public abstract class NavigationAbstract {
-         return this.c == null || this.c.b();
-     }
- 
-+    public void stopPathfinding() { q(); } // EMC - OBF HELPER
-     public void q() {
-         this.pathfindFailures = 0; this.lastFailure = 0; // Paper - Pathfinding optimizations
-         this.c = null;
-diff --git a/src/main/java/net/minecraft/server/PathEntity.java b/src/main/java/net/minecraft/server/PathEntity.java
-index 5ffcda6d56..16011092f8 100644
---- a/src/main/java/net/minecraft/server/PathEntity.java
-+++ b/src/main/java/net/minecraft/server/PathEntity.java
-@@ -3,12 +3,13 @@ package net.minecraft.server;
- import javax.annotation.Nullable;
- 
- public class PathEntity {
--    private final PathPoint[] a;
-+    private final PathPoint[] a; public PathPoint[] getPoints() { return a; } // EMC OBF HELPER
-     private PathPoint[] b = new PathPoint[0];
-     private PathPoint[] c = new PathPoint[0];
-     private PathPoint d;
--    private int e;
--    private int f;
-+    private int e; public int getNextIndex() { return e; } // EMC OBF HELPER
-+    private int f; public int getPathCount() { return f; } // EMC OBF HELPER
-+    public boolean hasNext() { return getNextIndex() < getPathCount(); } // EMC
- 
-     public PathEntity(PathPoint[] apathpoint) {
-         this.a = apathpoint;
-@@ -23,8 +24,7 @@ public class PathEntity {
-         return this.e >= this.f;
-     }
- 
--    @Nullable
--    public PathPoint c() {
-+    public PathPoint getFinalPoint() { return c(); } @Nullable public PathPoint c() { // EMC OBF HELPER
-         return this.f > 0 ? this.a[this.f - 1] : null;
-     }
- 
-@@ -63,7 +63,8 @@ public class PathEntity {
-         return this.a(entity, this.e);
-     }
- 
--    public Vec3D f() {
-+
-+    public Vec3D getNext() { return f(); } public Vec3D f() { // EMC OBF HELPER
-         PathPoint pathpoint = this.a[this.e];
-         return new Vec3D((double)pathpoint.a, (double)pathpoint.b, (double)pathpoint.c);
-     }
 diff --git a/src/main/java/net/minecraft/server/PathfinderGoalArrowAttack.java b/src/main/java/net/minecraft/server/PathfinderGoalArrowAttack.java
 index b9e4e89a5b..bc59a88c6a 100644
 --- a/src/main/java/net/minecraft/server/PathfinderGoalArrowAttack.java
@@ -1251,10 +1122,10 @@ index be3a3c82ee..ac4e072b2c 100644
          public boolean c;
  
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index 4f1e18fad6..d79fa8a401 100644
+index 700dc99e5c..5c93cf111b 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
-@@ -1112,6 +1112,7 @@ public abstract class World implements IEntityAccess, GeneratorAccess, IIBlockAc
+@@ -1124,6 +1124,7 @@ public abstract class World implements IEntityAccess, GeneratorAccess, IIBlockAc
  
          entity.valid = true; // CraftBukkit
          entity.shouldBeRemoved = false; // Paper - shouldn't be removed after being re-added
@@ -1262,7 +1133,7 @@ index 4f1e18fad6..d79fa8a401 100644
          new com.destroystokyo.paper.event.entity.EntityAddToWorldEvent(entity.getBukkitEntity()).callEvent(); // Paper - fire while valid
      }
  
-@@ -1533,7 +1534,7 @@ public abstract class World implements IEntityAccess, GeneratorAccess, IIBlockAc
+@@ -1545,7 +1546,7 @@ public abstract class World implements IEntityAccess, GeneratorAccess, IIBlockAc
          entity.P = entity.locZ;
          entity.lastYaw = entity.yaw;
          entity.lastPitch = entity.pitch;
@@ -1331,21 +1202,8 @@ index ee9516fc41..6cddc48537 100644
 +    }
 +    // EMC end
  }
-diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftItemStack.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftItemStack.java
-index 3966769c5f..447677b89a 100644
---- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftItemStack.java
-+++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftItemStack.java
-@@ -94,7 +94,7 @@ public final class CraftItemStack extends ItemStack {
-         return new CraftItemStack(CraftMagicNumbers.getMaterial(item), amount, (short) 0, null);
-     }
- 
--    net.minecraft.server.ItemStack handle;
-+    public net.minecraft.server.ItemStack handle;
- 
-     /**
-      * Mirror
 diff --git a/src/main/java/org/spigotmc/ActivationRange.java b/src/main/java/org/spigotmc/ActivationRange.java
-index 958d15a6ba..c30341ca3e 100644
+index 03ca577b4c..93ab321745 100644
 --- a/src/main/java/org/spigotmc/ActivationRange.java
 +++ b/src/main/java/org/spigotmc/ActivationRange.java
 @@ -263,6 +263,7 @@ public class ActivationRange
