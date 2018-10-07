@@ -8,7 +8,8 @@ while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symli
 done
 SOURCE=$([[ "$SOURCE" = /* ]] && echo "$SOURCE" || echo "$PWD/${SOURCE#./}")
 basedir=$(dirname "$SOURCE")
-
+cd "$basedir"
+git pull
 . scripts/init.sh
 git submodule sync
 git submodule update --init
@@ -30,7 +31,7 @@ function update() {
         git checkout master
         git reset --hard origin/$mc
 }
-
+mvn clean install -N
 update API "$API_REPO"
 update Server "$SERVER_REPO"
 
