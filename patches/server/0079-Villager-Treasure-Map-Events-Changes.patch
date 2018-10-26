@@ -7,10 +7,8 @@ Subject: [PATCH] Villager Treasure Map Events / Changes
  .../empireminecraft/api/CraftEAPI_Misc.java   | 35 +++++++++++++++++++
  .../net/minecraft/server/EntityVillager.java  | 28 +++++++--------
  .../java/net/minecraft/server/ItemStack.java  |  1 +
- .../net/minecraft/server/ItemWorldMap.java    |  4 +--
  src/main/java/net/minecraft/server/World.java |  2 +-
- .../java/net/minecraft/server/WorldMap.java   |  2 +-
- 6 files changed, 54 insertions(+), 18 deletions(-)
+ 4 files changed, 51 insertions(+), 15 deletions(-)
 
 diff --git a/src/main/java/com/empireminecraft/api/CraftEAPI_Misc.java b/src/main/java/com/empireminecraft/api/CraftEAPI_Misc.java
 index 7ac07ac07ac0..7ac07ac07ac0 100644
@@ -49,8 +47,8 @@ index 7ac07ac07ac0..7ac07ac07ac0 100644
 +        }
 +        final World world = MCUtil.getNMSWorld(loc.getWorld());
 +        final BlockPosition pos = MCUtil.toBlockPosition(loc);
-+        ItemStack itemstack = ItemWorldMap.createFilledMap(world, pos.getX(), pos.getZ(), (byte) 2, true, true);
-+        ItemWorldMap.doTreasureMappyStuff(world, itemstack);
++        ItemStack itemstack = ItemWorldMap.createFilledMapView(world, pos.getX(), pos.getZ(), (byte) 2, true, true);
++        ItemWorldMap.applySepiaFilter(world, itemstack);
 +
 +        WorldMap.decorateMap(itemstack, pos, "+", values[iconType]);
 +        itemstack.setLocaleName("filled_map." + mapType);
@@ -91,10 +89,10 @@ index 7ac07ac07ac0..7ac07ac07ac0 100644
 -            BlockPosition blockposition = world.a(this.b, imerchant.getPosition(), 100, true);
 -
 -            if (blockposition != null) {
--                ItemStack itemstack = ItemWorldMap.a(world, blockposition.getX(), blockposition.getZ(), (byte) 2, true, true);
+-                ItemStack itemstack = ItemWorldMap.createFilledMapView(world, blockposition.getX(), blockposition.getZ(), (byte) 2, true, true);
 -
--                ItemWorldMap.a(world, itemstack);
--                WorldMap.a(itemstack, blockposition, "+", this.c);
+-                ItemWorldMap.applySepiaFilter(world, itemstack);
+-                WorldMap.decorateMap(itemstack, blockposition, "+", this.c);
 -                itemstack.a((IChatBaseComponent) (new ChatMessage("filled_map." + this.b.toLowerCase(Locale.ROOT), new Object[0])));
 -                merchantrecipelist.add(new MerchantRecipe(new ItemStack(Items.EMERALD, i), new ItemStack(Items.COMPASS), itemstack));
 -            }
@@ -116,7 +114,7 @@ diff --git a/src/main/java/net/minecraft/server/ItemStack.java b/src/main/java/n
 index 7ac07ac07ac0..7ac07ac07ac0 100644
 --- a/src/main/java/net/minecraft/server/ItemStack.java
 +++ b/src/main/java/net/minecraft/server/ItemStack.java
-@@ -648,6 +648,7 @@ public final class ItemStack {
+@@ -653,6 +653,7 @@ public final class ItemStack {
          return this.getItem().i(this);
      }
  
@@ -124,33 +122,11 @@ index 7ac07ac07ac0..7ac07ac07ac0 100644
      public ItemStack a(@Nullable IChatBaseComponent ichatbasecomponent) {
          NBTTagCompound nbttagcompound = this.a("display");
  
-diff --git a/src/main/java/net/minecraft/server/ItemWorldMap.java b/src/main/java/net/minecraft/server/ItemWorldMap.java
-index 7ac07ac07ac0..7ac07ac07ac0 100644
---- a/src/main/java/net/minecraft/server/ItemWorldMap.java
-+++ b/src/main/java/net/minecraft/server/ItemWorldMap.java
-@@ -17,7 +17,7 @@ public class ItemWorldMap extends ItemWorldMapBase {
-         super(item_info);
-     }
- 
--    public static ItemStack a(World world, int i, int j, byte b0, boolean flag, boolean flag1) {
-+    public static ItemStack createFilledMap(World world, int i, int j, byte b0, boolean flag, boolean flag1) { return a(world, i, j, b0, flag, flag1); } public static ItemStack a(World world, int i, int j, byte b0, boolean flag, boolean flag1) { // EMC - OBF HELPER
-         ItemStack itemstack = new ItemStack(Items.FILLED_MAP);
- 
-         a(itemstack, world, i, j, b0, flag, flag1, ((WorldServer) world).dimension); // CraftBukkit - fixes Bukkit multiworld maps
-@@ -216,7 +216,7 @@ public class ItemWorldMap extends ItemWorldMapBase {
-         return abiomebase[j * i + k * i * 128 * i].h() >= 0.0F;
-     }
- 
--    public static void a(World world, ItemStack itemstack) {
-+    public static void doTreasureMappyStuff(World world, ItemStack item) { a(world, item); } public static void a(World world, ItemStack itemstack) { // EMC - OBF HELPER
-         WorldMap worldmap = getSavedMap(itemstack, world);
- 
-         if (worldmap != null) {
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
 index 7ac07ac07ac0..7ac07ac07ac0 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
-@@ -3130,7 +3130,7 @@ public abstract class World implements IEntityAccess, GeneratorAccess, IIBlockAc
+@@ -3149,7 +3149,7 @@ public abstract class World implements IEntityAccess, GeneratorAccess, IIBlockAc
      }
  
      @Nullable
@@ -159,19 +135,6 @@ index 7ac07ac07ac0..7ac07ac07ac0 100644
          return null;
      }
  
-diff --git a/src/main/java/net/minecraft/server/WorldMap.java b/src/main/java/net/minecraft/server/WorldMap.java
-index 7ac07ac07ac0..7ac07ac07ac0 100644
---- a/src/main/java/net/minecraft/server/WorldMap.java
-+++ b/src/main/java/net/minecraft/server/WorldMap.java
-@@ -231,7 +231,7 @@ public class WorldMap extends PersistentBase {
- 
-     }
- 
--    public static void a(ItemStack itemstack, BlockPosition blockposition, String s, MapIcon.Type mapicon_type) {
-+    public static void decorateMap(ItemStack itemstack, BlockPosition blockposition, String s, MapIcon.Type mapicon_type) { a(itemstack, blockposition, s, mapicon_type);} public static void a(ItemStack itemstack, BlockPosition blockposition, String s, MapIcon.Type mapicon_type) { // EMC - OBF HELPER
-         NBTTagList nbttaglist;
- 
-         if (itemstack.hasTag() && itemstack.getTag().hasKeyOfType("Decorations", 9)) {
 -- 
 2.19.1
 
