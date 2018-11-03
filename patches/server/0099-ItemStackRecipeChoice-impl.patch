@@ -4,24 +4,78 @@ Date: Thu, 27 Sep 2018 01:04:57 -0400
 Subject: [PATCH] ItemStackRecipeChoice impl
 
 ---
- .../java/org/bukkit/craftbukkit/inventory/CraftRecipe.java    | 4 ++++
- 1 file changed, 4 insertions(+)
+ .../net/minecraft/server/RecipeItemStack.java | 23 ++++++++++++++++---
+ .../craftbukkit/inventory/CraftRecipe.java    |  2 +-
+ 2 files changed, 21 insertions(+), 4 deletions(-)
 
+diff --git a/src/main/java/net/minecraft/server/RecipeItemStack.java b/src/main/java/net/minecraft/server/RecipeItemStack.java
+index 7ac07ac07ac0..7ac07ac07ac0 100644
+--- a/src/main/java/net/minecraft/server/RecipeItemStack.java
++++ b/src/main/java/net/minecraft/server/RecipeItemStack.java
+@@ -18,7 +18,7 @@ import java.util.stream.Stream;
+ import java.util.stream.StreamSupport;
+ import javax.annotation.Nullable;
+ 
+-public final class RecipeItemStack implements Predicate<ItemStack> {
++public class RecipeItemStack implements Predicate<ItemStack> { // Paper - remove final
+     private static final Predicate<? super RecipeItemStack.Provider> b = (recipeitemstack$provider) -> {
+         return !recipeitemstack$provider.a().stream().allMatch(ItemStack::isEmpty);
+     };
+@@ -32,6 +32,21 @@ public final class RecipeItemStack implements Predicate<ItemStack> {
+             return new RecipeItemStack.Provider[i];
+         });
+     }
++    // Paper start
++    public static class CraftRecipeChoice extends RecipeItemStack {
++
++        private final org.bukkit.inventory.RecipeChoice choice;
++        public CraftRecipeChoice(org.bukkit.inventory.RecipeChoice choice) {
++            super(Stream.empty());
++            this.choice = choice;
++        }
++
++        @Override
++        public boolean testAgainst(@Nullable ItemStack itemstack) {
++            return itemstack != null && choice.test(itemstack.getBukkitStack());
++        }
++    }
++    // Paper end
+ 
+     public void buildChoices() {
+         if (this.choices == null) {
+@@ -44,7 +59,9 @@ public final class RecipeItemStack implements Predicate<ItemStack> {
+ 
+     }
+ 
+-    public boolean a(@Nullable ItemStack itemstack) {
++
++    public boolean a(@Nullable ItemStack itemstack) { return testAgainst(itemstack); } // Paper
++    public boolean testAgainst(@Nullable ItemStack itemstack) { // Paper - rename
+         if (itemstack == null) {
+             return false;
+         } else if (this.c.length == 0) {
+@@ -173,7 +190,7 @@ public final class RecipeItemStack implements Predicate<ItemStack> {
+     }
+ 
+     // $FF: synthetic method
+-    public boolean test(@Nullable Object object) {
++    public boolean test(@Nullable ItemStack object) { // Paper - decompile fix
+         return this.a((ItemStack)object);
+     }
+ 
 diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftRecipe.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftRecipe.java
 index 7ac07ac07ac0..7ac07ac07ac0 100644
 --- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftRecipe.java
 +++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftRecipe.java
-@@ -14,6 +14,10 @@ public interface CraftRecipe extends Recipe {
-             return RecipeItemStack.a;
+@@ -15,7 +15,7 @@ public interface CraftRecipe extends Recipe {
          } else if (bukkit instanceof RecipeChoice.MaterialChoice) {
              return new RecipeItemStack(((RecipeChoice.MaterialChoice) bukkit).getChoices().stream().map((mat) -> new net.minecraft.server.RecipeItemStack.StackProvider(CraftItemStack.asNMSCopy(new ItemStack(mat)))));
-+            // Paper start
-+        } else if (bukkit instanceof com.destroystokyo.paper.inventory.ItemStackRecipeChoice) {
-+            return new RecipeItemStack(((com.destroystokyo.paper.inventory.ItemStackRecipeChoice) bukkit).getChoices().stream().map((item) -> new net.minecraft.server.RecipeItemStack.StackProvider(CraftItemStack.asNMSCopy(item))));
-+            // Paper end
          } else {
-             throw new IllegalArgumentException("Unknown recipe stack instance " + bukkit);
+-            throw new IllegalArgumentException("Unknown recipe stack instance " + bukkit);
++            return new RecipeItemStack.CraftRecipeChoice(bukkit); // Paper - support custom recipes
          }
+     }
+ }
 -- 
 2.19.1
 
