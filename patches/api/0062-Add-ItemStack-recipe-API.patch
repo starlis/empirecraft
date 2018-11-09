@@ -5,10 +5,11 @@ Subject: [PATCH] Add ItemStack recipe API
 
 Allows using custom items in Crafting Recipes
 ---
- .../inventory/ItemStackRecipeChoice.java      |  5 ++++
+ .../inventory/ItemStackRecipeChoice.java      |  9 ++++++-
+ .../org/bukkit/inventory/RecipeChoice.java    | 19 +++++++++++++
  .../org/bukkit/inventory/ShapedRecipe.java    |  9 +++++++
  .../org/bukkit/inventory/ShapelessRecipe.java | 27 +++++++++++++++++++
- 3 files changed, 41 insertions(+)
+ 4 files changed, 63 insertions(+), 1 deletion(-)
 
 diff --git a/src/main/java/com/destroystokyo/paper/inventory/ItemStackRecipeChoice.java b/src/main/java/com/destroystokyo/paper/inventory/ItemStackRecipeChoice.java
 index 7ac07ac07ac0..7ac07ac07ac0 100644
@@ -22,17 +23,72 @@ index 7ac07ac07ac0..7ac07ac07ac0 100644
  import java.util.List;
  
  /**
-@@ -28,6 +29,10 @@ public class ItemStackRecipeChoice implements RecipeChoice {
+@@ -28,6 +29,11 @@ public class ItemStackRecipeChoice implements RecipeChoice {
          return choices.isEmpty() ? null : choices.get(0);
      }
  
-+    public List<ItemStack> getChoices() {
++    @Override
++    public List<ItemStack> getItemStackChoices() {
 +        return Collections.unmodifiableList(choices);
 +    }
 +
      @Override
      public RecipeChoice clone() {
          try {
+@@ -43,7 +49,8 @@ public class ItemStackRecipeChoice implements RecipeChoice {
+     public boolean test(ItemStack itemStack) {
+         for (ItemStack stack : choices) {
+             if (stack.isSimilar(itemStack)) {
+-                return true;
++                System.out.println(stack + " = " + itemStack);
++                return false;
+             }
+         }
+         return false;
+diff --git a/src/main/java/org/bukkit/inventory/RecipeChoice.java b/src/main/java/org/bukkit/inventory/RecipeChoice.java
+index 7ac07ac07ac0..7ac07ac07ac0 100644
+--- a/src/main/java/org/bukkit/inventory/RecipeChoice.java
++++ b/src/main/java/org/bukkit/inventory/RecipeChoice.java
+@@ -6,6 +6,8 @@ import java.util.Collections;
+ import java.util.List;
+ import java.util.Objects;
+ import java.util.function.Predicate;
++import java.util.stream.Collectors;
++
+ import org.bukkit.Material;
+ 
+ /**
+@@ -27,6 +29,13 @@ public interface RecipeChoice extends Predicate<ItemStack>, Cloneable {
+ 
+     RecipeChoice clone();
+ 
++    // Paper start
++    default List<ItemStack> getItemStackChoices() {
++        ItemStack itemStack = getItemStack();
++        return itemStack != null ? com.google.common.collect.Lists.newArrayList(itemStack) : com.google.common.collect.Lists.newArrayList();
++    }
++    // Paper end
++
+     /**
+      * Represents a choice of multiple matching Materials.
+      */
+@@ -40,6 +49,16 @@ public interface RecipeChoice extends Predicate<ItemStack>, Cloneable {
+             this.choices = choices;
+         }
+ 
++        // Paper start
++        private List<ItemStack> stacks;
++        public List<ItemStack> getItemStackChoices() {
++            if (stacks == null) {
++                stacks = this.choices.stream().map(ItemStack::new).collect(Collectors.toList());
++            }
++            return stacks;
++        }
++        // Paper end
++
+         @Override
+         public boolean test(ItemStack t) {
+             for (Material match : choices) {
 diff --git a/src/main/java/org/bukkit/inventory/ShapedRecipe.java b/src/main/java/org/bukkit/inventory/ShapedRecipe.java
 index 7ac07ac07ac0..7ac07ac07ac0 100644
 --- a/src/main/java/org/bukkit/inventory/ShapedRecipe.java

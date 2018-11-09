@@ -4,15 +4,26 @@ Date: Thu, 27 Sep 2018 01:04:57 -0400
 Subject: [PATCH] ItemStackRecipeChoice impl
 
 ---
- .../net/minecraft/server/RecipeItemStack.java | 23 ++++++++++++++++---
+ .../net/minecraft/server/RecipeItemStack.java | 34 +++++++++++++++++--
+ .../net/minecraft/server/ShapedRecipes.java   |  6 ++++
+ .../minecraft/server/ShapelessRecipes.java    |  8 ++++-
  .../craftbukkit/inventory/CraftRecipe.java    |  2 +-
- 2 files changed, 21 insertions(+), 4 deletions(-)
+ 4 files changed, 45 insertions(+), 5 deletions(-)
 
 diff --git a/src/main/java/net/minecraft/server/RecipeItemStack.java b/src/main/java/net/minecraft/server/RecipeItemStack.java
 index 7ac07ac07ac0..7ac07ac07ac0 100644
 --- a/src/main/java/net/minecraft/server/RecipeItemStack.java
 +++ b/src/main/java/net/minecraft/server/RecipeItemStack.java
-@@ -18,7 +18,7 @@ import java.util.stream.Stream;
+@@ -9,6 +9,8 @@ import com.google.gson.JsonSyntaxException;
+ import it.unimi.dsi.fastutil.ints.IntArrayList;
+ import it.unimi.dsi.fastutil.ints.IntComparators;
+ import it.unimi.dsi.fastutil.ints.IntList;
++import org.bukkit.craftbukkit.inventory.CraftItemStack;
++
+ import java.util.ArrayList;
+ import java.util.Arrays;
+ import java.util.Collection;
+@@ -18,12 +20,12 @@ import java.util.stream.Stream;
  import java.util.stream.StreamSupport;
  import javax.annotation.Nullable;
  
@@ -21,7 +32,13 @@ index 7ac07ac07ac0..7ac07ac07ac0 100644
      private static final Predicate<? super RecipeItemStack.Provider> b = (recipeitemstack$provider) -> {
          return !recipeitemstack$provider.a().stream().allMatch(ItemStack::isEmpty);
      };
-@@ -32,6 +32,21 @@ public final class RecipeItemStack implements Predicate<ItemStack> {
+     public static final RecipeItemStack a = new RecipeItemStack(Stream.empty());
+-    private final RecipeItemStack.Provider[] c;
++    private RecipeItemStack.Provider[] c; public final void setProvider(RecipeItemStack.Provider[] provider) { this.c = provider; }// Paper
+     public ItemStack[] choices;
+     private IntList e;
+ 
+@@ -32,6 +34,27 @@ public final class RecipeItemStack implements Predicate<ItemStack> {
              return new RecipeItemStack.Provider[i];
          });
      }
@@ -32,29 +49,36 @@ index 7ac07ac07ac0..7ac07ac07ac0 100644
 +        public CraftRecipeChoice(org.bukkit.inventory.RecipeChoice choice) {
 +            super(Stream.empty());
 +            this.choice = choice;
++            this.setProvider(choice.getItemStackChoices().stream().map(item -> new StackProvider(CraftItemStack.asNMSCopy(item))).toArray(Provider[]::new));
 +        }
++
 +
 +        @Override
 +        public boolean testAgainst(@Nullable ItemStack itemstack) {
 +            return itemstack != null && choice.test(itemstack.getBukkitStack());
++        }
++
++        public org.bukkit.inventory.RecipeChoice getRecipeChoice() {
++            return this.choice;
 +        }
 +    }
 +    // Paper end
  
      public void buildChoices() {
          if (this.choices == null) {
-@@ -44,7 +59,9 @@ public final class RecipeItemStack implements Predicate<ItemStack> {
- 
+@@ -45,6 +68,11 @@ public final class RecipeItemStack implements Predicate<ItemStack> {
      }
  
--    public boolean a(@Nullable ItemStack itemstack) {
-+
-+    public boolean a(@Nullable ItemStack itemstack) { return testAgainst(itemstack); } // Paper
-+    public boolean testAgainst(@Nullable ItemStack itemstack) { // Paper - rename
+     public boolean a(@Nullable ItemStack itemstack) {
++        // Paper start
++        return testAgainst(itemstack);
++    }
++    public boolean testAgainst(@Nullable ItemStack itemstack) {
++        // Paper end
          if (itemstack == null) {
              return false;
          } else if (this.c.length == 0) {
-@@ -173,7 +190,7 @@ public final class RecipeItemStack implements Predicate<ItemStack> {
+@@ -173,7 +201,7 @@ public final class RecipeItemStack implements Predicate<ItemStack> {
      }
  
      // $FF: synthetic method
@@ -63,6 +87,49 @@ index 7ac07ac07ac0..7ac07ac07ac0 100644
          return this.a((ItemStack)object);
      }
  
+diff --git a/src/main/java/net/minecraft/server/ShapedRecipes.java b/src/main/java/net/minecraft/server/ShapedRecipes.java
+index 7ac07ac07ac0..7ac07ac07ac0 100644
+--- a/src/main/java/net/minecraft/server/ShapedRecipes.java
++++ b/src/main/java/net/minecraft/server/ShapedRecipes.java
+@@ -88,6 +88,12 @@ public class ShapedRecipes implements IRecipe {
+         }
+         char c = 'a';
+         for (RecipeItemStack list : this.items) {
++            // Paper start
++            if (list instanceof RecipeItemStack.CraftRecipeChoice) {
++                recipe.setIngredient(c, ((RecipeItemStack.CraftRecipeChoice) list).getRecipeChoice());
++                continue;
++            }
++            // Paper end
+             list.buildChoices();
+             if (list.choices.length > 0) {
+                 List<org.bukkit.Material> choices = new ArrayList<>(list.choices.length);
+diff --git a/src/main/java/net/minecraft/server/ShapelessRecipes.java b/src/main/java/net/minecraft/server/ShapelessRecipes.java
+index 7ac07ac07ac0..7ac07ac07ac0 100644
+--- a/src/main/java/net/minecraft/server/ShapelessRecipes.java
++++ b/src/main/java/net/minecraft/server/ShapelessRecipes.java
+@@ -35,6 +35,12 @@ public class ShapelessRecipes implements IRecipe {
+         recipe.setGroup(this.group);
+ 
+         for (RecipeItemStack list : this.ingredients) {
++            // Paper start
++            if (list instanceof RecipeItemStack.CraftRecipeChoice) {
++                recipe.addIngredient(((RecipeItemStack.CraftRecipeChoice) list).getRecipeChoice());
++                continue;
++            }
++            // Paper end
+             list.buildChoices();
+ 
+             List<org.bukkit.Material> choices = new ArrayList<>(list.choices.length);
+@@ -76,7 +82,7 @@ public class ShapelessRecipes implements IRecipe {
+ 
+                     if (!itemstack.isEmpty()) {
+                         ++i;
+-                        autorecipestackmanager.b(new ItemStack(itemstack.getItem()));
++                        autorecipestackmanager.b(itemstack.cloneItemStack()); // Paper - keep original with meta
+                     }
+                 }
+             }
 diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftRecipe.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftRecipe.java
 index 7ac07ac07ac0..7ac07ac07ac0 100644
 --- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftRecipe.java
