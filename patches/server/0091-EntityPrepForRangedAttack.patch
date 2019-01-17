@@ -13,7 +13,7 @@ diff --git a/src/main/java/net/minecraft/server/NavigationAbstract.java b/src/ma
 index 7ac07ac07ac0..7ac07ac07ac0 100644
 --- a/src/main/java/net/minecraft/server/NavigationAbstract.java
 +++ b/src/main/java/net/minecraft/server/NavigationAbstract.java
-@@ -118,6 +118,7 @@ public abstract class NavigationAbstract {
+@@ -126,6 +126,7 @@ public abstract class NavigationAbstract {
          return this.a(this.a(d0, d1, d2), d3);
      }
  
@@ -25,13 +25,14 @@ diff --git a/src/main/java/net/minecraft/server/PathfinderGoalArrowAttack.java b
 index 7ac07ac07ac0..7ac07ac07ac0 100644
 --- a/src/main/java/net/minecraft/server/PathfinderGoalArrowAttack.java
 +++ b/src/main/java/net/minecraft/server/PathfinderGoalArrowAttack.java
-@@ -1,16 +1,19 @@
+@@ -1,17 +1,20 @@
  package net.minecraft.server;
  
 +import com.destroystokyo.paper.entity.RangedEntity;
 +import com.destroystokyo.paper.event.entity.EntityPrepForRangedAttack;
 +
  public class PathfinderGoalArrowAttack extends PathfinderGoal {
+ 
 -    private final EntityInsentient a;
 +    private final EntityInsentient a; EntityInsentient getEntity() { return a; } // EMC - OBF HELPER
      private final IRangedEntity b;
@@ -48,16 +49,16 @@ index 7ac07ac07ac0..7ac07ac07ac0 100644
 -    public float j; // EMC - max ranged dist square
 +    public float j;public float getDistSq() { return j; } // EMC - OBF HELPER - max ranged dist square
  
-     public PathfinderGoalArrowAttack(IRangedEntity irangedentity, double d0, int ix, float fx) {
-         this(irangedentity, d0, ix, ix, fx);
-@@ -61,10 +64,18 @@ public class PathfinderGoalArrowAttack extends PathfinderGoal {
+     public PathfinderGoalArrowAttack(IRangedEntity irangedentity, double d0, int i, float f) {
+         this(irangedentity, d0, i, i, f);
+@@ -64,10 +67,18 @@ public class PathfinderGoalArrowAttack extends PathfinderGoal {
              this.f = 0;
          }
  
--        if (!(d0 > (double)this.j) && this.f >= 20) {
+-        if (d0 <= (double) this.j && this.f >= 20) {
 -            this.a.getNavigation().q();
 -        } else {
--            this.a.getNavigation().a(this.c, this.e);
+-            this.a.getNavigation().a((Entity) this.c, this.e);
 +        // EMC start
 +        boolean isInRange = d0 <= (double) this.getDistSq();
 +        boolean readyforAttack = getTimeLOS() >= 20;
@@ -65,7 +66,7 @@ index 7ac07ac07ac0..7ac07ac07ac0 100644
 +        if (!event.callEvent()) {
 +            return;
 +        }
-+        if (event.shouldStop()) {
++        if (event.shouldStop() && !event.shouldMoveNear()) {
 +            this.getEntity().getNavigation().stopPathfinding();
 +        } else if (event.shouldMoveNear()) {
 +            this.getEntity().getNavigation().findPathTo(this.getTarget(), this.getMoveSpeed());
@@ -77,13 +78,14 @@ diff --git a/src/main/java/net/minecraft/server/PathfinderGoalBowShoot.java b/sr
 index 7ac07ac07ac0..7ac07ac07ac0 100644
 --- a/src/main/java/net/minecraft/server/PathfinderGoalBowShoot.java
 +++ b/src/main/java/net/minecraft/server/PathfinderGoalBowShoot.java
-@@ -1,12 +1,15 @@
+@@ -1,13 +1,16 @@
  package net.minecraft.server;
  
 +import com.destroystokyo.paper.entity.RangedEntity;
 +import com.destroystokyo.paper.event.entity.EntityPrepForRangedAttack;
 +
  public class PathfinderGoalBowShoot<T extends EntityMonster & IRangedEntity> extends PathfinderGoal {
+ 
 -    private final T a;
 -    private final double b;
 +    private final T a; EntityInsentient getEntity() { return a; } // EMC - OBF HELPER
@@ -96,25 +98,25 @@ index 7ac07ac07ac0..7ac07ac07ac0 100644
      private boolean g;
      private boolean h;
      private int i = -1;
-@@ -64,11 +67,20 @@ public class PathfinderGoalBowShoot<T extends EntityMonster & IRangedEntity> ext
+@@ -67,11 +70,20 @@ public class PathfinderGoalBowShoot<T extends EntityMonster & IRangedEntity> ext
                  --this.f;
              }
  
--            if (!(d0 > (double)this.d) && this.f >= 20) {
+-            if (d0 <= (double) this.d && this.f >= 20) {
 -                this.a.getNavigation().q();
 +            // EMC start
-+            boolean isInRange = d0 <= (double) this.getDistSq() && this.getTimeLOS() >= 20;
++            boolean isInRange = d0 <= (double) this.getDistSq();
 +            boolean readyforAttack = getTimeLOS() >= 20;
 +            EntityPrepForRangedAttack
 +                event = new EntityPrepForRangedAttack((RangedEntity) getEntity().getBukkitEntity(), entityliving.getBukkitLivingEntity(), readyforAttack, !isInRange, getTimeLOS());
 +            if (!event.callEvent()) {
 +                return;
 +            }
-+            if (event.shouldStop()) {
-+                this.getEntity().getNavigation().p();
++            if (event.shouldStop() && !event.shouldMoveNear()) {
++                this.getEntity().getNavigation().stopPathfinding();
                  ++this.i;
 -            } else {
--                this.a.getNavigation().a(entityliving, this.b);
+-                this.a.getNavigation().a((Entity) entityliving, this.b);
 +            } else if (event.shouldMoveNear()){
 +                this.getEntity().getNavigation().findPathTo(entityliving, this.getMoveSpeed());
 +                // EMC end
@@ -122,5 +124,5 @@ index 7ac07ac07ac0..7ac07ac07ac0 100644
              }
  
 -- 
-2.19.1
+2.20.1
 

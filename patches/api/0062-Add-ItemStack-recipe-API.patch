@@ -5,104 +5,21 @@ Subject: [PATCH] Add ItemStack recipe API
 
 Allows using custom items in Crafting Recipes
 ---
- .../inventory/ItemStackRecipeChoice.java      |  9 ++++++-
- .../org/bukkit/inventory/RecipeChoice.java    | 19 +++++++++++++
- .../org/bukkit/inventory/ShapedRecipe.java    |  9 +++++++
+ .../org/bukkit/inventory/ShapedRecipe.java    |  6 +++++
  .../org/bukkit/inventory/ShapelessRecipe.java | 27 +++++++++++++++++++
- 4 files changed, 63 insertions(+), 1 deletion(-)
+ 2 files changed, 33 insertions(+)
 
-diff --git a/src/main/java/com/destroystokyo/paper/inventory/ItemStackRecipeChoice.java b/src/main/java/com/destroystokyo/paper/inventory/ItemStackRecipeChoice.java
-index 7ac07ac07ac0..7ac07ac07ac0 100644
---- a/src/main/java/com/destroystokyo/paper/inventory/ItemStackRecipeChoice.java
-+++ b/src/main/java/com/destroystokyo/paper/inventory/ItemStackRecipeChoice.java
-@@ -4,6 +4,7 @@ import org.bukkit.inventory.ItemStack;
- import org.bukkit.inventory.RecipeChoice;
- 
- import java.util.ArrayList;
-+import java.util.Collections;
- import java.util.List;
- 
- /**
-@@ -28,6 +29,11 @@ public class ItemStackRecipeChoice implements RecipeChoice {
-         return choices.isEmpty() ? null : choices.get(0);
-     }
- 
-+    @Override
-+    public List<ItemStack> getItemStackChoices() {
-+        return Collections.unmodifiableList(choices);
-+    }
-+
-     @Override
-     public RecipeChoice clone() {
-         try {
-@@ -43,7 +49,8 @@ public class ItemStackRecipeChoice implements RecipeChoice {
-     public boolean test(ItemStack itemStack) {
-         for (ItemStack stack : choices) {
-             if (stack.isSimilar(itemStack)) {
--                return true;
-+                System.out.println(stack + " = " + itemStack);
-+                return false;
-             }
-         }
-         return false;
-diff --git a/src/main/java/org/bukkit/inventory/RecipeChoice.java b/src/main/java/org/bukkit/inventory/RecipeChoice.java
-index 7ac07ac07ac0..7ac07ac07ac0 100644
---- a/src/main/java/org/bukkit/inventory/RecipeChoice.java
-+++ b/src/main/java/org/bukkit/inventory/RecipeChoice.java
-@@ -6,6 +6,8 @@ import java.util.Collections;
- import java.util.List;
- import java.util.Objects;
- import java.util.function.Predicate;
-+import java.util.stream.Collectors;
-+
- import org.bukkit.Material;
- 
- /**
-@@ -27,6 +29,13 @@ public interface RecipeChoice extends Predicate<ItemStack>, Cloneable {
- 
-     RecipeChoice clone();
- 
-+    // Paper start
-+    default List<ItemStack> getItemStackChoices() {
-+        ItemStack itemStack = getItemStack();
-+        return itemStack != null ? com.google.common.collect.Lists.newArrayList(itemStack) : com.google.common.collect.Lists.newArrayList();
-+    }
-+    // Paper end
-+
-     /**
-      * Represents a choice of multiple matching Materials.
-      */
-@@ -40,6 +49,16 @@ public interface RecipeChoice extends Predicate<ItemStack>, Cloneable {
-             this.choices = choices;
-         }
- 
-+        // Paper start
-+        private List<ItemStack> stacks;
-+        public List<ItemStack> getItemStackChoices() {
-+            if (stacks == null) {
-+                stacks = this.choices.stream().map(ItemStack::new).collect(Collectors.toList());
-+            }
-+            return stacks;
-+        }
-+        // Paper end
-+
-         @Override
-         public boolean test(ItemStack t) {
-             for (Material match : choices) {
 diff --git a/src/main/java/org/bukkit/inventory/ShapedRecipe.java b/src/main/java/org/bukkit/inventory/ShapedRecipe.java
 index 7ac07ac07ac0..7ac07ac07ac0 100644
 --- a/src/main/java/org/bukkit/inventory/ShapedRecipe.java
 +++ b/src/main/java/org/bukkit/inventory/ShapedRecipe.java
-@@ -139,6 +139,15 @@ public class ShapedRecipe implements Recipe, Keyed {
+@@ -139,6 +139,12 @@ public class ShapedRecipe implements Recipe, Keyed {
          return this;
      }
  
 +    // Paper start
 +    public ShapedRecipe setIngredient(char key, ItemStack item) {
-+        Validate.isTrue(ingredients.containsKey(key), "Symbol does not appear in the shape:", key);
-+
-+        ingredients.put(key, new com.destroystokyo.paper.inventory.ItemStackRecipeChoice(item));
-+        return this;
++        return setIngredient(key, new RecipeChoice.ExactChoice(item));
 +    }
 +    // Paper end
 +
@@ -124,7 +41,7 @@ index 7ac07ac07ac0..7ac07ac07ac0 100644
 +    public ShapelessRecipe addIngredient(int count, ItemStack item) {
 +        Validate.isTrue(ingredients.size() + count <= 9, "Shapeless recipes cannot have more than 9 ingredients");
 +        while (count-- > 0) {
-+            ingredients.add(new com.destroystokyo.paper.inventory.ItemStackRecipeChoice(item));
++            ingredients.add(new RecipeChoice.ExactChoice(item));
 +        }
 +        return this;
 +    }
@@ -135,7 +52,7 @@ index 7ac07ac07ac0..7ac07ac07ac0 100644
 +        Iterator<RecipeChoice> iterator = ingredients.iterator();
 +        while (count > 0 && iterator.hasNext()) {
 +            ItemStack stack = iterator.next().getItemStack();
-+            if (stack.isSimilar(item)) {
++            if (stack.equals(item)) {
 +                iterator.remove();
 +                count--;
 +            }
@@ -148,5 +65,5 @@ index 7ac07ac07ac0..7ac07ac07ac0 100644
          Validate.isTrue(ingredients.size() + 1 <= 9, "Shapeless recipes cannot have more than 9 ingredients");
  
 -- 
-2.19.1
+2.20.1
 
