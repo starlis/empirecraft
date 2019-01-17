@@ -1,0 +1,80 @@
+From 7ac07ac07ac07ac07ac07ac07ac07ac07ac07ac0 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Wed, 16 Jan 2019 21:29:20 -0500
+Subject: [PATCH] Add API to skip checking names for exact stack matches
+
+---
+ src/main/java/org/bukkit/inventory/RecipeChoice.java   |  9 ++++++++-
+ src/main/java/org/bukkit/inventory/ShapedRecipe.java   |  3 +++
+ .../java/org/bukkit/inventory/ShapelessRecipe.java     | 10 ++++++++--
+ 3 files changed, 19 insertions(+), 3 deletions(-)
+
+diff --git a/src/main/java/org/bukkit/inventory/RecipeChoice.java b/src/main/java/org/bukkit/inventory/RecipeChoice.java
+index 7ac07ac07ac0..7ac07ac07ac0 100644
+--- a/src/main/java/org/bukkit/inventory/RecipeChoice.java
++++ b/src/main/java/org/bukkit/inventory/RecipeChoice.java
+@@ -123,6 +123,13 @@ public interface RecipeChoice extends Predicate<ItemStack>, Cloneable {
+         private ItemStack stack;
+ 
+         public ExactChoice(ItemStack stack) {
++            // Paper start
++            this(stack, false);
++        }
++        private final boolean skipCheckingName;
++        public ExactChoice(ItemStack stack, boolean skipCheckingName) {
++            this.skipCheckingName = skipCheckingName;
++            // Paper end
+             Preconditions.checkArgument(stack != null, "stack");
+             this.stack = stack;
+         }
+@@ -145,7 +152,7 @@ public interface RecipeChoice extends Predicate<ItemStack>, Cloneable {
+ 
+         @Override
+         public boolean test(ItemStack t) {
+-            return stack.equals(t);
++            return stack.isSimilar(t, false, skipCheckingName); // Paper
+         }
+     }
+ }
+diff --git a/src/main/java/org/bukkit/inventory/ShapedRecipe.java b/src/main/java/org/bukkit/inventory/ShapedRecipe.java
+index 7ac07ac07ac0..7ac07ac07ac0 100644
+--- a/src/main/java/org/bukkit/inventory/ShapedRecipe.java
++++ b/src/main/java/org/bukkit/inventory/ShapedRecipe.java
+@@ -143,6 +143,9 @@ public class ShapedRecipe implements Recipe, Keyed {
+     public ShapedRecipe setIngredient(char key, ItemStack item) {
+         return setIngredient(key, new RecipeChoice.ExactChoice(item));
+     }
++    public ShapedRecipe setIngredient(char key, ItemStack item, boolean skipCheckingName) {
++        return setIngredient(key, new RecipeChoice.ExactChoice(item, skipCheckingName));
++    }
+     // Paper end
+ 
+     /**
+diff --git a/src/main/java/org/bukkit/inventory/ShapelessRecipe.java b/src/main/java/org/bukkit/inventory/ShapelessRecipe.java
+index 7ac07ac07ac0..7ac07ac07ac0 100644
+--- a/src/main/java/org/bukkit/inventory/ShapelessRecipe.java
++++ b/src/main/java/org/bukkit/inventory/ShapelessRecipe.java
+@@ -130,12 +130,18 @@ public class ShapelessRecipe implements Recipe, Keyed {
+ 
+     // Paper start
+     public ShapelessRecipe addIngredient(ItemStack item) {
+-        return addIngredient(1, item);
++        return addIngredient(1, item, false);
++    }
++    public ShapelessRecipe addIngredient(ItemStack item, boolean skipCheckingName) {
++        return addIngredient(1, item, skipCheckingName);
+     }
+     public ShapelessRecipe addIngredient(int count, ItemStack item) {
++        return addIngredient(count, item, false);
++    }
++    public ShapelessRecipe addIngredient(int count, ItemStack item, boolean skipCheckingName) {
+         Validate.isTrue(ingredients.size() + count <= 9, "Shapeless recipes cannot have more than 9 ingredients");
+         while (count-- > 0) {
+-            ingredients.add(new RecipeChoice.ExactChoice(item));
++            ingredients.add(new RecipeChoice.ExactChoice(item, skipCheckingName));
+         }
+         return this;
+     }
+-- 
+2.20.1
+
