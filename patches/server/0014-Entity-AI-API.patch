@@ -1,11 +1,11 @@
-From aac0081ce822e861492e0ee8140daf7f5ae16261 Mon Sep 17 00:00:00 2001
+From 88b268984140018cb75fd887ba17f6a36b267963 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Tue, 6 Dec 2016 22:22:14 -0500
 Subject: [PATCH] Entity AI API
 
 ---
- .../empireminecraft/api/CraftEAPI_Entity.java | 183 ++++++++-
- .../com/empireminecraft/api/EntityAIApi.java  | 360 ++++++++++++++++++
+ .../empireminecraft/api/CraftEAPI_Entity.java | 137 +++++++-
+ .../com/empireminecraft/api/EntityAIApi.java  | 293 ++++++++++++++++++
  .../minecraft/server/AttributesAccessor.java  |   1 +
  .../java/net/minecraft/server/Entity.java     |  15 +-
  .../net/minecraft/server/EntityAnimal.java    |   2 +-
@@ -13,7 +13,7 @@ Subject: [PATCH] Entity AI API
  .../net/minecraft/server/EntityCreature.java  |   1 +
  .../minecraft/server/EntityEnderSignal.java   |  20 +-
  .../net/minecraft/server/EntityGhast.java     |   3 +-
- .../minecraft/server/EntityGoalAccessor.java  |  20 +
+ .../minecraft/server/EntityGoalAccessor.java  |  20 ++
  .../java/net/minecraft/server/EntityItem.java |   3 +-
  .../net/minecraft/server/EntityLiving.java    |  13 +-
  .../net/minecraft/server/EntitySpider.java    |   4 +
@@ -24,19 +24,19 @@ Subject: [PATCH] Entity AI API
  .../minecraft/server/PathfinderGoalPanic.java |   3 +-
  .../server/PathfinderGoalSelector.java        |  10 +-
  src/main/java/net/minecraft/server/World.java |   3 +-
- .../bukkit/craftbukkit/entity/CraftBlaze.java |  18 +
+ .../bukkit/craftbukkit/entity/CraftBlaze.java |  18 ++
  .../craftbukkit/entity/CraftEnderSignal.java  |   3 +-
  .../bukkit/craftbukkit/entity/CraftGhast.java |   9 +
  .../java/org/spigotmc/ActivationRange.java    |   1 +
- 24 files changed, 687 insertions(+), 28 deletions(-)
+ 24 files changed, 572 insertions(+), 30 deletions(-)
  create mode 100644 src/main/java/com/empireminecraft/api/EntityAIApi.java
  create mode 100644 src/main/java/net/minecraft/server/EntityGoalAccessor.java
 
 diff --git a/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java b/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
-index 0a1f690690..2aaf4d1f7c 100644
+index 0a1f690690..b4e2ab9c9d 100644
 --- a/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
 +++ b/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
-@@ -23,11 +23,25 @@
+@@ -23,12 +23,21 @@
  
  package com.empireminecraft.api;
  
@@ -49,21 +49,19 @@ index 0a1f690690..2aaf4d1f7c 100644
 +import org.bukkit.craftbukkit.entity.CraftSpider;
 +import org.bukkit.craftbukkit.entity.CraftWolf;
 +import org.bukkit.entity.Animals;
-+import org.bukkit.entity.ArmorStand;
 +import org.bukkit.entity.Creature;
 +import org.bukkit.entity.EnderSignal;
  import org.bukkit.entity.Entity;
+-
+-import java.util.ArrayList;
+-import java.util.List;
 +import org.bukkit.entity.Item;
-+import org.bukkit.entity.LivingEntity;
-+import org.bukkit.entity.Monster;
 +import org.bukkit.entity.Spider;
 +import org.bukkit.entity.Wolf;
  
--import java.util.ArrayList;
- import java.util.List;
- 
  public class CraftEAPI_Entity implements EAPI_Entity {
-@@ -39,6 +53,173 @@ public class CraftEAPI_Entity implements EAPI_Entity {
+ 
+@@ -39,6 +48,128 @@ public class CraftEAPI_Entity implements EAPI_Entity {
          return task;
      }
  
@@ -189,60 +187,15 @@ index 0a1f690690..2aaf4d1f7c 100644
 +        return EntityAIApi.getEnderSignalLife(enderSignal);
 +    }
 +
-+    @Override
-+    public boolean hasEntityPath(Mob entity) {
-+        return EntityAIApi.hasEntityPath(entity);
-+    }
-+
-+    @Override
-+    public Location getEntityPathDestination(Mob entity) {
-+        return EntityAIApi.getEntityPathDestination(entity);
-+    }
-+
-+    @Override
-+    public Location getEntityPathDestination(Mob entity, Location loc) {
-+        return EntityAIApi.getEntityPathDestination(entity, loc);
-+    }
-+
-+    @Override
-+    public Location getEntityPathDestination(Mob entity, LivingEntity target) {
-+        return EntityAIApi.getEntityPathDestination(entity, target);
-+    }
-+
-+    @Override
-+    public Integer getEntityPathIndex(Mob entity) {
-+        return EntityAIApi.getEntityPathIndex(entity);
-+    }
-+
-+    @Override
-+    public Location getEntityNextPathLoc(Mob entity) {
-+        return EntityAIApi.getEntityNextPathLoc(entity);
-+    }
-+
-+    @Override
-+    public List<Location> getEntityPathPoints(Mob entity) {
-+        return EntityAIApi.getEntityPathPoints(entity);
-+    }
-+
-+    @Override
-+    public boolean setEntityDestination(Mob entity, Location loc, double speed) {
-+        return EntityAIApi.setEntityDestination(entity, loc, speed);
-+    }
-+
-+    @Override
-+    public boolean setEntityDestination(Mob entity, LivingEntity target, double speed) {
-+        return EntityAIApi.setEntityDestination(entity, target, speed);
-+    }
-+
      public void cancelTasks(Entity entity) {
          ((CraftEntity) entity).getHandle().entityTasks.clear();
      }
 diff --git a/src/main/java/com/empireminecraft/api/EntityAIApi.java b/src/main/java/com/empireminecraft/api/EntityAIApi.java
 new file mode 100644
-index 0000000000..d89e742249
+index 0000000000..719c394387
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/api/EntityAIApi.java
-@@ -0,0 +1,360 @@
+@@ -0,0 +1,293 @@
 +package com.empireminecraft.api;
 +
 +import com.destroystokyo.paper.entity.RangedEntity;
@@ -259,11 +212,8 @@ index 0000000000..d89e742249
 +
 +import java.lang.reflect.Constructor;
 +import java.util.ArrayList;
-+import java.util.Arrays;
-+import java.util.Collections;
 +import java.util.List;
 +import java.util.Set;
-+import java.util.stream.Collectors;
 +
 +public final class EntityAIApi {
 +
@@ -502,70 +452,6 @@ index 0000000000..d89e742249
 +        return getInsentientHandle(entity).getNavigation().getPathEntity();
 +    }
 +
-+    public static boolean hasEntityPath(Mob entity) {
-+        final PathEntity pathEntity = getPathEntity(entity);
-+        return (pathEntity != null);
-+    }
-+
-+    public static Location getEntityPathDestination(Mob entity) {
-+        final PathEntity pathEntity = getPathEntity(entity);
-+        return getFinalLocation(entity, pathEntity);
-+    }
-+
-+    public static Location getEntityPathDestination(Mob entity, Location loc) {
-+        final EntityInsentient handle = getInsentientHandle(entity);
-+        PathEntity path = getPathEntity(loc, handle);
-+        return getFinalLocation(entity, path);
-+    }
-+    public static Location getEntityPathDestination(Mob entity, LivingEntity target) {
-+        final EntityInsentient handle = getInsentientHandle(entity);
-+        PathEntity path = getPathEntity(target, handle);
-+        return getFinalLocation(entity, path);
-+    }
-+
-+    public static boolean setEntityDestination(Mob entity, Location loc, double speed) {
-+        final EntityInsentient handle = getInsentientHandle(entity);
-+        PathEntity path = getPathEntity(loc, handle);
-+        handle.getNavigation().a(path, speed);
-+        return path != null;
-+    }
-+
-+    public static boolean setEntityDestination(Mob entity, LivingEntity target, double speed) {
-+        final EntityInsentient handle = getInsentientHandle(entity);
-+        PathEntity path = getPathEntity(target, handle);
-+        handle.getNavigation().a(path, speed);
-+        return path != null;
-+    }
-+
-+    public static Integer getEntityPathIndex(Mob entity) {
-+        final PathEntity pathEntity = getPathEntity(entity);
-+        if (pathEntity == null) {
-+            return null;
-+        }
-+        return pathEntity.getNextIndex();
-+    }
-+    public static Location getEntityNextPathLoc(Mob entity) {
-+        final PathEntity pathEntity = getPathEntity(entity);
-+        if (pathEntity == null) {
-+            return null;
-+        }
-+        if (!pathEntity.hasNext()) {
-+            return null;
-+        }
-+        Vec3D nextPoint = pathEntity.getNext();
-+        return new Location(entity.getWorld(), nextPoint.x, nextPoint.y, nextPoint.z);
-+    }
-+    public static List<Location> getEntityPathPoints(Mob entity) {
-+        final PathEntity pathEntity = getPathEntity(entity);
-+        if (pathEntity == null) {
-+            return Collections.emptyList();
-+        }
-+
-+        return Arrays.stream(pathEntity.getPoints())
-+              .map(nextPoint -> new Location(entity.getWorld(), nextPoint.a, nextPoint.b, nextPoint.c))
-+        .collect(Collectors.toList());
-+    }
-+
 +
 +    private static PathEntity getPathEntity(Location loc, EntityInsentient handle) {
 +        final boolean onGround = handle.onGround;
@@ -616,7 +502,7 @@ index f003c990b9..ff916436b4 100644
              map.registerAttribute(targetRange);
              if (entity instanceof Wither) {
 diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
-index 0ecc3b488e..67fb4f4257 100644
+index 61d585ac76..e53a09d4af 100644
 --- a/src/main/java/net/minecraft/server/Entity.java
 +++ b/src/main/java/net/minecraft/server/Entity.java
 @@ -147,7 +147,9 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
@@ -916,7 +802,7 @@ index 03fee65e45..2f80577bbb 100644
                  if (org.bukkit.craftbukkit.event.CraftEventFactory.callItemDespawnEvent(this).isCancelled()) {
                      this.age = 0;
 diff --git a/src/main/java/net/minecraft/server/EntityLiving.java b/src/main/java/net/minecraft/server/EntityLiving.java
-index 9d99381872..e646502b42 100644
+index 12ac0c3694..a2c5ab984c 100644
 --- a/src/main/java/net/minecraft/server/EntityLiving.java
 +++ b/src/main/java/net/minecraft/server/EntityLiving.java
 @@ -429,6 +429,7 @@ public abstract class EntityLiving extends Entity {
@@ -1109,7 +995,7 @@ index 3e2f9c749b..8014786dfb 100644
          public boolean c;
  
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index 65e31987b7..b164b880b1 100644
+index 29749bf47e..9b8480c9f6 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
 @@ -1137,6 +1137,7 @@ public abstract class World implements IEntityAccess, GeneratorAccess, IIBlockAc
