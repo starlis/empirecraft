@@ -1,38 +1,131 @@
-From 75412b5733aaa71018eaa03ad69ecb8e4848ced7 Mon Sep 17 00:00:00 2001
+From 88d338d745502c4632d277872fa468571214df02 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Fri, 29 Mar 2019 21:45:09 -0400
 Subject: [PATCH] amend ensureServerConversions
 
 pending paper merge, store data version on stacks
 ---
- src/main/java/org/bukkit/inventory/ItemStack.java | 7 +++++++
- 1 file changed, 7 insertions(+)
+ .../org/bukkit/inventory/ItemFactory.java     | 25 +++++++++---
+ .../java/org/bukkit/inventory/ItemStack.java  | 39 ++++++++++++++++---
+ 2 files changed, 52 insertions(+), 12 deletions(-)
 
+diff --git a/src/main/java/org/bukkit/inventory/ItemFactory.java b/src/main/java/org/bukkit/inventory/ItemFactory.java
+index 56734f8ee..a02e46c4c 100644
+--- a/src/main/java/org/bukkit/inventory/ItemFactory.java
++++ b/src/main/java/org/bukkit/inventory/ItemFactory.java
+@@ -144,13 +144,26 @@ public interface ItemFactory {
+     Material updateMaterial(@NotNull final ItemMeta meta, @NotNull final Material material) throws IllegalArgumentException;
+     // Paper start
+     /**
+-     * Minecart updates are converting simple item stacks into more complex NBT oriented Item Stacks.
+-     *
+-     * Use this method to to ensure any desired data conversions are processed.
+-     * The input itemstack will not be the same as the returned itemstack.
++     * Used during data conversion. Don't use this. internal only
++     * @param meta
++     * @param dataVersion
++     * @deprecated Don't use this
++     */
++    @Deprecated
++    public void _setItemMetaDataVersion(ItemMeta meta, int dataVersion);
++    /**
++     * Ensure that this stack is represented by an Internal Item Stack
++     * @param item The stack to ensure is internal
++     * @return A CraftItemStack backed ItemStack with an internal representation
++     * @deprecated Don't use this
++     */
++    @Deprecated
++    ItemStack _asServerItemStack(ItemStack item);
++
++    /**
++     * Runs all Minecraft Data Fixer updates on this ItemStack that are needed.
+      *
+-     * @param item The item to process conversions on
+-     * @return A potentially Data Converted ItemStack
++     * @return A new stack with up to date data
+      */
+     @NotNull
+     ItemStack ensureServerConversions(@NotNull ItemStack item);
 diff --git a/src/main/java/org/bukkit/inventory/ItemStack.java b/src/main/java/org/bukkit/inventory/ItemStack.java
-index 68b1f6d63..d48e1cc1a 100644
+index 68b1f6d63..bca5fc505 100644
 --- a/src/main/java/org/bukkit/inventory/ItemStack.java
 +++ b/src/main/java/org/bukkit/inventory/ItemStack.java
-@@ -27,6 +27,7 @@ public class ItemStack implements Cloneable, ConfigurationSerializable {
+@@ -27,6 +27,31 @@ public class ItemStack implements Cloneable, ConfigurationSerializable {
      private int amount = 0;
      private MaterialData data = null;
      private ItemMeta meta;
-+    public int dataVersion = Bukkit.getUnsafe().getDataVersion(); // Paper
++    // Paper start
++    protected int dataVersion = Bukkit.getUnsafe().getDataVersion();
++
++    /**
++     * Get's the DataVersion of this item stack, usually always the current version.
++     * If you do not know your data version from pre 1.13.2, you may call .setDataVersion(-1)
++     * and call {@link #ensureServerConversions()}.
++     * @return The Data Version of this itemstack.
++     */
++    public int getDataVersion() {
++        return dataVersion;
++    }
++
++    /**
++     * Sets the DataVersion of this item stack, in preparation for calling {@link #ensureServerConversions()}
++     * You should not use this method unless you are converting known legacy data.
++     * @param dataVersion The data version. Use -1 for pre 1.13.2 data. Any stack created post 1.13.2 needs to know its data version
++     * @return previous data version
++     */
++    public int setDataVersion(int dataVersion) {
++        int previousDataVersion = this.dataVersion;
++        this.dataVersion = dataVersion;
++        return previousDataVersion;
++    }
++    // Paper end
  
      @Utility
      protected ItemStack() {}
-@@ -584,6 +585,12 @@ public class ItemStack implements Cloneable, ConfigurationSerializable {
-             }
+@@ -503,7 +528,7 @@ public class ItemStack implements Cloneable, ConfigurationSerializable {
+     public Map<String, Object> serialize() {
+         Map<String, Object> result = new LinkedHashMap<String, Object>();
+ 
+-        result.put("v", Bukkit.getUnsafe().getDataVersion()); // Include version to indicate we are using modern material names (or LEGACY prefix)
++        result.put("v", this.dataVersion); // Paper
+         result.put("type", getType().name());
+ 
+         if (getAmount() != 1) {
+@@ -555,6 +580,7 @@ public class ItemStack implements Cloneable, ConfigurationSerializable {
          }
  
-+        // Set damage again incase meta overwrote it
-+        if (args.containsKey("damage")) {
-+            result.setDurability(damage);
-+        }
-+
+         ItemStack result = new ItemStack(type, amount, damage);
 +        result.dataVersion = version; // Paper
-         return result.ensureServerConversions(); // Paper
+ 
+         if (args.containsKey("enchantments")) { // Backward compatiblity, @deprecated
+             Object raw = args.get("enchantments");
+@@ -573,6 +599,7 @@ public class ItemStack implements Cloneable, ConfigurationSerializable {
+         } else if (args.containsKey("meta")) { // We cannot and will not have meta when enchantments (pre-ItemMeta) exist
+             Object raw = args.get("meta");
+             if (raw instanceof ItemMeta) {
++                org.bukkit.Bukkit.getItemFactory()._setItemMetaDataVersion((ItemMeta) raw, version); // Paper
+                 result.setItemMeta((ItemMeta) raw);
+             }
+         }
+@@ -645,13 +672,13 @@ public class ItemStack implements Cloneable, ConfigurationSerializable {
      }
  
+     // Paper start
++    protected ItemStack asCraftItemStack() {
++        return Bukkit.getServer().getItemFactory()._asServerItemStack(this);
++    }
+     /**
+-     * Minecart updates are converting simple item stacks into more complex NBT oriented Item Stacks.
+-     *
+-     * Use this method to to ensure any desired data conversions are processed.
+-     * The input itemstack will not be the same as the returned itemstack.
++     * Runs all Minecraft Data Fixer updates on this ItemStack that are needed.
+      *
+-     * @return A potentially Data Converted ItemStack
++     * @return A new stack with up to date data
+      */
+     @NotNull
+     public ItemStack ensureServerConversions() {
 -- 
 2.21.0
 
