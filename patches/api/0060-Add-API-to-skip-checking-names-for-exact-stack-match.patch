@@ -1,0 +1,90 @@
+From df45a36a10216c563dad7fe35e61de9eb393b6b7 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Wed, 16 Jan 2019 21:29:20 -0500
+Subject: [PATCH] Add API to skip checking names for exact stack matches
+
+---
+ .../java/org/bukkit/inventory/RecipeChoice.java    | 12 +++++++++++-
+ .../java/org/bukkit/inventory/ShapedRecipe.java    |  3 +++
+ .../java/org/bukkit/inventory/ShapelessRecipe.java | 14 ++++++++++++--
+ 3 files changed, 26 insertions(+), 3 deletions(-)
+
+diff --git a/src/main/java/org/bukkit/inventory/RecipeChoice.java b/src/main/java/org/bukkit/inventory/RecipeChoice.java
+index 3d2c2b83a..178a63efd 100644
+--- a/src/main/java/org/bukkit/inventory/RecipeChoice.java
++++ b/src/main/java/org/bukkit/inventory/RecipeChoice.java
+@@ -152,7 +152,17 @@ public interface RecipeChoice extends Predicate<ItemStack>, Cloneable {
+             this(Arrays.asList(stacks));
+         }
+ 
++        // Paper start
++        private final boolean skipCheckingName;
+         public ExactChoice(@NotNull List<ItemStack> choices) {
++            this(choices, false);
++        }
++        public ExactChoice(@NotNull ItemStack stack, boolean skipCheckingName) {
++            this(Arrays.asList(stack), skipCheckingName);
++        }
++        public ExactChoice(@NotNull List<ItemStack> choices, boolean skipCheckingName) {
++            this.skipCheckingName = skipCheckingName;
++            // Paper end
+             Preconditions.checkArgument(choices != null, "choices");
+             Preconditions.checkArgument(!choices.isEmpty(), "Must have at least one choice");
+             for (ItemStack choice : choices) {
+@@ -188,7 +198,7 @@ public interface RecipeChoice extends Predicate<ItemStack>, Cloneable {
+         @Override
+         public boolean test(@NotNull ItemStack t) {
+             for (ItemStack match : choices) {
+-                if (t.isSimilar(match)) {
++                if (t.isSimilar(match, false, skipCheckingName)) { // Paper
+                     return true;
+                 }
+             }
+diff --git a/src/main/java/org/bukkit/inventory/ShapedRecipe.java b/src/main/java/org/bukkit/inventory/ShapedRecipe.java
+index 76b2dd7cb..a02aac90d 100644
+--- a/src/main/java/org/bukkit/inventory/ShapedRecipe.java
++++ b/src/main/java/org/bukkit/inventory/ShapedRecipe.java
+@@ -150,6 +150,9 @@ public class ShapedRecipe implements Recipe, Keyed {
+     public ShapedRecipe setIngredient(char key, @NotNull ItemStack item) {
+         return setIngredient(key, new RecipeChoice.ExactChoice(item));
+     }
++    public ShapedRecipe setIngredient(char key, @NotNull ItemStack item, boolean skipCheckingName) {
++        return setIngredient(key, new RecipeChoice.ExactChoice(item, skipCheckingName));
++    }
+     // Paper end
+ 
+     /**
+diff --git a/src/main/java/org/bukkit/inventory/ShapelessRecipe.java b/src/main/java/org/bukkit/inventory/ShapelessRecipe.java
+index 818bf2936..945f36bb2 100644
+--- a/src/main/java/org/bukkit/inventory/ShapelessRecipe.java
++++ b/src/main/java/org/bukkit/inventory/ShapelessRecipe.java
+@@ -146,14 +146,24 @@ public class ShapelessRecipe implements Recipe, Keyed {
+     // Paper start
+     @NotNull
+     public ShapelessRecipe addIngredient(@NotNull ItemStack item) {
+-        return addIngredient(1, item);
++        return addIngredient(1, item, false);
++    }
++
++    @NotNull
++    public ShapelessRecipe addIngredient(@NotNull ItemStack item, boolean skipCheckingName) {
++        return addIngredient(1, item, skipCheckingName);
+     }
+ 
+     @NotNull
+     public ShapelessRecipe addIngredient(int count, @NotNull ItemStack item) {
++        return addIngredient(count, item, false);
++    }
++
++    @NotNull
++    public ShapelessRecipe addIngredient(int count, @NotNull ItemStack item, boolean skipCheckingName) {
+         Validate.isTrue(ingredients.size() + count <= 9, "Shapeless recipes cannot have more than 9 ingredients");
+         while (count-- > 0) {
+-            ingredients.add(new RecipeChoice.ExactChoice(item));
++            ingredients.add(new RecipeChoice.ExactChoice(item, skipCheckingName));
+         }
+         return this;
+     }
+-- 
+2.21.0
+

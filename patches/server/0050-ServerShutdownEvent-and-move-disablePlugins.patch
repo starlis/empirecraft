@@ -1,0 +1,50 @@
+From f0a89b18b737ebab52f202d7dca4a2aa51acdd68 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Fri, 8 May 2015 19:56:21 -0400
+Subject: [PATCH] ServerShutdownEvent and move disablePlugins
+
+---
+ src/main/java/net/minecraft/server/MinecraftServer.java | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
+index b8d8a1fe1a..39b1f2fd1f 100644
+--- a/src/main/java/net/minecraft/server/MinecraftServer.java
++++ b/src/main/java/net/minecraft/server/MinecraftServer.java
+@@ -95,6 +95,7 @@ public abstract class MinecraftServer implements IAsyncTaskHandler, IMojangStati
+     private boolean z;
+     private boolean spawnAnimals;
+     private boolean spawnNPCs;
++    public String shutdownReason; // EMC
+     private boolean pvpMode;
+     private boolean allowFlight;
+     private String motd;
+@@ -648,7 +649,8 @@ public abstract class MinecraftServer implements IAsyncTaskHandler, IMojangStati
+         MinecraftTimings.stopServer(); // Paper
+         // CraftBukkit start
+         if (this.server != null) {
+-            this.server.disablePlugins();
++            // this.server.disablePlugins(); // EMC - Moved below after everything has unloaded so plugins can get events
++            new com.empireminecraft.customevents.ServerShutdownEvent(shutdownReason).callEvent(); // EMC
+         }
+         // CraftBukkit end
+         if (this.getServerConnection() != null) {
+@@ -683,6 +685,7 @@ public abstract class MinecraftServer implements IAsyncTaskHandler, IMojangStati
+                 worldserver.close();
+             }
+         }
++        if (server != null) { this.server.disablePlugins(); } // EMC
+ 
+         if (this.snooper.d()) {
+             this.snooper.e();
+@@ -714,6 +717,7 @@ public abstract class MinecraftServer implements IAsyncTaskHandler, IMojangStati
+     }
+ 
+     public void safeShutdown(boolean isRestarting) {
++        if (shutdownReason == null) { shutdownReason = "Server Shutting Down"; } // EMC
+         this.isRunning = false;
+         this.isRestarting = isRestarting;
+     }
+-- 
+2.21.0
+

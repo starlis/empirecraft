@@ -1,4 +1,4 @@
-From 4c2cfeb89e4711782320f58e98f014556aae30a5 Mon Sep 17 00:00:00 2001
+From 432db2c97ef22f1a207fd0ef77154bab7309961b Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Mon, 4 Mar 2013 23:35:02 -0500
 Subject: [PATCH] Persistent and Temporary Meta API
@@ -134,7 +134,7 @@ index 0000000000..a9a194b3a7
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/Chunk.java b/src/main/java/net/minecraft/server/Chunk.java
-index 2bcbf8902b..d88cb515a2 100644
+index f4a1939cc2..adc70cbdbc 100644
 --- a/src/main/java/net/minecraft/server/Chunk.java
 +++ b/src/main/java/net/minecraft/server/Chunk.java
 @@ -179,6 +179,8 @@ public class Chunk implements IChunkAccess {
@@ -147,7 +147,7 @@ index 2bcbf8902b..d88cb515a2 100644
      private boolean needsDecoration;
      // CraftBukkit end
 diff --git a/src/main/java/net/minecraft/server/ChunkRegionLoader.java b/src/main/java/net/minecraft/server/ChunkRegionLoader.java
-index 51df075b44..a5775051ca 100644
+index dce52ac0fa..cf7d5710c4 100644
 --- a/src/main/java/net/minecraft/server/ChunkRegionLoader.java
 +++ b/src/main/java/net/minecraft/server/ChunkRegionLoader.java
 @@ -1,6 +1,7 @@
@@ -158,7 +158,7 @@ index 51df075b44..a5775051ca 100644
  import com.google.common.collect.Maps;
  import com.mojang.datafixers.DataFixTypes;
  import com.mojang.datafixers.DataFixer;
-@@ -591,6 +592,7 @@ public class ChunkRegionLoader implements IChunkLoader, IAsyncChunkSaver {
+@@ -594,6 +595,7 @@ public class ChunkRegionLoader implements IChunkLoader, IAsyncChunkSaver {
      private void saveBody(Chunk chunk, World world, NBTTagCompound nbttagcompound, long worldTime, boolean worldHasSkyLight) { // Spigot
          nbttagcompound.setInt("xPos", chunk.locX);
          nbttagcompound.setInt("zPos", chunk.locZ);
@@ -166,7 +166,7 @@ index 51df075b44..a5775051ca 100644
          nbttagcompound.setLong("LastUpdate", worldTime); // Spigot
          nbttagcompound.setLong("InhabitedTime", chunk.m());
          nbttagcompound.setString("Status", chunk.i().b());
-@@ -764,7 +766,7 @@ public class ChunkRegionLoader implements IChunkLoader, IAsyncChunkSaver {
+@@ -767,7 +769,7 @@ public class ChunkRegionLoader implements IChunkLoader, IAsyncChunkSaver {
                  }
              }
          }
@@ -176,7 +176,7 @@ index 51df075b44..a5775051ca 100644
  
          chunk.a(this.c(generatoraccess, nbttagcompound2));
 diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
-index 5aa26d9eeb..8f2fd6774e 100644
+index 0c58a4766a..9679aba26d 100644
 --- a/src/main/java/net/minecraft/server/Entity.java
 +++ b/src/main/java/net/minecraft/server/Entity.java
 @@ -48,6 +48,7 @@ import org.bukkit.plugin.PluginManager;
@@ -187,7 +187,7 @@ index 5aa26d9eeb..8f2fd6774e 100644
      private static final int CURRENT_LEVEL = 2;
      // Paper start
      public static Random SHARED_RANDOM = new Random() {
-@@ -1589,6 +1590,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+@@ -1590,6 +1591,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
                  this.yaw = 0;
              }
  
@@ -195,14 +195,14 @@ index 5aa26d9eeb..8f2fd6774e 100644
              if (Float.isNaN(this.pitch)) {
                  this.pitch = 0;
              }
-@@ -1824,6 +1826,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
-             }
+@@ -1822,6 +1824,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+             // CraftBukkit end
  
-             spawnedViaMobSpawner = nbttagcompound.getBoolean("Paper.FromMobSpawner"); // Restore entity's from mob spawner status
+             // Paper start - Restore the entity's origin location
 +            MetaApiAccessor.loadEntityMeta(this, nbttagcompound); // EMC
-             // Paper end
- 
-         } catch (Throwable throwable) {
+             NBTTagList originTag = nbttagcompound.getList("Paper.Origin", 6);
+             if (!originTag.isEmpty()) {
+                 origin = new Location(world.getWorld(), originTag.getDoubleAt(0), originTag.getDoubleAt(1), originTag.getDoubleAt(2));
 diff --git a/src/main/java/net/minecraft/server/MetaApiAccessor.java b/src/main/java/net/minecraft/server/MetaApiAccessor.java
 new file mode 100644
 index 0000000000..1b75ee1f87
@@ -744,7 +744,7 @@ index d67fd92d9d..9ce9022ca5 100644
      // Paper start
      public InventoryHolder getOwner() {
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index 93b459c2cc..1570ece329 100644
+index 4031733e36..8a283b828a 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
 @@ -473,6 +473,7 @@ public abstract class World implements IEntityAccess, GeneratorAccess, IIBlockAc
@@ -862,7 +862,7 @@ index 97385bd4d7..77b22a73e7 100644
 +    // EMC end
 +}
 diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java
-index d4a8fb16b8..94d6861647 100644
+index 51f70c5eec..05280ea975 100644
 --- a/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java
 +++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java
 @@ -1,5 +1,6 @@
@@ -882,7 +882,7 @@ index d4a8fb16b8..94d6861647 100644
  
      protected final CraftServer server;
 diff --git a/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java b/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
-index a2887668af..2a0a6334b6 100644
+index d08ca34f3e..5a7a585e40 100644
 --- a/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
 +++ b/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
 @@ -1192,6 +1192,11 @@ public class CraftEventFactory {

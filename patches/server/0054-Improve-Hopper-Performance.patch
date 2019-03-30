@@ -1,0 +1,141 @@
+From 4206d48136e5d6ed8b9f1915689c2205aefeb5d9 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Fri, 29 May 2015 21:58:24 -0400
+Subject: [PATCH] Improve Hopper Performance
+
+Only do an item "suck in" action once per second
+---
+ .../java/net/minecraft/server/EntityItem.java | 15 +++++++++++++++
+ .../server/EntityMinecartHopper.java          | 16 ++++++++++++++++
+ .../java/net/minecraft/server/IHopper.java    |  8 +++++---
+ .../minecraft/server/TileEntityHopper.java    | 19 ++++++++++++++++++-
+ 4 files changed, 54 insertions(+), 4 deletions(-)
+
+diff --git a/src/main/java/net/minecraft/server/EntityItem.java b/src/main/java/net/minecraft/server/EntityItem.java
+index 96a651e99e..1d638b71c4 100644
+--- a/src/main/java/net/minecraft/server/EntityItem.java
++++ b/src/main/java/net/minecraft/server/EntityItem.java
+@@ -140,10 +140,24 @@ public class EntityItem extends Entity {
+                 // CraftBukkit end
+                 this.die();
+             }
++            markHopperCarts(); // EMC
+ 
+         }
+     }
+ 
++    // EMC start
++    private void markHopperCarts() {
++        if (!this.dead && this.onGround && this.age < 20 * 60 && this.age % 20 == 0) {
++            AxisAlignedBB aabb = this.getBoundingBox().grow(32, 4, 32);
++            for (Entity entity : this.world.getEntities(this, aabb)) {
++                if (entity instanceof EntityMinecartHopper) {
++                    ((EntityMinecartHopper) entity).pickupImmunity = MinecraftServer.currentTick + 200;
++                }
++            }
++        }
++    }
++    // EMC end
++
+     // Spigot start - copied from above
+     @Override
+     public void inactiveTick() {
+@@ -164,6 +178,7 @@ public class EntityItem extends Entity {
+             // CraftBukkit end
+             this.die();
+         }
++        markHopperCarts(); // EMC
+     }
+     // Spigot end
+ 
+diff --git a/src/main/java/net/minecraft/server/EntityMinecartHopper.java b/src/main/java/net/minecraft/server/EntityMinecartHopper.java
+index 6bb4c41da3..b67128d9f8 100644
+--- a/src/main/java/net/minecraft/server/EntityMinecartHopper.java
++++ b/src/main/java/net/minecraft/server/EntityMinecartHopper.java
+@@ -59,6 +59,8 @@ public class EntityMinecartHopper extends EntityMinecartContainer implements IHo
+         this.d = flag;
+     }
+ 
++    public int pickupImmunity = 0; // EMC
++
+     public World getWorld() {
+         return this.world;
+     }
+@@ -146,4 +148,18 @@ public class EntityMinecartHopper extends EntityMinecartContainer implements IHo
+     public Container createContainer(PlayerInventory playerinventory, EntityHuman entityhuman) {
+         return new ContainerHopper(playerinventory, this, entityhuman);
+     }
++
++    // EMC start - fix compile
++    @Override
++    public org.bukkit.Location getLocation() {
++        //noinspection RedundantCast
++        return new org.bukkit.Location(getWorld().getWorld(), ((IHopper) this).getX(),((IHopper) this).getY(),((IHopper) this).getZ());
++    }
++
++    private long tickAttempts = 0;
++    @Override
++    public long getAndIncrementAttemptCounter() {
++        return tickAttempts++;
++    }
++    // EMC stop
+ }
+diff --git a/src/main/java/net/minecraft/server/IHopper.java b/src/main/java/net/minecraft/server/IHopper.java
+index 56a9c50038..480050d75b 100644
+--- a/src/main/java/net/minecraft/server/IHopper.java
++++ b/src/main/java/net/minecraft/server/IHopper.java
+@@ -15,9 +15,11 @@ public interface IHopper extends IInventory {
+     @Nullable
+     World getWorld();
+ 
+-    double G();
++    double G(); default double getX() { return G(); } // EMC
+ 
+-    double H();
++    double H(); default double getY() { return H(); } // EMC
+ 
+-    double I();
++    double I(); default double getZ() { return I(); } // EMC
++
++    long getAndIncrementAttemptCounter(); // EMC
+ }
+diff --git a/src/main/java/net/minecraft/server/TileEntityHopper.java b/src/main/java/net/minecraft/server/TileEntityHopper.java
+index 3b49d205bb..cace36f762 100644
+--- a/src/main/java/net/minecraft/server/TileEntityHopper.java
++++ b/src/main/java/net/minecraft/server/TileEntityHopper.java
+@@ -93,6 +93,23 @@ public class TileEntityHopper extends TileEntityLootable implements IHopper, ITi
+         return ContainerUtil.a(this.q(), i, j);
+     }
+ 
++    // EMC start
++
++    private long tickAttempts = 0;
++    @Override
++    public long getAndIncrementAttemptCounter() {
++        return tickAttempts++;
++    }
++
++    private static boolean shouldSuckin(IHopper hopper) {
++        if (hopper instanceof EntityMinecartHopper && ((EntityMinecartHopper) hopper).pickupImmunity > MinecraftServer.currentTick) {
++            return true;
++        }
++
++        final int hopperId = (int) hopper.getX() + (int) hopper.getY() + (int) hopper.getZ();
++        return (hopper.getAndIncrementAttemptCounter() + hopperId) % 5 == 0;
++    }
++    // EMC end
+     public void setItem(int i, ItemStack itemstack) {
+         this.d((EntityHuman) null);
+         this.q().set(i, itemstack);
+@@ -485,7 +502,7 @@ public class TileEntityHopper extends TileEntityLootable implements IHopper, ITi
+                     }
+                 }
+             }
+-        } else {
++        } else if (shouldSuckin(ihopper)) { // EMC
+             Iterator iterator = c(ihopper).iterator();
+ 
+             while (iterator.hasNext()) {
+-- 
+2.21.0
+

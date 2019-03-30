@@ -1,0 +1,55 @@
+From 50b61e32558a3f9b1cd4e0ad1531ba22f13375c0 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Thu, 18 Dec 2014 22:48:46 -0500
+Subject: [PATCH] Add BlockBreakNaturally Event
+
+To give reliable control over all blocks dropping to world to restore custom item meta
+---
+ src/main/java/net/minecraft/server/Block.java                   | 2 ++
+ src/main/java/net/minecraft/server/EntityItem.java              | 1 +
+ .../java/org/bukkit/craftbukkit/event/CraftEventFactory.java    | 1 +
+ 3 files changed, 4 insertions(+)
+
+diff --git a/src/main/java/net/minecraft/server/Block.java b/src/main/java/net/minecraft/server/Block.java
+index 2e460a7f63..6b6d51f543 100644
+--- a/src/main/java/net/minecraft/server/Block.java
++++ b/src/main/java/net/minecraft/server/Block.java
+@@ -443,9 +443,11 @@ public class Block implements IMaterial {
+             entityitem.n();
+             // CraftBukkit start
+             if (world.captureDrops != null) {
++                entityitem.droppedPosition = blockposition; // EMC
+                 world.captureDrops.add(entityitem);
+             } else {
+                 world.addEntity(entityitem);
++                new com.empireminecraft.customevents.BlockBreakNaturallyEvent(MCUtil.toLocation(world, blockposition), (org.bukkit.entity.Item) entityitem.getBukkitEntity()).callEvent(); // EMC
+             }
+             // CraftBukkit end
+         }
+diff --git a/src/main/java/net/minecraft/server/EntityItem.java b/src/main/java/net/minecraft/server/EntityItem.java
+index f7c17b40dc..96a651e99e 100644
+--- a/src/main/java/net/minecraft/server/EntityItem.java
++++ b/src/main/java/net/minecraft/server/EntityItem.java
+@@ -14,6 +14,7 @@ public class EntityItem extends Entity {
+     private static final DataWatcherObject<ItemStack> b = DataWatcher.a(EntityItem.class, DataWatcherRegistry.g);
+     public int age; // PAIL
+     public boolean canDespawn = true; // EMC
++    public BlockPosition droppedPosition; // EMC
+     public int pickupDelay;
+     public boolean canMobPickup = true; // Paper
+     private int e;
+diff --git a/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java b/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
+index 26f0dbcfd2..9a2472d78b 100644
+--- a/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
++++ b/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
+@@ -208,6 +208,7 @@ public class CraftEventFactory {
+ 
+         if (!event.isCancelled()) {
+             for (EntityItem item : items) {
++                new com.empireminecraft.customevents.BlockBreakNaturallyEvent(MCUtil.toLocation(item.world, item.droppedPosition), (org.bukkit.entity.Item) item.getBukkitEntity()).callEvent(); // EMC
+                 item.world.addEntity(item);
+             }
+         }
+-- 
+2.21.0
+
