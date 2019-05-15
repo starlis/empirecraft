@@ -23,7 +23,11 @@ if [ ! -d ".git" ]; then
 fi
 
 rm src/net/minecraft/server/*.java
-cp $basedir/$decompile/net/minecraft/server/*.java src/net/minecraft/server
+for i in $basedir/$decompile/net/minecraft/server/*.java;
+do 
+	cp "$i" src/net/minecraft/server
+done
+
 
 base="$basedir/Paper/Paper-Server/src/main/java/net/minecraft/server"
 cd $basedir/mc-dev/src/net/minecraft/server/
