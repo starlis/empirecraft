@@ -1,4 +1,4 @@
-From 5ddfe6c8817889c211944c83aac7337e6c56ffd1 Mon Sep 17 00:00:00 2001
+From 241ceb6860889e0c3058296095ad09119654c801 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Thu, 4 Jul 2013 21:04:26 -0400
 Subject: [PATCH] Persistent and Temporary Metadata API
@@ -8,20 +8,20 @@ Entity, TileEntity, World, Chunk, Block, Inventory API's
  src/main/java/com/empireminecraft/api/API.java     |   2 +
  .../java/com/empireminecraft/api/Vector3i.java     |  66 ++
  .../com/empireminecraft/api/meta/EAPI_Meta.java    |  53 ++
- .../java/com/empireminecraft/api/meta/Meta.java    | 885 +++++++++++++++++++++
+ .../java/com/empireminecraft/api/meta/Meta.java    | 875 +++++++++++++++++++++
  .../java/com/empireminecraft/api/meta/MetaKey.java |  51 ++
  .../java/com/empireminecraft/api/meta/MetaMap.java |  96 +++
- .../api/meta/PersistentKeyImpl.java                |  44 +
+ .../api/meta/PersistentKeyImpl.java                |  44 ++
  .../api/meta/PersistentMetaList.java               |  73 ++
  .../api/meta/PersistentMetaMap.java                |  93 +++
- .../com/empireminecraft/api/meta/TempKeyImpl.java  |  44 +
+ .../com/empireminecraft/api/meta/TempKeyImpl.java  |  44 ++
  .../com/empireminecraft/api/meta/TempMetaMap.java  |  29 +
  .../BlockWithPersistentMetaClearedEvent.java       |  49 ++
  src/main/java/org/bukkit/Chunk.java                |   3 +
  src/main/java/org/bukkit/block/BlockState.java     |   2 +
  src/main/java/org/bukkit/entity/Entity.java        |   2 +
  src/main/java/org/bukkit/inventory/Inventory.java  |   1 +
- 16 files changed, 1493 insertions(+)
+ 16 files changed, 1483 insertions(+)
  create mode 100644 src/main/java/com/empireminecraft/api/Vector3i.java
  create mode 100644 src/main/java/com/empireminecraft/api/meta/EAPI_Meta.java
  create mode 100644 src/main/java/com/empireminecraft/api/meta/Meta.java
@@ -186,10 +186,10 @@ index 0000000..8313735
 +}
 diff --git a/src/main/java/com/empireminecraft/api/meta/Meta.java b/src/main/java/com/empireminecraft/api/meta/Meta.java
 new file mode 100644
-index 0000000..ad5ffbc
+index 0000000..ecd8f90
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/api/meta/Meta.java
-@@ -0,0 +1,885 @@
+@@ -0,0 +1,875 @@
 +/*
 + * Copyright (c) 2016 Starlis LLC / Daniel Ennis (Aikar) - MIT License
 + *
@@ -344,14 +344,15 @@ index 0000000..ad5ffbc
 +    }
 +
 +
-+    public static double incrementWorldMeta(World world, PersistentKey key, double val) {
-+        return incrementWorldMeta(world, key, val, 0D);
++    public static double incrementWorldMeta(World world, PersistentKey key, double amount) {
++        return incrementWorldMeta(world, key, amount, 0D);
 +    }
 +
-+    public static double incrementWorldMeta(World world, PersistentKey key, double val, double start) {
-+        Number orig = getWorldMeta(world, key, start);
-+        setWorldMeta(world, key, orig.doubleValue() + val);
-+        return orig.doubleValue();
++    public static double incrementWorldMeta(World world, PersistentKey key, double amount, double start) {
++        double val = getWorldMeta(world, key, start);
++        val += amount;
++        setWorldMeta(world, key, val);
++        return val;
 +    }
 +    
 +    //////////////////////////////////////////////////
@@ -423,10 +424,11 @@ index 0000000..ad5ffbc
 +        return incrementEntityMeta(entity, key, val, 0D);
 +    }
 +
-+    public static double incrementEntityMeta(Entity entity, PersistentKey key, double val, double start) {
-+        Number orig = getEntityMeta(entity, key, start);
-+        setEntityMeta(entity, key, orig.doubleValue() + val);
-+        return orig.doubleValue();
++    public static double incrementEntityMeta(Entity entity, PersistentKey key, double amount, double start) {
++        double val = getEntityMeta(entity, key, start);
++        val += amount;
++        setEntityMeta(entity, key, val);
++        return val;
 +    }
 +
 +    //////////////////////////////////////////////////
@@ -508,7 +510,6 @@ index 0000000..ad5ffbc
 +    }
 +    public static Long incrementChunkMeta(Chunk chunk, PersistentKey key, Long amount, Long start) {
 +        Long val = getChunkMeta(chunk, key);
-+        Long origVal = val;
 +        if (val == null) {
 +            val = start;
 +        }
@@ -522,7 +523,6 @@ index 0000000..ad5ffbc
 +    }
 +    public static Double incrementChunkMeta(Chunk chunk, PersistentKey key, Double amount, Double start) {
 +        Double val = getChunkMeta(chunk, key);
-+        Double origVal = val;
 +        if (val == null) {
 +            val = start;
 +        }
@@ -600,7 +600,6 @@ index 0000000..ad5ffbc
 +    }
 +    public static Long incrementBlockMeta(Location loc, PersistentKey key, Long amount, Long start) {
 +        Long val = getBlockMeta(loc, key);
-+        Long origVal = val;
 +        if (val == null) {
 +            val = start;
 +        }
@@ -614,7 +613,6 @@ index 0000000..ad5ffbc
 +    }
 +    public static Double incrementBlockMeta(Location loc, PersistentKey key, Double amount, Double start) {
 +        Double val = getBlockMeta(loc, key);
-+        Double origVal = val;
 +        if (val == null) {
 +            val = start;
 +        }
@@ -765,7 +763,6 @@ index 0000000..ad5ffbc
 +    }
 +    public static Long incrementEntityMeta(Entity entity, TempKey key, Long amount, Long start) {
 +        Long val = getEntityMeta(entity, key);
-+        Long origVal = val;
 +        if (val == null) {
 +            val = start;
 +        }
@@ -779,7 +776,6 @@ index 0000000..ad5ffbc
 +    }
 +    public static Double incrementEntityMeta(Entity entity, TempKey key, Double amount, Double start) {
 +        Double val = getEntityMeta(entity, key);
-+        Double origVal = val;
 +        if (val == null) {
 +            val = start;
 +        }
@@ -864,7 +860,6 @@ index 0000000..ad5ffbc
 +    }
 +    public static Long incrementBlockMeta(Block block, TempKey key, Long amount, Long start) {
 +        Long val = getBlockMeta(block, key);
-+        Long origVal = val;
 +        if (val == null) {
 +            val = start;
 +        }
@@ -878,7 +873,6 @@ index 0000000..ad5ffbc
 +    }
 +    public static Double incrementBlockMeta(Block block, TempKey key, Double amount, Double start) {
 +        Double val = getBlockMeta(block, key);
-+        Double origVal = val;
 +        if (val == null) {
 +            val = start;
 +        }
@@ -962,7 +956,6 @@ index 0000000..ad5ffbc
 +    }
 +    public static Long incrementChunkMeta(Chunk chunk, TempKey key, Long amount, Long start) {
 +        Long val = getChunkMeta(chunk, key);
-+        Long origVal = val;
 +        if (val == null) {
 +            val = start;
 +        }
@@ -976,7 +969,6 @@ index 0000000..ad5ffbc
 +    }
 +    public static Double incrementChunkMeta(Chunk chunk, TempKey key, Double amount, Double start) {
 +        Double val = getChunkMeta(chunk, key);
-+        Double origVal = val;
 +        if (val == null) {
 +            val = start;
 +        }
@@ -1051,7 +1043,6 @@ index 0000000..ad5ffbc
 +    }
 +    public static Long incrementInventoryMeta(Inventory inv, TempKey key, Long amount, Long start) {
 +        Long val = getInventoryMeta(inv, key);
-+        Long origVal = val;
 +        if (val == null) {
 +            val = start;
 +        }
@@ -1065,7 +1056,6 @@ index 0000000..ad5ffbc
 +    }
 +    public static Double incrementInventoryMeta(Inventory inv, TempKey key, Double amount, Double start) {
 +        Double val = getInventoryMeta(inv, key);
-+        Double origVal = val;
 +        if (val == null) {
 +            val = start;
 +        }
