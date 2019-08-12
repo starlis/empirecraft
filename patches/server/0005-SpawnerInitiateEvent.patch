@@ -1,37 +1,49 @@
-From 401c3481983132f68311742551c0faec2e8f936d Mon Sep 17 00:00:00 2001
+From ef12c809aa72671bbeb49b4b41be733f260a43dc Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Thu, 29 Nov 2012 10:48:07 -0500
 Subject: [PATCH] SpawnerInitiateEvent
 
 ---
- .../java/net/minecraft/server/EntityHuman.java     |  1 +
- .../net/minecraft/server/MobSpawnerAbstract.java   | 23 +++++++++++++++++++++-
- src/main/java/net/minecraft/server/World.java      |  1 +
+ .../net/minecraft/server/EntityHuman.java     |  1 +
+ .../net/minecraft/server/IEntityAccess.java   |  1 +
+ .../minecraft/server/MobSpawnerAbstract.java  | 23 ++++++++++++++++++-
  3 files changed, 24 insertions(+), 1 deletion(-)
 
 diff --git a/src/main/java/net/minecraft/server/EntityHuman.java b/src/main/java/net/minecraft/server/EntityHuman.java
-index f5d9b4a..0ae9167 100644
+index 5d3e48ba6..b23cb5282 100644
 --- a/src/main/java/net/minecraft/server/EntityHuman.java
 +++ b/src/main/java/net/minecraft/server/EntityHuman.java
-@@ -70,6 +70,7 @@ public abstract class EntityHuman extends EntityLiving {
+@@ -73,6 +73,7 @@ public abstract class EntityHuman extends EntityLiving {
      public EntityFishingHook hookedFish;
      // Paper start
      public boolean affectsSpawning = true;
 +    static Predicate<Entity> affectsSpawningPredicate = (player) -> (player instanceof EntityHuman && ((EntityHuman) player).affectsSpawning);
      // Paper end
-     // Paper start - Player view distance API
-     private int viewDistance = -1;
+ 
+     // CraftBukkit start
+diff --git a/src/main/java/net/minecraft/server/IEntityAccess.java b/src/main/java/net/minecraft/server/IEntityAccess.java
+index dca18afdb..43e4c7075 100644
+--- a/src/main/java/net/minecraft/server/IEntityAccess.java
++++ b/src/main/java/net/minecraft/server/IEntityAccess.java
+@@ -59,6 +59,7 @@ public interface IEntityAccess {
+         }
+     }
+ 
++    @Nullable public default EntityHuman findNearbyPlayer(double d0, double d1, double d2, double d3, Predicate<Entity> predicate) { return this.a(d0, d1, d2, d3, predicate); } // Paper - OBFHELPER
+     @Nullable
+     default EntityHuman a(double d0, double d1, double d2, double d3, @Nullable Predicate<Entity> predicate) {
+         double d4 = -1.0D;
 diff --git a/src/main/java/net/minecraft/server/MobSpawnerAbstract.java b/src/main/java/net/minecraft/server/MobSpawnerAbstract.java
-index b0fbd4f..a5d9ee8 100644
+index b05f6c2f2..62b331cc1 100644
 --- a/src/main/java/net/minecraft/server/MobSpawnerAbstract.java
 +++ b/src/main/java/net/minecraft/server/MobSpawnerAbstract.java
 @@ -50,7 +50,28 @@ public abstract class MobSpawnerAbstract {
      private boolean h() {
          BlockPosition blockposition = this.b();
  
--        return this.a().b((double) blockposition.getX() + 0.5D, (double) blockposition.getY() + 0.5D, (double) blockposition.getZ() + 0.5D, (double) this.requiredPlayerRange);
+-        return this.a().isPlayerNearby((double) blockposition.getX() + 0.5D, (double) blockposition.getY() + 0.5D, (double) blockposition.getZ() + 0.5D, (double) this.requiredPlayerRange);
 +        // Paper start - Add in SpawnerInitiateEvent
-+        //return this.a().b((double) blockposition.getX() + 0.5D, (double) blockposition.getY() + 0.5D, (double) blockposition.getZ() + 0.5D, (double) this.requiredPlayerRange);
++        //return this.a().isPlayerNearby((double) blockposition.getX() + 0.5D, (double) blockposition.getY() + 0.5D, (double) blockposition.getZ() + 0.5D, (double) this.requiredPlayerRange);
 +
 +        final World world = this.a();
 +        final int x = blockposition.getX();
@@ -55,18 +67,6 @@ index b0fbd4f..a5d9ee8 100644
      }
  
      public void c() {
-diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index 57b0f1a..d0e06f1 100644
---- a/src/main/java/net/minecraft/server/World.java
-+++ b/src/main/java/net/minecraft/server/World.java
-@@ -2632,6 +2632,7 @@ public abstract class World implements IEntityAccess, GeneratorAccess, IIBlockAc
-         return i;
-     }
- 
-+    @Nullable public EntityHuman findNearbyPlayer(double d0, double d1, double d2, double d3, Predicate<Entity> predicate) { return this.a(d0, d1, d2, d3, predicate); } // Paper - OBFHELPER
-     @Nullable
-     public EntityHuman a(double d0, double d1, double d2, double d3, Predicate<Entity> predicate) {
-         double d4 = -1.0D;
 -- 
-2.7.4
+2.22.0
 

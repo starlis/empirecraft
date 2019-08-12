@@ -1,0 +1,213 @@
+From 0fc5564f15d703417f0a231a6ab643f0203dd6e3 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Sun, 10 Apr 2016 22:50:33 -0400
+Subject: [PATCH] Allow Vehicle/Passenger Teleporting for Bukkit API
+
+If Bukkit teleport is called, teleport the whole set of entities together and maintain the chain.
+---
+ .../java/net/minecraft/server/Entity.java     | 22 ++++++-
+ .../minecraft/server/PlayerConnection.java    | 24 ++++++--
+ .../craftbukkit/entity/CraftEntity.java       | 59 ++++++++++++++++++-
+ .../craftbukkit/entity/CraftPlayer.java       |  5 +-
+ 4 files changed, 100 insertions(+), 10 deletions(-)
+
+diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
+index 3d52eaaf2..c0aaf5e35 100644
+--- a/src/main/java/net/minecraft/server/Entity.java
++++ b/src/main/java/net/minecraft/server/Entity.java
+@@ -104,7 +104,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+     public boolean i; public final boolean blocksEntitySpawning() { return this.i; } // Paper - OBFHELPER
+     public final List<Entity> passengers;
+     protected int j;
+-    private Entity vehicle;
++    public Entity vehicle; // Paper - public
+     public boolean attachedToPlayer;
+     public World world;
+     public double lastX;
+@@ -114,6 +114,26 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+     public double locY;
+     public double locZ;
+     private Vec3D mot;
++    // Paper start
++    public void retrack() {
++        final PlayerChunkMap playerchunkmap = ((WorldServer)world).getChunkProvider().playerChunkMap;
++        playerchunkmap.removeEntity(this);
++        playerchunkmap.addEntity(this);
++    }
++    public List<Entity> saveAndClearPassengers() {
++        final List<Entity> passengersPrev = Lists.newArrayList(passengers);
++        passengers.clear();
++        return passengersPrev;
++    }
++    public void restorePassengers(List<Entity> prev) {
++        this.passengers.clear();
++        prev.forEach(e -> {
++            final Entity handle = e.getBukkitEntity().getHandle();
++            handle.vehicle = this;
++            this.passengers.add(handle);
++        });
++    }
++    // Paper end
+     public float yaw;
+     public float pitch;
+     public float lastYaw;
+diff --git a/src/main/java/net/minecraft/server/PlayerConnection.java b/src/main/java/net/minecraft/server/PlayerConnection.java
+index e7c49bf87..8155e764a 100644
+--- a/src/main/java/net/minecraft/server/PlayerConnection.java
++++ b/src/main/java/net/minecraft/server/PlayerConnection.java
+@@ -88,12 +88,12 @@ public class PlayerConnection implements PacketListenerPlayIn {
+     private double p;
+     private double q;
+     private Entity r;
+-    private double s;
+-    private double t;
+-    private double u;
+-    private double v;
+-    private double w;
+-    private double x;
++    private double s;public void setX1(double x) { this.s = x; } // Paper - OBFHELPER
++    private double t;public void setY1(double y) { this.t = y; } // Paper - OBFHELPER
++    private double u;public void setZ1(double z) { this.u = z; } // Paper - OBFHELPER
++    private double v;public void setX2(double x) { this.v = x; } // Paper - OBFHELPER
++    private double w;public void setY2(double y) { this.w = y; } // Paper - OBFHELPER
++    private double x;public void setZ2(double z) { this.x = z; } // Paper - OBFHELPER
+     private Vec3D teleportPos;
+     private int teleportAwait;
+     private int A;
+@@ -233,6 +233,18 @@ public class PlayerConnection implements PacketListenerPlayIn {
+         this.o = this.player.locX;
+         this.p = this.player.locY;
+         this.q = this.player.locZ;
++
++        // Paper start - copied from method above
++        Entity veh = this.player.getRootVehicle();
++        if (veh != this.player && veh.getRidingPassenger() != null) {
++            this.setX1(veh.locX);
++            this.setY1(veh.locY);
++            this.setZ1(veh.locZ);
++            this.setX2(veh.locX);
++            this.setY2(veh.locY);
++            this.setZ2(veh.locZ);
++        }
++        // Paper stop
+     }
+ 
+     @Override
+diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java
+index d0c5dd4f1..0040aadff 100644
+--- a/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java
++++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java
+@@ -496,6 +496,58 @@ public abstract class CraftEntity implements org.bukkit.entity.Entity {
+         entity.setHeadRotation(yaw);
+     }
+ 
++    // Paper start
++    private static Entity teleportingEntity;
++    void teleportAttachedEntities(Location location, TeleportCause cause) {
++        if (teleportingEntity != null) {
++            return;
++        }
++        teleportingEntity = entity;
++        if (entity.isPassenger()) {
++            final Entity vehicle = teleportSafely(entity.getRootVehicle(), location, cause);
++            vehicle.getBukkitEntity().teleportPassengers(location, cause);
++        } else if (entity.isVehicle()) {
++            teleportPassengers(location, cause);
++        }
++        teleportingEntity = null;
++    }
++
++    private static Entity teleportSafely(Entity entity, Location loc, TeleportCause cause) {
++        final List<Entity> passengers = entity.saveAndClearPassengers();
++        entity.vehicle = null;
++        entity.getBukkitEntity().teleport(loc, cause);
++        entity = entity.getBukkitEntity().getHandle();
++        entity.restorePassengers(passengers);
++        return entity;
++    }
++
++    void finishTeleporting() {
++        if (teleportingEntity != null) {
++            return;
++        }
++        retrackVehicle(entity.getRootVehicle());
++    }
++    private static void retrackVehicle(Entity vehicle) {
++        vehicle.retrack();
++        vehicle.passengers.forEach(CraftEntity::retrackVehicle);
++    }
++
++    private void teleportPassengers(Location loc, TeleportCause cause) {
++        List<Entity> newPassengers = com.google.common.collect.Lists.newArrayList(entity.passengers);
++        entity.passengers.clear();
++        newPassengers.forEach((passenger) -> {
++            CraftEntity bukkitPassenger = passenger.getBukkitEntity();
++            if (teleportingEntity == passenger) {
++                entity.passengers.add(passenger);
++                return;
++            }
++
++            entity.passengers.add(teleportSafely(passenger, loc, cause));
++            bukkitPassenger.teleportPassengers(loc, cause);
++        });
++    }
++    // Paper end
++
+     @Override
+     public boolean teleport(Location location) {
+         return teleport(location, TeleportCause.PLUGIN);
+@@ -506,16 +558,17 @@ public abstract class CraftEntity implements org.bukkit.entity.Entity {
+         Preconditions.checkArgument(location != null, "location");
+         location.checkFinite();
+ 
+-        if (entity.isVehicle() || entity.dead) {
++        if (entity.dead) { // Paper
+             return false;
+         }
+ 
+         // If this entity is riding another entity, we must dismount before teleporting.
+-        entity.stopRiding();
++        this.teleportAttachedEntities(location, cause); // Paper
+ 
+         // Let the server handle cross world teleports
+         if (!location.getWorld().equals(getWorld())) {
+             entity.teleportTo(((CraftWorld) location.getWorld()).getHandle().getWorldProvider().getDimensionManager(), new BlockPosition(location.getX(), location.getY(), location.getZ()));
++            this.finishTeleporting(); // Paper
+             return true;
+         }
+ 
+@@ -525,6 +578,8 @@ public abstract class CraftEntity implements org.bukkit.entity.Entity {
+         entity.setHeadRotation(location.getYaw());
+         ((net.minecraft.server.WorldServer) entity.world).chunkCheck(entity); // Spigot - register to new chunk
+ 
++        // entity.setLocation() throws no event, and so cannot be cancelled
++        this.finishTeleporting(); // Paper
+         return true;
+     }
+ 
+diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
+index 55a489822..3a62c8f50 100644
+--- a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
++++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
+@@ -791,7 +791,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+         }
+ 
+         // If this player is riding another entity, we must dismount before teleporting.
+-        entity.stopRiding();
++        this.teleportAttachedEntities(location, cause); // Paper
+ 
+         // Update the From Location
+         from = event.getFrom();
+@@ -812,6 +812,9 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+         } else {
+             server.getHandle().moveToWorld(entity, toWorld.getWorldProvider().getDimensionManager(), true, to, !toWorld.paperConfig.disableTeleportationSuffocationCheck);
+         }
++
++        this.finishTeleporting(); // Paper
++        entity.playerConnection.syncPosition(); // Paper
+         return true;
+     }
+ 
+-- 
+2.22.0
+

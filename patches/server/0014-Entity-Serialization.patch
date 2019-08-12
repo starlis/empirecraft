@@ -1,17 +1,17 @@
-From 4041f3957d2cc996242b3f2f8897c7e427f3940b Mon Sep 17 00:00:00 2001
+From 2ba73a6b4bfc7641571fcd40ff3397a2614869dd Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Fri, 12 Jul 2013 18:58:19 -0400
 Subject: [PATCH] Entity Serialization
 
 Allow serializing an Entity to raw NBT, and to get an Entity object without spawning it into the world.
 ---
- .../com/empireminecraft/api/CraftEAPI_Entity.java  | 61 ++++++++++++++++++++++
- src/main/java/net/minecraft/server/Entity.java     |  1 +
- .../org/bukkit/craftbukkit/entity/CraftEntity.java | 10 ++++
- 3 files changed, 72 insertions(+)
+ .../empireminecraft/api/CraftEAPI_Entity.java | 60 +++++++++++++++++++
+ .../java/net/minecraft/server/Entity.java     |  1 +
+ .../craftbukkit/entity/CraftEntity.java       | 10 ++++
+ 3 files changed, 71 insertions(+)
 
 diff --git a/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java b/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
-index b4e2ab9..20166e0 100644
+index 7c5cd3454..127ae661c 100644
 --- a/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
 +++ b/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
 @@ -24,10 +24,17 @@
@@ -45,11 +45,10 @@ index b4e2ab9..20166e0 100644
  public class CraftEAPI_Entity implements EAPI_Entity {
  
      public <T extends Entity> EntityTask<T> scheduleTask(T entity, int interval, EntityTask<T> task) {
-@@ -173,4 +186,52 @@ public class CraftEAPI_Entity implements EAPI_Entity {
-     public void cancelTasks(Entity entity) {
-         ((CraftEntity) entity).getHandle().entityTasks.clear();
+@@ -174,4 +187,51 @@ public class CraftEAPI_Entity implements EAPI_Entity {
+         return EntityAIApi.getEnderSignalLife(enderSignal);
      }
-+
+ 
 +    public final byte[] serializeEntity(Entity craftentity) {
 +        if (craftentity == null) {
 +            throw new NullPointerException("Entity can not be null for serialization");
@@ -72,7 +71,7 @@ index b4e2ab9..20166e0 100644
 +            NBTTagCompound cmp = readNBT(stream);
 +
 +            cmp = DataConverters.convert(LegacyType.ENTITY, cmp);
-+            net.minecraft.server.Entity entity = EntityTypes.a(cmp, ((CraftWorld) world).getHandle());
++            net.minecraft.server.Entity entity = EntityTypes.a(cmp, ((CraftWorld) world).getHandle()).orElse(null);
 +
 +            return entity != null ? entity.getBukkitEntity() : null;
 +        } catch (IOException e) {
@@ -99,10 +98,10 @@ index b4e2ab9..20166e0 100644
 +
  }
 diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
-index c511020..29e9e33 100644
+index 29d915745..dca22b30b 100644
 --- a/src/main/java/net/minecraft/server/Entity.java
 +++ b/src/main/java/net/minecraft/server/Entity.java
-@@ -1590,6 +1590,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+@@ -1552,6 +1552,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
          }
      }
  
@@ -111,12 +110,12 @@ index c511020..29e9e33 100644
          return this.isPassenger() ? false : this.c(nbttagcompound);
      }
 diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java
-index 198518f..17541f9 100644
+index 919775527..f1299c6ed 100644
 --- a/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java
 +++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java
-@@ -43,6 +43,16 @@ public abstract class CraftEntity implements org.bukkit.entity.Entity {
-     protected Entity entity;
+@@ -176,6 +176,16 @@ public abstract class CraftEntity implements org.bukkit.entity.Entity {
      private EntityDamageEvent lastDamageEvent;
+     private final CraftPersistentDataContainer persistentDataContainer = new CraftPersistentDataContainer(DATA_TYPE_REGISTRY);
  
 +    // EMC start
 +    public boolean spawnAt(Location loc) {
@@ -132,5 +131,5 @@ index 198518f..17541f9 100644
          this.server = server;
          this.entity = entity;
 -- 
-2.7.4
+2.22.0
 

@@ -1,19 +1,19 @@
-From b92b8abf53c8ce32a2944036d8fcc7c4ad2b86f6 Mon Sep 17 00:00:00 2001
+From 2e36710d9b8f146f5cf9e0890b00db42d84ada72 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Thu, 14 Aug 2014 18:23:33 -0400
 Subject: [PATCH] Add Player.spigot().getFishingHook() API
 
 ---
- src/main/java/net/minecraft/server/EntityFishingHook.java    | 5 +++--
- src/main/java/net/minecraft/server/ItemFishingRod.java       | 3 ++-
- src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java | 8 ++++++++
+ src/main/java/net/minecraft/server/EntityFishingHook.java | 5 +++--
+ src/main/java/net/minecraft/server/ItemFishingRod.java    | 3 ++-
+ .../java/org/bukkit/craftbukkit/entity/CraftPlayer.java   | 8 ++++++++
  3 files changed, 13 insertions(+), 3 deletions(-)
 
 diff --git a/src/main/java/net/minecraft/server/EntityFishingHook.java b/src/main/java/net/minecraft/server/EntityFishingHook.java
-index ee71c32..d174476 100644
+index 2a351701b..0720c69f1 100644
 --- a/src/main/java/net/minecraft/server/EntityFishingHook.java
 +++ b/src/main/java/net/minecraft/server/EntityFishingHook.java
-@@ -500,8 +500,9 @@ public class EntityFishingHook extends Entity {
+@@ -436,8 +436,9 @@ public class EntityFishingHook extends Entity {
              }
              // CraftBukkit end
  
@@ -21,32 +21,35 @@ index ee71c32..d174476 100644
 -            return i;
 +            // this.die(); // Spigot - move to after damage event
 +            // this.owner.hookedFish = null; // Spigot - moved to after damage event
-+            return i == 0 ? - 1 : i; // Spigot - use -1 to represent "0 but kill entity"
++            return i == 0 ? -1 : i; // Spigot - use -1 to represent "0 but kill entity"
          } else {
              return 0;
          }
 diff --git a/src/main/java/net/minecraft/server/ItemFishingRod.java b/src/main/java/net/minecraft/server/ItemFishingRod.java
-index 0c23059..478da4e 100644
+index 37c4707cf..af24662c6 100644
 --- a/src/main/java/net/minecraft/server/ItemFishingRod.java
 +++ b/src/main/java/net/minecraft/server/ItemFishingRod.java
-@@ -32,7 +32,8 @@ public class ItemFishingRod extends Item {
+@@ -34,9 +34,10 @@ public class ItemFishingRod extends Item {
          if (entityhuman.hookedFish != null) {
-             int i = entityhuman.hookedFish.b(itemstack);
+             if (!world.isClientSide) {
+                 i = entityhuman.hookedFish.b(itemstack);
+-                itemstack.damage(i, entityhuman, (entityhuman1) -> {
++                itemstack.damage(Math.max(0, i), entityhuman, (entityhuman1) -> { // Spigot - Ignore -1 return using Math.max
+                     entityhuman1.d(enumhand);
+                 });
++                if (i != 0) { entityhuman.hookedFish.die(); entityhuman.hookedFish = null; } // Spigot - removed from e(), and 0 = cancelled
+             }
  
--            itemstack.damage(i, entityhuman);
-+            itemstack.damage(Math.max(0, i), entityhuman); // Spigot - Ignore -1 return using Math.max
-+            if (i != 0) { entityhuman.hookedFish.die(); entityhuman.hookedFish = null; } // Spigot - removed from e(), and 0 = cancelled
              entityhuman.a(enumhand);
-             world.a((EntityHuman) null, entityhuman.locX, entityhuman.locY, entityhuman.locZ, SoundEffects.ENTITY_FISHING_BOBBER_RETRIEVE, SoundCategory.NEUTRAL, 1.0F, 0.4F / (ItemFishingRod.i.nextFloat() * 0.4F + 0.8F));
-         } else {
 diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
-index eb5971a..4ae8e15 100644
+index e920545df..29deff8ac 100644
 --- a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
-@@ -1958,6 +1958,14 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+@@ -1999,6 +1999,14 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+     private final Player.Spigot spigot = new Player.Spigot()
      {
  
-         @Override
++        @Override
 +        public org.bukkit.entity.Fish getFishingHook() {
 +            if (getHandle().hookedFish == null) {
 +                return null;
@@ -54,10 +57,9 @@ index eb5971a..4ae8e15 100644
 +            return (org.bukkit.entity.Fish) getHandle().hookedFish.getBukkitEntity();
 +        }
 +
-+        @Override
+         @Override
          public InetSocketAddress getRawAddress()
          {
-             return (InetSocketAddress) getHandle().playerConnection.networkManager.getRawAddress();
 -- 
-2.7.4
+2.22.0
 
