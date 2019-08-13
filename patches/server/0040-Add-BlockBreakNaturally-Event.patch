@@ -1,21 +1,21 @@
-From 6061b87bd1fd28752561620eb64bb1e8971e5cdb Mon Sep 17 00:00:00 2001
+From db676f02bf35d154b928b37a8db0ca710ab0ff15 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Thu, 18 Dec 2014 22:48:46 -0500
 Subject: [PATCH] Add BlockBreakNaturally Event
 
 To give reliable control over all blocks dropping to world to restore custom item meta
 ---
- src/main/java/net/minecraft/server/Block.java                    | 2 ++
- src/main/java/net/minecraft/server/EntityItem.java               | 1 +
- .../java/org/bukkit/craftbukkit/event/CraftEventFactory.java     | 9 +++++++++
+ src/main/java/net/minecraft/server/Block.java            | 2 ++
+ src/main/java/net/minecraft/server/EntityItem.java       | 1 +
+ .../org/bukkit/craftbukkit/event/CraftEventFactory.java  | 9 +++++++++
  3 files changed, 12 insertions(+)
 
 diff --git a/src/main/java/net/minecraft/server/Block.java b/src/main/java/net/minecraft/server/Block.java
-index 2e460a7..3f96cbb 100644
+index e077359b0..e71254858 100644
 --- a/src/main/java/net/minecraft/server/Block.java
 +++ b/src/main/java/net/minecraft/server/Block.java
-@@ -443,8 +443,10 @@ public class Block implements IMaterial {
-             entityitem.n();
+@@ -504,8 +504,10 @@ public class Block implements IMaterial {
+             entityitem.defaultPickupDelay();
              // CraftBukkit start
              if (world.captureDrops != null) {
 +                entityitem.droppedPosition = blockposition; // EMC
@@ -26,29 +26,29 @@ index 2e460a7..3f96cbb 100644
              }
              // CraftBukkit end
 diff --git a/src/main/java/net/minecraft/server/EntityItem.java b/src/main/java/net/minecraft/server/EntityItem.java
-index f7c17b4..96a651e 100644
+index 862d83871..da779504e 100644
 --- a/src/main/java/net/minecraft/server/EntityItem.java
 +++ b/src/main/java/net/minecraft/server/EntityItem.java
-@@ -14,6 +14,7 @@ public class EntityItem extends Entity {
-     private static final DataWatcherObject<ItemStack> b = DataWatcher.a(EntityItem.class, DataWatcherRegistry.g);
-     public int age; // PAIL
+@@ -16,6 +16,7 @@ public class EntityItem extends Entity {
+     private static final DataWatcherObject<ItemStack> ITEM = DataWatcher.a(EntityItem.class, DataWatcherRegistry.g);
+     public int age;
      public boolean canDespawn = true; // EMC
 +    public BlockPosition droppedPosition; // EMC
      public int pickupDelay;
-     public boolean canMobPickup = true; // Paper
-     private int e;
+     private int f;
+     private UUID thrower;
 diff --git a/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java b/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
-index 26f0dbc..0bfbef1 100644
+index c1734a166..06e0fb695 100644
 --- a/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
 +++ b/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
-@@ -207,6 +207,15 @@ public class CraftEventFactory {
+@@ -332,6 +332,15 @@ public class CraftEventFactory {
          Bukkit.getPluginManager().callEvent(event);
  
          if (!event.isCancelled()) {
 +            // EMC start
 +            com.google.common.collect.Multimap<org.bukkit.Location, org.bukkit.entity.Item> drops = com.google.common.collect.ArrayListMultimap.create();
 +            for (EntityItem item : items) {
-+                drops.put(MCUtil.toLocation(item.world, item.droppedPosition), (org.bukkit.entity.Item) item.getBukkitEntity());
++                drops.put(net.minecraft.server.MCUtil.toLocation(item.world, item.droppedPosition), (org.bukkit.entity.Item) item.getBukkitEntity());
 +            }
 +            for (org.bukkit.Location location : drops.keySet()) {
 +                new com.empireminecraft.customevents.BlockBreakNaturallyEvent(location, drops.get(location)).callEvent();
@@ -58,5 +58,5 @@ index 26f0dbc..0bfbef1 100644
                  item.world.addEntity(item);
              }
 -- 
-2.7.4
+2.22.0
 

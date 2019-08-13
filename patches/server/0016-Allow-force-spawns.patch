@@ -1,4 +1,4 @@
-From 24fc11acefa280856575aa944890a16779c56569 Mon Sep 17 00:00:00 2001
+From 5ebf0d01d10065f3f81ca958384544880cf7c462 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Fri, 26 Jul 2013 22:19:29 -0400
 Subject: [PATCH] Allow force spawns
@@ -6,42 +6,37 @@ Subject: [PATCH] Allow force spawns
 Pass spawn reason force to not allow plugins to block
 Force some cases where plugins should not be allowed to block it.
 ---
- src/main/java/net/minecraft/server/Entity.java                    | 2 +-
- src/main/java/net/minecraft/server/World.java                     | 2 +-
- src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java | 2 +-
- 3 files changed, 3 insertions(+), 3 deletions(-)
+ src/main/java/net/minecraft/server/WorldServer.java           | 4 ++--
+ .../java/org/bukkit/craftbukkit/event/CraftEventFactory.java  | 2 +-
+ 2 files changed, 3 insertions(+), 3 deletions(-)
 
-diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
-index 29e9e33..8ec2343 100644
---- a/src/main/java/net/minecraft/server/Entity.java
-+++ b/src/main/java/net/minecraft/server/Entity.java
-@@ -2721,7 +2721,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
-                 boolean flag = entity.attachedToPlayer;
+diff --git a/src/main/java/net/minecraft/server/WorldServer.java b/src/main/java/net/minecraft/server/WorldServer.java
+index ab3f79911..131985838 100644
+--- a/src/main/java/net/minecraft/server/WorldServer.java
++++ b/src/main/java/net/minecraft/server/WorldServer.java
+@@ -943,7 +943,7 @@ public class WorldServer extends World {
+         boolean flag = entity.attachedToPlayer;
  
-                 entity.attachedToPlayer = true;
--                worldserver1.addEntity(entity);
-+                worldserver1.addEntity(entity, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.FORCE); // EMC
-                 entity.attachedToPlayer = flag;
-                 worldserver1.entityJoinedWorld(entity, false);
-                 // CraftBukkit start - Forward the CraftEntity to the new entity
-diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index da4fff4..eefcca8 100644
---- a/src/main/java/net/minecraft/server/World.java
-+++ b/src/main/java/net/minecraft/server/World.java
-@@ -1112,7 +1112,7 @@ public abstract class World implements IEntityAccess, GeneratorAccess, IIBlockAc
-             flag = true;
-         }
+         entity.attachedToPlayer = true;
+-        this.addEntitySerialized(entity);
++        this.addEntitySerialized(entity, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.FORCE); // EMC
+         entity.attachedToPlayer = flag;
+         this.chunkCheck(entity);
+     }
+@@ -1009,7 +1009,7 @@ public class WorldServer extends World {
+             // CraftBukkit end
+             IChunkAccess ichunkaccess = this.getChunkAt(MathHelper.floor(entity.locX / 16.0D), MathHelper.floor(entity.locZ / 16.0D), ChunkStatus.FULL, true); // Paper - always load chunks for entity adds
  
--        if (!flag && !this.isChunkLoaded(i, j, false)) {
-+        if (spawnReason != SpawnReason.FORCE && !flag && !this.isChunkLoaded(i, j, false)) { // EMC - add != FORCE
-             return false;
-         } else {
-             if (entity instanceof EntityHuman) {
+-            if (!(ichunkaccess instanceof Chunk)) {
++            if (spawnReason != CreatureSpawnEvent.SpawnReason.FORCE && !(ichunkaccess instanceof Chunk)) { // EMC
+                 return false;
+             } else {
+                 ichunkaccess.a(entity);
 diff --git a/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java b/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
-index 5a7a585..edc8173 100644
+index 059799859..675127700 100644
 --- a/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
 +++ b/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
-@@ -443,7 +443,7 @@ public class CraftEventFactory {
+@@ -578,7 +578,7 @@ public class CraftEventFactory {
              event = CraftEventFactory.callEntitySpawnEvent(entity);
          }
  
@@ -51,5 +46,5 @@ index 5a7a585..edc8173 100644
              if (vehicle != null) {
                  vehicle.dead = true;
 -- 
-2.7.4
+2.22.0
 

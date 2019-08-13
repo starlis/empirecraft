@@ -1,4 +1,4 @@
-From 54a0b8f8e73a1b30129b756d64a2c5038508e283 Mon Sep 17 00:00:00 2001
+From be1dc18af2fb319a9e9ef484325839b38d362b14 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Mon, 9 Dec 2013 23:21:21 -0500
 Subject: [PATCH] Improved BungeeCord support
@@ -13,12 +13,12 @@ Allow online-mode to be set to true, and skip online-mode for bungee IP's
  4 files changed, 9 insertions(+), 3 deletions(-)
 
 diff --git a/src/main/java/net/minecraft/server/HandshakeListener.java b/src/main/java/net/minecraft/server/HandshakeListener.java
-index 2c594b4378..8f77f4250b 100644
+index 9a8e5e1..7bebd2c 100644
 --- a/src/main/java/net/minecraft/server/HandshakeListener.java
 +++ b/src/main/java/net/minecraft/server/HandshakeListener.java
-@@ -74,7 +74,8 @@ public class HandshakeListener implements PacketHandshakingInListener {
-             } else {
-                 this.b.setPacketListener(new LoginListener(this.a, this.b));
+@@ -75,7 +75,8 @@ public class HandshakeListener implements PacketHandshakingInListener {
+                 } else {
+                     this.b.setPacketListener(new LoginListener(this.a, this.b));
                  // Paper start - handshake event
 -                boolean proxyLogicEnabled = org.spigotmc.SpigotConfig.bungee;
 +                String ip = ((java.net.InetSocketAddress) this.b.getSocketAddress()).getAddress().getHostAddress(); // EMC
@@ -26,48 +26,48 @@ index 2c594b4378..8f77f4250b 100644
                  boolean handledByEvent = false;
                  // Try and handle the handshake through the event
                  if (com.destroystokyo.paper.event.player.PlayerHandshakeEvent.getHandlerList().getRegisteredListeners().length != 0) { // Hello? Can you hear me?
-@@ -100,12 +101,13 @@ public class HandshakeListener implements PacketHandshakingInListener {
+@@ -101,12 +102,13 @@ public class HandshakeListener implements PacketHandshakingInListener {
                  // Paper end
-                 // Spigot Start
+                     // Spigot Start
                  //if (org.spigotmc.SpigotConfig.bungee) { // Paper - comment out, we check above!
-+                    b.isProxied = true; // EMC
-                     String[] split = packethandshakinginsetprotocol.hostname.split("\00");
-                     if ( split.length == 3 || split.length == 4 ) {
-                         packethandshakinginsetprotocol.hostname = split[0];
-                         b.socketAddress = new java.net.InetSocketAddress(split[1], ((java.net.InetSocketAddress) b.getSocketAddress()).getPort());
-                         b.spoofedUUID = com.mojang.util.UUIDTypeAdapter.fromString( split[2] );
--                    } else
-+                    } else if (false) // EMC
-                     {
-                         chatmessage = new ChatMessage("If you wish to use IP forwarding, please enable it in your BungeeCord config as well!");
-                         this.b.sendPacket(new PacketLoginOutDisconnect(chatmessage));
++                        b.isProxied = true; // EMC
+                         String[] split = packethandshakinginsetprotocol.hostname.split("\00");
+                         if ( split.length == 3 || split.length == 4 ) {
+                             packethandshakinginsetprotocol.hostname = split[0];
+                             b.socketAddress = new java.net.InetSocketAddress(split[1], ((java.net.InetSocketAddress) b.getSocketAddress()).getPort());
+                             b.spoofedUUID = com.mojang.util.UUIDTypeAdapter.fromString( split[2] );
+-                        } else
++                        } else if (false) // EMC
+                         {
+                             chatmessage = new ChatMessage("If you wish to use IP forwarding, please enable it in your BungeeCord config as well!");
+                             this.b.sendPacket(new PacketLoginOutDisconnect(chatmessage));
 diff --git a/src/main/java/net/minecraft/server/LoginListener.java b/src/main/java/net/minecraft/server/LoginListener.java
-index dfe7a029f8..1b41230e10 100644
+index c09e1ed..1464706 100644
 --- a/src/main/java/net/minecraft/server/LoginListener.java
 +++ b/src/main/java/net/minecraft/server/LoginListener.java
-@@ -183,7 +183,7 @@ public class LoginListener implements PacketLoginInListener, ITickable {
+@@ -190,7 +190,7 @@ public class LoginListener implements PacketLoginInListener {
      public void a(PacketLoginInStart packetlogininstart) {
          Validate.validState(this.g == LoginListener.EnumProtocolState.HELLO, "Unexpected hello packet", new Object[0]);
          this.i = packetlogininstart.b();
 -        if (this.server.getOnlineMode() && !this.networkManager.isLocal()) {
 +        if (!this.networkManager.isProxied && this.server.getOnlineMode() && !this.networkManager.isLocal()) { // EMC - add !isProxied
              this.g = LoginListener.EnumProtocolState.KEY;
-             this.networkManager.sendPacket(new PacketLoginOutEncryptionBegin("", this.server.E().getPublic(), this.e));
+             this.networkManager.sendPacket(new PacketLoginOutEncryptionBegin("", this.server.getKeyPair().getPublic(), this.e));
          } else {
 diff --git a/src/main/java/net/minecraft/server/NetworkManager.java b/src/main/java/net/minecraft/server/NetworkManager.java
-index 30f646e421..aa48d8bf98 100644
+index 96a785a..9f4b069 100644
 --- a/src/main/java/net/minecraft/server/NetworkManager.java
 +++ b/src/main/java/net/minecraft/server/NetworkManager.java
-@@ -52,6 +52,7 @@ public class NetworkManager extends SimpleChannelInboundHandler<Packet<?>> {
+@@ -49,6 +49,7 @@ public class NetworkManager extends SimpleChannelInboundHandler<Packet<?>> {
      public java.util.UUID spoofedUUID;
      public com.mojang.authlib.properties.Property[] spoofedProfile;
      public boolean preparing = true;
 +    public boolean isProxied = false; // EMC
      // Spigot End
      private PacketListener packetListener;
-     private IChatBaseComponent n;
+     private IChatBaseComponent m;
 diff --git a/src/main/java/org/spigotmc/SpigotConfig.java b/src/main/java/org/spigotmc/SpigotConfig.java
-index fb09fb097d..ed54d838a2 100644
+index 4b8581f..e55409a 100644
 --- a/src/main/java/org/spigotmc/SpigotConfig.java
 +++ b/src/main/java/org/spigotmc/SpigotConfig.java
 @@ -7,6 +7,7 @@ import java.lang.reflect.InvocationTargetException;
@@ -95,5 +95,5 @@ index fb09fb097d..ed54d838a2 100644
  
      private static void nettyThreads()
 -- 
-2.21.0
+2.7.4
 
