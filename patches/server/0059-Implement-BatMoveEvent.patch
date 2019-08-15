@@ -1,0 +1,58 @@
+From 8385e63c470d4631c42da7542fbbfa0791ffd233 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Mon, 16 Nov 2015 23:23:03 -0500
+Subject: [PATCH] Implement BatMoveEvent
+
+Control where the bat goes
+---
+ src/main/java/net/minecraft/server/EntityBat.java        | 15 ++++++++++++++-
+ src/main/java/net/minecraft/server/EntityInsentient.java |  2 +-
+ 2 files changed, 15 insertions(+), 2 deletions(-)
+
+diff --git a/src/main/java/net/minecraft/server/EntityBat.java b/src/main/java/net/minecraft/server/EntityBat.java
+index 3bc9f0d..8d9ec68 100644
+--- a/src/main/java/net/minecraft/server/EntityBat.java
++++ b/src/main/java/net/minecraft/server/EntityBat.java
+@@ -127,7 +127,7 @@ public class EntityBat extends EntityAmbient {
+             }
+ 
+             if (this.d == null || this.random.nextInt(30) == 0 || this.d.a((IPosition) this.getPositionVector(), 2.0D)) {
+-                this.d = new BlockPosition(this.locX + (double) this.random.nextInt(7) - (double) this.random.nextInt(7), this.locY + (double) this.random.nextInt(6) - 2.0D, this.locZ + (double) this.random.nextInt(7) - (double) this.random.nextInt(7));
++                this.d = getBatMoveTarget(this); // EMC
+             }
+ 
+             double d0 = (double) this.d.getX() + 0.5D - this.locX;
+@@ -227,4 +227,17 @@ public class EntityBat extends EntityAmbient {
+     protected float b(EntityPose entitypose, EntitySize entitysize) {
+         return entitysize.height / 2.0F;
+     }
++
++    // EMC start
++    public static BlockPosition getBatMoveTarget(EntityBat bat) {
++        org.bukkit.entity.Bat bukkitBat = (org.bukkit.entity.Bat) bat.getBukkitEntity();
++        org.bukkit.Location loc = com.empireminecraft.customevents.BatMoveEvent.generateLoc(bukkitBat);
++        com.empireminecraft.customevents.BatMoveEvent event = new com.empireminecraft.customevents.BatMoveEvent(bukkitBat, loc);
++        if (!event.callEvent()) {
++            return new BlockPosition(bat.locX, bat.locY, bat.locZ);
++        }
++        org.bukkit.Location target = event.getMoveTarget();
++        return new BlockPosition(target.getBlockX(), target.getBlockY(), target.getBlockZ());
++    }
++    // EMC end
+ }
+diff --git a/src/main/java/net/minecraft/server/EntityInsentient.java b/src/main/java/net/minecraft/server/EntityInsentient.java
+index 0134995..2803b6e 100644
+--- a/src/main/java/net/minecraft/server/EntityInsentient.java
++++ b/src/main/java/net/minecraft/server/EntityInsentient.java
+@@ -113,7 +113,7 @@ public abstract class EntityInsentient extends EntityLiving {
+     }
+ 
+     public ControllerMove getControllerMove() {
+-        if (this.isPassenger() && this.getVehicle() instanceof EntityInsentient) {
++        if (this.isPassenger() && this.getVehicle() instanceof EntityInsentient && !(this instanceof EntityBat)) { // EMC) {
+             EntityInsentient entityinsentient = (EntityInsentient) this.getVehicle();
+ 
+             return entityinsentient.getControllerMove();
+-- 
+2.7.4
+
