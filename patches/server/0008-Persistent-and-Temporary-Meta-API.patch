@@ -1,4 +1,4 @@
-From b32974684c8bf9b624e15f10b6fbee1c06a6de34 Mon Sep 17 00:00:00 2001
+From e29c5aa6b97d3c36f1629704f33f61e74796b8b5 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Mon, 4 Mar 2013 23:35:02 -0500
 Subject: [PATCH] Persistent and Temporary Meta API
@@ -148,7 +148,7 @@ index 67dc837f4..5d506435d 100644
      public boolean needsDecoration;
      // CraftBukkit end
 diff --git a/src/main/java/net/minecraft/server/ChunkRegionLoader.java b/src/main/java/net/minecraft/server/ChunkRegionLoader.java
-index a02807411..a18c02b01 100644
+index 98cc4efcf..63c71f6c1 100644
 --- a/src/main/java/net/minecraft/server/ChunkRegionLoader.java
 +++ b/src/main/java/net/minecraft/server/ChunkRegionLoader.java
 @@ -1,6 +1,7 @@
@@ -159,7 +159,7 @@ index a02807411..a18c02b01 100644
  import com.google.common.collect.Maps;
  import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
  import it.unimi.dsi.fastutil.longs.LongSet;
-@@ -172,6 +173,7 @@ public class ChunkRegionLoader {
+@@ -211,6 +212,7 @@ public class ChunkRegionLoader {
          }
  
          HeightMap.a((IChunkAccess) object, enumset);
@@ -167,12 +167,12 @@ index a02807411..a18c02b01 100644
          NBTTagCompound nbttagcompound4 = nbttagcompound1.getCompound("Structures");
  
          ((IChunkAccess) object).a(a(chunkgenerator, definedstructuremanager, worldchunkmanager, nbttagcompound4));
-@@ -246,6 +248,7 @@ public class ChunkRegionLoader {
+@@ -357,6 +359,7 @@ public class ChunkRegionLoader {
          nbttagcompound.set("Level", nbttagcompound1);
          nbttagcompound1.setInt("xPos", chunkcoordintpair.x);
          nbttagcompound1.setInt("zPos", chunkcoordintpair.z);
 +        MetaApiAccessor.saveChunkMetaNbt(nbttagcompound, ichunkaccess); // EMC
-         nbttagcompound1.setLong("LastUpdate", worldserver.getTime());
+         nbttagcompound1.setLong("LastUpdate", asyncsavedata != null ? asyncsavedata.worldTime : worldserver.getTime()); // Paper - async chunk unloading
          nbttagcompound1.setLong("InhabitedTime", ichunkaccess.q());
          nbttagcompound1.setString("Status", ichunkaccess.getChunkStatus().d());
 diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
@@ -773,7 +773,7 @@ index b8ddb99fa..c404d1a7e 100644
      // Paper start
      public InventoryHolder getOwner() {
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index b81b37445..01a7c30d7 100644
+index 9d29fc8ca..ac3fcec56 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
 @@ -464,6 +464,7 @@ public abstract class World implements IIBlockAccess, GeneratorAccess, AutoClose
@@ -813,7 +813,7 @@ index ca4c31458..d6ee28c78 100644
          if (nbttagcompound1 != null) {
              nbttagcompound.set("Player", nbttagcompound1);
 diff --git a/src/main/java/net/minecraft/server/WorldServer.java b/src/main/java/net/minecraft/server/WorldServer.java
-index 4497f6a60..eec9a24a3 100644
+index 7a0b657f2..d5d22ce04 100644
 --- a/src/main/java/net/minecraft/server/WorldServer.java
 +++ b/src/main/java/net/minecraft/server/WorldServer.java
 @@ -50,7 +50,7 @@ import org.bukkit.event.weather.LightningStrikeEvent;
@@ -826,10 +826,10 @@ index 4497f6a60..eec9a24a3 100644
      private final Map<UUID, Entity> entitiesByUUID = Maps.newHashMap();
      private final Queue<Entity> entitiesToAdd = Queues.newArrayDeque();
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftChunk.java b/src/main/java/org/bukkit/craftbukkit/CraftChunk.java
-index bb3e4805b..0bd7420b1 100644
+index b45516140..b0c112f05 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftChunk.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftChunk.java
-@@ -32,6 +32,8 @@ import org.bukkit.plugin.Plugin;
+@@ -34,6 +34,8 @@ import org.bukkit.plugin.Plugin;
  
  public class CraftChunk implements Chunk {
      private WeakReference<net.minecraft.server.Chunk> weakChunk;
@@ -885,7 +885,7 @@ index 0cb5582b1..3e3f10dc3 100644
 +    // EMC end
  }
 diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java
-index 15042943c..919775527 100644
+index 31db42e9f..42b25027c 100644
 --- a/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java
 +++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java
 @@ -166,6 +166,8 @@ import org.bukkit.util.NumberConversions;
@@ -898,10 +898,10 @@ index 15042943c..919775527 100644
      private static final CraftPersistentDataTypeRegistry DATA_TYPE_REGISTRY = new CraftPersistentDataTypeRegistry();
  
 diff --git a/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java b/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
-index 2399656a6..059799859 100644
+index 46bbb6ff3..2846689ad 100644
 --- a/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
 +++ b/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
-@@ -1333,6 +1333,11 @@ public class CraftEventFactory {
+@@ -1345,6 +1345,11 @@ public class CraftEventFactory {
          // Paper end
          human.world.getServer().getPluginManager().callEvent(event);
          human.activeContainer.transferTo(human.defaultContainer, human.getBukkitEntity());
@@ -936,5 +936,5 @@ index 026a0c399..d607acf53 100644
          this.inventory = inventory;
      }
 -- 
-2.22.0
+2.23.0
 
