@@ -1,4 +1,4 @@
-From be0604cad31f32cdc2c4f55b2617d842c1e454c3 Mon Sep 17 00:00:00 2001
+From 05fa90ad5b0f3bdc600088b94c9d01d0e448d730 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Tue, 6 Dec 2016 22:22:14 -0500
 Subject: [PATCH] Entity AI API
@@ -7,7 +7,7 @@ Subject: [PATCH] Entity AI API
  .../empireminecraft/api/CraftEAPI_Entity.java | 135 ++++++++
  .../com/empireminecraft/api/EntityAIApi.java  | 297 ++++++++++++++++++
  .../minecraft/server/AttributesAccessor.java  |   1 +
- .../java/net/minecraft/server/Entity.java     |  18 +-
+ .../java/net/minecraft/server/Entity.java     |  21 +-
  .../net/minecraft/server/EntityAnimal.java    |   2 +-
  .../net/minecraft/server/EntityBlaze.java     |  27 +-
  .../net/minecraft/server/EntityCreature.java  |   1 +
@@ -15,7 +15,7 @@ Subject: [PATCH] Entity AI API
  .../net/minecraft/server/EntityGhast.java     |   3 +-
  .../minecraft/server/EntityGoalAccessor.java  |  20 ++
  .../java/net/minecraft/server/EntityItem.java |   3 +-
- .../net/minecraft/server/EntityLiving.java    |  13 +-
+ .../net/minecraft/server/EntityLiving.java    |  12 +-
  .../net/minecraft/server/EntitySpider.java    |   4 +
  .../java/net/minecraft/server/EntityWolf.java |   2 +
  .../server/PathfinderGoalArrowAttack.java     |   8 +-
@@ -29,7 +29,7 @@ Subject: [PATCH] Entity AI API
  .../craftbukkit/entity/CraftEnderSignal.java  |   3 +-
  .../bukkit/craftbukkit/entity/CraftGhast.java |   9 +
  .../java/org/spigotmc/ActivationRange.java    |   1 +
- 25 files changed, 580 insertions(+), 29 deletions(-)
+ 25 files changed, 582 insertions(+), 29 deletions(-)
  create mode 100644 src/main/java/com/empireminecraft/api/EntityAIApi.java
  create mode 100644 src/main/java/net/minecraft/server/EntityGoalAccessor.java
 
@@ -503,10 +503,20 @@ index 9d4f099ff..83a85a8d2 100644
              map.registerAttribute(targetRange);
              if (entity instanceof Wither) {
 diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
-index aface5b35..d5e14e912 100644
+index 22a0c2eb4..90b12fceb 100644
 --- a/src/main/java/net/minecraft/server/Entity.java
 +++ b/src/main/java/net/minecraft/server/Entity.java
-@@ -148,6 +148,9 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+@@ -50,7 +50,8 @@ import org.bukkit.event.player.PlayerTeleportEvent;
+ import org.bukkit.plugin.PluginManager;
+ // CraftBukkit end
+ 
+-public abstract class Entity implements INamableTileEntity, ICommandListener, KeyedObject { // Paper
++public abstract class
++Entity implements INamableTileEntity, ICommandListener, KeyedObject { // Paper
+ 
+     // CraftBukkit start
+     public com.empireminecraft.api.meta.PersistentMetaMap metaMap = null; // EMC
+@@ -149,6 +150,9 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
      protected boolean inLava;
      public int noDamageTicks;
      protected boolean justCreated;
@@ -514,9 +524,9 @@ index aface5b35..d5e14e912 100644
 +    public boolean firePanicProof; // EMC
 +    public boolean isDisabled = false; // EMC
      protected final DataWatcher datawatcher;
-     protected static final DataWatcherObject<Byte> W = DataWatcher.a(Entity.class, DataWatcherRegistry.a);
+     protected static final DataWatcherObject<Byte> T = DataWatcher.a(Entity.class, DataWatcherRegistry.a);
      private static final DataWatcherObject<Integer> AIR_TICKS = DataWatcher.a(Entity.class, DataWatcherRegistry.b);
-@@ -177,7 +180,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+@@ -181,7 +185,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
      private boolean aF;
      private final double[] aG;
      private long aH;
@@ -525,15 +535,15 @@ index aface5b35..d5e14e912 100644
      private float headHeight;
      // CraftBukkit start
      public boolean persist = true;
-@@ -354,6 +357,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+@@ -365,6 +369,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
      }
  
      public void setPosition(double d0, double d1, double d2) {
 +        if (isDisabled) { return; } // EMC
-         this.locX = d0;
-         this.locY = d1;
-         this.locZ = d2;
-@@ -382,6 +386,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+         this.setPositionRaw(d0, d1, d2);
+         float f = this.size.width / 2.0F;
+         float f1 = this.size.height;
+@@ -395,6 +400,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
      // CraftBukkit end
  
      public void entityBaseTick() {
@@ -541,7 +551,7 @@ index aface5b35..d5e14e912 100644
          this.world.getMethodProfiler().enter("entityBaseTick");
          if (this.isPassenger() && this.getVehicle().dead) {
              this.stopRiding();
-@@ -540,6 +545,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+@@ -551,6 +557,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
      }
  
      public void move(EnumMoveType enummovetype, Vec3D vec3d) {
@@ -549,7 +559,7 @@ index aface5b35..d5e14e912 100644
          if (this.noclip) {
              this.a(this.getBoundingBox().b(vec3d));
              this.recalcPosition();
-@@ -1104,7 +1110,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+@@ -1091,7 +1098,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
      }
  
      public final boolean isFireProof() {
@@ -557,40 +567,40 @@ index aface5b35..d5e14e912 100644
 +        return this.getEntityType().c() || this.fireProof;
      }
  
-     public void b(float f, float f1) {
-@@ -1340,6 +1346,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+     public boolean b(float f, float f1) {
+@@ -1328,6 +1335,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
      }
  
      public void setLocation(double d0, double d1, double d2, float f, float f1) {
 +        if (isDisabled) { return; } // EMC
-         this.locX = MathHelper.a(d0, -3.0E7D, 3.0E7D);
-         this.locY = d1;
-         this.locZ = MathHelper.a(d2, -3.0E7D, 3.0E7D);
-@@ -1371,6 +1378,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+         double d3 = MathHelper.a(d0, -3.0E7D, 3.0E7D);
+         double d4 = MathHelper.a(d2, -3.0E7D, 3.0E7D);
+ 
+@@ -1347,6 +1355,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
      }
  
      public void setPositionRotation(double d0, double d1, double d2, float f, float f1) {
 +        if (isDisabled) { return; } // EMC
-         this.locX = d0;
-         this.locY = d1;
-         this.locZ = d2;
-@@ -1416,6 +1424,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+         this.f(d0, d1, d2);
+         this.yaw = f;
+         this.pitch = f1;
+@@ -1394,6 +1403,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
      public void pickup(EntityHuman entityhuman) {}
  
      public void collide(Entity entity) {
 +        if (isDisabled) { return; } // EMC
          if (!this.x(entity)) {
              if (!entity.noclip && !this.noclip) {
-                 double d0 = entity.locX - this.locX;
-@@ -1452,6 +1461,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+                 double d0 = entity.locX() - this.locX();
+@@ -1430,6 +1440,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
      }
  
-     public void f(double d0, double d1, double d2) {
+     public void h(double d0, double d1, double d2) {
 +        if (isDisabled) { return; } // EMC
          this.setMot(this.getMot().add(d0, d1, d2));
          this.impulse = true;
      }
-@@ -1461,6 +1471,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+@@ -1439,6 +1450,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
      }
  
      public boolean damageEntity(DamageSource damagesource, float f) {
@@ -598,7 +608,7 @@ index aface5b35..d5e14e912 100644
          if (this.isInvulnerable(damagesource)) {
              return false;
          } else {
-@@ -2539,7 +2550,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+@@ -2546,7 +2558,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
      }
  
      public boolean isInvulnerable(DamageSource damagesource) {
@@ -607,7 +617,7 @@ index aface5b35..d5e14e912 100644
      }
  
      public boolean isInvulnerable() {
-@@ -2940,6 +2951,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+@@ -2952,6 +2964,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
          return false;
      }
  
@@ -616,7 +626,7 @@ index aface5b35..d5e14e912 100644
          if (entity instanceof EntityLiving) {
              EnchantmentManager.a((EntityLiving) entity, (Entity) entityliving);
 diff --git a/src/main/java/net/minecraft/server/EntityAnimal.java b/src/main/java/net/minecraft/server/EntityAnimal.java
-index 3e627ea08..eabe6092e 100644
+index 013db0c3a..bd08d1e9c 100644
 --- a/src/main/java/net/minecraft/server/EntityAnimal.java
 +++ b/src/main/java/net/minecraft/server/EntityAnimal.java
 @@ -6,7 +6,7 @@ import javax.annotation.Nullable;
@@ -629,7 +639,7 @@ index 3e627ea08..eabe6092e 100644
      public ItemStack breedItem; // CraftBukkit - Add breedItem variable
  
 diff --git a/src/main/java/net/minecraft/server/EntityBlaze.java b/src/main/java/net/minecraft/server/EntityBlaze.java
-index 89f1bfa41..473af6a37 100644
+index 5b1d2c7f5..18c7965a0 100644
 --- a/src/main/java/net/minecraft/server/EntityBlaze.java
 +++ b/src/main/java/net/minecraft/server/EntityBlaze.java
 @@ -8,6 +8,25 @@ public class EntityBlaze extends EntityMonster {
@@ -667,7 +677,7 @@ index 89f1bfa41..473af6a37 100644
          this.targetSelector.a(2, new PathfinderGoalNearestAttackableTarget<>(this, EntityHuman.class, true));
      }
  
-@@ -196,8 +215,8 @@ public class EntityBlaze extends EntityMonster {
+@@ -198,8 +217,8 @@ public class EntityBlaze extends EntityMonster {
                          if (this.b == 1) {
                              this.c = 60;
                              this.a.r(true);
@@ -678,10 +688,10 @@ index 89f1bfa41..473af6a37 100644
                          } else {
                              this.c = 100;
                              this.b = 0;
-@@ -213,7 +232,9 @@ public class EntityBlaze extends EntityMonster {
+@@ -215,7 +234,9 @@ public class EntityBlaze extends EntityMonster {
                                  EntitySmallFireball entitysmallfireball = new EntitySmallFireball(this.a.world, this.a, d1 + this.a.getRandom().nextGaussian() * (double) f, d2, d3 + this.a.getRandom().nextGaussian() * (double) f);
  
-                                 entitysmallfireball.locY = this.a.locY + (double) (this.a.getHeight() / 2.0F) + 0.5D;
+                                 entitysmallfireball.setPosition(entitysmallfireball.locX(), this.a.e(0.5D) + 0.5D, entitysmallfireball.locZ());
 +                                if (new com.empireminecraft.customevents.BlazeLaunchFireballEvent((org.bukkit.entity.Blaze) this.a.getBukkitEntity(), (org.bukkit.entity.SmallFireball) entitysmallfireball.getBukkitEntity()).callEvent()) { // EMC
                                  this.a.world.addEntity(entitysmallfireball);
 +                                } else { entitysmallfireball.die(); }// EMC
@@ -689,7 +699,7 @@ index 89f1bfa41..473af6a37 100644
                          }
                      }
 diff --git a/src/main/java/net/minecraft/server/EntityCreature.java b/src/main/java/net/minecraft/server/EntityCreature.java
-index 7dacaa216..f2bc00eda 100644
+index b40c8d2f8..51439d2b9 100644
 --- a/src/main/java/net/minecraft/server/EntityCreature.java
 +++ b/src/main/java/net/minecraft/server/EntityCreature.java
 @@ -8,6 +8,7 @@ public abstract class EntityCreature extends EntityInsentient {
@@ -701,7 +711,7 @@ index 7dacaa216..f2bc00eda 100644
          super(entitytypes, world);
      }
 diff --git a/src/main/java/net/minecraft/server/EntityEnderSignal.java b/src/main/java/net/minecraft/server/EntityEnderSignal.java
-index ef157ad18..711dd1c51 100644
+index c13abc7e0..11b379a9c 100644
 --- a/src/main/java/net/minecraft/server/EntityEnderSignal.java
 +++ b/src/main/java/net/minecraft/server/EntityEnderSignal.java
 @@ -9,6 +9,18 @@ public class EntityEnderSignal extends Entity {
@@ -741,28 +751,28 @@ index ef157ad18..711dd1c51 100644
          double d0 = (double) blockposition.getX();
          int i = blockposition.getY();
 @@ -51,6 +64,7 @@ public class EntityEnderSignal extends Entity {
-         double d3 = d1 - this.locZ;
+         double d3 = d1 - this.locZ();
          float f = MathHelper.sqrt(d2 * d2 + d3 * d3);
  
 +        if (exactTarget) f = 0; // EMC
          if (f > 12.0F) {
-             this.targetX = this.locX + d2 / (double) f * 12.0D;
-             this.targetZ = this.locZ + d3 / (double) f * 12.0D;
-@@ -101,9 +115,10 @@ public class EntityEnderSignal extends Entity {
+             this.targetX = this.locX() + d2 / (double) f * 12.0D;
+             this.targetZ = this.locZ() + d3 / (double) f * 12.0D;
+@@ -97,9 +111,10 @@ public class EntityEnderSignal extends Entity {
          if (!this.world.isClientSide) {
-             double d0 = this.targetX - this.locX;
-             double d1 = this.targetZ - this.locZ;
--            float f1 = (float) Math.sqrt(d0 * d0 + d1 * d1);
-+            double distY = this.targetY - this.locY; // EMC
-+            float f1 = (float) Math.sqrt(d0 * d0 + d1 * d1 + (exactTarget ? distY * distY : 0)); // EMC
-             float f2 = (float) MathHelper.d(d1, d0);
--            double d2 = MathHelper.d(0.0025D, (double) f, (double) f1);
-+            double d2 = MathHelper.d(speed, (double) f, (double) f1); // EMC
-             double d3 = vec3d.y;
+             double d3 = this.targetX - d0;
+             double d4 = this.targetZ - d2;
+-            float f1 = (float) Math.sqrt(d3 * d3 + d4 * d4);
++            double distY = this.targetY - d1; // EMC
++            float f1 = (float) Math.sqrt(d3 * d3 + d4 * d4 + (exactTarget ? distY * distY : 0)); // EMC
+             float f2 = (float) MathHelper.d(d4, d3);
+-            double d5 = MathHelper.d(0.0025D, (double) f, (double) f1);
++            double d5 = MathHelper.d(speed, (double) f, (double) f1); // EMC
+             double d6 = vec3d.y;
  
              if (f1 < 1.0F) {
-@@ -131,6 +146,7 @@ public class EntityEnderSignal extends Entity {
-             this.setPosition(this.locX, this.locY, this.locZ);
+@@ -127,6 +142,7 @@ public class EntityEnderSignal extends Entity {
+             this.setPosition(d0, d1, d2);
              ++this.despawnTimer;
              if (this.despawnTimer > 80 && !this.world.isClientSide) {
 +                if (!(new com.empireminecraft.customevents.EnderSignalArriveEvent((org.bukkit.entity.EnderSignal) this.getBukkitEntity()).callEvent())) {return;} // EMC
@@ -770,7 +780,7 @@ index ef157ad18..711dd1c51 100644
                  this.die();
                  if (this.shouldDropItem) {
 diff --git a/src/main/java/net/minecraft/server/EntityGhast.java b/src/main/java/net/minecraft/server/EntityGhast.java
-index f25c828df..7fa4e6113 100644
+index e1c2540d1..53c0f9c8b 100644
 --- a/src/main/java/net/minecraft/server/EntityGhast.java
 +++ b/src/main/java/net/minecraft/server/EntityGhast.java
 @@ -7,6 +7,7 @@ public class EntityGhast extends EntityFlying implements IMonster {
@@ -781,9 +791,9 @@ index f25c828df..7fa4e6113 100644
  
      public EntityGhast(EntityTypes<? extends EntityGhast> entitytypes, World world) {
          super(entitytypes, world);
-@@ -173,7 +174,7 @@ public class EntityGhast extends EntityFlying implements IMonster {
-                     entitylargefireball.locY = this.ghast.locY + (double) (this.ghast.getHeight() / 2.0F) + 0.5D;
-                     entitylargefireball.locZ = this.ghast.locZ + vec3d.z * 4.0D;
+@@ -167,7 +168,7 @@ public class EntityGhast extends EntityFlying implements IMonster {
+                     entitylargefireball.bukkitYield = entitylargefireball.yield = this.ghast.getPower();
+                     entitylargefireball.setPosition(this.ghast.locX() + vec3d.x * 4.0D, this.ghast.e(0.5D) + 0.5D, entitylargefireball.locZ() + vec3d.z * 4.0D);
                      world.addEntity(entitylargefireball);
 -                    this.a = -40;
 +                    this.a = -ghast.fireballCooldown; // EMC
@@ -817,10 +827,10 @@ index 000000000..d0ee7f304
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/EntityItem.java b/src/main/java/net/minecraft/server/EntityItem.java
-index df26cef6a..4a6e764f3 100644
+index e61af3f5e..117204dcb 100644
 --- a/src/main/java/net/minecraft/server/EntityItem.java
 +++ b/src/main/java/net/minecraft/server/EntityItem.java
-@@ -15,6 +15,7 @@ public class EntityItem extends Entity {
+@@ -16,6 +16,7 @@ public class EntityItem extends Entity {
  
      private static final DataWatcherObject<ItemStack> ITEM = DataWatcher.a(EntityItem.class, DataWatcherRegistry.g);
      public int age;
@@ -828,7 +838,7 @@ index df26cef6a..4a6e764f3 100644
      public int pickupDelay;
      private int f;
      private UUID thrower;
-@@ -128,7 +129,7 @@ public class EntityItem extends Entity {
+@@ -129,7 +130,7 @@ public class EntityItem extends Entity {
                  }
              }
  
@@ -838,22 +848,21 @@ index df26cef6a..4a6e764f3 100644
                  if (org.bukkit.craftbukkit.event.CraftEventFactory.callItemDespawnEvent(this).isCancelled()) {
                      this.age = 0;
 diff --git a/src/main/java/net/minecraft/server/EntityLiving.java b/src/main/java/net/minecraft/server/EntityLiving.java
-index 61269fcb2..48fadaa78 100644
+index 60a0b6b47..f74d2d5bc 100644
 --- a/src/main/java/net/minecraft/server/EntityLiving.java
 +++ b/src/main/java/net/minecraft/server/EntityLiving.java
-@@ -457,6 +457,7 @@ public abstract class EntityLiving extends Entity {
-         return this.bC;
+@@ -435,6 +435,7 @@ public abstract class EntityLiving extends Entity {
+         return this.bA;
      }
  
 +    public void setLastAttacker(Entity entity) { this.z(entity); } // EMC - OBF HELPER
      public void z(Entity entity) {
          if (entity instanceof EntityLiving) {
-             this.bB = (EntityLiving) entity;
-@@ -2278,8 +2279,16 @@ public abstract class EntityLiving extends Entity {
-     }
+             this.bz = (EntityLiving) entity;
+@@ -2325,7 +2326,16 @@ public abstract class EntityLiving extends Entity {
  
-     public boolean C(Entity entity) {
--        this.z(entity);
+     public boolean B(Entity entity) {
+         this.z(entity);
 -        return false;
 +        // EMC start - make all mobs able to attack
 +        boolean flag = entity.damageEntity(DamageSource.mobAttack(this), (float) ((int) this.getAttributeInstance(GenericAttributes.ATTACK_DAMAGE).getValue()));
@@ -869,7 +878,7 @@ index 61269fcb2..48fadaa78 100644
  
      @Override
 diff --git a/src/main/java/net/minecraft/server/EntitySpider.java b/src/main/java/net/minecraft/server/EntitySpider.java
-index 3929c86f8..0dc66887b 100644
+index d02db5659..90e303d29 100644
 --- a/src/main/java/net/minecraft/server/EntitySpider.java
 +++ b/src/main/java/net/minecraft/server/EntitySpider.java
 @@ -152,6 +152,8 @@ public class EntitySpider extends EntityMonster {
@@ -884,7 +893,7 @@ index 3929c86f8..0dc66887b 100644
 @@ -161,6 +163,7 @@ public class EntitySpider extends EntityMonster {
          @Override
          public boolean a() {
-             float f = this.e.aF();
+             float f = this.e.aI();
 +            if (((EntitySpider)this.e).attackDuringDay) f = 1.0F; // EMC
  
              return f >= 0.5F ? false : super.a();
@@ -892,16 +901,16 @@ index 3929c86f8..0dc66887b 100644
 @@ -180,6 +183,7 @@ public class EntitySpider extends EntityMonster {
          @Override
          public boolean b() {
-             float f = this.a.aF();
+             float f = this.a.aI();
 +            if (((EntitySpider)this.a).attackDuringDay) f = 1.0F; // EMC
  
              if (f >= 0.5F && this.a.getRandom().nextInt(100) == 0) {
                  this.a.setGoalTarget((EntityLiving) null);
 diff --git a/src/main/java/net/minecraft/server/EntityWolf.java b/src/main/java/net/minecraft/server/EntityWolf.java
-index 02492663a..9e426c9bc 100644
+index db15d5e0a..a3f473a93 100644
 --- a/src/main/java/net/minecraft/server/EntityWolf.java
 +++ b/src/main/java/net/minecraft/server/EntityWolf.java
-@@ -30,6 +30,7 @@ public class EntityWolf extends EntityTameableAnimal {
+@@ -29,6 +29,7 @@ public class EntityWolf extends EntityTameableAnimal {
          super(entitytypes, world);
          this.setTamed(false);
      }
@@ -909,16 +918,16 @@ index 02492663a..9e426c9bc 100644
  
      @Override
      protected void initPathfinder() {
-@@ -359,6 +360,7 @@ public class EntityWolf extends EntityTameableAnimal {
+@@ -360,6 +361,7 @@ public class EntityWolf extends EntityTameableAnimal {
  
      public void setAngry(boolean flag) {
-         byte b0 = (Byte) this.datawatcher.get(EntityWolf.bz);
+         byte b0 = (Byte) this.datawatcher.get(EntityWolf.bw);
 +        if (alwaysAngry) flag = true; // EMC
  
          if (flag) {
-             this.datawatcher.set(EntityWolf.bz, (byte) (b0 | 2));
+             this.datawatcher.set(EntityWolf.bw, (byte) (b0 | 2));
 diff --git a/src/main/java/net/minecraft/server/PathfinderGoalArrowAttack.java b/src/main/java/net/minecraft/server/PathfinderGoalArrowAttack.java
-index 08aea9969..8cbf77eeb 100644
+index 2206d1833..6d9b361dd 100644
 --- a/src/main/java/net/minecraft/server/PathfinderGoalArrowAttack.java
 +++ b/src/main/java/net/minecraft/server/PathfinderGoalArrowAttack.java
 @@ -10,10 +10,10 @@ public class PathfinderGoalArrowAttack extends PathfinderGoal {
@@ -937,7 +946,7 @@ index 08aea9969..8cbf77eeb 100644
      public PathfinderGoalArrowAttack(IRangedEntity irangedentity, double d0, int i, float f) {
          this(irangedentity, d0, i, i, f);
 diff --git a/src/main/java/net/minecraft/server/PathfinderGoalBowShoot.java b/src/main/java/net/minecraft/server/PathfinderGoalBowShoot.java
-index 5bdc4b4b6..fd544c29a 100644
+index 075595c3a..87ab8e0ab 100644
 --- a/src/main/java/net/minecraft/server/PathfinderGoalBowShoot.java
 +++ b/src/main/java/net/minecraft/server/PathfinderGoalBowShoot.java
 @@ -6,8 +6,8 @@ public class PathfinderGoalBowShoot<T extends EntityMonster & IRangedEntity> ext
@@ -952,7 +961,7 @@ index 5bdc4b4b6..fd544c29a 100644
      private int f;
      private boolean g;
 diff --git a/src/main/java/net/minecraft/server/PathfinderGoalFleeSun.java b/src/main/java/net/minecraft/server/PathfinderGoalFleeSun.java
-index b18f7c516..41e5f7211 100644
+index e8d07692b..17b38b759 100644
 --- a/src/main/java/net/minecraft/server/PathfinderGoalFleeSun.java
 +++ b/src/main/java/net/minecraft/server/PathfinderGoalFleeSun.java
 @@ -6,7 +6,7 @@ import javax.annotation.Nullable;
@@ -968,13 +977,13 @@ index b18f7c516..41e5f7211 100644
  
      @Override
      public boolean a() {
--        return this.a.getGoalTarget() != null ? false : (!this.f.J() ? false : (!this.a.isBurning() ? false : (!this.f.f(new BlockPosition(this.a.locX, this.a.getBoundingBox().minY, this.a.locZ)) ? false : (!this.a.getEquipment(EnumItemSlot.HEAD).isEmpty() ? false : this.g()))));
-+        return this.a.getGoalTarget() != null ? false : (!this.f.J() ? false : ((this.getEntity().firePanicProof || !this.a.isBurning()) ? false : (!this.f.f(new BlockPosition(this.a.locX, this.a.getBoundingBox().minY, this.a.locZ)) ? false : (!this.a.getEquipment(EnumItemSlot.HEAD).isEmpty() ? false : this.g())))); // EMC
+-        return this.a.getGoalTarget() != null ? false : (!this.f.J() ? false : (!this.a.isBurning() ? false : (!this.f.f(new BlockPosition(this.a)) ? false : (!this.a.getEquipment(EnumItemSlot.HEAD).isEmpty() ? false : this.g()))));
++        return this.a.getGoalTarget() != null ? false : (!this.f.J() ? false : ((this.getEntity().firePanicProof || !this.a.isBurning()) ? false : (!this.f.f(new BlockPosition(this.a))) ? false : (!this.a.getEquipment(EnumItemSlot.HEAD).isEmpty() ? false : this.g()))); // EMC
      }
  
      protected boolean g() {
 diff --git a/src/main/java/net/minecraft/server/PathfinderGoalPanic.java b/src/main/java/net/minecraft/server/PathfinderGoalPanic.java
-index f399683b7..5af2d0493 100644
+index c6a4df1c5..960e63d96 100644
 --- a/src/main/java/net/minecraft/server/PathfinderGoalPanic.java
 +++ b/src/main/java/net/minecraft/server/PathfinderGoalPanic.java
 @@ -5,7 +5,7 @@ import javax.annotation.Nullable;
@@ -1019,7 +1028,7 @@ index 44bb18c59..71fa6bba5 100644
      }
  
 diff --git a/src/main/java/net/minecraft/server/PathfinderGoalWrapped.java b/src/main/java/net/minecraft/server/PathfinderGoalWrapped.java
-index 182cd7e91..1f7d4e291 100644
+index 5a8c60ad9..9dcbe4f5a 100644
 --- a/src/main/java/net/minecraft/server/PathfinderGoalWrapped.java
 +++ b/src/main/java/net/minecraft/server/PathfinderGoalWrapped.java
 @@ -5,7 +5,7 @@ import javax.annotation.Nullable;
@@ -1032,11 +1041,11 @@ index 182cd7e91..1f7d4e291 100644
      private boolean c;
  
 diff --git a/src/main/java/net/minecraft/server/WorldServer.java b/src/main/java/net/minecraft/server/WorldServer.java
-index 6ea426ec7..e5614d545 100644
+index f13355d05..96de20bc7 100644
 --- a/src/main/java/net/minecraft/server/WorldServer.java
 +++ b/src/main/java/net/minecraft/server/WorldServer.java
-@@ -695,7 +695,7 @@ public class WorldServer extends World {
-             entity.J = entity.locZ;
+@@ -700,7 +700,7 @@ public class WorldServer extends World {
+             entity.f(entity.locX(), entity.locY(), entity.locZ());
              entity.lastYaw = entity.yaw;
              entity.lastPitch = entity.pitch;
 -            if (entity.inChunk) {
@@ -1113,10 +1122,10 @@ index cac82ce76..913f4a11a 100644
 +    // EMC end
  }
 diff --git a/src/main/java/org/spigotmc/ActivationRange.java b/src/main/java/org/spigotmc/ActivationRange.java
-index 92601c581..5da3520f2 100644
+index f86404f83..9882221f0 100644
 --- a/src/main/java/org/spigotmc/ActivationRange.java
 +++ b/src/main/java/org/spigotmc/ActivationRange.java
-@@ -248,6 +248,7 @@ public class ActivationRange
+@@ -247,6 +247,7 @@ public class ActivationRange
       */
      public static boolean checkIfActive(Entity entity)
      {

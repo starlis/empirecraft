@@ -1,4 +1,4 @@
-From ee824ea309af34ae5eeaaf50d05107960b8f769c Mon Sep 17 00:00:00 2001
+From 875c391ddf3f77c607c1dffa56e0bdc964d7ee1f Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Tue, 13 Dec 2016 00:40:10 -0500
 Subject: [PATCH] Villager Treasure Map Events / Changes
@@ -8,11 +8,11 @@ Subject: [PATCH] Villager Treasure Map Events / Changes
  .../net/minecraft/server/EntityVillager.java  |  1 -
  .../java/net/minecraft/server/ItemStack.java  |  1 +
  .../net/minecraft/server/VillagerTrades.java  | 27 +++++++-------
- src/main/java/net/minecraft/server/World.java |  2 +-
- 5 files changed, 51 insertions(+), 15 deletions(-)
+ src/main/java/net/minecraft/server/World.java | 11 ++++++
+ 5 files changed, 61 insertions(+), 14 deletions(-)
 
 diff --git a/src/main/java/com/empireminecraft/api/CraftEAPI_Misc.java b/src/main/java/com/empireminecraft/api/CraftEAPI_Misc.java
-index fa8cbd5a3..206503283 100644
+index fa8cbd5a3..c31cba8be 100644
 --- a/src/main/java/com/empireminecraft/api/CraftEAPI_Misc.java
 +++ b/src/main/java/com/empireminecraft/api/CraftEAPI_Misc.java
 @@ -23,5 +23,40 @@
@@ -49,7 +49,7 @@ index fa8cbd5a3..206503283 100644
 +        final World world = MCUtil.getNMSWorld(loc.getWorld());
 +        final BlockPosition pos = MCUtil.toBlockPosition(loc);
 +        ItemStack itemstack = ItemWorldMap.createFilledMapView(world, pos.getX(), pos.getZ(), (byte) 2, true, true);
-+        ItemWorldMap.applySepiaFilter(world, itemstack);
++        ItemWorldMap.applySepiaFilter((net.minecraft.server.WorldServer) world, itemstack);
 +
 +        WorldMap.decorateMap(itemstack, pos, "+", values[iconType]);
 +        itemstack.setLocaleName("filled_map." + mapType);
@@ -57,10 +57,10 @@ index fa8cbd5a3..206503283 100644
 +    }
  }
 diff --git a/src/main/java/net/minecraft/server/EntityVillager.java b/src/main/java/net/minecraft/server/EntityVillager.java
-index 7f747fac9..5a33e4905 100644
+index 7ea55c939..0b9b2a863 100644
 --- a/src/main/java/net/minecraft/server/EntityVillager.java
 +++ b/src/main/java/net/minecraft/server/EntityVillager.java
-@@ -387,7 +387,6 @@ public class EntityVillager extends EntityVillagerAbstract implements Reputation
+@@ -389,7 +389,6 @@ public class EntityVillager extends EntityVillagerAbstract implements Reputation
              MobEffect mobeffect = entityhuman.getEffect(MobEffects.HERO_OF_THE_VILLAGE);
              int j = mobeffect.getAmplifier();
              Iterator iterator1 = this.getOffers().iterator();
@@ -69,10 +69,10 @@ index 7f747fac9..5a33e4905 100644
                  MerchantRecipe merchantrecipe1 = (MerchantRecipe) iterator1.next();
                  double d0 = 0.3D + 0.0625D * (double) j;
 diff --git a/src/main/java/net/minecraft/server/ItemStack.java b/src/main/java/net/minecraft/server/ItemStack.java
-index 91493b861..93cbf0d51 100644
+index ec92f8eb4..66b68078b 100644
 --- a/src/main/java/net/minecraft/server/ItemStack.java
 +++ b/src/main/java/net/minecraft/server/ItemStack.java
-@@ -669,6 +669,7 @@ public final class ItemStack {
+@@ -676,6 +676,7 @@ public final class ItemStack {
          return this.getItem().g(this);
      }
  
@@ -81,7 +81,7 @@ index 91493b861..93cbf0d51 100644
          NBTTagCompound nbttagcompound = this.a("display");
  
 diff --git a/src/main/java/net/minecraft/server/VillagerTrades.java b/src/main/java/net/minecraft/server/VillagerTrades.java
-index 99374fe2a..4bac09ed3 100644
+index 4764ffef7..c173f8798 100644
 --- a/src/main/java/net/minecraft/server/VillagerTrades.java
 +++ b/src/main/java/net/minecraft/server/VillagerTrades.java
 @@ -72,17 +72,19 @@ public class VillagerTrades {
@@ -109,41 +109,50 @@ index 99374fe2a..4bac09ed3 100644
          }
  
          @Nullable
-@@ -90,14 +92,13 @@ public class VillagerTrades {
-         public MerchantRecipe a(Entity entity, Random random) {
-             World world = entity.world;
-             if (!world.paperConfig.enableTreasureMaps) return null; //Paper
--            BlockPosition blockposition = world.a(this.b, new BlockPosition(entity), 100, !world.paperConfig.treasureMapsAlreadyDiscovered); //Paper
--
--            if (blockposition != null) {
--                ItemStack itemstack = ItemWorldMap.createFilledMapView(world, blockposition.getX(), blockposition.getZ(), (byte) 2, true, true);
--
--                ItemWorldMap.applySepiaFilter(world, itemstack);
--                WorldMap.decorateMap(itemstack, blockposition, "+", this.c);
--                itemstack.a((IChatBaseComponent) (new ChatMessage("filled_map." + this.b.toLowerCase(Locale.ROOT), new Object[0])));
-+            // EMC start - refactor treasure maps to be pending - ABSOLUTELY DEPENDS ON PLUGIN CODE!!!!!!!!!!!
-+            //BlockPosition blockposition = world.a(this.b, new BlockPosition(entity), 100, !world.paperConfig.treasureMapsAlreadyDiscovered); //Paper
-+            com.empireminecraft.customevents.CreatePendingTreasureMapEvent event = new com.empireminecraft.customevents.CreatePendingTreasureMapEvent(this.getMapType(), getIconType().ordinal());
-+            event.callEvent();
-+            if (event.getItem() != null) {
-+                ItemStack itemstack = org.bukkit.craftbukkit.inventory.CraftItemStack.asNMSCopy(event.getItem());
-+                // EMC end
-                 return new MerchantRecipe(new ItemStack(Items.EMERALD, this.a), new ItemStack(Items.COMPASS), itemstack, this.d, this.e, 0.2F);
+@@ -93,14 +95,13 @@ public class VillagerTrades {
              } else {
-                 return null;
+                 WorldServer worldserver = (WorldServer) entity.world;
+                 if (!worldserver.paperConfig.enableTreasureMaps) return null; //Paper
+-                BlockPosition blockposition = worldserver.a(this.b, new BlockPosition(entity), 100, !worldserver.paperConfig.treasureMapsAlreadyDiscovered); //Paper
+-
+-                if (blockposition != null) {
+-                    ItemStack itemstack = ItemWorldMap.createFilledMapView(worldserver, blockposition.getX(), blockposition.getZ(), (byte) 2, true, true);
+-
+-                    ItemWorldMap.applySepiaFilter(worldserver, itemstack);
+-                    WorldMap.decorateMap(itemstack, blockposition, "+", this.c);
+-                    itemstack.a((IChatBaseComponent) (new ChatMessage("filled_map." + this.b.toLowerCase(Locale.ROOT), new Object[0])));
++                // EMC start - refactor treasure maps to be pending - ABSOLUTELY DEPENDS ON PLUGIN CODE!!!!!!!!!!!
++                //BlockPosition blockposition = worldserver.a(this.b, new BlockPosition(entity), 100, !worldserver.paperConfig.treasureMapsAlreadyDiscovered); //Paper
++                com.empireminecraft.customevents.CreatePendingTreasureMapEvent event = new com.empireminecraft.customevents.CreatePendingTreasureMapEvent(this.getMapType(), getIconType().ordinal());
++                event.callEvent();
++                if (event.getItem() != null) {
++                    ItemStack itemstack = org.bukkit.craftbukkit.inventory.CraftItemStack.asNMSCopy(event.getItem());
++                    // EMC end
+                     return new MerchantRecipe(new ItemStack(Items.EMERALD, this.a), new ItemStack(Items.COMPASS), itemstack, this.d, this.e, 0.2F);
+                 } else {
+                     return null;
 diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index db49f7823..7d2d808aa 100644
+index 10fa66838..6f6c955bb 100644
 --- a/src/main/java/net/minecraft/server/World.java
 +++ b/src/main/java/net/minecraft/server/World.java
-@@ -1606,7 +1606,7 @@ public abstract class World implements IIBlockAccess, GeneratorAccess, AutoClose
+@@ -1532,6 +1532,17 @@ public abstract class World implements GeneratorAccess, AutoCloseable {
+         throw new UnsupportedOperationException("Can't send packets to server unless you're on the client.");
      }
  
-     @Nullable
--    public BlockPosition a(String s, BlockPosition blockposition, int i, boolean flag) {
-+    public BlockPosition findNearestStructure(String type, BlockPosition pos, int radius, boolean flag) { return a(type, pos, radius, flag); } public BlockPosition a(String s, BlockPosition blockposition, int i, boolean flag) { // EMC - OBF HELPER
-         return null;
-     }
- 
++    // EMC start - OBF HELPER for WorldServer method
++    @Nullable
++    public BlockPosition findNearestStructure(String type, BlockPosition pos, int radius, boolean flag) {
++        if (this instanceof WorldServer) {
++            return ((WorldServer) this).a(type, pos, radius, flag);
++        } else {
++            return null;
++        }
++    }
++    // EMC end
++
+     @Override
+     public WorldProvider getWorldProvider() {
+         return this.worldProvider;
 -- 
-2.23.0
+2.24.0
 
