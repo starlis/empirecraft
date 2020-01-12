@@ -1,0 +1,50 @@
+From ce88a34dea853e3d8c4a94c4888ef509c6641b9d Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Fri, 26 Jul 2013 22:19:29 -0400
+Subject: [PATCH] Allow force spawns
+
+Pass spawn reason force to not allow plugins to block
+Force some cases where plugins should not be allowed to block it.
+---
+ src/main/java/net/minecraft/server/WorldServer.java           | 4 ++--
+ .../java/org/bukkit/craftbukkit/event/CraftEventFactory.java  | 2 +-
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/src/main/java/net/minecraft/server/WorldServer.java b/src/main/java/net/minecraft/server/WorldServer.java
+index 6bf2d6bf36..a1196a115b 100644
+--- a/src/main/java/net/minecraft/server/WorldServer.java
++++ b/src/main/java/net/minecraft/server/WorldServer.java
+@@ -1103,7 +1103,7 @@ public class WorldServer extends World {
+         boolean flag = entity.attachedToPlayer;
+ 
+         entity.attachedToPlayer = true;
+-        this.addEntitySerialized(entity);
++        this.addEntitySerialized(entity, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.FORCE); // EMC
+         entity.attachedToPlayer = flag;
+         this.chunkCheck(entity);
+     }
+@@ -1183,7 +1183,7 @@ public class WorldServer extends World {
+             // CraftBukkit end
+             IChunkAccess ichunkaccess = this.getChunkAt(MathHelper.floor(entity.locX() / 16.0D), MathHelper.floor(entity.locZ() / 16.0D), ChunkStatus.FULL, true); // Paper - always load chunks for entity adds
+ 
+-            if (!(ichunkaccess instanceof Chunk)) {
++            if (spawnReason != CreatureSpawnEvent.SpawnReason.FORCE && !(ichunkaccess instanceof Chunk)) { // EMC
+                 return false;
+             } else {
+                 ichunkaccess.a(entity);
+diff --git a/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java b/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
+index 9a53ee1eb0..b4d33f2302 100644
+--- a/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
++++ b/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
+@@ -589,7 +589,7 @@ public class CraftEventFactory {
+             event = CraftEventFactory.callEntitySpawnEvent(entity);
+         }
+ 
+-        if (event != null && (event.isCancelled() || entity.dead)) {
++        if (spawnReason != SpawnReason.FORCE && event != null && (event.isCancelled() || entity.dead)) { // EMC - add != force
+             Entity vehicle = entity.getVehicle();
+             if (vehicle != null) {
+                 vehicle.dead = true;
+-- 
+2.24.1
+
