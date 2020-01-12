@@ -1,4 +1,4 @@
-From a26117fc743475ee8f8238b978ec899795607ccd Mon Sep 17 00:00:00 2001
+From 0141072a2aa568f8baa8b6b5a48bc75346402bbb Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Sat, 18 Aug 2018 22:03:33 -0400
 Subject: [PATCH] SpawnEggMeta#setSpawnedEntity API
@@ -7,22 +7,42 @@ lets you copy an entities data into a spawn egg.
 Partial data is supported through a predicate, letting MC
 follow normal spawn behavior in the summon phase.
 ---
- .../inventory/CraftMetaSpawnEgg.java          | 19 +++++++++++++++++++
- 1 file changed, 19 insertions(+)
+ .../inventory/CraftMetaSpawnEgg.java          | 28 +++++++++++++++++--
+ 1 file changed, 26 insertions(+), 2 deletions(-)
 
 diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaSpawnEgg.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaSpawnEgg.java
-index 815cca538..6dfbc5f6f 100644
+index 815cca5389..c08d04d190 100644
 --- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaSpawnEgg.java
 +++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaSpawnEgg.java
-@@ -2,6 +2,7 @@ package org.bukkit.craftbukkit.inventory;
+@@ -2,9 +2,15 @@ package org.bukkit.craftbukkit.inventory;
  
  import com.google.common.collect.ImmutableMap.Builder;
  import java.util.Map;
 +
++import com.mojang.datafixers.Dynamic; // EMC
++import net.minecraft.server.DataConverterRegistry; // EMC
++import net.minecraft.server.DataConverterTypes; // EMC
++import net.minecraft.server.DynamicOpsNBT; // EMC
  import net.minecraft.server.MinecraftKey;
  import net.minecraft.server.NBTBase;
  import net.minecraft.server.NBTTagCompound;
-@@ -229,6 +230,24 @@ public class CraftMetaSpawnEgg extends CraftMetaItem implements SpawnEggMeta {
++import org.bukkit.Bukkit; // EMC
+ import org.bukkit.Material;
+ import org.bukkit.configuration.serialization.DelegateDeserialization;
+ import org.bukkit.craftbukkit.util.CraftLegacy;
+@@ -75,9 +81,9 @@ public class CraftMetaSpawnEgg extends CraftMetaItem implements SpawnEggMeta {
+             }
+ 
+             // Tag still has some other data, lets try our luck with a conversion
+-            if (!entityTag.isEmpty()) {
++            if (!entityTag.isEmpty() && getVersion() > 0) { // EMC
+                 // SPIGOT-4128: This is hopeless until we start versioning stacks. RIP data.
+-                // entityTag = (NBTTagCompound) MinecraftServer.getServer().dataConverterManager.update(DataConverterTypes.ENTITY, new Dynamic(DynamicOpsNBT.a, entityTag), -1, CraftMagicNumbers.DATA_VERSION).getValue();
++                entityTag = (NBTTagCompound) DataConverterRegistry.a().update(DataConverterTypes.ENTITY, new Dynamic<>(DynamicOpsNBT.a, entityTag), getVersion(), Bukkit.getUnsafe().getDataVersion()).getValue(); // EMC
+             }
+ 
+             // See if we can read a converted ID tag
+@@ -229,6 +235,24 @@ public class CraftMetaSpawnEgg extends CraftMetaItem implements SpawnEggMeta {
          return spawnedType != null;
      }
  
@@ -48,5 +68,5 @@ index 815cca538..6dfbc5f6f 100644
      public EntityType getSpawnedType() {
          throw new UnsupportedOperationException("Must check item type to get spawned type");
 -- 
-2.24.0
+2.24.1
 
