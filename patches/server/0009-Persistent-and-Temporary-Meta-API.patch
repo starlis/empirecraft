@@ -1,4 +1,4 @@
-From 467e1c21d688a0b72ad6ad105c579e6142055cb1 Mon Sep 17 00:00:00 2001
+From f1f79ada20da7f1c8f6e4c2bf2f24c3afa7f38e3 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Mon, 4 Mar 2013 23:35:02 -0500
 Subject: [PATCH] Persistent and Temporary Meta API
@@ -9,9 +9,12 @@ Subject: [PATCH] Persistent and Temporary Meta API
  src/main/java/net/minecraft/server/Chunk.java |   2 +
  .../minecraft/server/ChunkRegionLoader.java   |   3 +
  .../java/net/minecraft/server/Entity.java     |   3 +
- .../net/minecraft/server/MetaApiAccessor.java | 514 ++++++++++++++++++
+ .../net/minecraft/server/MetaApiAccessor.java | 567 ++++++++++++++++++
  .../server/PacketPlayOutMapChunk.java         |   1 +
  .../server/PacketPlayOutTileEntityData.java   |   1 +
+ .../net/minecraft/server/PlayerChunkMap.java  |   1 +
+ .../java/net/minecraft/server/ProtoChunk.java |   2 +
+ .../minecraft/server/ProtoChunkExtension.java |   1 +
  .../java/net/minecraft/server/TileEntity.java |   3 +
  src/main/java/net/minecraft/server/World.java |   1 +
  .../java/net/minecraft/server/WorldData.java  |   3 +
@@ -23,7 +26,7 @@ Subject: [PATCH] Persistent and Temporary Meta API
  .../craftbukkit/entity/CraftEntity.java       |   2 +
  .../craftbukkit/event/CraftEventFactory.java  |   5 +
  .../craftbukkit/inventory/CraftInventory.java |  11 +
- 19 files changed, 652 insertions(+), 1 deletion(-)
+ 22 files changed, 709 insertions(+), 1 deletion(-)
  create mode 100644 src/main/java/com/empireminecraft/api/meta/CraftEAPI_Meta.java
  create mode 100644 src/main/java/net/minecraft/server/MetaApiAccessor.java
 
@@ -148,7 +151,7 @@ index f2a04cb6a0..035529d18c 100644
      public boolean needsDecoration;
      // CraftBukkit end
 diff --git a/src/main/java/net/minecraft/server/ChunkRegionLoader.java b/src/main/java/net/minecraft/server/ChunkRegionLoader.java
-index 4349d22cc8..91f6164fac 100644
+index 4349d22cc8..2f8170c202 100644
 --- a/src/main/java/net/minecraft/server/ChunkRegionLoader.java
 +++ b/src/main/java/net/minecraft/server/ChunkRegionLoader.java
 @@ -1,6 +1,7 @@
@@ -163,7 +166,7 @@ index 4349d22cc8..91f6164fac 100644
          }
  
          HeightMap.a((IChunkAccess) object, enumset);
-+        MetaApiAccessor.loadChunkMetaNbt(nbttagcompound, (IChunkAccess) object); // EMC
++        MetaApiAccessor.loadChunkMetaNbt(nbttagcompound1, (IChunkAccess) object); // EMC
          NBTTagCompound nbttagcompound4 = nbttagcompound1.getCompound("Structures");
  
          ((IChunkAccess) object).a(a(chunkgenerator, definedstructuremanager, nbttagcompound4));
@@ -171,7 +174,7 @@ index 4349d22cc8..91f6164fac 100644
          nbttagcompound.set("Level", nbttagcompound1);
          nbttagcompound1.setInt("xPos", chunkcoordintpair.x);
          nbttagcompound1.setInt("zPos", chunkcoordintpair.z);
-+        MetaApiAccessor.saveChunkMetaNbt(nbttagcompound, ichunkaccess); // EMC
++        MetaApiAccessor.saveChunkMetaNbt(nbttagcompound1, ichunkaccess); // EMC
          nbttagcompound1.setLong("LastUpdate", asyncsavedata != null ? asyncsavedata.worldTime : worldserver.getTime()); // Paper - async chunk unloading
          nbttagcompound1.setLong("InhabitedTime", ichunkaccess.getInhabitedTime());
          nbttagcompound1.setString("Status", ichunkaccess.getChunkStatus().d());
@@ -205,10 +208,10 @@ index 612a077527..aae9b5a2b7 100644
                  origin = new Location(world.getWorld(), originTag.getDoubleAt(0), originTag.getDoubleAt(1), originTag.getDoubleAt(2));
 diff --git a/src/main/java/net/minecraft/server/MetaApiAccessor.java b/src/main/java/net/minecraft/server/MetaApiAccessor.java
 new file mode 100644
-index 0000000000..fc210f64b3
+index 0000000000..ef721a08fb
 --- /dev/null
 +++ b/src/main/java/net/minecraft/server/MetaApiAccessor.java
-@@ -0,0 +1,514 @@
+@@ -0,0 +1,567 @@
 +package net.minecraft.server;
 +
 +import org.bukkit.Bukkit;
@@ -374,7 +377,10 @@ index 0000000000..fc210f64b3
 +            chunk = (Chunk) chunkAccess;
 +        } else if (chunkAccess instanceof PlayerChunk) {
 +            chunk = ((PlayerChunk) chunkAccess).getChunk();
++        } else if (chunkAccess instanceof ProtoChunkExtension) {
++            chunk = ((ProtoChunkExtension) chunkAccess).getChunk();
 +        } else if (chunkAccess instanceof ProtoChunk) {
++            saveChunkMetaNbt(cmp, (ProtoChunk) chunkAccess);
 +            return;
 +        }
 +        if (chunk == null) throw new IllegalArgumentException("Failed to get chunk to save meta for");
@@ -407,21 +413,50 @@ index 0000000000..fc210f64b3
 +    }
 +
 +    /**
++     * Saves this protoChunk's Meta Data into NBT
++     * @param cmp
++     * @param protoChunk
++     */
++    static void saveChunkMetaNbt(NBTTagCompound cmp, ProtoChunk protoChunk) {
++        if (protoChunk.chunkMeta != null) {
++            cmp.set(CHUNK_META, protoChunk.chunkMeta);
++        } else if (protoChunk.chunkMetaList != null) {
++            cmp.set(CHUNK_META_LIST, protoChunk.chunkMetaList);
++        }
++    }
++
++    /**
 +     * Loads this chunks Meta Data from NBT
 +     * @param cmp
 +     * @param chunkAccess
-+    */
++     */
 +    static void loadChunkMetaNbt(NBTTagCompound cmp, IChunkAccess chunkAccess) {
 +        Chunk chunk = null;
 +        if (chunkAccess instanceof Chunk) {
 +            chunk = (Chunk) chunkAccess;
 +        } else if (chunkAccess instanceof PlayerChunk) {
 +            chunk = ((PlayerChunk) chunkAccess).getChunk();
++        } else if (chunkAccess instanceof ProtoChunkExtension) {
++            chunk = ((ProtoChunkExtension) chunkAccess).getChunk();
 +        } else if (chunkAccess instanceof ProtoChunk) {
++            storeChunkMetaNbt(cmp, (ProtoChunk) chunkAccess);
 +            return;
 +        }
 +        if (chunk == null) throw new IllegalArgumentException("Failed to get chunk to load meta for");
 +        loadChunkMetaNbt(cmp, chunk);
++    }
++
++    /**
++     * Save the chunk Meta Data to be loaded later
++     * @param cmp
++     * @param protoChunk
++     */
++    static void storeChunkMetaNbt(NBTTagCompound cmp, ProtoChunk protoChunk) {
++        if (cmp.hasKey(CHUNK_META)) {
++            protoChunk.chunkMeta = cmp.getCompound(CHUNK_META);
++        } else if (cmp.hasKey(CHUNK_META_LIST)) {
++            protoChunk.chunkMetaList = cmp.getList(CHUNK_META_LIST, 10);
++        }
 +    }
 +
 +    /**
@@ -430,22 +465,43 @@ index 0000000000..fc210f64b3
 +     * @param chunk
 +     */
 +    static void loadChunkMetaNbt(NBTTagCompound cmp, Chunk chunk) {
-+        ChunkPersistentMeta meta = chunk.chunkMeta;
 +        if (cmp.hasKey(CHUNK_META)) {
-+            NBTTagCompound chunkMeta = cmp.getCompound(CHUNK_META);
-+            for (String key : chunkMeta.getKeys()) {
-+                NBTTagCompound e = chunkMeta.getCompound(key);
-+                meta = loadBlockMeta(meta, deserializeOldLoc(key), e);
-+            }
++            loadChunkMeta(cmp.getCompound(CHUNK_META), chunk);
 +        } else if (cmp.hasKey(CHUNK_META_LIST)) {
-+            NBTTagList chunkMeta = cmp.getList(CHUNK_META_LIST, 10);
-+            final int size = chunkMeta.size();
-+            for (int i = 0; i < size; i++) {
-+                NBTTagCompound e = chunkMeta.getCompound(i);
-+                if (e.hasKey(BLOCK_POS)) {
-+                    NBTTagCompound blockPos = e.getCompound(BLOCK_POS);
-+                    meta = loadBlockMeta(meta, getBlockPosFromCompound(blockPos), e);
-+                }
++            loadChunkMetaList(cmp.getList(CHUNK_META_LIST, 10), chunk);
++        }
++    }
++
++    /**
++     * Loads this chunks Meta Data from a ProtoChunk
++     * @param protoChunk
++     * @param chunk
++     */
++    static void loadChunkMetaNbt(ProtoChunk protoChunk, Chunk chunk) {
++        if (protoChunk.chunkMeta != null) {
++            loadChunkMeta(protoChunk.chunkMeta, chunk);
++        } else if (protoChunk.chunkMetaList != null) {
++            loadChunkMetaList(protoChunk.chunkMetaList, chunk);
++        }
++    }
++
++    private static void loadChunkMeta(NBTTagCompound chunkMeta, Chunk chunk) {
++        ChunkPersistentMeta meta = chunk.chunkMeta;
++        for (String key : chunkMeta.getKeys()) {
++            NBTTagCompound e = chunkMeta.getCompound(key);
++            meta = loadBlockMeta(meta, deserializeOldLoc(key), e);
++        }
++        chunk.chunkMeta = meta;
++    }
++
++    private static void loadChunkMetaList(NBTTagList chunkMeta, Chunk chunk) {
++        ChunkPersistentMeta meta = chunk.chunkMeta;
++        final int size = chunkMeta.size();
++        for (int i = 0; i < size; i++) {
++            NBTTagCompound e = chunkMeta.getCompound(i);
++            if (e.hasKey(BLOCK_POS)) {
++                NBTTagCompound blockPos = e.getCompound(BLOCK_POS);
++                meta = loadBlockMeta(meta, getBlockPosFromCompound(blockPos), e);
 +            }
 +        }
 +        chunk.chunkMeta = meta;
@@ -747,6 +803,43 @@ index 6bcb19b560..cc7fffec53 100644
          this.a = blockposition;
          this.b = i;
          this.c = nbttagcompound;
+diff --git a/src/main/java/net/minecraft/server/PlayerChunkMap.java b/src/main/java/net/minecraft/server/PlayerChunkMap.java
+index f8a65b3dfe..7827c00603 100644
+--- a/src/main/java/net/minecraft/server/PlayerChunkMap.java
++++ b/src/main/java/net/minecraft/server/PlayerChunkMap.java
+@@ -728,6 +728,7 @@ public class PlayerChunkMap extends IChunkLoader implements PlayerChunk.d {
+                     chunk = ((ProtoChunkExtension) ichunkaccess).u();
+                 } else {
+                     chunk = new Chunk(this.world, (ProtoChunk) ichunkaccess);
++                    MetaApiAccessor.loadChunkMetaNbt((ProtoChunk) ichunkaccess, chunk); // EMC
+                     playerchunk.a(new ProtoChunkExtension(chunk));
+                 }
+ 
+diff --git a/src/main/java/net/minecraft/server/ProtoChunk.java b/src/main/java/net/minecraft/server/ProtoChunk.java
+index f376e21068..128cd48e39 100644
+--- a/src/main/java/net/minecraft/server/ProtoChunk.java
++++ b/src/main/java/net/minecraft/server/ProtoChunk.java
+@@ -46,6 +46,8 @@ public class ProtoChunk implements IChunkAccess {
+     private final Map<WorldGenStage.Features, BitSet> t;
+     private volatile boolean u;
+     private final GeneratorAccess world; // Paper - Anti-Xray
++    public NBTTagCompound chunkMeta; // EMC
++    public NBTTagList chunkMetaList; // EMC
+ 
+     public ProtoChunk(ChunkCoordIntPair chunkcoordintpair, ChunkConverter chunkconverter) {
+         // Paper start - add world parameter
+diff --git a/src/main/java/net/minecraft/server/ProtoChunkExtension.java b/src/main/java/net/minecraft/server/ProtoChunkExtension.java
+index 01bf28dc34..3205cad4af 100644
+--- a/src/main/java/net/minecraft/server/ProtoChunkExtension.java
++++ b/src/main/java/net/minecraft/server/ProtoChunkExtension.java
+@@ -182,6 +182,7 @@ public class ProtoChunkExtension extends ProtoChunk {
+         return this.a.a(worldgenstage_features);
+     }
+ 
++    public Chunk getChunk() { return this.u(); } // EMC - OBFHELPER
+     public Chunk u() {
+         return this.a;
+     }
 diff --git a/src/main/java/net/minecraft/server/TileEntity.java b/src/main/java/net/minecraft/server/TileEntity.java
 index a8e64dfdab..b5d000a621 100644
 --- a/src/main/java/net/minecraft/server/TileEntity.java
