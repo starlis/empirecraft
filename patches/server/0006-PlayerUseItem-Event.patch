@@ -1,4 +1,4 @@
-From 5db4f5f3e000e62b288cb2895a5970d7ae80b3bc Mon Sep 17 00:00:00 2001
+From a7aa1a696d7495b934e5b83cd181435645944617 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Sat, 22 Dec 2012 00:35:15 -0500
 Subject: [PATCH] PlayerUseItem Event
@@ -6,11 +6,11 @@ Subject: [PATCH] PlayerUseItem Event
 This lets us control when an item is consumed and change the item.
 ---
  .../net/minecraft/server/EntityLiving.java    |  2 +-
- .../server/PlayerInteractManager.java         | 89 ++++++++++++++++---
- 2 files changed, 77 insertions(+), 14 deletions(-)
+ .../server/PlayerInteractManager.java         | 90 ++++++++++++++++---
+ 2 files changed, 78 insertions(+), 14 deletions(-)
 
 diff --git a/src/main/java/net/minecraft/server/EntityLiving.java b/src/main/java/net/minecraft/server/EntityLiving.java
-index 6184cced73..5762390fb1 100644
+index 1b9551ae09..b764d5ad8a 100644
 --- a/src/main/java/net/minecraft/server/EntityLiving.java
 +++ b/src/main/java/net/minecraft/server/EntityLiving.java
 @@ -1899,7 +1899,7 @@ public abstract class EntityLiving extends Entity {
@@ -23,16 +23,17 @@ index 6184cced73..5762390fb1 100644
              this.setSlot(EnumItemSlot.MAINHAND, itemstack);
          } else {
 diff --git a/src/main/java/net/minecraft/server/PlayerInteractManager.java b/src/main/java/net/minecraft/server/PlayerInteractManager.java
-index 8f7b08a6d1..c14cf3196e 100644
+index ce4340a476..51e10cfc0f 100644
 --- a/src/main/java/net/minecraft/server/PlayerInteractManager.java
 +++ b/src/main/java/net/minecraft/server/PlayerInteractManager.java
-@@ -391,6 +391,14 @@ public class PlayerInteractManager {
+@@ -391,6 +391,15 @@ public class PlayerInteractManager {
      }
  
      public EnumInteractionResult a(EntityHuman entityhuman, World world, ItemStack itemstack, EnumHand enumhand) {
 +        // Paper start - Allow control over if item should be consumed or not.
 +        org.bukkit.inventory.EquipmentSlot bukkitHand = enumhand == EnumHand.MAIN_HAND ? org.bukkit.inventory.EquipmentSlot.HAND : org.bukkit.inventory.EquipmentSlot.OFF_HAND;
 +        org.bukkit.craftbukkit.inventory.CraftItemStack craftitem = org.bukkit.craftbukkit.inventory.CraftItemStack.asCraftMirror(itemstack);
++        org.bukkit.craftbukkit.inventory.CraftItemStack origItemClone = craftitem.clone();
 +        com.empireminecraft.customevents.PlayerUseItemEvent event = new com.empireminecraft.customevents.PlayerUseItemEvent(player.getBukkitEntity(), craftitem, bukkitHand);
 +        if (!event.callEvent()) {
 +            return EnumInteractionResult.FAIL;
@@ -41,7 +42,7 @@ index 8f7b08a6d1..c14cf3196e 100644
          if (this.gamemode == EnumGamemode.SPECTATOR) {
              return EnumInteractionResult.PASS;
          } else if (entityhuman.getCooldownTracker().hasCooldown(itemstack.getItem())) {
-@@ -398,27 +406,53 @@ public class PlayerInteractManager {
+@@ -398,27 +407,53 @@ public class PlayerInteractManager {
          } else {
              int i = itemstack.getCount();
              int j = itemstack.getDamage();
@@ -79,7 +80,7 @@ index 8f7b08a6d1..c14cf3196e 100644
                      }
                  }
 +                org.bukkit.inventory.ItemStack craftNew = org.bukkit.craftbukkit.inventory.CraftItemStack.asCraftMirror(itemstack1);
-+                com.destroystokyo.paper.event.player.PlayerPostUseItemEvent postUseItemEvent = new com.destroystokyo.paper.event.player.PlayerPostUseItemEvent(player.getBukkitEntity(), craftitem.asQuantity(i), craftNew, bukkitHand);
++                com.destroystokyo.paper.event.player.PlayerPostUseItemEvent postUseItemEvent = new com.destroystokyo.paper.event.player.PlayerPostUseItemEvent(player.getBukkitEntity(), origItemClone, craftNew, bukkitHand);
 +                postUseItemEvent.callEvent();
 +
 +                //noinspection ObjectEquality
@@ -101,7 +102,7 @@ index 8f7b08a6d1..c14cf3196e 100644
                      ((EntityPlayer) entityhuman).updateInventory(entityhuman.defaultContainer);
                  }
  
-@@ -432,6 +466,7 @@ public class PlayerInteractManager {
+@@ -432,6 +467,7 @@ public class PlayerInteractManager {
      public boolean firedInteract = false;
      public EnumInteractionResult a(EntityHuman entityhuman, World world, ItemStack itemstack, EnumHand enumhand, MovingObjectPositionBlock movingobjectpositionblock) {
          BlockPosition blockposition = movingobjectpositionblock.getBlockPosition();
@@ -109,7 +110,7 @@ index 8f7b08a6d1..c14cf3196e 100644
          IBlockData iblockdata = world.getType(blockposition);
          EnumInteractionResult enuminteractionresult = EnumInteractionResult.PASS;
          boolean cancelledBlock = false;
-@@ -499,17 +534,45 @@ public class PlayerInteractManager {
+@@ -499,17 +535,45 @@ public class PlayerInteractManager {
              }
  
              if (!itemstack.isEmpty() && enuminteractionresult != EnumInteractionResult.SUCCESS && !interactResult) { // add !interactResult SPIGOT-764
@@ -163,5 +164,5 @@ index 8f7b08a6d1..c14cf3196e 100644
          }
          return enuminteractionresult;
 -- 
-2.24.1
+2.25.0
 
