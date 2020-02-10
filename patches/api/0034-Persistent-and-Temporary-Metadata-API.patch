@@ -1,4 +1,4 @@
-From 9dba19b7e09cd1d32f47c9823765abc911412b74 Mon Sep 17 00:00:00 2001
+From 8e7912ec2f0069d4682c35daa1abd29ec35611bb Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Thu, 4 Jul 2013 21:04:26 -0400
 Subject: [PATCH] Persistent and Temporary Metadata API
@@ -8,20 +8,20 @@ Entity, TileEntity, World, Chunk, Block, Inventory API's
  .../java/com/empireminecraft/api/API.java     |   2 +
  .../com/empireminecraft/api/Vector3i.java     |  66 ++
  .../empireminecraft/api/meta/EAPI_Meta.java   |  53 ++
- .../com/empireminecraft/api/meta/Meta.java    | 710 ++++++++++++++++++
+ .../com/empireminecraft/api/meta/Meta.java    | 760 ++++++++++++++++++
  .../com/empireminecraft/api/meta/MetaKey.java |  51 ++
  .../com/empireminecraft/api/meta/MetaMap.java |  96 +++
- .../api/meta/PersistentKeyImpl.java           |  44 ++
+ .../api/meta/PersistentKeyImpl.java           |  44 +
  .../api/meta/PersistentMetaList.java          |  73 ++
  .../api/meta/PersistentMetaMap.java           |  93 +++
- .../empireminecraft/api/meta/TempKeyImpl.java |  44 ++
+ .../empireminecraft/api/meta/TempKeyImpl.java |  44 +
  .../empireminecraft/api/meta/TempMetaMap.java |  29 +
  .../BlockWithPersistentMetaClearedEvent.java  |  49 ++
  src/main/java/org/bukkit/Chunk.java           |   2 +
  .../java/org/bukkit/block/BlockState.java     |   2 +
  src/main/java/org/bukkit/entity/Entity.java   |   1 +
  .../java/org/bukkit/inventory/Inventory.java  |   1 +
- 16 files changed, 1316 insertions(+)
+ 16 files changed, 1366 insertions(+)
  create mode 100644 src/main/java/com/empireminecraft/api/Vector3i.java
  create mode 100644 src/main/java/com/empireminecraft/api/meta/EAPI_Meta.java
  create mode 100644 src/main/java/com/empireminecraft/api/meta/Meta.java
@@ -186,10 +186,10 @@ index 000000000..8313735b1
 +}
 diff --git a/src/main/java/com/empireminecraft/api/meta/Meta.java b/src/main/java/com/empireminecraft/api/meta/Meta.java
 new file mode 100644
-index 000000000..5a6b71c42
+index 000000000..b4d0dad5a
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/api/meta/Meta.java
-@@ -0,0 +1,710 @@
+@@ -0,0 +1,760 @@
 +/*
 + * Copyright (c) 2016 Starlis LLC / Daniel Ennis (Aikar) - MIT License
 + *
@@ -317,19 +317,23 @@ index 000000000..5a6b71c42
 +    }
 +
 +    public static int getWorldMeta(@NotNull World world, @NotNull PersistentKey key, int def) {
-+        return getWorldMeta(world, key, Integer.valueOf(def));
++        Number val = getWorldMeta(world, key);
++        return val != null ? val.intValue() : def;
 +    }
 +
 +    public static long getWorldMeta(@NotNull World world, @NotNull PersistentKey key, long def) {
-+        return getWorldMeta(world, key, Long.valueOf(def));
++        Number val = getWorldMeta(world, key);
++        return val != null ? val.longValue() : def;
 +    }
 +
 +    public static double getWorldMeta(@NotNull World world, @NotNull PersistentKey key, double def) {
-+        return getWorldMeta(world, key, Double.valueOf(def));
++        Number val = getWorldMeta(world, key);
++        return val != null ? val.doubleValue() : def;
 +    }
 +
 +    public static float getWorldMeta(@NotNull World world, @NotNull PersistentKey key, float def) {
-+        return getWorldMeta(world, key, Float.valueOf(def));
++        Number val = getWorldMeta(world, key);
++        return val != null ? val.floatValue() : def;
 +    }
 +
 +    public static double incrementWorldMeta(@NotNull World world, @NotNull PersistentKey key, double amount) {
@@ -338,6 +342,17 @@ index 000000000..5a6b71c42
 +
 +    public static double incrementWorldMeta(@NotNull World world, @NotNull PersistentKey key, double amount, double start) {
 +        double val = getWorldMeta(world, key, start);
++        val += amount;
++        setWorldMeta(world, key, val);
++        return val;
++    }
++
++    public static long incrementWorldMeta(@NotNull World world, @NotNull PersistentKey key, long amount) {
++        return incrementWorldMeta(world, key, amount, 0L);
++    }
++
++    public static long incrementWorldMeta(@NotNull World world, @NotNull PersistentKey key, long amount, long start) {
++        long val = getWorldMeta(world, key, start);
 +        val += amount;
 +        setWorldMeta(world, key, val);
 +        return val;
@@ -378,19 +393,23 @@ index 000000000..5a6b71c42
 +    }
 +
 +    public static int getEntityMeta(@NotNull Entity entity, @NotNull PersistentKey key, int def) {
-+        return getEntityMeta(entity, key, Integer.valueOf(def));
++        Number val =  getEntityMeta(entity, key);
++        return val != null ? val.intValue() : def;
 +    }
 +
 +    public static long getEntityMeta(@NotNull Entity entity, @NotNull PersistentKey key, long def) {
-+        return getEntityMeta(entity, key, Long.valueOf(def));
++        Number val =  getEntityMeta(entity, key);
++        return val != null ? val.longValue() : def;
 +    }
 +
 +    public static double getEntityMeta(@NotNull Entity entity, @NotNull PersistentKey key, double def) {
-+        return getEntityMeta(entity, key, Double.valueOf(def));
++        Number val =  getEntityMeta(entity, key);
++        return val != null ? val.doubleValue() : def;
 +    }
 +
 +    public static float getEntityMeta(@NotNull Entity entity, @NotNull PersistentKey key, float def) {
-+        return getEntityMeta(entity, key, Float.valueOf(def));
++        Number val =  getEntityMeta(entity, key);
++        return val != null ? val.floatValue() : def;
 +    }
 +
 +    public static double incrementEntityMeta(@NotNull Entity entity, @NotNull PersistentKey key, double val) {
@@ -399,6 +418,17 @@ index 000000000..5a6b71c42
 +
 +    public static double incrementEntityMeta(@NotNull Entity entity, @NotNull PersistentKey key, double amount, double start) {
 +        double val = getEntityMeta(entity, key, start);
++        val += amount;
++        setEntityMeta(entity, key, val);
++        return val;
++    }
++
++    public static long incrementEntityMeta(@NotNull Entity entity, @NotNull PersistentKey key, long val) {
++        return incrementEntityMeta(entity, key, val, 0L);
++    }
++
++    public static long incrementEntityMeta(@NotNull Entity entity, @NotNull PersistentKey key, long amount, long start) {
++        long val = getEntityMeta(entity, key, start);
 +        val += amount;
 +        setEntityMeta(entity, key, val);
 +        return val;
@@ -449,19 +479,23 @@ index 000000000..5a6b71c42
 +    }
 +
 +    public static int getChunkMeta(@NotNull Chunk chunk, @NotNull PersistentKey key, int def) {
-+        return getChunkMeta(chunk, key, Integer.valueOf(def));
++        Number val =  getChunkMeta(chunk, key);
++        return val != null ? val.intValue() : def;
 +    }
 +
 +    public static long getChunkMeta(@NotNull Chunk chunk, @NotNull PersistentKey key, long def) {
-+        return getChunkMeta(chunk, key, Long.valueOf(def));
++        Number val =  getChunkMeta(chunk, key);
++        return val != null ? val.longValue() : def;
 +    }
 +
 +    public static double getChunkMeta(@NotNull Chunk chunk, @NotNull PersistentKey key, double def) {
-+        return getChunkMeta(chunk, key, Double.valueOf(def));
++        Number val =  getChunkMeta(chunk, key);
++        return val != null ? val.doubleValue() : def;
 +    }
 +
 +    public static float getChunkMeta(@NotNull Chunk chunk, @NotNull PersistentKey key, float def) {
-+        return getChunkMeta(chunk, key, Float.valueOf(def));
++        Number val =  getChunkMeta(chunk, key);
++        return val != null ? val.floatValue() : def;
 +    }
 +
 +    public static long incrementChunkMeta(@NotNull Chunk chunk, @NotNull PersistentKey key, long amount) {
@@ -519,19 +553,23 @@ index 000000000..5a6b71c42
 +    }
 +
 +    public static int getBlockMeta(@NotNull Location loc, @NotNull PersistentKey key, int def) {
-+        return getBlockMeta(loc, key, Integer.valueOf(def));
++        Number val =  getBlockMeta(loc, key);
++        return val != null ? val.intValue() : def;
 +    }
 +
 +    public static long getBlockMeta(@NotNull Location loc, @NotNull PersistentKey key, long def) {
-+        return getBlockMeta(loc, key, Long.valueOf(def));
++        Number val =  getBlockMeta(loc, key);
++        return val != null ? val.longValue() : def;
 +    }
 +
 +    public static double getBlockMeta(@NotNull Location loc, @NotNull PersistentKey key, double def) {
-+        return getBlockMeta(loc, key, Double.valueOf(def));
++        Number val =  getBlockMeta(loc, key);
++        return val != null ? val.doubleValue() : def;
 +    }
 +
 +    public static float getBlockMeta(@NotNull Location loc, @NotNull PersistentKey key, float def) {
-+        return getBlockMeta(loc, key, Float.valueOf(def));
++        Number val =  getBlockMeta(loc, key);
++        return val != null ? val.floatValue() : def;
 +    }
 +
 +    public static long incrementBlockMeta(@NotNull Location loc, @NotNull PersistentKey key, long amount) {
@@ -653,23 +691,23 @@ index 000000000..5a6b71c42
 +    }
 +
 +    public static int getEntityMeta(@NotNull Entity entity, @NotNull TempKey key, int def) {
-+        Integer entityMeta = getEntityMeta(entity, key, Integer.valueOf(def));
-+        return entityMeta != null ? entityMeta : def;
++        Number val = getEntityMeta(entity, key);
++        return val != null ? val.intValue() : def;
 +    }
 +
 +    public static long getEntityMeta(@NotNull Entity entity, @NotNull TempKey key, long def) {
-+        Long entityMeta = getEntityMeta(entity, key, Long.valueOf(def));
-+        return entityMeta != null ? entityMeta : def;
++        Number val = getEntityMeta(entity, key);
++        return val != null ? val.longValue() : def;
 +    }
 +
 +    public static double getEntityMeta(@NotNull Entity entity, @NotNull TempKey key, double def) {
-+        Double entityMeta = getEntityMeta(entity, key, Double.valueOf(def));
-+        return entityMeta != null ? entityMeta : def;
++        Number val = getEntityMeta(entity, key);
++        return val != null ? val.doubleValue() : def;
 +    }
 +
 +    public static float getEntityMeta(@NotNull Entity entity, @NotNull TempKey key, float def) {
-+        Float entityMeta = getEntityMeta(entity, key, Float.valueOf(def));
-+        return entityMeta != null ? entityMeta : def;
++        Number val =  getEntityMeta(entity, key);
++        return val != null ? val.floatValue() : def;
 +    }
 +
 +    public static long incrementEntityMeta(@NotNull Entity entity, @NotNull TempKey key, long amount) {
@@ -725,19 +763,23 @@ index 000000000..5a6b71c42
 +    }
 +
 +    public static int getBlockMeta(@NotNull Block block, @NotNull TempKey key, int def) {
-+        return getBlockMeta(block, key, Integer.valueOf(def));
++        Number val = getBlockMeta(block, key);
++        return val != null ? val.intValue() : def;
 +    }
 +
 +    public static long getBlockMeta(@NotNull Block block, @NotNull TempKey key, long def) {
-+        return getBlockMeta(block, key, Long.valueOf(def));
++        Number val = getBlockMeta(block, key);
++        return val != null ? val.longValue() : def;
 +    }
 +
 +    public static double getBlockMeta(@NotNull Block block, @NotNull TempKey key, double def) {
-+        return getBlockMeta(block, key, Double.valueOf(def));
++        Number val = getBlockMeta(block, key);
++        return val != null ? val.doubleValue() : def;
 +    }
 +
 +    public static float getBlockMeta(@NotNull Block block, @NotNull TempKey key, float def) {
-+        return getBlockMeta(block, key, Float.valueOf(def));
++        Number val = getBlockMeta(block, key);
++        return val != null ? val.floatValue() : def;
 +    }
 +
 +    public static long incrementBlockMeta(@NotNull Block block, @NotNull TempKey key, long amount) {
@@ -797,19 +839,23 @@ index 000000000..5a6b71c42
 +    }
 +
 +    public static int getChunkMeta(@NotNull Chunk chunk, @NotNull TempKey key, int def) {
-+        return getChunkMeta(chunk, key, Integer.valueOf(def));
++        Number val = getChunkMeta(chunk, key);
++        return val != null ? val.intValue() : def;
 +    }
 +
 +    public static long getChunkMeta(@NotNull Chunk chunk, @NotNull TempKey key, long def) {
-+        return getChunkMeta(chunk, key, Long.valueOf(def));
++        Number val = getChunkMeta(chunk, key);
++        return val != null ? val.longValue() : def;
 +    }
 +
 +    public static double getChunkMeta(@NotNull Chunk chunk, @NotNull TempKey key, double def) {
-+        return getChunkMeta(chunk, key, Double.valueOf(def));
++        Number val = getChunkMeta(chunk, key);
++        return val != null ? val.doubleValue() : def;
 +    }
 +
 +    public static float getChunkMeta(@NotNull Chunk chunk, @NotNull TempKey key, float def) {
-+        return getChunkMeta(chunk, key, Float.valueOf(def));
++        Number val = getChunkMeta(chunk, key);
++        return val != null ? val.floatValue() : def;
 +    }
 +
 +    public static long incrementChunkMeta(@NotNull Chunk chunk, @NotNull TempKey key, long amount) {
@@ -864,19 +910,23 @@ index 000000000..5a6b71c42
 +    }
 +
 +    public static int getInventoryMeta(@NotNull Inventory inv, @NotNull TempKey key, int def) {
-+        return getInventoryMeta(inv, key, Integer.valueOf(def));
++        Number val = getInventoryMeta(inv, key);
++        return val != null ? val.intValue() : def;
 +    }
 +
 +    public static long getInventoryMeta(@NotNull Inventory inv, @NotNull TempKey key, long def) {
-+        return getInventoryMeta(inv, key, Long.valueOf(def));
++        Number val = getInventoryMeta(inv, key);
++        return val != null ? val.longValue() : def;
 +    }
 +
 +    public static double getInventoryMeta(@NotNull Inventory inv, @NotNull TempKey key, double def) {
-+        return getInventoryMeta(inv, key, Double.valueOf(def));
++        Number val = getInventoryMeta(inv, key);
++        return val != null ? val.doubleValue() : def;
 +    }
 +
 +    public static float getInventoryMeta(@NotNull Inventory inv, @NotNull TempKey key, float def) {
-+        return getInventoryMeta(inv, key, Float.valueOf(def));
++        Number val = getInventoryMeta(inv, key);
++        return val != null ? val.floatValue() : def;
 +    }
 +
 +    public static long incrementInventoryMeta(@NotNull Inventory inv, @NotNull TempKey key, long amount) {
