@@ -16,14 +16,6 @@ nms="net/minecraft/server"
 export MODLOG=""
 cd $basedir
 
-function containsElement {
-	local e
-	for e in "${@:2}"; do
-		[[ "$e" == "$1" ]] && return 0;
-	done
-	return 1
-}
-
 export importedmcdev=""
 function import {
 	if [ -f "$basedir/Paper/Paper-Server/src/main/java/net/minecraft/server/$1.java" ]; then
@@ -44,6 +36,26 @@ function import {
 	fi
 }
 
+function importLibrary {
+    group=$1
+    lib=$2
+    prefix=$3
+    shift 3
+    for file in "$@"; do
+        file="$prefix/$file"
+        target="$basedir/Paper/Paper-Server/src/main/java/${file}"
+        targetdir=$(dirname "$target")
+        mkdir -p "${targetdir}"
+        base="$workdir/Minecraft/$minecraftversion/libraries/${group}/${lib}/$file"
+        if [ ! -f "$base" ]; then
+            echo "Missing $base"
+            exit 1
+        fi
+        export MODLOG="$MODLOG  Imported $file from $lib\n";
+        sed 's/\r$//' "$base" > "$target" || exit 1
+    done
+}
+
 (
 	cd Paper/Paper-Server/
 	lastlog=$(git log -1 --oneline)
@@ -56,7 +68,13 @@ function import {
 files=$(cat patches/server/* | grep "+++ b/src/main/java/net/minecraft/server/" | sort | uniq | sed 's/\+\+\+ b\/src\/main\/java\/net\/minecraft\/server\///g' | sed 's/.java//g')
 
 nonnms=$(cat patches/server/* | grep "create mode " | grep -Po "src/main/java/net/minecraft/server/(.*?).java" | sort | uniq | sed 's/src\/main\/java\/net\/minecraft\/server\///g' | sed 's/.java//g')
-
+function containsElement {
+	local e
+	for e in "${@:2}"; do
+		[[ "$e" == "$1" ]] && return 0;
+	done
+	return 1
+}
 for f in $files; do
 	containsElement "$f" ${nonnms[@]}
 	if [ "$?" == "1" ]; then
@@ -76,9 +94,22 @@ done
 ###############################################################################################
 ###############################################################################################
 
-# import Foo
+# import FileName
 
-################
+########################################################
+########################################################
+########################################################
+#              LIBRARY IMPORTS
+# These must always be mapped manually, no automatic stuff
+#
+# importLibrary    # group    # lib          # prefix               # many files
+# importLibrary com.mojang datafixerupper com/mojang/datafixers/types Type.java
+
+# dont forget \ at end of each line but last
+
+########################################################
+########################################################
+########################################################
 (
 	cd Paper/Paper-Server/
 	rm -rf nms-patches
