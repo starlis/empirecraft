@@ -1,4 +1,4 @@
-From 9cbe1d11b1439d90dd4a19be8b49737f894f930e Mon Sep 17 00:00:00 2001
+From 40d07fa50b4847e7ccab2527b4fbc04f080f03f8 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Wed, 27 Feb 2013 23:27:45 -0500
 Subject: [PATCH] Hidden Item Meta
@@ -14,14 +14,14 @@ Also adds a &&::SHINY tag to send a fake enchantment aura if it does not exists.
 Must be set before META
 ---
  .../empireminecraft/api/HiddenItemMeta.java   | 95 +++++++++++++++++++
- .../java/net/minecraft/server/ItemStack.java  |  2 +-
+ .../java/net/minecraft/server/ItemStack.java  | 20 +++-
  .../server/PacketDataSerializer.java          |  2 +
- 3 files changed, 98 insertions(+), 1 deletion(-)
+ 3 files changed, 115 insertions(+), 2 deletions(-)
  create mode 100644 src/main/java/com/empireminecraft/api/HiddenItemMeta.java
 
 diff --git a/src/main/java/com/empireminecraft/api/HiddenItemMeta.java b/src/main/java/com/empireminecraft/api/HiddenItemMeta.java
 new file mode 100644
-index 000000000..85d0824a0
+index 0000000000..85d0824a06
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/api/HiddenItemMeta.java
 @@ -0,0 +1,95 @@
@@ -121,7 +121,7 @@ index 000000000..85d0824a0
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/ItemStack.java b/src/main/java/net/minecraft/server/ItemStack.java
-index ed9e3f41d..62a42c676 100644
+index 4d4eddab79..a7a1a52696 100644
 --- a/src/main/java/net/minecraft/server/ItemStack.java
 +++ b/src/main/java/net/minecraft/server/ItemStack.java
 @@ -54,7 +54,7 @@ public final class ItemStack {
@@ -133,8 +133,33 @@ index ed9e3f41d..62a42c676 100644
      private boolean h;
      private EntityItemFrame i;
      private ShapeDetectorBlock j;
+@@ -832,7 +832,23 @@ public final class ItemStack {
+ 
+         if (!this.h) {
+             NBTTagCompound nbttagcompound = this.save(new NBTTagCompound());
+-
++            // EMC start
++            if (nbttagcompound.hasKey("tag")) {
++                NBTTagCompound tag = com.empireminecraft.api.HiddenItemMeta.filterItemLore(nbttagcompound.getCompound("tag"), false);
++                NBTTagCompound display = tag.getCompound("display");
++                if (display.hasKey("Lore")) {
++                    NBTTagList lore = display.getList("Lore", 8);
++                    NBTTagList newlore = new NBTTagList();
++                    for (int i = 0; i < lore.size(); i++) {
++                        String line = lore.getString(i);
++                        String newline = (line.isEmpty() ? " " : line);
++                        newlore.add(NBTTagString.a(newline));
++                    }
++                    display.set("Lore", newlore);
++                }
++                nbttagcompound.set("tag", tag);
++            }
++            // EMC end
+             ichatbasecomponent1.a(this.v().e).a((chatmodifier) -> {
+                 chatmodifier.setChatHoverable(new ChatHoverable(ChatHoverable.EnumHoverAction.SHOW_ITEM, new ChatComponentText(nbttagcompound.toString())));
+             });
 diff --git a/src/main/java/net/minecraft/server/PacketDataSerializer.java b/src/main/java/net/minecraft/server/PacketDataSerializer.java
-index fb9186b3f..9dfaf4a43 100644
+index fb9186b3f5..9dfaf4a43d 100644
 --- a/src/main/java/net/minecraft/server/PacketDataSerializer.java
 +++ b/src/main/java/net/minecraft/server/PacketDataSerializer.java
 @@ -256,6 +256,7 @@ public class PacketDataSerializer extends ByteBuf {
@@ -154,5 +179,5 @@ index fb9186b3f..9dfaf4a43 100644
                      NBTTagCompound owner = itemstack.tag.getCompound("SkullOwner");
                      String ownerOrig = itemstack.tag.getString("SkullOwnerOrig");
 -- 
-2.24.0
+2.25.0
 
