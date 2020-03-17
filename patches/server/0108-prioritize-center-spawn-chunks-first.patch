@@ -1,0 +1,35 @@
+From b7ed81ea8ae61290d09f2cf9b48a65601508e9aa Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Tue, 17 Mar 2020 01:08:21 -0400
+Subject: [PATCH] prioritize center spawn chunks first
+
+---
+ src/main/java/net/minecraft/server/WorldServer.java | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/src/main/java/net/minecraft/server/WorldServer.java b/src/main/java/net/minecraft/server/WorldServer.java
+index 28f2ac493e..66abfe44ef 100644
+--- a/src/main/java/net/minecraft/server/WorldServer.java
++++ b/src/main/java/net/minecraft/server/WorldServer.java
+@@ -1775,6 +1775,18 @@ public class WorldServer extends World {
+         int tickRadius = radiusInBlocks - 16;
+ 
+         // add ticking chunks
++        int minFirstLoad = Math.min(radiusInBlocks - 16, 16);
++        // Force load center first
++        getWorld().getChunkAtAsync(spawn.getX() >> 4, spawn.getZ() >> 4);
++        // Then load immediate neighbors IF spawnRadius > 1
++        for (int x = -minFirstLoad; x <= minFirstLoad; x += 16) {
++            for (int z = -minFirstLoad; z <= minFirstLoad; z += 16) {
++                if (x != 0 && z != 0) {
++                    BlockPosition add = spawn.add(x, 0, z);
++                    getWorld().getChunkAtAsync(add.getX() >> 4, add.getZ() >> 4);
++                }
++            }
++        }
+         for (int x = -tickRadius; x <= tickRadius; x += 16) {
+             for (int z = -tickRadius; z <= tickRadius; z += 16) {
+                 // radius of 2 will have the current chunk be level 31
+-- 
+2.25.1
+
