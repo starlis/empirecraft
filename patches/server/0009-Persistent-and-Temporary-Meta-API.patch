@@ -1,4 +1,4 @@
-From a2f8246bf7b5255fe00bf4de728326f3742f01f3 Mon Sep 17 00:00:00 2001
+From 20888611acea9d5ff8ae1d1888c948046b95f981 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Mon, 4 Mar 2013 23:35:02 -0500
 Subject: [PATCH] Persistent and Temporary Meta API
@@ -9,7 +9,7 @@ Subject: [PATCH] Persistent and Temporary Meta API
  src/main/java/net/minecraft/server/Chunk.java |   2 +
  .../minecraft/server/ChunkRegionLoader.java   |   3 +
  .../java/net/minecraft/server/Entity.java     |   3 +
- .../net/minecraft/server/MetaApiAccessor.java | 567 ++++++++++++++++++
+ .../net/minecraft/server/MetaApiAccessor.java | 570 ++++++++++++++++++
  .../server/PacketPlayOutMapChunk.java         |   1 +
  .../server/PacketPlayOutTileEntityData.java   |   1 +
  .../net/minecraft/server/PlayerChunkMap.java  |   1 +
@@ -26,7 +26,7 @@ Subject: [PATCH] Persistent and Temporary Meta API
  .../craftbukkit/entity/CraftEntity.java       |   2 +
  .../craftbukkit/event/CraftEventFactory.java  |   5 +
  .../craftbukkit/inventory/CraftInventory.java |  11 +
- 22 files changed, 709 insertions(+), 1 deletion(-)
+ 22 files changed, 712 insertions(+), 1 deletion(-)
  create mode 100644 src/main/java/com/empireminecraft/api/meta/CraftEAPI_Meta.java
  create mode 100644 src/main/java/net/minecraft/server/MetaApiAccessor.java
 
@@ -138,7 +138,7 @@ index 0000000000..a9a194b3a7
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/Chunk.java b/src/main/java/net/minecraft/server/Chunk.java
-index 92065fe029..1cfc2153ab 100644
+index 07073af991..b6ed6ce236 100644
 --- a/src/main/java/net/minecraft/server/Chunk.java
 +++ b/src/main/java/net/minecraft/server/Chunk.java
 @@ -153,6 +153,8 @@ public class Chunk implements IChunkAccess {
@@ -208,10 +208,10 @@ index 8974c16bf9..7d984712a5 100644
                  origin = new Location(world.getWorld(), originTag.getDoubleAt(0), originTag.getDoubleAt(1), originTag.getDoubleAt(2));
 diff --git a/src/main/java/net/minecraft/server/MetaApiAccessor.java b/src/main/java/net/minecraft/server/MetaApiAccessor.java
 new file mode 100644
-index 0000000000..ef721a08fb
+index 0000000000..3b4eea70ee
 --- /dev/null
 +++ b/src/main/java/net/minecraft/server/MetaApiAccessor.java
-@@ -0,0 +1,567 @@
+@@ -0,0 +1,570 @@
 +package net.minecraft.server;
 +
 +import org.bukkit.Bukkit;
@@ -728,6 +728,9 @@ index 0000000000..ef721a08fb
 +            for (Entity entity : world.globalEntityList) {
 +                entity.getBukkitEntity().getTempMeta().clear();
 +            }
++            for (Entity entity : world.entitiesById.values()) {
++                entity.getBukkitEntity().getTempMeta().clear();
++            }
 +            for (PlayerChunk playerChunk : world.getChunkProvider().playerChunkMap.visibleChunks.values()) {
 +                Chunk chunk = playerChunk.getChunk();
 +                if (chunk == null) continue;
@@ -909,7 +912,7 @@ index 95518e54d1..9f6ecfef83 100644
          if (nbttagcompound1 != null) {
              nbttagcompound.set("Player", nbttagcompound1);
 diff --git a/src/main/java/net/minecraft/server/WorldServer.java b/src/main/java/net/minecraft/server/WorldServer.java
-index c74b85917a..e0cad04794 100644
+index 2de48e7537..ce8c195d42 100644
 --- a/src/main/java/net/minecraft/server/WorldServer.java
 +++ b/src/main/java/net/minecraft/server/WorldServer.java
 @@ -54,7 +54,7 @@ import org.bukkit.event.world.TimeSkipEvent;
