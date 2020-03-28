@@ -57,6 +57,7 @@ function basedir {
 function gethead {
 	(
 		cd "$1"
-		git log -1 --oneline
+		#git log -1 --oneline
+		git rev-parse --short HEAD
 	)
 }

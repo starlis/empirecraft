@@ -23,16 +23,16 @@ cd "$basedir/Paper/"
 ./paper patch
 
 cd "Paper-Server"
-mcVer=$(mvn -o org.apache.maven.plugins:maven-help-plugin:2.1.1:evaluate -Dexpression=minecraft_version | sed -n -e '/^\[.*\]/ !{ /^[0-9]/ { p; q } }')
 
 basedir
 . $basedir/scripts/importmcdev.sh
 
 minecraftversion=$(cat $basedir/Paper/work/BuildData/info.json | grep minecraftVersion | cut -d '"' -f 4)
 version=$(echo -e "Paper: $paperVer\nmc-dev:$importedmcdev")
-tag="${minecraftversion}-${mcVer}-$(echo -e $version | shasum | awk '{print $1}')"
+tag="${minecraftversion}-${paperVer}-$(echo -e $version | shasum | awk '{print $1}')"
 echo "$tag" > $basedir/current-paper
 git add "$basedir/current-paper"
+git tag -a "$tag" -m "$tag" -f
 
 $basedir/scripts/generatesources.sh
 
