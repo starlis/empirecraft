@@ -1,45 +1,48 @@
-From 57d0b3f6387de87764995cc61c8a9473a88e6e7c Mon Sep 17 00:00:00 2001
+From aa4d50a09f708e80d3713b6160e1f6fd4a6173c6 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Fri, 27 Mar 2020 20:57:32 -0400
-Subject: [PATCH] Prioritize Main Thread Blocking chunks
+Subject: [PATCH] Improve behavior of main thread blocking chunk load/gens
 
 ---
- .../paper/io/PrioritizedTaskQueue.java        | 10 +++-
+ .../paper/io/PrioritizedTaskQueue.java        | 13 ++--
  .../paper/io/chunk/ChunkTaskManager.java      | 59 +++++++++++++++----
  .../minecraft/server/ChunkProviderServer.java |  6 ++
- .../net/minecraft/server/PlayerChunkMap.java  | 10 ++--
- 4 files changed, 67 insertions(+), 18 deletions(-)
+ .../net/minecraft/server/PlayerChunkMap.java  | 18 ++++--
+ 4 files changed, 73 insertions(+), 23 deletions(-)
 
 diff --git a/src/main/java/com/destroystokyo/paper/io/PrioritizedTaskQueue.java b/src/main/java/com/destroystokyo/paper/io/PrioritizedTaskQueue.java
-index 78bd238f4c..24d4902929 100644
+index 78bd238f4c..97f2e433c4 100644
 --- a/src/main/java/com/destroystokyo/paper/io/PrioritizedTaskQueue.java
 +++ b/src/main/java/com/destroystokyo/paper/io/PrioritizedTaskQueue.java
-@@ -72,7 +72,10 @@ public class PrioritizedTaskQueue<T extends PrioritizedTaskQueue.PrioritizedTask
+@@ -72,8 +72,11 @@ public class PrioritizedTaskQueue<T extends PrioritizedTaskQueue.PrioritizedTask
       *                               This can also be thrown if the queue has shutdown.
       */
      public void add(final T task) throws IllegalStateException {
 -        task.onQueue(this);
-+        add(task, false);
-+    }
-+    public void add(final T task, boolean allowReenqueue) throws IllegalStateException {
-+        task.onQueue(this, allowReenqueue);
-         this.queues[task.getPriority()].add(task);
+-        this.queues[task.getPriority()].add(task);
++        int priority = task.getPriority();
++        if (priority != COMPLETING_PRIORITY) {
++            task.setQueue(this);
++            this.queues[priority].add(task);
++        }
          if (this.shutdown.get()) {
              // note: we're not actually sure at this point if our task will go through
-@@ -251,7 +254,10 @@ public class PrioritizedTaskQueue<T extends PrioritizedTaskQueue.PrioritizedTask
-         }
- 
-         void onQueue(final PrioritizedTaskQueue queue) {
--            if (this.queue.getAndSet(queue) != null) {
-+            onQueue(queue, false);
-+        }
-+        void onQueue(final PrioritizedTaskQueue queue, boolean allowReenqueue) {
-+            if (this.queue.getAndSet(queue) != null && !allowReenqueue) {
-                 throw new IllegalStateException("Already queued!");
+             throw new IllegalStateException("Queue has shutdown, refusing to execute task " + IOUtil.genericToString(task));
+@@ -250,10 +253,8 @@ public class PrioritizedTaskQueue<T extends PrioritizedTaskQueue.PrioritizedTask
              }
          }
+ 
+-        void onQueue(final PrioritizedTaskQueue queue) {
+-            if (this.queue.getAndSet(queue) != null) {
+-                throw new IllegalStateException("Already queued!");
+-            }
++        void setQueue(final PrioritizedTaskQueue queue) {
++            this.queue.set(queue);
+         }
+ 
+         /* priority */
 diff --git a/src/main/java/com/destroystokyo/paper/io/chunk/ChunkTaskManager.java b/src/main/java/com/destroystokyo/paper/io/chunk/ChunkTaskManager.java
-index 715a2dd8d2..923d30b586 100644
+index 715a2dd8d2..e8282e9781 100644
 --- a/src/main/java/com/destroystokyo/paper/io/chunk/ChunkTaskManager.java
 +++ b/src/main/java/com/destroystokyo/paper/io/chunk/ChunkTaskManager.java
 @@ -34,7 +34,9 @@ public final class ChunkTaskManager {
@@ -118,7 +121,7 @@ index 715a2dd8d2..923d30b586 100644
 +                // queue will just have to ignore this task if it has already been started.
 +                // Ultimately, we now have 2 potential queues that can pull it out whoever gets it first
 +                // but the urgent queue has dedicated thread(s) so it's likely to win....
-+                globalUrgentQueue.add(task, true);
++                globalUrgentQueue.add(task);
 +                this.internalScheduleNotifyUrgent();
 +            } else {
                  this.internalScheduleNotify();
@@ -131,7 +134,7 @@ index 715a2dd8d2..923d30b586 100644
 -        this.queue.add(task);
 -        this.internalScheduleNotify();
 +        if (task.getPriority() == PrioritizedTaskQueue.HIGHEST_PRIORITY) {
-+            globalUrgentQueue.add(task, true);
++            globalUrgentQueue.add(task);
 +            this.internalScheduleNotifyUrgent();
 +        } else {
 +            this.queue.add(task);
@@ -155,7 +158,7 @@ index 715a2dd8d2..923d30b586 100644
 +
  }
 diff --git a/src/main/java/net/minecraft/server/ChunkProviderServer.java b/src/main/java/net/minecraft/server/ChunkProviderServer.java
-index 1dcd0980ec..1873f7b7dd 100644
+index 1dcd0980ec..0b2e8d0e57 100644
 --- a/src/main/java/net/minecraft/server/ChunkProviderServer.java
 +++ b/src/main/java/net/minecraft/server/ChunkProviderServer.java
 @@ -227,6 +227,7 @@ public class ChunkProviderServer extends IChunkProvider {
@@ -166,7 +169,7 @@ index 1dcd0980ec..1873f7b7dd 100644
  
      public void getChunkAtAsynchronously(int x, int z, boolean gen, java.util.function.Consumer<Chunk> onComplete) {
          if (Thread.currentThread() != this.serverThread) {
-@@ -384,7 +385,12 @@ public class ChunkProviderServer extends IChunkProvider {
+@@ -384,7 +385,11 @@ public class ChunkProviderServer extends IChunkProvider {
              }
  
              gameprofilerfiller.c("getChunkCacheMiss");
@@ -174,13 +177,20 @@ index 1dcd0980ec..1873f7b7dd 100644
 +            boolean prevBlocking = IS_CHUNK_LOAD_BLOCKING_MAIN;
 +            IS_CHUNK_LOAD_BLOCKING_MAIN = true;
              CompletableFuture<Either<IChunkAccess, PlayerChunk.Failure>> completablefuture = this.getChunkFutureMainThread(i, j, chunkstatus, flag);
-+            IS_CHUNK_LOAD_BLOCKING_MAIN = prevBlocking;
 +            // Paper end
  
              if (!completablefuture.isDone()) { // Paper
                  // Paper start - async chunk io/loading
+@@ -397,6 +402,7 @@ public class ChunkProviderServer extends IChunkProvider {
+                 com.destroystokyo.paper.io.chunk.ChunkTaskManager.popChunkWait(); // Paper - async chunk debug
+                 this.world.timings.chunkAwait.stopTiming(); // Paper
+             } // Paper
++            IS_CHUNK_LOAD_BLOCKING_MAIN = prevBlocking;// Paper
+             ichunkaccess = (IChunkAccess) ((Either) completablefuture.join()).map((ichunkaccess1) -> {
+                 return ichunkaccess1;
+             }, (playerchunk_failure) -> {
 diff --git a/src/main/java/net/minecraft/server/PlayerChunkMap.java b/src/main/java/net/minecraft/server/PlayerChunkMap.java
-index f9e843288a..b6db0fc1dc 100644
+index f9e843288a..1ff1260933 100644
 --- a/src/main/java/net/minecraft/server/PlayerChunkMap.java
 +++ b/src/main/java/net/minecraft/server/PlayerChunkMap.java
 @@ -705,13 +705,13 @@ public class PlayerChunkMap extends IChunkLoader implements PlayerChunk.d {
@@ -188,7 +198,7 @@ index f9e843288a..b6db0fc1dc 100644
  
          CompletableFuture<NBTTagCompound> chunkSaveFuture = this.world.asyncChunkTaskManager.getChunkSaveFuture(chunkcoordintpair.x, chunkcoordintpair.z);
 +        boolean isBlockingMain = MCUtil.isMainThread() && ChunkProviderServer.IS_CHUNK_LOAD_BLOCKING_MAIN;
-+        int priority = isBlockingMain ? com.destroystokyo.paper.io.PrioritizedTaskQueue.HIGH_PRIORITY : com.destroystokyo.paper.io.PrioritizedTaskQueue.HIGH_PRIORITY;
++        int priority = isBlockingMain ? com.destroystokyo.paper.io.PrioritizedTaskQueue.HIGHEST_PRIORITY : com.destroystokyo.paper.io.PrioritizedTaskQueue.HIGH_PRIORITY;
          if (chunkSaveFuture != null) {
 -            this.world.asyncChunkTaskManager.scheduleChunkLoad(chunkcoordintpair.x, chunkcoordintpair.z,
 -                com.destroystokyo.paper.io.PrioritizedTaskQueue.HIGH_PRIORITY, chunkHolderConsumer, false, chunkSaveFuture);
@@ -202,6 +212,21 @@ index f9e843288a..b6db0fc1dc 100644
          }
          return ret;
          // Paper end
+@@ -749,7 +749,13 @@ public class PlayerChunkMap extends IChunkLoader implements PlayerChunk.d {
+                 return CompletableFuture.completedFuture(Either.right(playerchunk_failure));
+             });
+         }, (runnable) -> {
+-            this.mailboxWorldGen.a(ChunkTaskQueueSorter.a(playerchunk, runnable)); // CraftBukkit - decompile error
++            // Paper start
++            if (ChunkProviderServer.IS_CHUNK_LOAD_BLOCKING_MAIN) {
++                this.executor.execute(runnable);
++            } else {
++                // Paper end
++                this.mailboxWorldGen.a(ChunkTaskQueueSorter.a(playerchunk, runnable)); // CraftBukkit - decompile error
++            }
+         });
+     }
+ 
 -- 
 2.25.1
 

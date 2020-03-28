@@ -1,14 +1,14 @@
-From efa97a725661b3a945f0542bb4ce62e78d7c89ad Mon Sep 17 00:00:00 2001
+From 29a83225f3bd64726db74e142db3598a3c032594 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Thu, 26 Mar 2020 02:58:11 -0400
 Subject: [PATCH] Fix EAR for Water mobs and Villager breeding
 
 ---
- src/main/java/org/spigotmc/ActivationRange.java | 11 +++++++++--
- 1 file changed, 9 insertions(+), 2 deletions(-)
+ .../java/org/spigotmc/ActivationRange.java    | 20 ++++++++++++-------
+ 1 file changed, 13 insertions(+), 7 deletions(-)
 
 diff --git a/src/main/java/org/spigotmc/ActivationRange.java b/src/main/java/org/spigotmc/ActivationRange.java
-index 8a65ccee32..215c65802a 100644
+index 8a65ccee32..46efeb12c7 100644
 --- a/src/main/java/org/spigotmc/ActivationRange.java
 +++ b/src/main/java/org/spigotmc/ActivationRange.java
 @@ -3,6 +3,7 @@ package org.spigotmc;
@@ -19,7 +19,15 @@ index 8a65ccee32..215c65802a 100644
  import net.minecraft.server.Chunk;
  import net.minecraft.server.Entity;
  import net.minecraft.server.EntityAmbient;
-@@ -30,6 +31,7 @@ import net.minecraft.server.EntityThrownTrident;
+@@ -16,6 +17,7 @@ import net.minecraft.server.EntityEnderDragon;
+ import net.minecraft.server.EntityFallingBlock; // Paper
+ import net.minecraft.server.EntityFireball;
+ import net.minecraft.server.EntityFireworks;
++import net.minecraft.server.EntityFlying;
+ import net.minecraft.server.EntityHuman;
+ import net.minecraft.server.EntityLightning;
+ import net.minecraft.server.EntityLiving;
+@@ -30,6 +32,7 @@ import net.minecraft.server.EntityThrownTrident;
  import net.minecraft.server.EntityVillager;
  import net.minecraft.server.EntityWither;
  import net.minecraft.server.MathHelper;
@@ -27,7 +35,7 @@ index 8a65ccee32..215c65802a 100644
  import net.minecraft.server.MinecraftServer;
  import net.minecraft.server.World;
  import co.aikar.timings.MinecraftTimings;
-@@ -202,7 +204,7 @@ public class ActivationRange
+@@ -202,13 +205,13 @@ public class ActivationRange
      public static boolean checkEntityImmunities(Entity entity)
      {
          // quick checks.
@@ -36,7 +44,14 @@ index 8a65ccee32..215c65802a 100644
          {
              return true;
          }
-@@ -228,9 +230,14 @@ public class ActivationRange
+         if ( !( entity instanceof EntityArrow ) )
+         {
+-            if ( !entity.onGround || !entity.passengers.isEmpty() || entity.isPassenger() )
++            if ( (!entity.onGround && entity instanceof EntityFlying) || !entity.passengers.isEmpty() || entity.isPassenger() ) // Paper
+             {
+                 return true;
+             }
+@@ -228,9 +231,14 @@ public class ActivationRange
              {
                  return true;
              }
@@ -52,6 +67,22 @@ index 8a65ccee32..215c65802a 100644
              }
              // Paper start
              if ( entity instanceof EntityLlama && ( (EntityLlama ) entity ).inCaravan() )
+@@ -283,13 +291,11 @@ public class ActivationRange
+                 {
+                     // Triggered some sort of immunity, give 20 full ticks before we check again.
+                     entity.activatedTick = MinecraftServer.currentTick + 20;
++                } else {
++                    entity.activatedTick = MinecraftServer.currentTick; // Paper
+                 }
+                 isActive = true;
+-            // Paper start
+-            } else if (entity instanceof EntityInsentient && ((EntityInsentient) entity).targetSelector.hasTasks()) {
+-                isActive = true;
+             }
+-            // Paper end
+             // Add a little performance juice to active entities. Skip 1/4 if not immune.
+         } else if ( !entity.defaultActivationState && entity.ticksLived % 4 == 0 && !(entity instanceof EntityInsentient && ((EntityInsentient) entity).targetSelector.hasTasks()) && !checkEntityImmunities( entity ) ) // Paper - add targetSelector.hasTasks
+         {
 -- 
 2.25.1
 
