@@ -1,4 +1,4 @@
-From aa4d50a09f708e80d3713b6160e1f6fd4a6173c6 Mon Sep 17 00:00:00 2001
+From 46dd1852ef5b1afbda35ed6a77228e7c19529da7 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Fri, 27 Mar 2020 20:57:32 -0400
 Subject: [PATCH] Improve behavior of main thread blocking chunk load/gens
@@ -6,9 +6,10 @@ Subject: [PATCH] Improve behavior of main thread blocking chunk load/gens
 ---
  .../paper/io/PrioritizedTaskQueue.java        | 13 ++--
  .../paper/io/chunk/ChunkTaskManager.java      | 59 +++++++++++++++----
- .../minecraft/server/ChunkProviderServer.java |  6 ++
- .../net/minecraft/server/PlayerChunkMap.java  | 18 ++++--
- 4 files changed, 73 insertions(+), 23 deletions(-)
+ .../minecraft/server/ChunkProviderServer.java | 14 +++++
+ .../net/minecraft/server/PlayerChunk.java     | 16 +++++
+ .../net/minecraft/server/PlayerChunkMap.java  | 13 ++--
+ 5 files changed, 92 insertions(+), 23 deletions(-)
 
 diff --git a/src/main/java/com/destroystokyo/paper/io/PrioritizedTaskQueue.java b/src/main/java/com/destroystokyo/paper/io/PrioritizedTaskQueue.java
 index 78bd238f4c..97f2e433c4 100644
@@ -158,7 +159,7 @@ index 715a2dd8d2..e8282e9781 100644
 +
  }
 diff --git a/src/main/java/net/minecraft/server/ChunkProviderServer.java b/src/main/java/net/minecraft/server/ChunkProviderServer.java
-index 1dcd0980ec..0b2e8d0e57 100644
+index 1dcd0980ec..f81d6bdeba 100644
 --- a/src/main/java/net/minecraft/server/ChunkProviderServer.java
 +++ b/src/main/java/net/minecraft/server/ChunkProviderServer.java
 @@ -227,6 +227,7 @@ public class ChunkProviderServer extends IChunkProvider {
@@ -169,28 +170,73 @@ index 1dcd0980ec..0b2e8d0e57 100644
  
      public void getChunkAtAsynchronously(int x, int z, boolean gen, java.util.function.Consumer<Chunk> onComplete) {
          if (Thread.currentThread() != this.serverThread) {
-@@ -384,7 +385,11 @@ public class ChunkProviderServer extends IChunkProvider {
+@@ -384,10 +385,18 @@ public class ChunkProviderServer extends IChunkProvider {
              }
  
              gameprofilerfiller.c("getChunkCacheMiss");
 +            // Paper start - Async chunks
 +            boolean prevBlocking = IS_CHUNK_LOAD_BLOCKING_MAIN;
 +            IS_CHUNK_LOAD_BLOCKING_MAIN = true;
-             CompletableFuture<Either<IChunkAccess, PlayerChunk.Failure>> completablefuture = this.getChunkFutureMainThread(i, j, chunkstatus, flag);
 +            // Paper end
+             CompletableFuture<Either<IChunkAccess, PlayerChunk.Failure>> completablefuture = this.getChunkFutureMainThread(i, j, chunkstatus, flag);
  
              if (!completablefuture.isDone()) { // Paper
                  // Paper start - async chunk io/loading
-@@ -397,6 +402,7 @@ public class ChunkProviderServer extends IChunkProvider {
++                PlayerChunk playerChunk = this.getChunk(ChunkCoordIntPair.pair(x, z));
++                if (playerChunk != null) {
++                    playerChunk.markChunkUrgent();
++                }
+                 this.world.asyncChunkTaskManager.raisePriority(x, z, com.destroystokyo.paper.io.PrioritizedTaskQueue.HIGHEST_PRIORITY);
+                 com.destroystokyo.paper.io.chunk.ChunkTaskManager.pushChunkWait(this.world, x, z);
+                 // Paper end
+@@ -397,6 +406,11 @@ public class ChunkProviderServer extends IChunkProvider {
                  com.destroystokyo.paper.io.chunk.ChunkTaskManager.popChunkWait(); // Paper - async chunk debug
                  this.world.timings.chunkAwait.stopTiming(); // Paper
              } // Paper
++            PlayerChunk playerChunk = this.getChunk(ChunkCoordIntPair.pair(x, z));
++            if (playerChunk != null) {
++                playerChunk.clearChunkUrgent();
++            }
 +            IS_CHUNK_LOAD_BLOCKING_MAIN = prevBlocking;// Paper
              ichunkaccess = (IChunkAccess) ((Either) completablefuture.join()).map((ichunkaccess1) -> {
                  return ichunkaccess1;
              }, (playerchunk_failure) -> {
+diff --git a/src/main/java/net/minecraft/server/PlayerChunk.java b/src/main/java/net/minecraft/server/PlayerChunk.java
+index 9f8818c2d4..1802cebf5b 100644
+--- a/src/main/java/net/minecraft/server/PlayerChunk.java
++++ b/src/main/java/net/minecraft/server/PlayerChunk.java
+@@ -43,6 +43,21 @@ public class PlayerChunk {
+     long lastAutoSaveTime; // Paper - incremental autosave
+     long inactiveTimeStart; // Paper - incremental autosave
+ 
++    // Paper start
++    int chunkPriority = -1;
++    int lastChunkPriority = -1;
++    public void markChunkUrgent() {
++        this.chunkPriority = 0;
++        this.lastChunkPriority = this.chunkPriority;
++    }
++    public void clearChunkUrgent() {
++        if (this.chunkPriority == 0) {
++            this.chunkPriority = this.lastChunkPriority;
++            this.lastChunkPriority = -1;
++        }
++    }
++    // Paper end
++
+     public PlayerChunk(ChunkCoordIntPair chunkcoordintpair, int i, LightEngine lightengine, PlayerChunk.c playerchunk_c, PlayerChunk.d playerchunk_d) {
+         this.statusFutures = new AtomicReferenceArray(PlayerChunk.CHUNK_STATUSES.size());
+         this.fullChunkFuture = PlayerChunk.UNLOADED_CHUNK_FUTURE;
+@@ -350,6 +365,7 @@ public class PlayerChunk {
+         return this.ticketLevel;
+     }
+ 
++    public int getChunkPriority() { return this.chunkPriority != -1 ? this.chunkPriority : this.k(); } // Paper - OBFHELPER and also override
+     public int k() {
+         return this.n;
+     }
 diff --git a/src/main/java/net/minecraft/server/PlayerChunkMap.java b/src/main/java/net/minecraft/server/PlayerChunkMap.java
-index f9e843288a..1ff1260933 100644
+index f9e843288a..341d092527 100644
 --- a/src/main/java/net/minecraft/server/PlayerChunkMap.java
 +++ b/src/main/java/net/minecraft/server/PlayerChunkMap.java
 @@ -705,13 +705,13 @@ public class PlayerChunkMap extends IChunkLoader implements PlayerChunk.d {
@@ -212,18 +258,13 @@ index f9e843288a..1ff1260933 100644
          }
          return ret;
          // Paper end
-@@ -749,7 +749,13 @@ public class PlayerChunkMap extends IChunkLoader implements PlayerChunk.d {
+@@ -749,7 +749,8 @@ public class PlayerChunkMap extends IChunkLoader implements PlayerChunk.d {
                  return CompletableFuture.completedFuture(Either.right(playerchunk_failure));
              });
          }, (runnable) -> {
 -            this.mailboxWorldGen.a(ChunkTaskQueueSorter.a(playerchunk, runnable)); // CraftBukkit - decompile error
-+            // Paper start
-+            if (ChunkProviderServer.IS_CHUNK_LOAD_BLOCKING_MAIN) {
-+                this.executor.execute(runnable);
-+            } else {
-+                // Paper end
-+                this.mailboxWorldGen.a(ChunkTaskQueueSorter.a(playerchunk, runnable)); // CraftBukkit - decompile error
-+            }
++            //this.mailboxWorldGen.a(ChunkTaskQueueSorter.a(playerchunk, runnable)); // CraftBukkit - decompile error // Paper
++            this.mailboxWorldGen.a(ChunkTaskQueueSorter.a(runnable, playerchunk.location.pair(), playerchunk::getChunkPriority)); // Paper - customize priority
          });
      }
  
