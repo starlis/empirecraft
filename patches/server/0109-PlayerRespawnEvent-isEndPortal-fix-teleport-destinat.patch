@@ -1,0 +1,61 @@
+From eed495fd3d437991e0cbf716a3b541d715238974 Mon Sep 17 00:00:00 2001
+From: chickeneer <emcchickeneer@gmail.com>
+Date: Tue, 17 Mar 2020 12:25:11 -0500
+Subject: [PATCH] PlayerRespawnEvent#isEndPortal / fix teleport destination for
+ end respawn
+
+Ability to detect if it is the end portal being used.
+
+When respawning, use current dimension instead of forced overworld
+
+So only END -> OVERWORLD occurs in using portal or teleporting,
+where location is not null
+---
+ src/main/java/net/minecraft/server/PlayerConnection.java     | 2 +-
+ src/main/java/net/minecraft/server/PlayerList.java           | 3 ++-
+ src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java | 2 +-
+ 3 files changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/src/main/java/net/minecraft/server/PlayerConnection.java b/src/main/java/net/minecraft/server/PlayerConnection.java
+index cc0cdf5cc1..b9da92041d 100644
+--- a/src/main/java/net/minecraft/server/PlayerConnection.java
++++ b/src/main/java/net/minecraft/server/PlayerConnection.java
+@@ -2107,7 +2107,7 @@ public class PlayerConnection implements PacketListenerPlayIn {
+                         return;
+                     }
+ 
+-                    this.player = this.minecraftServer.getPlayerList().moveToWorld(this.player, DimensionManager.OVERWORLD, false);
++                    this.player = this.minecraftServer.getPlayerList().moveToWorld(this.player, this.player.getWorldServer().worldProvider.getDimensionManager(), false); // EMC
+                     if (this.minecraftServer.isHardcore()) {
+                         this.player.a(EnumGamemode.SPECTATOR);
+                         ((GameRules.GameRuleBoolean) this.player.getWorldServer().getGameRules().get(GameRules.SPECTATORS_GENERATE_CHUNKS)).a(false, this.minecraftServer);
+diff --git a/src/main/java/net/minecraft/server/PlayerList.java b/src/main/java/net/minecraft/server/PlayerList.java
+index ef1a8e7c32..655a0f5698 100644
+--- a/src/main/java/net/minecraft/server/PlayerList.java
++++ b/src/main/java/net/minecraft/server/PlayerList.java
+@@ -671,7 +671,8 @@ public abstract class PlayerList {
+             }
+ 
+             Player respawnPlayer = cserver.getPlayer(entityplayer1);
+-            PlayerRespawnEvent respawnEvent = new PlayerRespawnEvent(respawnPlayer, location, isBedSpawn);
++            boolean isEndPortal = dimensionmanager.getType() == DimensionManager.OVERWORLD && entityplayer.world.worldProvider.getDimensionManager().getType() == DimensionManager.THE_END; // EMC
++            PlayerRespawnEvent respawnEvent = new PlayerRespawnEvent(respawnPlayer, location, isBedSpawn, isEndPortal); // EMC - add isLeavingEnd
+             cserver.getPluginManager().callEvent(respawnEvent);
+             // Spigot Start
+             if (entityplayer.playerConnection.isDisconnected()) {
+diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
+index 247eebc694..333c57e03e 100644
+--- a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
++++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
+@@ -2063,7 +2063,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+         {
+             if ( getHealth() <= 0 && isOnline() )
+             {
+-                server.getServer().getPlayerList().moveToWorld( getHandle(), net.minecraft.server.DimensionManager.OVERWORLD, false );
++                server.getServer().getPlayerList().moveToWorld( getHandle(), getHandle().world.worldProvider.getDimensionManager(), false ); // EMC
+             }
+         }
+ 
+-- 
+2.25.1
+

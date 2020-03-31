@@ -1,0 +1,64 @@
+From b6e86be79db402f6cd37386eb4b608a1b06e1ad2 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Tue, 31 Mar 2020 01:34:07 -0400
+Subject: [PATCH] entity debug
+
+---
+ src/main/java/net/minecraft/server/Chunk.java  | 18 ++++++++++++++++++
+ src/main/java/net/minecraft/server/Entity.java |  2 ++
+ 2 files changed, 20 insertions(+)
+
+diff --git a/src/main/java/net/minecraft/server/Chunk.java b/src/main/java/net/minecraft/server/Chunk.java
+index b6ed6ce236..2e43e698ed 100644
+--- a/src/main/java/net/minecraft/server/Chunk.java
++++ b/src/main/java/net/minecraft/server/Chunk.java
+@@ -466,6 +466,9 @@ public class Chunk implements IChunkAccess {
+         } else if (entity instanceof IInventory) {
+             inventoryEntityCounts[k]++;
+         }
++        if (WorldServer.DEBUG_ENTITIES) {
++            entity.lastChunkAdd = new Throwable("Entity " + entity + " Added to chunk " + this.loc + " slice " + k + " at " + new java.util.Date());
++        }
+         // Paper end
+         entity.entitySlice = this.entitySlices[k]; // Paper
+         this.markDirty(); // Paper
+@@ -496,8 +499,23 @@ public class Chunk implements IChunkAccess {
+             entity.entitySlice = null;
+         }
+         if (!this.entitySlices[i].remove(entity)) {
++            Chunk currentChunk = entity.getCurrentChunk();
++            LOGGER.error("Could not find entity in slice " + i + " - " + entity + " - " + (
++                currentChunk != null ? currentChunk.world.getWorld().getName() +":" + currentChunk.loc : "no chunk") + " - " +
++                world.getWorld().getName() +":"  + this.loc, new Throwable("Failed remove called at"));
++            if (WorldServer.DEBUG_ENTITIES) {
++                if (entity.lastChunkRemove != null) {
++                    entity.lastChunkRemove.printStackTrace();
++                }
++                if (entity.lastChunkAdd != null) {
++                    entity.lastChunkAdd.printStackTrace();
++                }
++            }
+             return;
+         }
++        if (WorldServer.DEBUG_ENTITIES) {
++            entity.lastChunkRemove = new Throwable("Entity " + entity + " Removed from chunk " + this.loc + " slice " + i + " at " + new java.util.Date());
++        }
+         if (entity instanceof EntityItem) {
+             itemCounts[i]--;
+         } else if (entity instanceof IInventory) {
+diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
+index a939d9c8e3..a61cafa0d3 100644
+--- a/src/main/java/net/minecraft/server/Entity.java
++++ b/src/main/java/net/minecraft/server/Entity.java
+@@ -84,6 +84,8 @@ Entity implements INamableTileEntity, ICommandListener, KeyedObject { // Paper
+ 
+     PlayerChunkMap.EntityTracker tracker; // Paper
+     Throwable addedToWorldStack; // Paper - entity debug
++    Throwable lastChunkAdd; // Paper - entity debug
++    Throwable lastChunkRemove; // Paper - entity debug
+     public CraftEntity getBukkitEntity() {
+         if (bukkitEntity == null) {
+             bukkitEntity = CraftEntity.getEntity(world.getServer(), this);
+-- 
+2.25.1
+
