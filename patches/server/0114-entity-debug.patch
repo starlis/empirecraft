@@ -1,15 +1,15 @@
-From b6e86be79db402f6cd37386eb4b608a1b06e1ad2 Mon Sep 17 00:00:00 2001
+From b026b66a7b001a65b65cd539e98c098732a6673e Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Tue, 31 Mar 2020 01:34:07 -0400
 Subject: [PATCH] entity debug
 
 ---
- src/main/java/net/minecraft/server/Chunk.java  | 18 ++++++++++++++++++
- src/main/java/net/minecraft/server/Entity.java |  2 ++
- 2 files changed, 20 insertions(+)
+ src/main/java/net/minecraft/server/Chunk.java | 24 +++++++++++++++++++
+ .../java/net/minecraft/server/Entity.java     |  2 ++
+ 2 files changed, 26 insertions(+)
 
 diff --git a/src/main/java/net/minecraft/server/Chunk.java b/src/main/java/net/minecraft/server/Chunk.java
-index b6ed6ce236..2e43e698ed 100644
+index b6ed6ce236..403f1dbbae 100644
 --- a/src/main/java/net/minecraft/server/Chunk.java
 +++ b/src/main/java/net/minecraft/server/Chunk.java
 @@ -466,6 +466,9 @@ public class Chunk implements IChunkAccess {
@@ -22,14 +22,24 @@ index b6ed6ce236..2e43e698ed 100644
          // Paper end
          entity.entitySlice = this.entitySlices[k]; // Paper
          this.markDirty(); // Paper
-@@ -496,8 +499,23 @@ public class Chunk implements IChunkAccess {
+@@ -492,12 +495,33 @@ public class Chunk implements IChunkAccess {
+ 
+         // Paper start
+         if (entity.currentChunk != null && entity.currentChunk.get() == this) entity.setCurrentChunk(null);
++        boolean wasSupposedToBeHere = false;
+         if (entitySlices[i] == entity.entitySlice) {
++            wasSupposedToBeHere = true;
              entity.entitySlice = null;
          }
          if (!this.entitySlices[i].remove(entity)) {
++            if (!wasSupposedToBeHere && entity.entitySlice == null) {
++                return;
++            }
 +            Chunk currentChunk = entity.getCurrentChunk();
-+            LOGGER.error("Could not find entity in slice " + i + " - " + entity + " - " + (
-+                currentChunk != null ? currentChunk.world.getWorld().getName() +":" + currentChunk.loc : "no chunk") + " - " +
-+                world.getWorld().getName() +":"  + this.loc, new Throwable("Failed remove called at"));
++            String curChunkStr = currentChunk != null ? currentChunk.world.getWorld().getName() + ":" + currentChunk.loc : "no chunk";
++            String thisChunkStr = world.getWorld().getName() + ":" + this.loc;
++            LOGGER.error("Tried to remove " + entity + " from wrong slice: " + i + " in chunk " + thisChunkStr +
++                ", was in slice " + entity.chunkY + " of chunk " + curChunkStr, new Throwable("Failed remove called at"));
 +            if (WorldServer.DEBUG_ENTITIES) {
 +                if (entity.lastChunkRemove != null) {
 +                    entity.lastChunkRemove.printStackTrace();
@@ -47,7 +57,7 @@ index b6ed6ce236..2e43e698ed 100644
              itemCounts[i]--;
          } else if (entity instanceof IInventory) {
 diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
-index a939d9c8e3..a61cafa0d3 100644
+index 1ff1a815d0..b63680bdeb 100644
 --- a/src/main/java/net/minecraft/server/Entity.java
 +++ b/src/main/java/net/minecraft/server/Entity.java
 @@ -84,6 +84,8 @@ Entity implements INamableTileEntity, ICommandListener, KeyedObject { // Paper

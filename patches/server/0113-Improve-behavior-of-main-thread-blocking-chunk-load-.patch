@@ -1,16 +1,16 @@
-From 4685a8274d66ddedcb02a0b193309b1e8121190e Mon Sep 17 00:00:00 2001
+From d2141c5fb21112c5ab67b3cb9f27cc343388a875 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Fri, 27 Mar 2020 20:57:32 -0400
 Subject: [PATCH] Improve behavior of main thread blocking chunk load/gens
 
 ---
- .../paper/io/PrioritizedTaskQueue.java        |  13 +--
- .../paper/io/chunk/ChunkTaskManager.java      |  59 ++++++++--
+ .../paper/io/PrioritizedTaskQueue.java        |  13 +-
+ .../paper/io/chunk/ChunkTaskManager.java      |  59 +++++++--
  .../minecraft/server/ChunkProviderServer.java |  14 +++
  .../net/minecraft/server/ChunkStatus.java     |   3 +
- .../net/minecraft/server/PlayerChunk.java     | 101 +++++++++++++++++-
- .../net/minecraft/server/PlayerChunkMap.java  |  21 +++-
- 6 files changed, 187 insertions(+), 24 deletions(-)
+ .../net/minecraft/server/PlayerChunk.java     | 115 +++++++++++++++++-
+ .../net/minecraft/server/PlayerChunkMap.java  |  22 +++-
+ 6 files changed, 202 insertions(+), 24 deletions(-)
 
 diff --git a/src/main/java/com/destroystokyo/paper/io/PrioritizedTaskQueue.java b/src/main/java/com/destroystokyo/paper/io/PrioritizedTaskQueue.java
 index 78bd238f4c..97f2e433c4 100644
@@ -231,7 +231,7 @@ index 88f1674616..40ce30cdc2 100644
          return this.c() >= chunkstatus.c();
      }
 diff --git a/src/main/java/net/minecraft/server/PlayerChunk.java b/src/main/java/net/minecraft/server/PlayerChunk.java
-index 9f8818c2d4..e94d21f7a9 100644
+index 9f8818c2d4..3b51bcfbe3 100644
 --- a/src/main/java/net/minecraft/server/PlayerChunk.java
 +++ b/src/main/java/net/minecraft/server/PlayerChunk.java
 @@ -1,6 +1,8 @@
@@ -243,27 +243,53 @@ index 9f8818c2d4..e94d21f7a9 100644
  import java.util.List;
  import java.util.Optional;
  import java.util.concurrent.CompletableFuture;
-@@ -43,6 +45,96 @@ public class PlayerChunk {
+@@ -43,6 +45,110 @@ public class PlayerChunk {
      long lastAutoSaveTime; // Paper - incremental autosave
      long inactiveTimeStart; // Paper - incremental autosave
  
 +    // Paper start
-+    int chunkPriority = -1;
-+    int lastChunkPriority = -1;
++    int chunkPriority = 0;
 +    boolean isUrgent = false;
 +    java.util.List<PlayerChunk> urgentNeighbors = new java.util.ArrayList<>();
++    PlayerChunk rootUrgentOriginator;
++    PlayerChunk urgentOriginator;
 +    public void onNeighborRequest(PlayerChunk neighbor, ChunkStatus status) {
-+        if (isUrgent && !neighbor.isUrgent) {
-+            neighbor.markChunkUrgent(status);
++        if (isUrgent && !neighbor.isUrgent && neighbor != rootUrgentOriginator && neighbor != urgentOriginator) {
++            neighbor.markChunkUrgent(status, this.rootUrgentOriginator, this);
 +            this.urgentNeighbors.add(neighbor);
++        }
++    }
++    public void onNeighborsDone() {
++        List<PlayerChunk> urgentNeighbors = this.urgentNeighbors;
++        this.urgentNeighbors = new java.util.ArrayList<>();
++        for (PlayerChunk urgentNeighbor : urgentNeighbors) {
++            if (urgentNeighbor != null) {
++                urgentNeighbor.clearChunkUrgent(this);
++            }
++        }
++    }
++
++    public void clearChunkUrgent() {
++        clearChunkUrgent(this);
++    }
++    public void clearChunkUrgent(PlayerChunk requester) {
++        if (this.isUrgent && requester == this.urgentOriginator) {
++            this.isUrgent = false;
++            this.urgentOriginator = null;
++            this.rootUrgentOriginator = null;
++            this.onNeighborsDone();
++            this.urgentOriginator = null;
 +        }
 +    }
 +
 +    public void markChunkUrgent(ChunkStatus targetStatus) {
++        this.markChunkUrgent(targetStatus, this , this);
++    }
++    public void markChunkUrgent(ChunkStatus targetStatus, PlayerChunk rootUrgentOriginator, PlayerChunk urgentOriginator) {
 +        if (!this.isUrgent) {
++            this.rootUrgentOriginator = rootUrgentOriginator;
++            this.urgentOriginator = urgentOriginator;
 +            this.isUrgent = true;
-+            this.lastChunkPriority = this.chunkPriority;
-+            this.chunkPriority = Math.max(0, this.ticketLevel - 20);
 +            int x = location.x;
 +            int z = location.z;
 +            IChunkAccess chunk = getAvailableChunkNow();
@@ -278,7 +304,7 @@ index 9f8818c2d4..e94d21f7a9 100644
 +            }
 +
 +            CompletableFuture<Either<IChunkAccess, PlayerChunk.Failure>> fastCheck = this.getStatusFutureUnchecked(nextStatus);
-+            if (fastCheck == null || fastCheck.getNow(null) == null || fastCheck.getNow(null).right().isPresent()) {
++            if (fastCheck == UNLOADED_CHUNK_ACCESS_FUTURE) {
 +                // neighbours have not been queued, so we don't need to worry about prioritising them here
 +                return;
 +            }
@@ -317,22 +343,10 @@ index 9f8818c2d4..e94d21f7a9 100644
 +                    if (nextStatus == ChunkStatus.LIGHT || !neighborCurrentStatus.isAtLeastStatus(neededStatus)) {
 +                        // we don't need to gen neighbours if our current chunk's status has already gone through the gen
 +                        // light is always an exception, no matter what if we go through light we need its neighbours - the light engine requires them
-+                        neighbor.markChunkUrgent(neededStatus);
++                        this.onNeighborRequest(neighbor, neededStatus);
 +                    }
 +                }
 +            }
-+        }
-+    }
-+
-+    public void clearChunkUrgent() {
-+        if (this.isUrgent) {
-+            this.chunkPriority = this.lastChunkPriority;
-+            this.lastChunkPriority = -1;
-+            this.isUrgent = false;
-+            for (PlayerChunk urgentNeighbor : this.urgentNeighbors) {
-+                urgentNeighbor.clearChunkUrgent();
-+            }
-+            this.urgentNeighbors.clear();
 +        }
 +    }
 +    // Paper end
@@ -340,7 +354,7 @@ index 9f8818c2d4..e94d21f7a9 100644
      public PlayerChunk(ChunkCoordIntPair chunkcoordintpair, int i, LightEngine lightengine, PlayerChunk.c playerchunk_c, PlayerChunk.d playerchunk_d) {
          this.statusFutures = new AtomicReferenceArray(PlayerChunk.CHUNK_STATUSES.size());
          this.fullChunkFuture = PlayerChunk.UNLOADED_CHUNK_FUTURE;
-@@ -127,7 +219,6 @@ public class PlayerChunk {
+@@ -127,7 +233,6 @@ public class PlayerChunk {
          }
          return null;
      }
@@ -348,7 +362,7 @@ index 9f8818c2d4..e94d21f7a9 100644
      public ChunkStatus getChunkHolderStatus() {
          for (ChunkStatus curr = ChunkStatus.FULL, next = curr.getPreviousStatus(); curr != next; curr = next, next = next.getPreviousStatus()) {
              CompletableFuture<Either<IChunkAccess, PlayerChunk.Failure>> future = this.getStatusFutureUnchecked(curr);
-@@ -139,6 +230,12 @@ public class PlayerChunk {
+@@ -139,6 +244,12 @@ public class PlayerChunk {
          }
          return null;
      }
@@ -361,17 +375,17 @@ index 9f8818c2d4..e94d21f7a9 100644
      // Paper end
  
      public CompletableFuture<Either<IChunkAccess, PlayerChunk.Failure>> getStatusFutureUnchecked(ChunkStatus chunkstatus) {
-@@ -351,7 +448,7 @@ public class PlayerChunk {
+@@ -351,7 +462,7 @@ public class PlayerChunk {
      }
  
      public int k() {
 -        return this.n;
-+        return this.chunkPriority != -1 ? this.chunkPriority : this.n; // Paper - allow overriding priority
++        return Math.max(1, this.n - this.chunkPriority - (isUrgent ? 20 : 0)); // Paper - allow modifying priority, subtracts 20 if urgent
      }
  
      private void d(int i) {
 diff --git a/src/main/java/net/minecraft/server/PlayerChunkMap.java b/src/main/java/net/minecraft/server/PlayerChunkMap.java
-index d3c376ba5c..a97ecabf72 100644
+index 158de500fc..b4ca54d6cf 100644
 --- a/src/main/java/net/minecraft/server/PlayerChunkMap.java
 +++ b/src/main/java/net/minecraft/server/PlayerChunkMap.java
 @@ -279,6 +279,7 @@ public class PlayerChunkMap extends IChunkLoader implements PlayerChunk.d {
@@ -390,7 +404,7 @@ index d3c376ba5c..a97ecabf72 100644
                  CompletableFuture<Either<IChunkAccess, PlayerChunk.Failure>> completablefuture = playerchunk.a(chunkstatus, this);
  
                  list.add(completablefuture);
-@@ -739,23 +741,28 @@ public class PlayerChunkMap extends IChunkLoader implements PlayerChunk.d {
+@@ -740,23 +742,28 @@ public class PlayerChunkMap extends IChunkLoader implements PlayerChunk.d {
          };
  
          CompletableFuture<NBTTagCompound> chunkSaveFuture = this.world.asyncChunkTaskManager.getChunkSaveFuture(chunkcoordintpair.x, chunkcoordintpair.z);
@@ -424,7 +438,15 @@ index d3c376ba5c..a97ecabf72 100644
  
          this.world.getMethodProfiler().c(() -> {
              return "chunkGenerate " + chunkstatus.d();
-@@ -795,6 +802,7 @@ public class PlayerChunkMap extends IChunkLoader implements PlayerChunk.d {
+@@ -784,6 +791,7 @@ public class PlayerChunkMap extends IChunkLoader implements PlayerChunk.d {
+                 return CompletableFuture.completedFuture(Either.right(playerchunk_failure));
+             });
+         }, (runnable) -> {
++            playerchunk.onNeighborsDone(); // Paper
+             this.mailboxWorldGen.a(ChunkTaskQueueSorter.a(playerchunk, runnable)); // CraftBukkit - decompile error
+         });
+     }
+@@ -796,6 +804,7 @@ public class PlayerChunkMap extends IChunkLoader implements PlayerChunk.d {
          }));
      }
  
@@ -432,7 +454,7 @@ index d3c376ba5c..a97ecabf72 100644
      private ChunkStatus a(ChunkStatus chunkstatus, int i) {
          ChunkStatus chunkstatus1;
  
-@@ -920,9 +928,12 @@ public class PlayerChunkMap extends IChunkLoader implements PlayerChunk.d {
+@@ -921,9 +930,12 @@ public class PlayerChunkMap extends IChunkLoader implements PlayerChunk.d {
  
      public CompletableFuture<Either<Chunk, PlayerChunk.Failure>> a(PlayerChunk playerchunk) {
          ChunkCoordIntPair chunkcoordintpair = playerchunk.i();
