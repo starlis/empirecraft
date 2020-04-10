@@ -1,4 +1,4 @@
-From d2141c5fb21112c5ab67b3cb9f27cc343388a875 Mon Sep 17 00:00:00 2001
+From deea64338912572415ba8e688c29337439b92695 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Fri, 27 Mar 2020 20:57:32 -0400
 Subject: [PATCH] Improve behavior of main thread blocking chunk load/gens
@@ -231,37 +231,45 @@ index 88f1674616..40ce30cdc2 100644
          return this.c() >= chunkstatus.c();
      }
 diff --git a/src/main/java/net/minecraft/server/PlayerChunk.java b/src/main/java/net/minecraft/server/PlayerChunk.java
-index 9f8818c2d4..3b51bcfbe3 100644
+index 9f8818c2d4..e98ea2a2b5 100644
 --- a/src/main/java/net/minecraft/server/PlayerChunk.java
 +++ b/src/main/java/net/minecraft/server/PlayerChunk.java
-@@ -1,6 +1,8 @@
+@@ -1,7 +1,9 @@
  package net.minecraft.server;
  
  import com.mojang.datafixers.util.Either;
-+import net.minecraft.server.Raid.Status;
 +
  import java.util.List;
++import java.util.Objects;
  import java.util.Optional;
  import java.util.concurrent.CompletableFuture;
+ import java.util.concurrent.atomic.AtomicReferenceArray;
 @@ -43,6 +45,110 @@ public class PlayerChunk {
      long lastAutoSaveTime; // Paper - incremental autosave
      long inactiveTimeStart; // Paper - incremental autosave
  
 +    // Paper start
-+    int chunkPriority = 0;
-+    boolean isUrgent = false;
-+    java.util.List<PlayerChunk> urgentNeighbors = new java.util.ArrayList<>();
-+    PlayerChunk rootUrgentOriginator;
-+    PlayerChunk urgentOriginator;
++    volatile int chunkPriority = 0;
++    volatile boolean isUrgent = false;
++    final java.util.List<PlayerChunk> urgentNeighbors = new java.util.ArrayList<>();
++    volatile PlayerChunk rootUrgentOriginator;
++    volatile PlayerChunk urgentOriginator;
 +    public void onNeighborRequest(PlayerChunk neighbor, ChunkStatus status) {
-+        if (isUrgent && !neighbor.isUrgent && neighbor != rootUrgentOriginator && neighbor != urgentOriginator) {
-+            neighbor.markChunkUrgent(status, this.rootUrgentOriginator, this);
-+            this.urgentNeighbors.add(neighbor);
++        if (isUrgent && !neighbor.isUrgent && !Objects.equals(neighbor, rootUrgentOriginator) && !Objects.equals(neighbor, urgentOriginator)) {
++            synchronized (this.urgentNeighbors) {
++                if (!neighbor.isUrgent) {
++                    neighbor.markChunkUrgent(status, this.rootUrgentOriginator, this);
++                    this.urgentNeighbors.add(neighbor);
++                }
++            }
 +        }
 +    }
++
 +    public void onNeighborsDone() {
-+        List<PlayerChunk> urgentNeighbors = this.urgentNeighbors;
-+        this.urgentNeighbors = new java.util.ArrayList<>();
++        List<PlayerChunk> urgentNeighbors;
++        synchronized (this.urgentNeighbors) {
++            urgentNeighbors = new java.util.ArrayList<>(this.urgentNeighbors);
++        }
 +        for (PlayerChunk urgentNeighbor : urgentNeighbors) {
 +            if (urgentNeighbor != null) {
 +                urgentNeighbor.clearChunkUrgent(this);
@@ -273,12 +281,11 @@ index 9f8818c2d4..3b51bcfbe3 100644
 +        clearChunkUrgent(this);
 +    }
 +    public void clearChunkUrgent(PlayerChunk requester) {
-+        if (this.isUrgent && requester == this.urgentOriginator) {
++        if (this.isUrgent && Objects.equals(requester, this.urgentOriginator)) {
 +            this.isUrgent = false;
 +            this.urgentOriginator = null;
 +            this.rootUrgentOriginator = null;
 +            this.onNeighborsDone();
-+            this.urgentOriginator = null;
 +        }
 +    }
 +
@@ -300,12 +307,6 @@ index 9f8818c2d4..3b51bcfbe3 100644
 +            if (chunkCurrentStatus == null || completedStatus == null) {
 +                this.chunkMap.world.asyncChunkTaskManager.raisePriority(x, z, com.destroystokyo.paper.io.PrioritizedTaskQueue.HIGHEST_PRIORITY);
 +                // next status is empty, empty has no neighbours needing loading
-+                return;
-+            }
-+
-+            CompletableFuture<Either<IChunkAccess, PlayerChunk.Failure>> fastCheck = this.getStatusFutureUnchecked(nextStatus);
-+            if (fastCheck == UNLOADED_CHUNK_ACCESS_FUTURE) {
-+                // neighbours have not been queued, so we don't need to worry about prioritising them here
 +                return;
 +            }
 +
@@ -385,7 +386,7 @@ index 9f8818c2d4..3b51bcfbe3 100644
  
      private void d(int i) {
 diff --git a/src/main/java/net/minecraft/server/PlayerChunkMap.java b/src/main/java/net/minecraft/server/PlayerChunkMap.java
-index 158de500fc..b4ca54d6cf 100644
+index 86dafc29ca..187107b37d 100644
 --- a/src/main/java/net/minecraft/server/PlayerChunkMap.java
 +++ b/src/main/java/net/minecraft/server/PlayerChunkMap.java
 @@ -279,6 +279,7 @@ public class PlayerChunkMap extends IChunkLoader implements PlayerChunk.d {
