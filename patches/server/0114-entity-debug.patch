@@ -1,15 +1,16 @@
-From 1bd214b9f000716bef24b6ac66abee8c9aa24b47 Mon Sep 17 00:00:00 2001
+From 9fb385f144eb3b2d70cae9239d6774e4b1d54156 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Tue, 31 Mar 2020 01:34:07 -0400
 Subject: [PATCH] entity debug
 
 ---
- src/main/java/net/minecraft/server/Chunk.java | 24 +++++++++++++++++++
+ src/main/java/net/minecraft/server/Chunk.java | 26 ++++++++++++++++++-
  .../java/net/minecraft/server/Entity.java     |  2 ++
- 2 files changed, 26 insertions(+)
+ .../net/minecraft/server/WorldServer.java     |  7 +++--
+ 3 files changed, 32 insertions(+), 3 deletions(-)
 
 diff --git a/src/main/java/net/minecraft/server/Chunk.java b/src/main/java/net/minecraft/server/Chunk.java
-index 5c490cd677..cdea5533a7 100644
+index 5c490cd677..0fd65133a1 100644
 --- a/src/main/java/net/minecraft/server/Chunk.java
 +++ b/src/main/java/net/minecraft/server/Chunk.java
 @@ -466,6 +466,9 @@ public class Chunk implements IChunkAccess {
@@ -22,10 +23,13 @@ index 5c490cd677..cdea5533a7 100644
          // Paper end
          entity.entitySlice = this.entitySlices[k]; // Paper
          this.markDirty(); // Paper
-@@ -492,13 +495,34 @@ public class Chunk implements IChunkAccess {
+@@ -491,14 +494,35 @@ public class Chunk implements IChunkAccess {
+         }
  
          // Paper start
-         if (entity.currentChunk != null && entity.currentChunk.get() == this) entity.setCurrentChunk(null);
+-        if (entity.currentChunk != null && entity.currentChunk.get() == this) entity.setCurrentChunk(null);
++        Chunk currentChunk = entity.currentChunk != null ? entity.currentChunk.get() : null;
++        if (currentChunk == this) entity.setCurrentChunk(null);
 +        boolean wasSupposedToBeHere = false;
          if (entitySlices[i] == entity.entitySlice) {
 +            wasSupposedToBeHere = true;
@@ -36,7 +40,6 @@ index 5c490cd677..cdea5533a7 100644
 +            if (!wasSupposedToBeHere && entity.entitySlice == null) {
 +                return;
 +            }
-+            Chunk currentChunk = entity.getCurrentChunk();
 +            String curChunkStr = currentChunk != null ? currentChunk.world.getWorld().getName() + ":" + currentChunk.loc : "no chunk";
 +            String thisChunkStr = world.getWorld().getName() + ":" + this.loc;
 +            LOGGER.error("Tried to remove " + entity + " from wrong slice: " + i + " in chunk " + thisChunkStr +
@@ -70,6 +73,25 @@ index 593f19ee2b..9c643da074 100644
      public CraftEntity getBukkitEntity() {
          if (bukkitEntity == null) {
              bukkitEntity = CraftEntity.getEntity(world.getServer(), this);
+diff --git a/src/main/java/net/minecraft/server/WorldServer.java b/src/main/java/net/minecraft/server/WorldServer.java
+index be61797df9..ae54ff65d3 100644
+--- a/src/main/java/net/minecraft/server/WorldServer.java
++++ b/src/main/java/net/minecraft/server/WorldServer.java
+@@ -832,9 +832,12 @@ public class WorldServer extends World {
+         int k = MathHelper.floor(entity.locZ() / 16.0D);
+ 
+         if (!entity.inChunk || entity.chunkX != i || entity.chunkY != j || entity.chunkZ != k) {
+-            if (entity.inChunk && this.isChunkLoaded(entity.chunkX, entity.chunkZ)) {
+-                this.getChunkAt(entity.chunkX, entity.chunkZ).a(entity, entity.chunkY);
++            // Paper start - remove entity if its in a chunk more correctly.
++            Chunk currentChunk = entity.getCurrentChunk();
++            if (currentChunk != null) {
++                currentChunk.removeEntity(entity);
+             }
++            // Paper end
+ 
+             if (!entity.valid && !entity.cc() && !this.isChunkLoaded(i, k)) { // Paper - always load chunks to register valid entities location
+                 entity.inChunk = false;
 -- 
 2.25.1
 
