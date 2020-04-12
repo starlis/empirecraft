@@ -1,18 +1,33 @@
-From 0fd4389923ed489d3cea9c49fadfa8e8d4c9248e Mon Sep 17 00:00:00 2001
+From c976bb757a9e5eadb4b81b9f4f55ebcbcaf95551 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Tue, 31 Mar 2020 01:34:07 -0400
 Subject: [PATCH] entity debug
 
 ---
- src/main/java/net/minecraft/server/Chunk.java | 26 ++++++++++++++++++-
+ src/main/java/net/minecraft/server/Chunk.java | 36 +++++++++++++++----
  .../java/net/minecraft/server/Entity.java     |  2 ++
- .../net/minecraft/server/WorldServer.java     |  7 +++--
- 3 files changed, 32 insertions(+), 3 deletions(-)
+ .../net/minecraft/server/WorldServer.java     |  7 ++--
+ 3 files changed, 37 insertions(+), 8 deletions(-)
 
 diff --git a/src/main/java/net/minecraft/server/Chunk.java b/src/main/java/net/minecraft/server/Chunk.java
-index 5c490cd677..0fd65133a1 100644
+index 5c490cd677..2785cdc435 100644
 --- a/src/main/java/net/minecraft/server/Chunk.java
 +++ b/src/main/java/net/minecraft/server/Chunk.java
+@@ -436,12 +436,12 @@ public class Chunk implements IChunkAccess {
+         List<Entity> nextSlice = this.entitySlices[k]; // the next list to be added to
+         List<Entity> currentSlice = entity.entitySlice;
+         if (nextSlice == currentSlice) {
+-            if (World.DEBUG_ENTITIES) MinecraftServer.LOGGER.warn("Entity was already in this chunk!" + entity, new Throwable());
++            if (World.DEBUG_ENTITIES) MinecraftServer.LOGGER.error("Entity was already in this chunk!" + entity, new Throwable());
+             return; // ??? silly plugins
+         }
+         if (currentSlice != null && currentSlice.contains(entity)) {
+             // Still in an old chunk...
+-            if (World.DEBUG_ENTITIES) MinecraftServer.LOGGER.warn("Entity is still in another chunk!" + entity, new Throwable());
++            if (World.DEBUG_ENTITIES) MinecraftServer.LOGGER.error("Entity is still in another chunk!" + entity, new Throwable());
+             Chunk chunk = entity.getCurrentChunk();
+             if (chunk != null) {
+                 chunk.removeEntity(entity);
 @@ -466,6 +466,9 @@ public class Chunk implements IChunkAccess {
          } else if (entity instanceof IInventory) {
              inventoryEntityCounts[k]++;
@@ -23,22 +38,25 @@ index 5c490cd677..0fd65133a1 100644
          // Paper end
          entity.entitySlice = this.entitySlices[k]; // Paper
          this.markDirty(); // Paper
-@@ -491,14 +494,35 @@ public class Chunk implements IChunkAccess {
+@@ -491,13 +494,34 @@ public class Chunk implements IChunkAccess {
          }
  
          // Paper start
 -        if (entity.currentChunk != null && entity.currentChunk.get() == this) entity.setCurrentChunk(null);
+-        if (entitySlices[i] == entity.entitySlice) {
 +        Chunk currentChunk = entity.currentChunk != null ? entity.currentChunk.get() : null;
 +        if (currentChunk == this) entity.setCurrentChunk(null);
-+        boolean wasSupposedToBeHere = false;
-         if (entitySlices[i] == entity.entitySlice) {
-+            wasSupposedToBeHere = true;
++        if (entitySlices[i] == entity.entitySlice && this.entitySlices[i].remove(entity)) {
              entity.entitySlice = null;
              entity.inChunk = false;
-         }
-         if (!this.entitySlices[i].remove(entity)) {
-+            if (!wasSupposedToBeHere && entity.entitySlice == null) {
-+                return;
+-        }
+-        if (!this.entitySlices[i].remove(entity)) {
++        } else if (entity.entitySlice == null) {
+             return;
++        } else {
++            if (entitySlices[i] == entity.entitySlice) {
++                // we should have been here but wasn't
++                entity.entitySlice = null;
 +            }
 +            String curChunkStr = currentChunk != null ? currentChunk.world.getWorld().getName() + ":" + currentChunk.loc : "no chunk";
 +            String thisChunkStr = world.getWorld().getName() + ":" + this.loc;
@@ -52,16 +70,15 @@ index 5c490cd677..0fd65133a1 100644
 +                    entity.lastChunkAdd.printStackTrace();
 +                }
 +            }
-             return;
-         }
++            return;
++        }
 +        if (WorldServer.DEBUG_ENTITIES) {
 +            entity.lastChunkRemove = new Throwable("Entity " + entity + " Removed from chunk " + this.loc + " slice " + i + " at " + new java.util.Date());
-+        }
+         }
          if (entity instanceof EntityItem) {
              itemCounts[i]--;
-         } else if (entity instanceof IInventory) {
 diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
-index 593f19ee2b..9c643da074 100644
+index dc3862673b..87009ce688 100644
 --- a/src/main/java/net/minecraft/server/Entity.java
 +++ b/src/main/java/net/minecraft/server/Entity.java
 @@ -84,6 +84,8 @@ Entity implements INamableTileEntity, ICommandListener, KeyedObject { // Paper
@@ -74,10 +91,10 @@ index 593f19ee2b..9c643da074 100644
          if (bukkitEntity == null) {
              bukkitEntity = CraftEntity.getEntity(world.getServer(), this);
 diff --git a/src/main/java/net/minecraft/server/WorldServer.java b/src/main/java/net/minecraft/server/WorldServer.java
-index 716deecd9c..cfd72207a1 100644
+index 86338cab52..309f1e543c 100644
 --- a/src/main/java/net/minecraft/server/WorldServer.java
 +++ b/src/main/java/net/minecraft/server/WorldServer.java
-@@ -839,9 +839,12 @@ public class WorldServer extends World {
+@@ -857,9 +857,12 @@ public class WorldServer extends World {
          int k = MathHelper.floor(entity.locZ() / 16.0D);
  
          if (!entity.inChunk || entity.chunkX != i || entity.chunkY != j || entity.chunkZ != k) {
