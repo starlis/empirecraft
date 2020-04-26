@@ -1,0 +1,53 @@
+From 5c74f06ee88d916c199a3aff3219d7c982f291fb Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Thu, 30 Apr 2015 00:46:26 -0400
+Subject: [PATCH] Don't require flag for sign conversion
+
+Also reverts part of Paper's old sign conversion patch
+---
+ src/main/java/net/minecraft/server/TileEntitySign.java | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/src/main/java/net/minecraft/server/TileEntitySign.java b/src/main/java/net/minecraft/server/TileEntitySign.java
+index 0e9a90b70f..0c3709e678 100644
+--- a/src/main/java/net/minecraft/server/TileEntitySign.java
++++ b/src/main/java/net/minecraft/server/TileEntitySign.java
+@@ -11,7 +11,7 @@ public class TileEntitySign extends TileEntity implements ICommandListener { //
+     private final String[] g = new String[4];
+     private EnumColor color;
+     public java.util.UUID signEditor; // Paper
+-    private static final boolean CONVERT_LEGACY_SIGNS = Boolean.getBoolean("convertLegacySigns"); // Paper
++    private static final boolean CONVERT_LEGACY_SIGNS = true; // EMC
+ 
+     public TileEntitySign() {
+         super(TileEntityTypes.SIGN);
+@@ -48,7 +48,7 @@ public class TileEntitySign extends TileEntity implements ICommandListener { //
+         // This is done with a flag instead of all the time because
+         // we have no way to tell whether a sign is from 1.7.10 or 1.8
+ 
+-        boolean oldSign = Boolean.getBoolean("convertLegacySigns") && !nbttagcompound.getBoolean("Bukkit.isConverted");
++        boolean oldSign = !nbttagcompound.getBoolean("Bukkit.isConverted"); // EMC - don't use flag
+ 
+         for (int i = 0; i < 4; ++i) {
+             String s = nbttagcompound.getString("Text" + (i + 1));
+@@ -57,14 +57,14 @@ public class TileEntitySign extends TileEntity implements ICommandListener { //
+             }
+ 
+             try {
+-                //IChatBaseComponent ichatbasecomponent = IChatBaseComponent.ChatSerializer.a(s.isEmpty() ? "\"\"" : s); // Paper - move down - the old format might throw a json error
++                IChatBaseComponent ichatbasecomponent = IChatBaseComponent.ChatSerializer.a(s == null || s.isEmpty() ? "\"\"" : s); // Paper - move down - the old format might throw a json error // EMC - uncomment
+ 
+-                if (oldSign && !isLoadingStructure) { // Paper - saved structures will be in the new format, but will not have isConverted
++                if (oldSign && !isLoadingStructure && ichatbasecomponent == null) { // Paper - saved structures will be in the new format, but will not have isConverted // EMC - add null check.
+                     lines[i] = org.bukkit.craftbukkit.util.CraftChatMessage.fromString(s)[0];
+                     continue;
+                 }
+                 // CraftBukkit end
+-                IChatBaseComponent ichatbasecomponent = IChatBaseComponent.ChatSerializer.a(s.isEmpty() ? "\"\"" : s); // Paper - after old sign
++                //IChatBaseComponent ichatbasecomponent = IChatBaseComponent.ChatSerializer.a(s.isEmpty() ? "\"\"" : s); // Paper - after old sign // EMC - move back up
+ 
+                 if (this.world instanceof WorldServer) {
+                     try {
+-- 
+2.26.2
+

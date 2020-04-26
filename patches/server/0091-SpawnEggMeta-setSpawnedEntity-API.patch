@@ -1,0 +1,54 @@
+From 508d42aa532adc16b764af6581f2213651e3d925 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Sat, 18 Aug 2018 22:03:33 -0400
+Subject: [PATCH] SpawnEggMeta#setSpawnedEntity API
+
+lets you copy an entities data into a spawn egg.
+Partial data is supported through a predicate, letting MC
+follow normal spawn behavior in the summon phase.
+---
+ .../inventory/CraftMetaSpawnEgg.java          | 21 +++++++++++++++++++
+ 1 file changed, 21 insertions(+)
+
+diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaSpawnEgg.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaSpawnEgg.java
+index 5799143338..0ee50e39df 100644
+--- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaSpawnEgg.java
++++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaSpawnEgg.java
+@@ -2,6 +2,9 @@ package org.bukkit.craftbukkit.inventory;
+ 
+ import com.google.common.collect.ImmutableMap.Builder;
+ import java.util.Map;
++
++import net.minecraft.server.DataConverterTypes; // EMC
++import net.minecraft.server.DataConverters; // EMC
+ import net.minecraft.server.MinecraftKey;
+ import net.minecraft.server.NBTBase;
+ import net.minecraft.server.NBTTagCompound;
+@@ -188,6 +191,24 @@ public class CraftMetaSpawnEgg extends CraftMetaItem implements SpawnEggMeta {
+         return spawnedType != null;
+     }
+ 
++    // Paper start
++    private static final String[] removeKeys = {
++        "UUIDLeast", "UUIDMost", "Pos", "PortalCooldown", "Paper.Origin", "Paper.FromMobSpawner", "Passengers", "Dimension"
++    };
++
++    @Override
++    public void setSpawnedEntity(org.bukkit.entity.Entity entity, java.util.function.Predicate<String> keyFilter) {
++        entityTag = ((org.bukkit.craftbukkit.entity.CraftEntity) entity).getHandle().save(new NBTTagCompound());
++        for (String removeKey : removeKeys) {
++            entityTag.remove(removeKey);
++        }
++        if (keyFilter != null) {
++            entityTag.map.keySet().removeIf(keyFilter);
++        }
++        entityTag.setBoolean("Paper.CustomSpawnEgg", true);
++    }
++    // Paper end
++
+     @Override
+     public EntityType getSpawnedType() {
+         throw new UnsupportedOperationException("Must check item type to get spawned type");
+-- 
+2.26.2
+
