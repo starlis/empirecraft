@@ -9,6 +9,11 @@ done
 . $(dirname ${SOURCE})/init.sh
 
 PS1="$"
+nofilter="0"
+if [ "$2" = "nofilter" ]; then
+    nofilter="1"
+fi
+
 echo "Rebuilding patch files from current fork state..."
 function savePatches {
 	what=$1
@@ -34,7 +39,9 @@ function savePatches {
 	git format-patch --quiet -N -o ${basedir}/patches/$2 upstream/upstream
 	cd ${basedir}
 	git add -A ${basedir}/patches/$2
-	cleanupPatches ${basedir}/patches/$2/
+	if [ "$nofilter" == "0" ]; then
+		cleanupPatches ${basedir}/patches/$2/
+	fi
 	echo "  Patches saved for $what to patches/$2"
 }
 

@@ -14,6 +14,7 @@ if [[ "$1" == up* ]]; then
 		git fetch && git reset --hard origin/master
 		cd ../
 		git add Paper
+		$basedir/scripts/rebuildpatches.sh "$basedir" "nofilter"
 	)
 fi
 
@@ -60,4 +61,3 @@ tag Paper-Server $forcetag
 
 pushRepo Paper-API $PAPER_API_REPO $tag
 pushRepo Paper-Server $PAPER_SERVER_REPO $tag
-
