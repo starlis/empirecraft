@@ -1,4 +1,4 @@
-From 8f593b4c8b69b15c6b5004408a15a14702f77794 Mon Sep 17 00:00:00 2001
+From 9c06885ae69b2d3b14ad377c4d698b3363006adf Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Sat, 30 Mar 2019 00:45:12 -0400
 Subject: [PATCH] Convert Item Stacks
@@ -7,8 +7,8 @@ Subject: [PATCH] Convert Item Stacks
  .../java/net/minecraft/server/ItemStack.java  | 15 ++++++++++++--
  .../inventory/CraftItemFactory.java           | 18 ++++++++++++++++-
  .../craftbukkit/inventory/CraftItemStack.java | 20 +++++++++++++++----
- .../craftbukkit/inventory/CraftMetaItem.java  | 14 +++++++++----
- 4 files changed, 56 insertions(+), 11 deletions(-)
+ .../craftbukkit/inventory/CraftMetaItem.java  | 16 +++++++++------
+ 4 files changed, 56 insertions(+), 13 deletions(-)
 
 diff --git a/src/main/java/net/minecraft/server/ItemStack.java b/src/main/java/net/minecraft/server/ItemStack.java
 index 64ce8005bf..4af525f0ac 100644
@@ -72,7 +72,7 @@ index 23d7756456..86abdce174 100644
  
      @Override
 diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftItemStack.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftItemStack.java
-index d5e8a7ee6d..ee99da64f9 100644
+index d5e8a7ee6d..657244f275 100644
 --- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftItemStack.java
 +++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftItemStack.java
 @@ -39,7 +39,11 @@ public final class CraftItemStack extends ItemStack {
@@ -108,7 +108,7 @@ index d5e8a7ee6d..ee99da64f9 100644
 -        return getItemMeta(handle);
 +        // Paper start
 +        ItemMeta itemMeta = getItemMeta(handle);
-+        ((CraftMetaItem) itemMeta).dataVersion = this.dataVersion;
++        ((CraftMetaItem) itemMeta).setVersion(this.dataVersion);
 +        return itemMeta;
 +        // Paper end
      }
@@ -124,30 +124,28 @@ index d5e8a7ee6d..ee99da64f9 100644
          if (item.getItem() != null && item.getItem().usesDurability()) {
              item.setDamage(item.getDamage());
 diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java
-index c9970f6912..3b2bc921f6 100644
+index c9970f6912..7a6b40e09f 100644
 --- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java
 +++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java
-@@ -303,6 +303,7 @@ class CraftMetaItem implements ItemMeta, Damageable, Repairable, BlockDataMeta {
-     private static final Set<String> HANDLED_TAGS = Sets.newHashSet();
-     private static final CraftPersistentDataTypeRegistry DATA_TYPE_REGISTRY = new CraftPersistentDataTypeRegistry();
- 
-+    int dataVersion = org.bukkit.Bukkit.getUnsafe().getDataVersion(); // Paper
-     private NBTTagCompound internalTag;
-     private final Map<String, NBTBase> unhandledTags = new TreeMap<>(); // Paper
-     private CraftPersistentDataContainer persistentDataContainer = new CraftPersistentDataContainer(DATA_TYPE_REGISTRY);
-@@ -313,6 +314,7 @@ class CraftMetaItem implements ItemMeta, Damageable, Repairable, BlockDataMeta {
+@@ -313,7 +313,7 @@ class CraftMetaItem implements ItemMeta, Damageable, Repairable, BlockDataMeta {
          if (meta == null) {
              return;
          }
-+        this.dataVersion = meta.dataVersion; // Paper
- 
+-
++        this.version = meta.version; // Paper - set before all the code below that might use it...
          this.displayName = meta.displayName;
          this.locName = meta.locName;
-@@ -357,12 +359,14 @@ class CraftMetaItem implements ItemMeta, Damageable, Repairable, BlockDataMeta {
+ 
+@@ -353,16 +353,18 @@ class CraftMetaItem implements ItemMeta, Damageable, Repairable, BlockDataMeta {
+             deserializeInternal(internalTag, meta);
+         }
+ 
+-        this.version = meta.version;
++        // this.version = meta.version; // Paper - move up
      }
  
      CraftMetaItem(NBTTagCompound tag) {
-+        boolean isLegacy = dataVersion <= net.minecraft.server.DataConverters.LEGACY_VERSION; // Paper
++        boolean isLegacy = version <= net.minecraft.server.DataConverters.LEGACY_VERSION; // Paper
          if (tag.hasKey(DISPLAY.NBT)) {
              NBTTagCompound display = tag.getCompound(DISPLAY.NBT);
  
@@ -159,7 +157,7 @@ index c9970f6912..3b2bc921f6 100644
                  } catch (JsonParseException ex) {
                      // Ignore (stripped like Vanilla)
                  }
-@@ -370,7 +374,8 @@ class CraftMetaItem implements ItemMeta, Damageable, Repairable, BlockDataMeta {
+@@ -370,7 +372,8 @@ class CraftMetaItem implements ItemMeta, Damageable, Repairable, BlockDataMeta {
  
              if (display.hasKey(LOCNAME.NBT)) {
                  try {
@@ -169,11 +167,11 @@ index c9970f6912..3b2bc921f6 100644
                  } catch (JsonParseException ex) {
                      // Ignore (stripped like Vanilla)
                  }
-@@ -702,11 +707,12 @@ class CraftMetaItem implements ItemMeta, Damageable, Repairable, BlockDataMeta {
+@@ -702,11 +705,12 @@ class CraftMetaItem implements ItemMeta, Damageable, Repairable, BlockDataMeta {
  
      @Overridden
      void applyToItem(NBTTagCompound itemTag) {
-+        boolean isLegacy = dataVersion <= net.minecraft.server.DataConverters.LEGACY_VERSION; // Paper
++        boolean isLegacy = version <= net.minecraft.server.DataConverters.LEGACY_VERSION; // Paper
          if (hasDisplayName()) {
 -            setDisplayTag(itemTag, NAME.NBT, NBTTagString.a(CraftChatMessage.toJSON(displayName)));
 +            setDisplayTag(itemTag, NAME.NBT, NBTTagString.a(isLegacy ? displayName.getText() : CraftChatMessage.toJSON(displayName))); // Paper
