@@ -10,8 +10,8 @@ done
 PS1="$"
 
 paperVer=$(cat current-paper)
-gpgsign="$(git config commit.gpgsign || echo "false")"
 
+gitcmd="git -c commit.gpgsign=false -c core.safecrlf=false"
 echo "Rebuilding Forked projects.... "
 function applyPatch {
 	what=$1
@@ -34,23 +34,18 @@ function applyPatch {
 	fi
 	cd "$basedir/$target"
 
-	# Disable GPG signing before AM, slows things down and doesn't play nicely.
-	# There is also zero rational or logical reason to do so for these sub-repo AMs.
-	# Calm down kids, it's re-enabled (if needed) immediately after, pass or fail.
-	git config commit.gpgsign false
-
 	echo "Resetting $target to $what_name..."
 	git remote rm upstream > /dev/null 2>&1
 	git remote add upstream $basedir/$what >/dev/null 2>&1
-	(git am --abort ; git rebase --abort) 1>&2 2>/dev/null || true
+	($gitcmd am --abort ; git rebase --abort) 1>&2 2>/dev/null || true
 	git checkout master 2>/dev/null
 	git fetch upstream >/dev/null 2>&1
 	git reset --hard upstream/upstream
 	echo "  Applying patches to $target..."
 	statusfile=".git/patch-apply-failed"
 	rm -f "$statusfile"
-	git am --abort >/dev/null 2>&1
-	git am --3way --ignore-whitespace "$basedir/patches/$patch_folder/"*.patch
+	$gitcmd am --abort >/dev/null 2>&1
+	$gitcmd am --3way --ignore-whitespace "$basedir/patches/$patch_folder/"*.patch
 	if [ "$?" != "0" ]; then
 		echo 1 > "$statusfile"
 		echo "  Something did not apply cleanly to $target."
@@ -62,18 +57,10 @@ function applyPatch {
 		echo "  Patches applied cleanly to $target"
 	fi
 }
-function enableCommitSigningIfNeeded {
-	if [[ "$gpgsign" == "true" ]]; then
-		git config commit.gpgsign true
-	fi
-}
-
 (
 	(applyPatch Paper/Paper-API ${FORK_NAME}-API HEAD api $API_REPO &&
 	applyPatch Paper/Paper-Server ${FORK_NAME}-Server HEAD server $SERVER_REPO) || exit 1
-	enableCommitSigningIfNeeded
 ) || (
 	echo "Failed to apply patches"
-	enableCommitSigningIfNeeded
 	exit 1
 ) || exit 1

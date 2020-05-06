@@ -8,11 +8,26 @@ while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symli
 done
 . $(dirname ${SOURCE})/init.sh
 
+gitcmd="git -c commit.gpgsign=false -c core.safecrlf=false"
+
 PS1="$"
 nofilter="0"
 if [ "$2" = "nofilter" ]; then
     nofilter="1"
 fi
+
+function cleanupPatches {
+	cd "$1"
+	for patch in *.patch; do
+
+		diffs=$($gitcmd diff --staged "$patch" | grep --color=none -E "^(\+|\-)" | grep --color=none -Ev "(\-\-\- a|\+\+\+ b|^.index)")
+
+		if [ "x$diffs" == "x" ] ; then
+			git reset HEAD $patch >/dev/null
+			git checkout -- $patch >/dev/null
+		fi
+	done
+}
 
 echo "Rebuilding patch files from current fork state..."
 function savePatches {
@@ -36,9 +51,9 @@ function savePatches {
 		rm ${basedir}/patches/$2/*.patch
 	fi
 
-	git format-patch --quiet -N -o ${basedir}/patches/$2 upstream/upstream
+	$gitcmd format-patch --zero-commit --full-index --no-signature -N -o ${basedir}/patches/$2 upstream/upstream
 	cd ${basedir}
-	git add -A ${basedir}/patches/$2
+	$gitcmd add -A ${basedir}/patches/$2
 	if [ "$nofilter" == "0" ]; then
 		cleanupPatches ${basedir}/patches/$2/
 	fi
