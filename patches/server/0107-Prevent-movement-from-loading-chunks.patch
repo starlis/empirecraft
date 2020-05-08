@@ -1,0 +1,42 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Fri, 8 May 2020 00:05:41 -0400
+Subject: [PATCH] Prevent movement from loading chunks
+
+---
+ src/main/java/net/minecraft/server/ICollisionAccess.java | 7 +++++--
+ src/main/java/net/minecraft/server/PlayerConnection.java | 2 +-
+ 2 files changed, 6 insertions(+), 3 deletions(-)
+
+diff --git a/src/main/java/net/minecraft/server/ICollisionAccess.java b/src/main/java/net/minecraft/server/ICollisionAccess.java
+index d154487294b89d5a316929ed665c75d4dd3cfc6b..ee9e5be78adfd30a315184e6d827cde2f8bcbe92 100644
+--- a/src/main/java/net/minecraft/server/ICollisionAccess.java
++++ b/src/main/java/net/minecraft/server/ICollisionAccess.java
+@@ -92,9 +92,12 @@ public interface ICollisionAccess extends IBlockAccess {
+                         int k2 = k1 >> 4;
+                         int l2 = i2 >> 4;
+                         // Paper start - ensure we don't load chunks
+-                        boolean far = entity != null && MCUtil.distance(entity.locX(), entity.locY(), entity.locZ(), x, y, z) > 32;
+                         IBlockAccess iblockaccess = ICollisionAccess.this instanceof WorldServer ? ((WorldServer) ICollisionAccess.this).getChunkProvider().getChunkAtIfLoadedMainThread(k2, l2) : null;
+-                        if (!far && iblockaccess == null) iblockaccess = ICollisionAccess.this.c(k2, l2);
++                        if (iblockaccess == null) {
++                            VoxelShape voxelshape3 = VoxelShapes.a(new AxisAlignedBB(new BlockPosition(x, y, z)));
++                            consumer.accept(voxelshape3);
++                            return true;
++                        }
+                         // Paper end
+ 
+                         if (iblockaccess != null) {
+diff --git a/src/main/java/net/minecraft/server/PlayerConnection.java b/src/main/java/net/minecraft/server/PlayerConnection.java
+index 594470edc3ffdbb5c5828696c725afdc75d9b521..7ff3b50bc069c9afa8ca2a94fcdd8af25244208a 100644
+--- a/src/main/java/net/minecraft/server/PlayerConnection.java
++++ b/src/main/java/net/minecraft/server/PlayerConnection.java
+@@ -1035,7 +1035,7 @@ public class PlayerConnection implements PacketListenerPlayIn {
+                             // Paper end
+ 
+                             if (!this.player.H() && (!this.player.getWorldServer().getGameRules().getBoolean(GameRules.DISABLE_ELYTRA_MOVEMENT_CHECK) || !this.player.isGliding())) {
+-                                float f2 = this.player.isGliding() ? 300.0F : 100.0F;
++                                float f2 = this.player.isGliding() ? 200.0F : 100.0F; // EMC
+ 
+                                 if (d11 - d10 > Math.max(f2, Math.pow((double) (org.spigotmc.SpigotConfig.movedTooQuicklyMultiplier * (float) i * speed), 2)) && !this.isExemptPlayer()) {
+                                 // CraftBukkit end
