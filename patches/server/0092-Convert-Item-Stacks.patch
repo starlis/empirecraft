@@ -4,11 +4,11 @@ Date: Sat, 30 Mar 2019 00:45:12 -0400
 Subject: [PATCH] Convert Item Stacks
 
 ---
- .../java/net/minecraft/server/ItemStack.java  | 15 ++++++++++++--
- .../inventory/CraftItemFactory.java           | 18 ++++++++++++++++-
- .../craftbukkit/inventory/CraftItemStack.java | 20 +++++++++++++++----
- .../craftbukkit/inventory/CraftMetaItem.java  | 16 +++++++++------
- 4 files changed, 56 insertions(+), 13 deletions(-)
+ .../java/net/minecraft/server/ItemStack.java  | 15 +++++++++++--
+ .../inventory/CraftItemFactory.java           | 18 +++++++++++++++-
+ .../craftbukkit/inventory/CraftItemStack.java | 21 +++++++++++++++----
+ .../craftbukkit/inventory/CraftMetaItem.java  | 11 ++++++----
+ 4 files changed, 54 insertions(+), 11 deletions(-)
 
 diff --git a/src/main/java/net/minecraft/server/ItemStack.java b/src/main/java/net/minecraft/server/ItemStack.java
 index 64ce8005bfd71241f3899d97e090add53c4cea04..4af525f0acb629e0b40a6938637c38d0205c2012 100644
@@ -72,10 +72,10 @@ index 23d7756456fdd650914a3a49c653182a68924a5c..86abdce1740fb69b42297b90ab0c0808
  
      @Override
 diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftItemStack.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftItemStack.java
-index d5e8a7ee6de22d09e563ad1c124a18810a38a0c5..657244f2754bd6cb0391a4b4703affdfd766a03e 100644
+index d5e8a7ee6de22d09e563ad1c124a18810a38a0c5..36d2b8f0439ad4d58b188d4935e50a4b5da668aa 100644
 --- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftItemStack.java
 +++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftItemStack.java
-@@ -39,7 +39,11 @@ public final class CraftItemStack extends ItemStack {
+@@ -39,7 +39,12 @@ public final class CraftItemStack extends ItemStack {
  
          net.minecraft.server.ItemStack stack = new net.minecraft.server.ItemStack(item, original.getAmount());
          if (original.hasItemMeta()) {
@@ -84,11 +84,12 @@ index d5e8a7ee6de22d09e563ad1c124a18810a38a0c5..657244f2754bd6cb0391a4b4703affdf
 +            ItemMeta itemMeta = original.getItemMeta();
 +            itemMeta.setVersion(original.getDataVersion());
 +            setItemMeta(stack, itemMeta);
++            stack.convertStack(original.getDataVersion());
 +            // Paper end
          }
          return stack;
      }
-@@ -71,7 +75,11 @@ public final class CraftItemStack extends ItemStack {
+@@ -71,7 +76,11 @@ public final class CraftItemStack extends ItemStack {
      public static CraftItemStack asCraftCopy(ItemStack original) {
          if (original instanceof CraftItemStack) {
              CraftItemStack stack = (CraftItemStack) original;
@@ -101,7 +102,7 @@ index d5e8a7ee6de22d09e563ad1c124a18810a38a0c5..657244f2754bd6cb0391a4b4703affdf
          }
          return new CraftItemStack(original);
      }
-@@ -272,7 +280,11 @@ public final class CraftItemStack extends ItemStack {
+@@ -272,7 +281,11 @@ public final class CraftItemStack extends ItemStack {
  
      @Override
      public ItemMeta getItemMeta() {
@@ -114,7 +115,7 @@ index d5e8a7ee6de22d09e563ad1c124a18810a38a0c5..657244f2754bd6cb0391a4b4703affdf
      }
  
      public static ItemMeta getItemMeta(net.minecraft.server.ItemStack item) {
-@@ -516,7 +528,7 @@ public final class CraftItemStack extends ItemStack {
+@@ -516,7 +529,7 @@ public final class CraftItemStack extends ItemStack {
          item.setTag(tag);
  
          ((CraftMetaItem) itemMeta).applyToItem(tag);
@@ -124,7 +125,7 @@ index d5e8a7ee6de22d09e563ad1c124a18810a38a0c5..657244f2754bd6cb0391a4b4703affdf
          if (item.getItem() != null && item.getItem().usesDurability()) {
              item.setDamage(item.getDamage());
 diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java
-index c9970f6912f08834ee24d1a377060e0637d88811..7a6b40e09f868a4b7066f3fa196a6a2ec432c9e3 100644
+index c9970f6912f08834ee24d1a377060e0637d88811..cde003b9348fd500aab1c5f3ee88ef7e8cbaf210 100644
 --- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java
 +++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java
 @@ -313,7 +313,7 @@ class CraftMetaItem implements ItemMeta, Damageable, Repairable, BlockDataMeta {
@@ -167,18 +168,3 @@ index c9970f6912f08834ee24d1a377060e0637d88811..7a6b40e09f868a4b7066f3fa196a6a2e
                  } catch (JsonParseException ex) {
                      // Ignore (stripped like Vanilla)
                  }
-@@ -702,11 +705,12 @@ class CraftMetaItem implements ItemMeta, Damageable, Repairable, BlockDataMeta {
- 
-     @Overridden
-     void applyToItem(NBTTagCompound itemTag) {
-+        boolean isLegacy = version <= net.minecraft.server.DataConverters.LEGACY_VERSION; // Paper
-         if (hasDisplayName()) {
--            setDisplayTag(itemTag, NAME.NBT, NBTTagString.a(CraftChatMessage.toJSON(displayName)));
-+            setDisplayTag(itemTag, NAME.NBT, NBTTagString.a(isLegacy ? displayName.getText() : CraftChatMessage.toJSON(displayName))); // Paper
-         }
-         if (hasLocalizedName()) {
--            setDisplayTag(itemTag, LOCNAME.NBT, NBTTagString.a(CraftChatMessage.toJSON(locName)));
-+            setDisplayTag(itemTag, LOCNAME.NBT, NBTTagString.a(isLegacy ? locName.getText() : CraftChatMessage.toJSON(locName))); // Paper
-         }
- 
-         if (hasLore()) {
