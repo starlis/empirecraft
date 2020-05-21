@@ -5,11 +5,12 @@ Subject: [PATCH] Anvil Event
 
 Fire an event for anvil usage, remove cap from server, send level to client
 ---
- .../java/net/minecraft/server/ContainerAnvil.java  | 14 ++++++++++++++
- 1 file changed, 14 insertions(+)
+ .../net/minecraft/server/ContainerAnvil.java     | 16 ++++++++++++++++
+ .../net/minecraft/server/ContainerProperty.java  |  2 ++
+ 2 files changed, 18 insertions(+)
 
 diff --git a/src/main/java/net/minecraft/server/ContainerAnvil.java b/src/main/java/net/minecraft/server/ContainerAnvil.java
-index 286b930ddb7224fa3929cb0ef0b94f5f5205b104..49c264b38a6180d0b5237573cc2b386a13270fd3 100644
+index 286b930ddb7224fa3929cb0ef0b94f5f5205b104..720141a05a1ef365e7f486e917b57a40d223def9 100644
 --- a/src/main/java/net/minecraft/server/ContainerAnvil.java
 +++ b/src/main/java/net/minecraft/server/ContainerAnvil.java
 @@ -7,6 +7,10 @@ import org.apache.logging.log4j.LogManager;
@@ -23,11 +24,12 @@ index 286b930ddb7224fa3929cb0ef0b94f5f5205b104..49c264b38a6180d0b5237573cc2b386a
  import org.bukkit.craftbukkit.inventory.CraftInventoryView;
  // CraftBukkit end
  
-@@ -298,6 +302,16 @@ public class ContainerAnvil extends Container {
+@@ -298,6 +302,18 @@ public class ContainerAnvil extends Container {
              if (this.levelCost.get() >= maximumRepairCost && !this.player.abilities.canInstantlyBuild) { // CraftBukkit
                  itemstack1 = ItemStack.a;
              }
 +            // EMC start
++            final int origCost = this.levelCost.get();
 +            AnvilEvent event = new AnvilEvent((Player) player.getBukkitEntity(), CraftItemStack.asBukkitCopy(itemstack), CraftItemStack.asBukkitCopy(itemstack2), CraftItemStack.asBukkitCopy(itemstack1), this.levelCost.get());
 +            Bukkit.getPluginManager().callEvent(event);
 +            if (event.isCancelled()) {
@@ -35,8 +37,29 @@ index 286b930ddb7224fa3929cb0ef0b94f5f5205b104..49c264b38a6180d0b5237573cc2b386a
 +            } else {
 +                itemstack1 = CraftItemStack.asNMSCopy(event.getResult());
 +                this.levelCost.set(event.getCost());
++                this.levelCost.forceUpdate = origCost != event.getCost();
 +            }
 +            // EMC end
  
              if (!itemstack1.isEmpty()) {
                  int k2 = itemstack1.getRepairCost();
+diff --git a/src/main/java/net/minecraft/server/ContainerProperty.java b/src/main/java/net/minecraft/server/ContainerProperty.java
+index e26b8569340fb0240439ff85d481bd3de19c0ae3..97cea6726110459eec0b688d3ada56c884b5768a 100644
+--- a/src/main/java/net/minecraft/server/ContainerProperty.java
++++ b/src/main/java/net/minecraft/server/ContainerProperty.java
+@@ -3,6 +3,7 @@ package net.minecraft.server;
+ public abstract class ContainerProperty {
+ 
+     private int a;
++    public boolean forceUpdate = false; // EMC
+ 
+     public ContainerProperty() {}
+ 
+@@ -55,6 +56,7 @@ public abstract class ContainerProperty {
+     public abstract void set(int i);
+ 
+     public boolean c() {
++        if (this.forceUpdate) { return true; } // EMC
+         int i = this.get();
+         boolean flag = i != this.a;
+ 
