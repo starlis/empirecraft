@@ -4,23 +4,14 @@ Date: Wed, 4 Jul 2018 15:49:34 -0400
 Subject: [PATCH] Fire PlayerKickEvent during server shutdown
 
 ---
- src/main/java/net/minecraft/server/PlayerConnection.java | 5 +++--
- src/main/java/org/spigotmc/WatchdogThread.java           | 4 ++--
- 2 files changed, 5 insertions(+), 4 deletions(-)
+ src/main/java/net/minecraft/server/PlayerConnection.java | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
 
 diff --git a/src/main/java/net/minecraft/server/PlayerConnection.java b/src/main/java/net/minecraft/server/PlayerConnection.java
-index 549b4a04191226fa5853c3efad344b42a184d227..4fcacdbbbf21f72af960ffa39be870be4de13f33 100644
+index 73d8183b6152329a35f10b231d3a4578be9f8f31..6a4e0e013c8f6585229eae9d9029b6089f0dbe01 100644
 --- a/src/main/java/net/minecraft/server/PlayerConnection.java
 +++ b/src/main/java/net/minecraft/server/PlayerConnection.java
-@@ -62,6 +62,7 @@ import org.bukkit.util.NumberConversions;
- import com.destroystokyo.paper.event.player.IllegalPacketEvent; // Paper
- import com.destroystokyo.paper.event.player.PlayerJumpEvent; // Paper
- import co.aikar.timings.MinecraftTimings; // Paper
-+import org.spigotmc.WatchdogThread;
- // CraftBukkit end
- 
- public class PlayerConnection implements PacketListenerPlayIn {
-@@ -285,11 +286,11 @@ public class PlayerConnection implements PacketListenerPlayIn {
+@@ -285,11 +285,11 @@ public class PlayerConnection implements PacketListenerPlayIn {
  
          PlayerKickEvent event = new PlayerKickEvent(this.server.getPlayer(this.player), s, leaveMessage);
  
@@ -30,29 +21,7 @@ index 549b4a04191226fa5853c3efad344b42a184d227..4fcacdbbbf21f72af960ffa39be870be
          }
  
 -        if (event.isCancelled()) {
-+        if (!WatchdogThread.instance.stopping && event.isCancelled()) { // EMC
++        if (!server.getServer().hasStopped() && event.isCancelled()) { // EMC
              // Do not kick the player
              return;
          }
-diff --git a/src/main/java/org/spigotmc/WatchdogThread.java b/src/main/java/org/spigotmc/WatchdogThread.java
-index fe4b8caf28b2d36b2034ac90b1a76dea7b691feb..a3995edbc785edcb243d93dd22e614fefef005c9 100644
---- a/src/main/java/org/spigotmc/WatchdogThread.java
-+++ b/src/main/java/org/spigotmc/WatchdogThread.java
-@@ -13,7 +13,7 @@ import org.bukkit.Bukkit;
- public class WatchdogThread extends Thread
- {
- 
--    private static WatchdogThread instance;
-+    public static WatchdogThread instance; // EMC
-     private final long timeoutTime;
-     private final long earlyWarningEvery; // Paper - Timeout time for just printing a dump but not restarting
-     private final long earlyWarningDelay; // Paper
-@@ -21,7 +21,7 @@ public class WatchdogThread extends Thread
-     private long lastEarlyWarning; // Paper - Keep track of short dump times to avoid spamming console with short dumps
-     private final boolean restart;
-     private volatile long lastTick;
--    private volatile boolean stopping;
-+    public volatile boolean stopping; // EMC
- 
-     private WatchdogThread(long timeoutTime, boolean restart)
-     {
