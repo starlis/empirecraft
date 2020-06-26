@@ -1,0 +1,1095 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Tue, 6 Dec 2016 22:22:14 -0500
+Subject: [PATCH] Entity AI API
+
+---
+ .../empireminecraft/api/CraftEAPI_Entity.java | 135 ++++++++
+ .../com/empireminecraft/api/EntityAIApi.java  | 297 ++++++++++++++++++
+ .../java/net/minecraft/server/Entity.java     |  18 +-
+ .../net/minecraft/server/EntityAnimal.java    |   2 +-
+ .../net/minecraft/server/EntityBlaze.java     |  27 +-
+ .../net/minecraft/server/EntityCreature.java  |   1 +
+ .../minecraft/server/EntityEnderSignal.java   |  24 +-
+ .../net/minecraft/server/EntityGhast.java     |   3 +-
+ .../minecraft/server/EntityGoalAccessor.java  |  20 ++
+ .../java/net/minecraft/server/EntityItem.java |   3 +-
+ .../net/minecraft/server/EntityLiving.java    |  12 +-
+ .../net/minecraft/server/EntitySpider.java    |   4 +
+ .../java/net/minecraft/server/EntityWolf.java |   7 +
+ .../server/PathfinderGoalArrowAttack.java     |   8 +-
+ .../server/PathfinderGoalBowShoot.java        |   4 +-
+ .../server/PathfinderGoalFleeSun.java         |   4 +-
+ .../minecraft/server/PathfinderGoalPanic.java |   3 +-
+ .../server/PathfinderGoalSelector.java        |   3 +-
+ .../net/minecraft/server/WorldServer.java     |   3 +-
+ .../bukkit/craftbukkit/entity/CraftBlaze.java |  18 ++
+ .../craftbukkit/entity/CraftEnderSignal.java  |   3 +-
+ .../bukkit/craftbukkit/entity/CraftGhast.java |   9 +
+ .../java/org/spigotmc/ActivationRange.java    |   1 +
+ 23 files changed, 583 insertions(+), 26 deletions(-)
+ create mode 100644 src/main/java/com/empireminecraft/api/EntityAIApi.java
+ create mode 100644 src/main/java/net/minecraft/server/EntityGoalAccessor.java
+
+diff --git a/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java b/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
+index bb6e5296a801f7053db72d9eb4d7b9becdb751f4..c4efea6bed19874924985a9051c9d61b3789ea75 100644
+--- a/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
++++ b/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
+@@ -23,9 +23,21 @@
+ 
+ package com.empireminecraft.api;
+ 
++import com.destroystokyo.paper.entity.RangedEntity;
++import org.bukkit.entity.Mob;
+ import net.minecraft.server.EntityTasksHandler;
++import net.minecraft.server.EntityWolf;
++import org.bukkit.Location;
+ import org.bukkit.craftbukkit.entity.CraftEntity;
++import org.bukkit.craftbukkit.entity.CraftSpider;
++import org.bukkit.craftbukkit.entity.CraftWolf;
++import org.bukkit.entity.Animals;
++import org.bukkit.entity.Creature;
++import org.bukkit.entity.EnderSignal;
+ import org.bukkit.entity.Entity;
++import org.bukkit.entity.Item;
++import org.bukkit.entity.Spider;
++import org.bukkit.entity.Wolf;
+ 
+ public class CraftEAPI_Entity implements EAPI_Entity {
+ 
+@@ -39,4 +51,127 @@ public class CraftEAPI_Entity implements EAPI_Entity {
+     public void cancelTasks(Entity entity) {
+         ((CraftEntity) entity).getHandle().entityTasks.clear();
+     }
++
++    @Override
++    public boolean isEntityDisabled(Entity entity) {
++        return EntityAIApi.isEntityDisabled(entity);
++    }
++
++    @Override
++    public void setItemCanDespawn(Item item, boolean canDespawn) {
++        EntityAIApi.setItemCanDespawn(item, canDespawn);
++    }
++
++    @Override
++    public void setDisabledEntity(Entity entity, boolean disabled) {
++        EntityAIApi.setDisabledEntity(entity, disabled);
++    }
++
++    @Override
++    public int getLove(Animals animal) {
++        return EntityAIApi.getLove(animal);
++    }
++
++    @Override
++    public void setLove(Animals animal, int love) {
++        EntityAIApi.setLove(animal, love);
++    }
++
++    @Override
++    public void setFireProof(Mob entity, boolean flag) {
++        EntityAIApi.setFireProof(entity, flag);
++    }
++
++    @Override
++    public void setFirePanicProof(Mob entity, boolean flag) {
++        EntityAIApi.setFirePanicProof(entity, flag);
++    }
++
++    @Override
++    public void makeAggressive(Creature creature, float range) {
++        EntityAIApi.makeAggressive(creature, range);
++    }
++
++    @Override
++    public void makeAggressiveDuringDay(Spider spider, boolean attack) {
++        ((CraftSpider) spider).getHandle().attackDuringDay = attack;
++    }
++
++    @Override
++    public boolean isAggressive(Creature creature) {
++        return EntityAIApi.isAggressive(creature);
++    }
++
++    @Override
++    public void makePeaceful(Mob entity) {
++        EntityAIApi.makePeaceful(entity);
++    }
++
++    @Override
++    public void addGoalByName(Mob entity, String goalName, boolean isTargetGoal, int tickRate, Class<?>[] argClasses, Object... args) {
++        EntityAIApi.addGoalByName(entity, goalName, isTargetGoal, tickRate, argClasses, args);
++    }
++
++    @Override
++    public void removeGoalByName(Mob entity, String goalName) {
++        EntityAIApi.removeGoalByName(entity, goalName);
++    }
++
++    @Override
++    public void setEntitySize(Entity entity, float width, float height) {
++        EntityAIApi.setEntitySize(entity, width, height);
++    }
++
++    @Override
++    public void setTargetRange(Mob entity, float range) {
++        EntityAIApi.setTargetRange(entity, range);
++    }
++
++    @Override
++    public void setRangedAttackDistance(RangedEntity monster, float range) {
++        EntityAIApi.setRangedAttackDistance(monster, range);
++    }
++
++    @Override
++    public void setRangedAttackSpeed(RangedEntity monster, Integer min, Integer max) {
++        EntityAIApi.setRangedAttackSpeed(monster, min, max);
++    }
++
++    @Override
++    public void setAlwaysAngry(Wolf wolf, boolean alwaysAngry) {
++        EntityWolf entity = ((CraftWolf) wolf).getHandle();
++        entity.alwaysAngry = alwaysAngry;
++        if (alwaysAngry) {
++            entity.anger();
++        }
++    }
++
++    @Override
++    public void setEntityMaxPathfindingRange(Mob entity, float range) {
++        EntityAIApi.setEntityMaxPathfindingRange(entity, range);
++    }
++
++    @Override
++    public void respawnEntity(Entity entity) {
++        EntityAIApi.respawnEntity(entity);
++    }
++
++    @Override
++    public void setEnderSignalSpeed(EnderSignal enderSignal, double speed) {
++        EntityAIApi.setEnderSignalSpeed(enderSignal, speed);
++    }
++    public void setEnderSignalDestination(EnderSignal enderSignal, Location target) {
++        EntityAIApi.setEnderSignalDestination(enderSignal, target);
++    }
++
++    @Override
++    public void setEnderSignalLife(EnderSignal enderSignal, int lifeTime) {
++        EntityAIApi.setEnderSignalLife(enderSignal, lifeTime);
++    }
++
++    @Override
++    public int getEnderSignalLife(EnderSignal enderSignal) {
++        return EntityAIApi.getEnderSignalLife(enderSignal);
++    }
++
+ }
+diff --git a/src/main/java/com/empireminecraft/api/EntityAIApi.java b/src/main/java/com/empireminecraft/api/EntityAIApi.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..c41e244e96fe9cf2e4a9b18bfac74b1a828aa140
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/api/EntityAIApi.java
+@@ -0,0 +1,297 @@
++package com.empireminecraft.api;
++
++import com.destroystokyo.paper.entity.RangedEntity;
++import org.bukkit.craftbukkit.CraftWorld;
++import org.bukkit.entity.Mob;
++import com.empireminecraft.api.attributes.Attribute;
++import com.empireminecraft.api.meta.Meta;
++import com.empireminecraft.api.meta.MetaKey.PersistentKey;
++import net.minecraft.server.*;
++import net.minecraft.server.Entity;
++import org.bukkit.Location;
++import org.bukkit.craftbukkit.entity.*;
++import org.bukkit.entity.*;
++import org.bukkit.entity.Item;
++
++import java.lang.reflect.Constructor;
++import java.util.ArrayList;
++import java.util.List;
++import java.util.Set;
++
++public final class EntityAIApi {
++
++    public static final PersistentKey ENTITY_AGGRESSIVE_RANGE_KEY = Meta.createPersistentKey("entityAggressiveRange");
++
++    private EntityAIApi() {
++    }
++
++
++    private static EntityInsentient getInsentientHandle(Mob entity) {
++        return (EntityInsentient) (((CraftEntity) entity).getHandle());
++    }
++    /**
++     * Is this entity blocked from ticking
++     * @param entity
++     * @return
++     */
++    public static boolean isEntityDisabled(org.bukkit.entity.Entity entity) {
++        return ((CraftEntity) entity).getHandle().isDisabled;
++    }
++    public static void setItemCanDespawn(Item item, boolean canDespawn) {
++        final Entity handle = ((CraftEntity) item).getHandle();
++        ((net.minecraft.server.EntityItem) handle).canDespawn = canDespawn;
++    }
++
++    /**
++     * Disables Ticking on an Entity
++     * @param entity
++     * @param disabled
++     */
++    public static void setDisabledEntity(org.bukkit.entity.Entity entity, boolean disabled) {
++        ((CraftEntity) entity).getHandle().isDisabled = disabled;
++    }
++    public static int getLove(Animals animal) {
++        return ((CraftAnimals) animal).getHandle().getLove();
++    }
++    public static void setLove(Animals animal, int love) {
++        ((CraftAnimals) animal).getHandle().setLove(love);
++    }
++    public static void setFireProof(Mob entity, boolean flag) {
++        getInsentientHandle(entity).fireProof = flag;
++    }
++    public static void setFirePanicProof(Mob entity, boolean flag) {
++        getInsentientHandle(entity).firePanicProof = flag;
++    }
++
++
++    public static void processEntityAddToWorld(Entity entity) {
++        if (entity instanceof EntityCreature) {
++            Number range =
++                Meta.getEntityMeta(entity.getBukkitEntity(), ENTITY_AGGRESSIVE_RANGE_KEY);
++            if (range != null) {
++                makeAggressive((org.bukkit.entity.Creature) entity.getBukkitEntity(), range.floatValue());
++            }
++        }
++    }
++
++    public static boolean isAggressive(Creature creature) {
++        EntityCreature entity = ((CraftCreature) creature).getHandle();
++        return entity.markedAggressive;
++    }
++
++    public static void makeAggressive(Creature creature, float range) {
++        EntityCreature handle = ((CraftCreature)creature).getHandle();
++        if (!handle.markedAggressive) {
++            handle.goalSelector.addGoal(2, new PathfinderGoalMeleeAttack(handle, 1.0F, false));
++            handle.targetSelector.addGoal(2, new PathfinderGoalNearestAttackableTarget(handle, EntityHuman.class, true));
++            Meta.setEntityMeta(creature, ENTITY_AGGRESSIVE_RANGE_KEY, range);
++            setTargetRange(creature, range);
++            handle.markedAggressive = true;
++        }
++    }
++
++    public static void makePeaceful(Mob entity) {
++        final EntityInsentient handle = getInsentientHandle(entity);
++
++        getGoalSets(handle).forEach(set -> set.removeIf(o -> {
++            return EntityGoalAccessor.isHostileGoal(o.getGoal());
++        }));
++    }
++
++    public static void removeGoalByName(Mob entity, String goalName) {
++        final EntityInsentient handle = getInsentientHandle(entity);
++        String nms = handle.getClass().getPackage().getName() + ".";
++        getGoalSets(handle).forEach(set -> set.removeIf(o -> {
++            return o.getGoal().getClass().getName().replaceAll(nms, "").equalsIgnoreCase(goalName);
++        }));
++    }
++
++    public static void addGoalByName(Mob entity, String goalName, boolean isTargetGoal, int tickRate, Class<?>[] argClasses, Object... args) {
++        final EntityInsentient handle = getInsentientHandle(entity);
++        String nms = handle.getClass().getPackage().getName();
++        String className = nms + "." + goalName;
++        try {
++            PathfinderGoal goal = getPathfinderGoal(handle, argClasses, className, args);
++            if (goal == null) {
++                MinecraftServer.LOGGER.error("Could not create goal for " + className);
++                return;
++            }
++            if (isTargetGoal) {
++                handle.targetSelector.addGoal(tickRate, goal);
++            } else {
++                handle.goalSelector.addGoal(tickRate, goal);
++            }
++        } catch (Exception e) {
++            MinecraftServer.LOGGER.error("Error adding goal by name");
++            e.printStackTrace();
++        }
++    }
++
++    static PathfinderGoal getPathfinderGoal(EntityLiving handle, Class<?>[] argClasses, String className, Object[] args) throws Exception {
++        Class<?> aClass = Class.forName(className);
++        CTOR:
++        for (Constructor<?> ctor : aClass.getDeclaredConstructors()) {
++            Class<?>[] parameterTypes = ctor.getParameterTypes();
++            if ((args.length +1) != parameterTypes.length) {
++                continue;
++            }
++            if (!parameterTypes[0].isAssignableFrom(handle.getClass())) {
++                continue;
++            }
++            for (int i = 1; i < parameterTypes.length; i++) {
++                Class<?> pCls = parameterTypes[i];
++                // TODO: Map argClasses from CB counterparts to NMS such as LivingEntity.class => EntityLiving.class
++                if (!pCls.isAssignableFrom(argClasses[i-1])) {
++                    continue CTOR;
++                }
++            }
++            Object[] newArgs = new Object[args.length+1];
++            System.arraycopy(args, 0, newArgs, 1, args.length);
++            newArgs[0] = handle;
++            return (PathfinderGoal) ctor.newInstance(newArgs);
++        }
++        return null;
++    }
++
++    private static List<Set<PathfinderGoalWrapped>> getGoalSets(EntityInsentient entity) {
++        List<Set<PathfinderGoalWrapped>> check = new ArrayList();
++        check.add(entity.goalSelector.getTaskMapValues());
++        check.add(entity.goalSelector.getTasks());
++        check.add(entity.targetSelector.getTaskMapValues());
++        check.add(entity.targetSelector.getTasks());
++        return check;
++    }
++
++    private static void removeGoal(EntityInsentient entity, PathfinderGoalWrapped o) {
++        entity.goalSelector.getTaskMapValues().remove(o);
++        entity.goalSelector.getTasks().remove(o);
++        entity.targetSelector.getTaskMapValues().remove(o);
++        entity.targetSelector.getTasks().remove(o);
++    }
++
++    public static void setEntitySize(org.bukkit.entity.Entity entity, float width, float height) {
++        ((CraftEntity)entity).getHandle().setSize(width, height);
++    }
++
++    public static void setTargetRange(Mob entity, float range) {
++        API.attributes.setAttribute(entity, Attribute.TARGET_RANGE, range);
++    }
++
++    public static void setRangedAttackDistance(RangedEntity monster, float range) {
++        setTargetRange(monster, range);
++        EntityInsentient entity = (EntityInsentient) ((CraftEntity) monster).getHandle();
++        getGoalSets(entity).forEach(set -> set.forEach(o -> {
++            PathfinderGoal goal = o.getGoal();
++            if (goal instanceof PathfinderGoalArrowAttack) {
++                ((PathfinderGoalArrowAttack) goal).setDist(range);
++            } else if (entity instanceof Monster && goal instanceof PathfinderGoalBowShoot) {
++                ((PathfinderGoalBowShoot) goal).setDist(range);
++            }
++        }));
++    }
++
++    public static void setRangedAttackSpeed(RangedEntity monster, Integer min, Integer max) {
++        if (min == null && max == null) {
++            return;
++        }
++        EntityInsentient entity = (EntityInsentient) ((CraftEntity) monster).getHandle();
++        getGoalSets(entity).forEach(set -> set.forEach(o -> {
++            PathfinderGoal goal = o.getGoal();
++            if (goal instanceof PathfinderGoalArrowAttack) {
++                if (min != null) {
++                    ((PathfinderGoalArrowAttack) goal).setMinTime(min);
++                }
++                if (max != null) {
++                    ((PathfinderGoalArrowAttack) goal).setMaxTime(max);
++                }
++            } else if (entity instanceof Monster && goal instanceof PathfinderGoalBowShoot) {
++                int speed = min != null && max != null ? Math.min(min, max) : (min != null ? min : max);
++                ((PathfinderGoalBowShoot) goal).setSpeed(speed);
++            }
++        }));
++    }
++    public static void setEntityMaxPathfindingRange(Mob entity, float range) {
++        API.attributes.setAttribute(entity, Attribute.FOLLOW_RANGE, range);
++    }
++
++    public static void respawnEntity(org.bukkit.entity.Entity entity) {
++        CraftEntity craft = (CraftEntity) entity;
++        Entity newHandle = craft.getHandle().teleportTo(
++                ((CraftWorld)craft.getWorld()).getHandle().getWorldProvider().getDimensionManager(),
++                MCUtil.toBlockPosition(entity.getLocation())
++        );
++        if (newHandle != null) {
++            craft.setHandle(newHandle);
++        }
++    }
++
++    public static void setEnderSignalDestination(EnderSignal enderSignal, Location target) {
++        if (enderSignal != null && target != null) {
++            if (target.getWorld() != enderSignal.getWorld()) {
++                throw new IllegalStateException("Worlds must be the same.");
++            }
++            EntityEnderSignal handle = ((CraftEnderSignal) enderSignal).getHandle();
++            handle.exactTarget = true;
++            handle.setSignalTarget(MCUtil.toBlockPosition(target));
++        }
++    }
++    public static void setEnderSignalSpeed(EnderSignal enderSignal, double speed) {
++        if (enderSignal != null) {
++            ((CraftEnderSignal) enderSignal).getHandle().speed = speed / 10000D;
++        }
++    }
++
++    public static void setEnderSignalLife(EnderSignal enderSignal, int lifeTime) {
++        if (enderSignal != null) {
++            ((CraftEnderSignal) enderSignal).getHandle().setLifeTime(lifeTime);
++        }
++    }
++
++    public static int getEnderSignalLife(EnderSignal enderSignal) {
++        if (enderSignal != null) {
++            return ((CraftEnderSignal) enderSignal).getHandle().getLifeTime();
++        }
++        return 0;
++    }
++
++    private static PathEntity getPathEntity(Mob entity) {
++        return getInsentientHandle(entity).getNavigation().getPathEntity();
++    }
++
++
++    private static PathEntity getPathEntity(Location loc, EntityInsentient handle) {
++        final boolean onGround = handle.onGround;
++        handle.onGround = true;
++        PathEntity path = null;
++        if (loc != null) {
++            path = handle.getNavigation().calculateDestination(loc.getBlockX(), loc.getBlockY(), loc.getBlockZ());
++        }
++
++        handle.onGround = onGround;
++        return path;
++    }
++
++
++    private static PathEntity getPathEntity(LivingEntity target, EntityInsentient handle) {
++        final boolean onGround = handle.onGround;
++        handle.onGround = true;
++        PathEntity path = null;
++        if (target != null) {
++            path = handle.getNavigation().calculateDestination(((CraftEntity) target).getHandle());
++        }
++
++        handle.onGround = onGround;
++        return path;
++    }
++
++    private static Location getFinalLocation(Mob entity, PathEntity pathEntity) {
++        if (pathEntity == null) {
++            return null;
++        }
++        final PathPoint pathPoint = pathEntity.getFinalPoint();
++        if (pathPoint == null) {
++            return null;
++        }
++        return new Location(entity.getWorld(), pathPoint.a, pathPoint.b, pathPoint.c);
++    }
++}
+diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
+index 7bd16899c277104f96870f067c20f2d014d9b70a..171a4cddf4511f5a9c65f2a28d5ec3473ba7d8c9 100644
+--- a/src/main/java/net/minecraft/server/Entity.java
++++ b/src/main/java/net/minecraft/server/Entity.java
+@@ -151,6 +151,9 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+     protected boolean inLava;
+     public int noDamageTicks;
+     protected boolean justCreated;
++    public boolean fireProof; // EMC
++    public boolean firePanicProof; // EMC
++    public boolean isDisabled = false; // EMC
+     protected final DataWatcher datawatcher;
+     protected static final DataWatcherObject<Byte> T = DataWatcher.a(Entity.class, DataWatcherRegistry.a);
+     private static final DataWatcherObject<Integer> AIR_TICKS = DataWatcher.a(Entity.class, DataWatcherRegistry.b);
+@@ -183,7 +186,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+     private boolean aE;
+     private final double[] aF;
+     private long aG;
+-    private EntitySize size;
++    private EntitySize size;public void setSize(float width, float height) { size = EntitySize.b(width, height); } // EMC
+     private float headHeight;
+     // CraftBukkit start
+     public boolean persist = true;
+@@ -426,6 +429,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+     }
+ 
+     public void setPosition(double d0, double d1, double d2) {
++        if (isDisabled) { return; } // EMC
+         this.setPositionRaw(d0, d1, d2);
+         float f = this.size.width / 2.0F;
+         float f1 = this.size.height;
+@@ -456,6 +460,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+     // CraftBukkit end
+ 
+     public void entityBaseTick() {
++        if (isDisabled) { return; } // EMC
+         this.world.getMethodProfiler().enter("entityBaseTick");
+         if (this.isPassenger() && this.getVehicle().dead) {
+             this.stopRiding();
+@@ -625,6 +630,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+     }
+ 
+     public void move(EnumMoveType enummovetype, Vec3D vec3d) {
++        if (isDisabled) { return; } // EMC
+         if (this.noclip) {
+             this.a(this.getBoundingBox().c(vec3d));
+             this.recalcPosition();
+@@ -1095,7 +1101,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+     }
+ 
+     public boolean isFireProof() {
+-        return this.getEntityType().c();
++        return this.getEntityType().c() || this.fireProof; // EMC
+     }
+ 
+     public boolean b(float f, float f1) {
+@@ -1332,6 +1338,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+     }
+ 
+     public void setLocation(double d0, double d1, double d2, float f, float f1) {
++        if (isDisabled) { return; } // EMC
+         double d3 = MathHelper.a(d0, -3.0E7D, 3.0E7D);
+         double d4 = MathHelper.a(d2, -3.0E7D, 3.0E7D);
+ 
+@@ -1359,6 +1366,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+     }
+ 
+     public void setPositionRotation(double d0, double d1, double d2, float f, float f1) {
++        if (isDisabled) { return; } // EMC
+         this.f(d0, d1, d2);
+         this.yaw = f;
+         this.pitch = f1;
+@@ -1406,6 +1414,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+     public void pickup(EntityHuman entityhuman) {}
+ 
+     public void collide(Entity entity) {
++        if (isDisabled) { return; } // EMC
+         if (!this.isSameVehicle(entity)) {
+             if (!entity.noclip && !this.noclip) {
+                 double d0 = entity.locX() - this.locX();
+@@ -1442,6 +1451,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+     }
+ 
+     public void h(double d0, double d1, double d2) {
++        if (isDisabled) { return; } // EMC
+         this.setMot(this.getMot().add(d0, d1, d2));
+         this.impulse = true;
+     }
+@@ -1451,6 +1461,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+     }
+ 
+     public boolean damageEntity(DamageSource damagesource, float f) {
++        if (isDisabled) { return false; } // EMC
+         if (this.isInvulnerable(damagesource)) {
+             return false;
+         } else {
+@@ -2544,7 +2555,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+     }
+ 
+     public boolean isInvulnerable(DamageSource damagesource) {
+-        return this.invulnerable && damagesource != DamageSource.OUT_OF_WORLD && !damagesource.v();
++        return this.invulnerable && damagesource != DamageSource.OUT_OF_WORLD && !damagesource.v() && !isDisabled; // EMC - add && !isDisabled
+     }
+ 
+     public boolean isInvulnerable() {
+@@ -2960,6 +2971,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+         return false;
+     }
+ 
++    public void processEnchantsForAttack(EntityLiving entityliving, Entity entity) { this.a(entityliving, entity); } // EMC - OBF HELPER
+     public void a(EntityLiving entityliving, Entity entity) {
+         if (entity instanceof EntityLiving) {
+             EnchantmentManager.a((EntityLiving) entity, (Entity) entityliving);
+diff --git a/src/main/java/net/minecraft/server/EntityAnimal.java b/src/main/java/net/minecraft/server/EntityAnimal.java
+index b1a41ca53462e50dc0d5cabfcd91579908c07b62..7440f28e8900320ac56617b82cf655d7f267c22e 100644
+--- a/src/main/java/net/minecraft/server/EntityAnimal.java
++++ b/src/main/java/net/minecraft/server/EntityAnimal.java
+@@ -10,7 +10,7 @@ import org.bukkit.event.entity.EntityEnterLoveModeEvent;
+ 
+ public abstract class EntityAnimal extends EntityAgeable {
+ 
+-    public int loveTicks;
++    public int loveTicks;public void setLove(int love) { this.loveTicks = love;} public int getLove() { return this.loveTicks; } // EMC - Getter & Setter
+     public UUID breedCause;
+     public ItemStack breedItem; // CraftBukkit - Add breedItem variable
+ 
+diff --git a/src/main/java/net/minecraft/server/EntityBlaze.java b/src/main/java/net/minecraft/server/EntityBlaze.java
+index 83fac131c6e54ce5c5cd6982ee6597c7ed0e6805..e44778d02dceadf97a61190acece5fcdc548da50 100644
+--- a/src/main/java/net/minecraft/server/EntityBlaze.java
++++ b/src/main/java/net/minecraft/server/EntityBlaze.java
+@@ -8,6 +8,25 @@ public class EntityBlaze extends EntityMonster {
+     private int c;
+     private static final DataWatcherObject<Byte> d = DataWatcher.a(EntityBlaze.class, DataWatcherRegistry.a);
+ 
++    // EMC start
++    int numFireballs = 4;
++    int timeBetweenFireballs = 6;
++    public void setFireballs(int num) {
++        this.numFireballs = num;
++    }
++    public int getNumFireballs() {
++        return this.numFireballs;
++    }
++
++    public int getTimeBetweenFireballs() {
++        return timeBetweenFireballs;
++    }
++
++    public void setTimeBetweenFireballs(int timeBetweenFireballs) {
++        this.timeBetweenFireballs = timeBetweenFireballs;
++    }
++    // EMC end
++
+     public EntityBlaze(EntityTypes<? extends EntityBlaze> entitytypes, World world) {
+         super(entitytypes, world);
+         this.a(PathType.WATER, -1.0F);
+@@ -24,7 +43,7 @@ public class EntityBlaze extends EntityMonster {
+         this.goalSelector.a(7, new PathfinderGoalRandomStrollLand(this, 1.0D, 0.0F));
+         this.goalSelector.a(8, new PathfinderGoalLookAtPlayer(this, EntityHuman.class, 8.0F));
+         this.goalSelector.a(8, new PathfinderGoalRandomLookaround(this));
+-        this.targetSelector.a(1, (new PathfinderGoalHurtByTarget(this, new Class[0])).a());
++        this.targetSelector.a(1, new PathfinderGoalHurtByTarget(this, new Class[0])); // EMC - Decompile Fix
+         this.targetSelector.a(2, new PathfinderGoalNearestAttackableTarget<>(this, EntityHuman.class, true));
+     }
+ 
+@@ -195,8 +214,8 @@ public class EntityBlaze extends EntityMonster {
+                         if (this.b == 1) {
+                             this.c = 60;
+                             this.a.t(true);
+-                        } else if (this.b <= 4) {
+-                            this.c = 6;
++                        } else if (this.b <= this.a.numFireballs) { // EMC
++                            this.c = this.a.timeBetweenFireballs; // EMC
+                         } else {
+                             this.c = 100;
+                             this.b = 0;
+@@ -214,7 +233,9 @@ public class EntityBlaze extends EntityMonster {
+                                 EntitySmallFireball entitysmallfireball = new EntitySmallFireball(this.a.world, this.a, d1 + this.a.getRandom().nextGaussian() * (double) f, d2, d3 + this.a.getRandom().nextGaussian() * (double) f);
+ 
+                                 entitysmallfireball.setPosition(entitysmallfireball.locX(), this.a.e(0.5D) + 0.5D, entitysmallfireball.locZ());
++                                if (new com.empireminecraft.customevents.BlazeLaunchFireballEvent((org.bukkit.entity.Blaze) this.a.getBukkitEntity(), (org.bukkit.entity.SmallFireball) entitysmallfireball.getBukkitEntity()).callEvent()) { // EMC
+                                 this.a.world.addEntity(entitysmallfireball);
++                                } else { entitysmallfireball.die(); }// EMC
+                             }
+                         }
+                     }
+diff --git a/src/main/java/net/minecraft/server/EntityCreature.java b/src/main/java/net/minecraft/server/EntityCreature.java
+index 11d384729326af693a9a679195acbd594227466a..69f5144c08cea100b17266e009b98a37c5e7695e 100644
+--- a/src/main/java/net/minecraft/server/EntityCreature.java
++++ b/src/main/java/net/minecraft/server/EntityCreature.java
+@@ -9,6 +9,7 @@ public abstract class EntityCreature extends EntityInsentient {
+     public org.bukkit.craftbukkit.entity.CraftCreature getBukkitCreature() { return (org.bukkit.craftbukkit.entity.CraftCreature) super.getBukkitEntity(); } // Paper
+     public BlockPosition movingTarget = null; public BlockPosition getMovingTarget() { return movingTarget; } // Paper
+ 
++    public boolean markedAggressive = false; // EMC
+     protected EntityCreature(EntityTypes<? extends EntityCreature> entitytypes, World world) {
+         super(entitytypes, world);
+     }
+diff --git a/src/main/java/net/minecraft/server/EntityEnderSignal.java b/src/main/java/net/minecraft/server/EntityEnderSignal.java
+index 84bf272993095df0a6bbbc0a41eba31684f23c3c..b3e58431f05be15aca89f144fd6b025603b47674 100644
+--- a/src/main/java/net/minecraft/server/EntityEnderSignal.java
++++ b/src/main/java/net/minecraft/server/EntityEnderSignal.java
+@@ -9,6 +9,18 @@ public class EntityEnderSignal extends Entity {
+     public int despawnTimer;
+     public boolean shouldDropItem;
+ 
++    // EMC start
++    private int lifeTime = 80;
++    public void setLifeTime(int lifeTime) {
++        this.lifeTime = lifeTime;
++    }
++    public int getLifeTime() {
++        return this.lifeTime;
++    }
++    public double speed = 0.0025D;
++    public boolean exactTarget = false;
++    // EMC end
++
+     public EntityEnderSignal(EntityTypes<? extends EntityEnderSignal> entitytypes, World world) {
+         super(entitytypes, world);
+     }
+@@ -20,8 +32,8 @@ public class EntityEnderSignal extends Entity {
+     }
+ 
+     public void b(ItemStack itemstack) {
+-        if (itemstack.getItem() != Items.ENDER_EYE || itemstack.hasTag()) {
+-            this.getDataWatcher().set(EntityEnderSignal.b, SystemUtils.a((Object) itemstack.cloneItemStack(), (itemstack1) -> {
++        if (!itemstack.isEmpty() && (itemstack.getItem() != Items.ENDER_EYE || itemstack.hasTag())) { // EMC - Hide null item issue
++            this.getDataWatcher().set(EntityEnderSignal.b, SystemUtils.a(itemstack.cloneItemStack(), (itemstack1) -> { // EMC - Decompile Fix
+                 itemstack1.setCount(1);
+             }));
+         }
+@@ -43,6 +55,7 @@ public class EntityEnderSignal extends Entity {
+         this.getDataWatcher().register(EntityEnderSignal.b, ItemStack.b);
+     }
+ 
++    public void setSignalTarget(BlockPosition pos) { a(pos); } // EMC - OBF HELPER
+     public void a(BlockPosition blockposition) {
+         double d0 = (double) blockposition.getX();
+         int i = blockposition.getY();
+@@ -51,6 +64,7 @@ public class EntityEnderSignal extends Entity {
+         double d3 = d1 - this.locZ();
+         float f = MathHelper.sqrt(d2 * d2 + d3 * d3);
+ 
++        if (exactTarget) f = 0; // EMC
+         if (f > 12.0F) {
+             this.targetX = this.locX() + d2 / (double) f * 12.0D;
+             this.targetZ = this.locZ() + d3 / (double) f * 12.0D;
+@@ -79,9 +93,10 @@ public class EntityEnderSignal extends Entity {
+         if (!this.world.isClientSide) {
+             double d3 = this.targetX - d0;
+             double d4 = this.targetZ - d2;
+-            float f1 = (float) Math.sqrt(d3 * d3 + d4 * d4);
++            double distY = this.targetY - d1; // EMC
++            float f1 = (float) Math.sqrt(d3 * d3 + d4 * d4 + (exactTarget ? distY * distY : 0)); // EMC
+             float f2 = (float) MathHelper.d(d4, d3);
+-            double d5 = MathHelper.d(0.0025D, (double) f, (double) f1);
++            double d5 = MathHelper.d(speed, (double) f, (double) f1); // EMC
+             double d6 = vec3d.y;
+ 
+             if (f1 < 1.0F) {
+@@ -109,6 +124,7 @@ public class EntityEnderSignal extends Entity {
+             this.setPosition(d0, d1, d2);
+             ++this.despawnTimer;
+             if (this.despawnTimer > 80 && !this.world.isClientSide) {
++                if (!(new com.empireminecraft.customevents.EnderSignalArriveEvent((org.bukkit.entity.EnderSignal) this.getBukkitEntity()).callEvent())) {return;} // EMC
+                 this.playSound(SoundEffects.ENTITY_ENDER_EYE_DEATH, 1.0F, 1.0F);
+                 this.die();
+                 if (this.shouldDropItem) {
+diff --git a/src/main/java/net/minecraft/server/EntityGhast.java b/src/main/java/net/minecraft/server/EntityGhast.java
+index d16118b39e6094cd9b821156365df5fff438b9e5..374f65549f00bd125c2384e20c32cb4b52d82424 100644
+--- a/src/main/java/net/minecraft/server/EntityGhast.java
++++ b/src/main/java/net/minecraft/server/EntityGhast.java
+@@ -7,6 +7,7 @@ public class EntityGhast extends EntityFlying implements IMonster {
+ 
+     private static final DataWatcherObject<Boolean> b = DataWatcher.a(EntityGhast.class, DataWatcherRegistry.i);
+     private int c = 1;
++    public int fireballCooldown = 40; // EMC
+ 
+     public EntityGhast(EntityTypes<? extends EntityGhast> entitytypes, World world) {
+         super(entitytypes, world);
+@@ -167,7 +168,7 @@ public class EntityGhast extends EntityFlying implements IMonster {
+                     entitylargefireball.bukkitYield = entitylargefireball.yield = this.ghast.getPower();
+                     entitylargefireball.setPosition(this.ghast.locX() + vec3d.x * 4.0D, this.ghast.e(0.5D) + 0.5D, entitylargefireball.locZ() + vec3d.z * 4.0D);
+                     world.addEntity(entitylargefireball);
+-                    this.a = -40;
++                    this.a = -ghast.fireballCooldown; // EMC
+                 }
+             } else if (this.a > 0) {
+                 --this.a;
+diff --git a/src/main/java/net/minecraft/server/EntityGoalAccessor.java b/src/main/java/net/minecraft/server/EntityGoalAccessor.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..d0ee7f3042a413027964a630f944fe42f28cc8ef
+--- /dev/null
++++ b/src/main/java/net/minecraft/server/EntityGoalAccessor.java
+@@ -0,0 +1,20 @@
++package net.minecraft.server;
++
++public final class EntityGoalAccessor {
++    private EntityGoalAccessor() {
++    }
++
++    public static boolean isHostileGoal(PathfinderGoal goal) {
++        if (goal instanceof PathfinderGoalMeleeAttack ||
++            goal instanceof PathfinderGoalOcelotAttack ||
++            goal instanceof EntityBlaze.PathfinderGoalBlazeFireball ||
++            goal instanceof PathfinderGoalArrowAttack ||
++            goal instanceof PathfinderGoalMoveThroughVillage ||
++            goal instanceof PathfinderGoalBreakDoor ||
++            goal instanceof PathfinderGoalNearestAttackableTarget ||
++            goal instanceof PathfinderGoalHurtByTarget) {
++            return true;
++        }
++        return false;
++    }
++}
+diff --git a/src/main/java/net/minecraft/server/EntityItem.java b/src/main/java/net/minecraft/server/EntityItem.java
+index a7860cb4ded3e9f949e6e1a7a2afacd738da756e..25b88459c15420854d46a58dc76ecf69a95c4c4e 100644
+--- a/src/main/java/net/minecraft/server/EntityItem.java
++++ b/src/main/java/net/minecraft/server/EntityItem.java
+@@ -16,6 +16,7 @@ public class EntityItem extends Entity {
+ 
+     private static final DataWatcherObject<ItemStack> ITEM = DataWatcher.a(EntityItem.class, DataWatcherRegistry.g);
+     public int age;
++    public boolean canDespawn = true; // EMC
+     public int pickupDelay;
+     private int f;
+     private UUID thrower;
+@@ -130,7 +131,7 @@ public class EntityItem extends Entity {
+                 }
+             }
+ 
+-            if (!this.world.isClientSide && this.age >= this.getDespawnRate()) { // Spigot // Paper
++            if (canDespawn && !this.world.isClientSide && this.age >= this.getDespawnRate()) { // Spigot // Paper // EMC
+                 // CraftBukkit start - fire ItemDespawnEvent
+                 if (org.bukkit.craftbukkit.event.CraftEventFactory.callItemDespawnEvent(this).isCancelled()) {
+                     this.age = 0;
+diff --git a/src/main/java/net/minecraft/server/EntityLiving.java b/src/main/java/net/minecraft/server/EntityLiving.java
+index af169211ac378680f8eeabf479523ed6f703880f..ab0c8435cc60b9856a163e0b32058ce6f231ae7d 100644
+--- a/src/main/java/net/minecraft/server/EntityLiving.java
++++ b/src/main/java/net/minecraft/server/EntityLiving.java
+@@ -534,6 +534,7 @@ public abstract class EntityLiving extends Entity {
+         return this.bA;
+     }
+ 
++    public void setLastAttacker(Entity entity) { this.z(entity); } // EMC - OBF HELPER
+     public void z(Entity entity) {
+         if (entity instanceof EntityLiving) {
+             this.bz = (EntityLiving) entity;
+@@ -2412,7 +2413,16 @@ public abstract class EntityLiving extends Entity {
+ 
+     public boolean attackEntity(Entity entity) {
+         this.z(entity);
+-        return false;
++        // EMC start - make all mobs able to attack
++        boolean flag = entity.damageEntity(DamageSource.mobAttack(this), (float) ((int) this.getAttributeInstance(GenericAttributes.ATTACK_DAMAGE).getValue()));
++
++        if (flag) {
++            this.processEnchantsForAttack(this, entity);
++            this.setLastAttacker(entity);
++        }
++
++        return flag;
++        // EMC end
+     }
+ 
+     @Override
+diff --git a/src/main/java/net/minecraft/server/EntitySpider.java b/src/main/java/net/minecraft/server/EntitySpider.java
+index f6a677200210ea5035ab6d2c1022cc737c8fd1c4..046eca98c9a664544467d4fe7168fbb6ef3a7377 100644
+--- a/src/main/java/net/minecraft/server/EntitySpider.java
++++ b/src/main/java/net/minecraft/server/EntitySpider.java
+@@ -149,6 +149,8 @@ public class EntitySpider extends EntityMonster {
+         return 0.65F;
+     }
+ 
++    public boolean attackDuringDay = false; // EMC
++
+     static class PathfinderGoalSpiderNearestAttackableTarget<T extends EntityLiving> extends PathfinderGoalNearestAttackableTarget<T> {
+ 
+         public PathfinderGoalSpiderNearestAttackableTarget(EntitySpider entityspider, Class<T> oclass) {
+@@ -158,6 +160,7 @@ public class EntitySpider extends EntityMonster {
+         @Override
+         public boolean a() {
+             float f = this.e.aO();
++            if (((EntitySpider)this.e).attackDuringDay) f = 0.0F; // EMC
+ 
+             return f >= 0.5F ? false : super.a();
+         }
+@@ -177,6 +180,7 @@ public class EntitySpider extends EntityMonster {
+         @Override
+         public boolean b() {
+             float f = this.a.aO();
++            if (((EntitySpider)this.a).attackDuringDay) f = 0.0F; // EMC
+ 
+             if (f >= 0.5F && this.a.getRandom().nextInt(100) == 0) {
+                 this.a.setGoalTarget((EntityLiving) null);
+diff --git a/src/main/java/net/minecraft/server/EntityWolf.java b/src/main/java/net/minecraft/server/EntityWolf.java
+index 5b519fa394707f6f21b241689daa6d2abf360df7..f3201f8f9a015539d375c63e39864a1318e4e7fb 100644
+--- a/src/main/java/net/minecraft/server/EntityWolf.java
++++ b/src/main/java/net/minecraft/server/EntityWolf.java
+@@ -339,6 +339,13 @@ public class EntityWolf extends EntityTameableAnimal implements IEntityAngerable
+         this.datawatcher.set(EntityWolf.bA, i);
+     }
+ 
++    // EMC start
++    public boolean alwaysAngry = false;
++    @Override
++    public boolean isAngry() {
++        return alwaysAngry || IEntityAngerable.super.isAngry();
++    }
++    // EMC end
+     @Override
+     public void anger() {
+         this.setAnger(EntityWolf.bH.a(this.random));
+diff --git a/src/main/java/net/minecraft/server/PathfinderGoalArrowAttack.java b/src/main/java/net/minecraft/server/PathfinderGoalArrowAttack.java
+index 2206d18334944feb28ce47c529c0ee9bd3709e10..6d9b361ddcccbcc8349ad79ec23c3345ece132fa 100644
+--- a/src/main/java/net/minecraft/server/PathfinderGoalArrowAttack.java
++++ b/src/main/java/net/minecraft/server/PathfinderGoalArrowAttack.java
+@@ -10,10 +10,10 @@ public class PathfinderGoalArrowAttack extends PathfinderGoal {
+     private int d;
+     private final double e;
+     private int f;
+-    private final int g;
+-    private final int h;
+-    private final float i;
+-    private final float j;
++    public int g;public void setMinTime(int time) { this.g = time; } // EMC - OBF HELPER - min ranged time
++    public int h;public void setMaxTime(int time) { this.h = time; } // EMC - OBF HELPER - max ranged time
++    public float i;public void setDist(float range) { this.i = range; j = range*range; } // EMC - OBF HELPER - max ranged dist
++    public float j; // EMC - max ranged dist square
+ 
+     public PathfinderGoalArrowAttack(IRangedEntity irangedentity, double d0, int i, float f) {
+         this(irangedentity, d0, i, i, f);
+diff --git a/src/main/java/net/minecraft/server/PathfinderGoalBowShoot.java b/src/main/java/net/minecraft/server/PathfinderGoalBowShoot.java
+index 3b856f9fab559b59bce82509fed38dbaaf2dfc40..3e05a23d4898f864b3594854ed7d8e8fda50fd42 100644
+--- a/src/main/java/net/minecraft/server/PathfinderGoalBowShoot.java
++++ b/src/main/java/net/minecraft/server/PathfinderGoalBowShoot.java
+@@ -6,8 +6,8 @@ public class PathfinderGoalBowShoot<T extends EntityMonster & IRangedEntity> ext
+ 
+     private final T a;
+     private final double b;
+-    private int c;
+-    private final float d;
++    private int c;public void setSpeed(int speed) { this.c = speed; } // EMC - OBF HELPER
++    private float d;public float getDistSq() { return d; } public void setDist(float range) { this.d = range*range; } // EMC - OBF HELPER - max ranged dist // EMC - OBF HELPER - max ranged dist square
+     private int e = -1;
+     private int f;
+     private boolean g;
+diff --git a/src/main/java/net/minecraft/server/PathfinderGoalFleeSun.java b/src/main/java/net/minecraft/server/PathfinderGoalFleeSun.java
+index a0d88a3d0f16550581a5d67be112beeba4853601..fa5628f7a43116f52e8ce251ebc3176bfbade930 100644
+--- a/src/main/java/net/minecraft/server/PathfinderGoalFleeSun.java
++++ b/src/main/java/net/minecraft/server/PathfinderGoalFleeSun.java
+@@ -6,7 +6,7 @@ import javax.annotation.Nullable;
+ 
+ public class PathfinderGoalFleeSun extends PathfinderGoal {
+ 
+-    protected final EntityCreature a;
++    protected final EntityCreature a;EntityCreature getEntity() { return a; } // EMC - OBF HELPER
+     private double b;
+     private double c;
+     private double d;
+@@ -22,7 +22,7 @@ public class PathfinderGoalFleeSun extends PathfinderGoal {
+ 
+     @Override
+     public boolean a() {
+-        return this.a.getGoalTarget() != null ? false : (!this.f.isDay() ? false : (!this.a.isBurning() ? false : (!this.f.f(this.a.getChunkCoordinates()) ? false : (!this.a.getEquipment(EnumItemSlot.HEAD).isEmpty() ? false : this.g()))));
++        return this.a.getGoalTarget() != null ? false : (!this.f.isDay() ? false : ((this.getEntity().firePanicProof || !this.a.isBurning()) ? false : (!this.f.f(this.a.getChunkCoordinates())) ? false : (!this.a.getEquipment(EnumItemSlot.HEAD).isEmpty() ? false : this.g()))); // EMC
+     }
+ 
+     protected boolean g() {
+diff --git a/src/main/java/net/minecraft/server/PathfinderGoalPanic.java b/src/main/java/net/minecraft/server/PathfinderGoalPanic.java
+index a55a8ef6e110821c6c7c28a28d9e053e5e84adfa..bc48c2ff3003d1974f4869b9da1d72b50d04fe81 100644
+--- a/src/main/java/net/minecraft/server/PathfinderGoalPanic.java
++++ b/src/main/java/net/minecraft/server/PathfinderGoalPanic.java
+@@ -5,7 +5,7 @@ import javax.annotation.Nullable;
+ 
+ public class PathfinderGoalPanic extends PathfinderGoal {
+ 
+-    protected final EntityCreature a;
++    protected final EntityCreature a;public EntityCreature getCreature() { return a; } // EMC - OBF HELPER
+     protected final double b;
+     protected double c;
+     protected double d;
+@@ -20,6 +20,7 @@ public class PathfinderGoalPanic extends PathfinderGoal {
+ 
+     @Override
+     public boolean a() {
++        if (this.getCreature().firePanicProof) { return false; } // EMC
+         if (this.a.getLastDamager() == null && !this.a.isBurning()) {
+             return false;
+         } else {
+diff --git a/src/main/java/net/minecraft/server/PathfinderGoalSelector.java b/src/main/java/net/minecraft/server/PathfinderGoalSelector.java
+index d3f0327a2a7cdedf3fe8d10df981a9f1cb378d26..80253468fda1c74fa2d691d0ab7625ca774441f6 100644
+--- a/src/main/java/net/minecraft/server/PathfinderGoalSelector.java
++++ b/src/main/java/net/minecraft/server/PathfinderGoalSelector.java
+@@ -1,6 +1,7 @@
+ package net.minecraft.server;
+ 
+ import com.destroystokyo.paper.util.set.OptimizedSmallEnumSet; // Paper - remove streams from pathfindergoalselector
++import com.empireminecraft.api.API;
+ import com.google.common.collect.Sets;
+ import java.util.EnumMap;
+ import java.util.EnumSet;
+@@ -26,7 +27,7 @@ public class PathfinderGoalSelector {
+             return false;
+         }
+     };
+-    private final Map<PathfinderGoal.Type, PathfinderGoalWrapped> c = new EnumMap(PathfinderGoal.Type.class);
++    private final Map<PathfinderGoal.Type, PathfinderGoalWrapped> c = new EnumMap(PathfinderGoal.Type.class);public Set<PathfinderGoalWrapped> getTaskMapValues() { return new java.util.HashSet<>(c.values()); } // EMC - OBF HELPER
+     private final Set<PathfinderGoalWrapped> d = Sets.newLinkedHashSet(); public final Set<PathfinderGoalWrapped> getTasks() { return d; }// Paper - OBFHELPER // Paper - private -> public
+     private final Supplier<GameProfilerFiller> e;
+     private final EnumSet<PathfinderGoal.Type> f = EnumSet.noneOf(PathfinderGoal.Type.class); // Paper unused, but dummy to prevent plugins from crashing as hard. Theyll need to support paper in a special case if this is super important, but really doesn't seem like it would be.
+diff --git a/src/main/java/net/minecraft/server/WorldServer.java b/src/main/java/net/minecraft/server/WorldServer.java
+index 2f9d64015dea2c67ac5bb9243f73599d4cec4ce2..b3d87d15dada196792f536c52a3f3893e023d547 100644
+--- a/src/main/java/net/minecraft/server/WorldServer.java
++++ b/src/main/java/net/minecraft/server/WorldServer.java
+@@ -822,7 +822,7 @@ public class WorldServer extends World implements GeneratorAccessSeed {
+             entity.f(entity.locX(), entity.locY(), entity.locZ());
+             entity.lastYaw = entity.yaw;
+             entity.lastPitch = entity.pitch;
+-            if (entity.inChunk) {
++            if (entity.inChunk && !entity.isDisabled) { // EMC
+                 ++entity.ticksLived;
+                 EntityTasksHandler.tickHandler(entity); // EMC
+                 GameProfilerFiller gameprofilerfiller = this.getMethodProfiler();
+@@ -1397,6 +1397,7 @@ public class WorldServer extends World implements GeneratorAccessSeed {
+             }
+             // Paper end
+             entity.shouldBeRemoved = false; // Paper - shouldn't be removed after being re-added
++            com.empireminecraft.api.EntityAIApi.processEntityAddToWorld(entity); // EMC
+             new com.destroystokyo.paper.event.entity.EntityAddToWorldEvent(entity.getBukkitEntity()).callEvent(); // Paper - fire while valid
+         }
+ 
+diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftBlaze.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftBlaze.java
+index 089419edecc0f8f1129e92199c65e6577e1d5786..bf7eee91acccd5db09eb7eca61b05670ea4047e6 100644
+--- a/src/main/java/org/bukkit/craftbukkit/entity/CraftBlaze.java
++++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftBlaze.java
+@@ -24,4 +24,22 @@ public class CraftBlaze extends CraftMonster implements Blaze {
+     public EntityType getType() {
+         return EntityType.BLAZE;
+     }
++
++    // EMC start
++    public void setFireballs(int num) {
++        getHandle().setFireballs(num);
++    }
++
++    public int getNumFireballs() {
++        return getHandle().getNumFireballs();
++    }
++
++    public int getTimeBetweenFireballs() {
++        return getHandle().getTimeBetweenFireballs();
++    }
++
++    public void setTimeBetweenFireballs(int timeBetweenFireballs) {
++        getHandle().setTimeBetweenFireballs(timeBetweenFireballs);
++    }
++    // EMC end
+ }
+diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftEnderSignal.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftEnderSignal.java
+index d771fdc6ed353dadf1559e453833f3124d7ae2a2..33a67f12a62bc144e3a07c2ed096088d23660a0a 100644
+--- a/src/main/java/org/bukkit/craftbukkit/entity/CraftEnderSignal.java
++++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftEnderSignal.java
+@@ -34,8 +34,9 @@ public class CraftEnderSignal extends CraftEntity implements EnderSignal {
+     }
+ 
+     @Override
+-    public void setTargetLocation(Location location) {
++    public void setTargetLocation(Location location, boolean exactTarget) { // EMC
+         Preconditions.checkArgument(getWorld().equals(location.getWorld()), "Cannot target EnderSignal across worlds");
++        getHandle().exactTarget = exactTarget; // EMC
+         getHandle().a(new BlockPosition(location.getX(), location.getY(), location.getZ()));
+     }
+ 
+diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftGhast.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftGhast.java
+index cac82ce760761a044261741f30b9c3e19c50dbe6..913f4a11ac060214edd901627c91e20d54de858a 100644
+--- a/src/main/java/org/bukkit/craftbukkit/entity/CraftGhast.java
++++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftGhast.java
+@@ -25,4 +25,13 @@ public class CraftGhast extends CraftFlying implements Ghast {
+     public EntityType getType() {
+         return EntityType.GHAST;
+     }
++
++    // EMC start
++    public int getFireballCooldown() {
++        return getHandle().fireballCooldown;
++    }
++    public void setFireballCooldown(int cooldown) {
++        getHandle().fireballCooldown = cooldown;
++    }
++    // EMC end
+ }
+diff --git a/src/main/java/org/spigotmc/ActivationRange.java b/src/main/java/org/spigotmc/ActivationRange.java
+index f78e44e05f7a97a7da190aa4b5aa6fb8340728ea..fbb256b14c83662da3f3b7a9d3edaaf714c5544f 100644
+--- a/src/main/java/org/spigotmc/ActivationRange.java
++++ b/src/main/java/org/spigotmc/ActivationRange.java
+@@ -377,6 +377,7 @@ public class ActivationRange
+      */
+     public static boolean checkIfActive(Entity entity)
+     {
++        if (entity.isDisabled) return true; // EMC
+         // Never safe to skip fireworks or entities not yet added to chunk
+         if ( !entity.inChunk || entity instanceof EntityFireworks ) {
+             return true;

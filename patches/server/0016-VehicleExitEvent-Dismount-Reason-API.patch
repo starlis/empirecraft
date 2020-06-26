@@ -1,0 +1,114 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Wed, 7 Aug 2013 19:52:14 -0400
+Subject: [PATCH] VehicleExitEvent Dismount Reason API
+
+---
+ src/main/java/net/minecraft/server/Entity.java       | 12 +++++++++++-
+ src/main/java/net/minecraft/server/EntityHuman.java  |  1 +
+ src/main/java/net/minecraft/server/EntityLiving.java |  2 ++
+ src/main/java/net/minecraft/server/PlayerList.java   |  1 +
+ 4 files changed, 15 insertions(+), 1 deletion(-)
+
+diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
+index 235b8a15d2064494e93c4c8abb5e1e2001f2cace..64fb2cb5763a82b3ca9fb8d9e74f9122a761c282 100644
+--- a/src/main/java/net/minecraft/server/Entity.java
++++ b/src/main/java/net/minecraft/server/Entity.java
+@@ -317,6 +317,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+         }
+ 
+         if (this.isPassenger()) {
++            if (this.dead) this.dismountReason = org.bukkit.event.vehicle.VehicleExitEvent.DismountReason.DEAD; // EMC
+             this.stopRiding();
+         }
+ 
+@@ -2032,6 +2033,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+             return false;
+         } else {
+             if (this.isPassenger()) {
++                entity.dismountReason = VehicleExitEvent.DismountReason.TRANSFER; // EMC
+                 this.stopRiding();
+             }
+ 
+@@ -2052,7 +2054,11 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+ 
+     public void ejectPassengers() {
+         for (int i = this.passengers.size() - 1; i >= 0; --i) {
+-            ((Entity) this.passengers.get(i)).stopRiding();
++            // EMC start
++            Entity entity = this.passengers.get(i);
++            if (this.dead) entity.dismountReason = org.bukkit.event.vehicle.VehicleExitEvent.DismountReason.DEAD;
++            entity.stopRiding();
++            // EMC end
+         }
+ 
+     }
+@@ -2123,6 +2129,8 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+     // Paper start
+     protected boolean removePassenger(Entity entity) { return removePassenger(entity, false);}
+     protected boolean removePassenger(Entity entity, boolean suppressCancellation) { // CraftBukkit
++        VehicleExitEvent.DismountReason reason = dismountReason; // EMC
++        dismountReason = VehicleExitEvent.DismountReason.UNKNOWN; // EMC
+         // Paper end
+         if (entity.getVehicle() == this) {
+             throw new IllegalStateException("Use x.stopRiding(y), not y.removePassenger(x)");
+@@ -2135,6 +2143,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+                         (Vehicle) getBukkitEntity(),
+                         (LivingEntity) entity.getBukkitEntity(), !suppressCancellation // Paper
+                 );
++                event.reason = reason; // EMC
+                 Bukkit.getPluginManager().callEvent(event);
+                 CraftEntity craftn = (CraftEntity) entity.getBukkitEntity().getVehicle();
+                 Entity n = craftn == null ? null : craftn.getHandle();
+@@ -2555,6 +2564,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+         return String.format(Locale.ROOT, "%s['%s'/%d, uuid='%s', l='%s', x=%.2f, y=%.2f, z=%.2f, cx=%d, cz=%d, tl=%d, v=%b, d=%b]", new Object[] { this.getClass().getSimpleName(), this.getDisplayName().getString(), Integer.valueOf(this.id), this.uniqueID.toString(), this.world == null ? "~NULL~" : this.world.toString(), Double.valueOf(this.locX()), Double.valueOf(this.locY()), Double.valueOf(this.locZ()), getChunkX(), getChunkZ(), this.ticksLived, this.valid, this.dead}); // Paper - add more information
+     }
+ 
++    VehicleExitEvent.DismountReason dismountReason = VehicleExitEvent.DismountReason.UNKNOWN; // EMC
+     public boolean isInvulnerable(DamageSource damagesource) {
+         return this.invulnerable && damagesource != DamageSource.OUT_OF_WORLD && !damagesource.v() && !isDisabled; // EMC - add && !isDisabled
+     }
+diff --git a/src/main/java/net/minecraft/server/EntityHuman.java b/src/main/java/net/minecraft/server/EntityHuman.java
+index 1202cebbc6f4a5cf3b061e8201847f3448917dbc..5ee707a21c9b2a17e212feb7acb099e73ca0f74e 100644
+--- a/src/main/java/net/minecraft/server/EntityHuman.java
++++ b/src/main/java/net/minecraft/server/EntityHuman.java
+@@ -365,6 +365,7 @@ public abstract class EntityHuman extends EntityLiving {
+     @Override
+     public void passengerTick() {
+         if (this.eq() && this.isPassenger()) {
++            this.dismountReason = org.bukkit.event.vehicle.VehicleExitEvent.DismountReason.PLAYER; // EMC
+             this.stopRiding();
+             this.setSneaking(false);
+         } else {
+diff --git a/src/main/java/net/minecraft/server/EntityLiving.java b/src/main/java/net/minecraft/server/EntityLiving.java
+index ab0c8435cc60b9856a163e0b32058ce6f231ae7d..9577a4c5d22246a6d9160d202b19c6412074e8f2 100644
+--- a/src/main/java/net/minecraft/server/EntityLiving.java
++++ b/src/main/java/net/minecraft/server/EntityLiving.java
+@@ -309,6 +309,7 @@ public abstract class EntityLiving extends Entity {
+                 }
+ 
+                 if (!this.world.isClientSide && this.isPassenger() && this.getVehicle() != null && !this.getVehicle().bp()) {
++                    this.dismountReason = org.bukkit.event.vehicle.VehicleExitEvent.DismountReason.WATER; // EMC
+                     this.stopRiding();
+                 }
+             } else if (this.getAirTicks() < this.bD()) {
+@@ -3402,6 +3403,7 @@ public abstract class EntityLiving extends Entity {
+ 
+     public void entitySleep(BlockPosition blockposition) {
+         if (this.isPassenger()) {
++            if (this instanceof EntityHuman) this.dismountReason = org.bukkit.event.vehicle.VehicleExitEvent.DismountReason.PLAYER; // EMC
+             this.stopRiding();
+         }
+ 
+diff --git a/src/main/java/net/minecraft/server/PlayerList.java b/src/main/java/net/minecraft/server/PlayerList.java
+index 9f4d9ee0100bca5f62f6a3778257e4da97ca2d28..ae2ced290a155cdcf961950544ded7b8a3730d12 100644
+--- a/src/main/java/net/minecraft/server/PlayerList.java
++++ b/src/main/java/net/minecraft/server/PlayerList.java
+@@ -520,6 +520,7 @@ public abstract class PlayerList {
+ 
+             if (entity.hasSinglePlayerPassenger()) {
+                 PlayerList.LOGGER.debug("Removing player mount");
++                entityplayer.dismountReason = org.bukkit.event.vehicle.VehicleExitEvent.DismountReason.DISCONNECT; // EMC
+                 entityplayer.stopRiding();
+                 worldserver.removeEntity(entity);
+                 entity.dead = true;

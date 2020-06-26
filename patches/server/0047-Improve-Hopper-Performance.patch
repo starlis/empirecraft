@@ -1,0 +1,138 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Fri, 29 May 2015 21:58:24 -0400
+Subject: [PATCH] Improve Hopper Performance
+
+Only do an item "suck in" action once per second
+---
+ .../java/net/minecraft/server/EntityItem.java | 15 ++++++++++++++
+ .../server/EntityMinecartHopper.java          | 15 ++++++++++++++
+ .../java/net/minecraft/server/IHopper.java    |  1 +
+ .../minecraft/server/TileEntityHopper.java    | 20 ++++++++++++++++++-
+ 4 files changed, 50 insertions(+), 1 deletion(-)
+
+diff --git a/src/main/java/net/minecraft/server/EntityItem.java b/src/main/java/net/minecraft/server/EntityItem.java
+index 45f2826beab2fa1ebc786f31fd45b4a56ccde567..7330621fbc500575e1556384371663baf313834f 100644
+--- a/src/main/java/net/minecraft/server/EntityItem.java
++++ b/src/main/java/net/minecraft/server/EntityItem.java
+@@ -141,10 +141,24 @@ public class EntityItem extends Entity {
+                 // CraftBukkit end
+                 this.die();
+             }
++            markHopperCarts(); // EMC
+ 
+         }
+     }
+ 
++    // EMC start
++    private void markHopperCarts() {
++        if (!this.dead && this.onGround && this.age < 20 * 60 && this.age % 20 == 0) {
++            AxisAlignedBB aabb = this.getBoundingBox().grow(32, 4, 32);
++            for (Entity entity : this.world.getEntities(this, aabb)) {
++                if (entity instanceof EntityMinecartHopper) {
++                    ((EntityMinecartHopper) entity).pickupImmunity = MinecraftServer.currentTick + 200;
++                }
++            }
++        }
++    }
++    // EMC end
++
+     // Spigot start - copied from above
+     @Override
+     public void inactiveTick() {
+@@ -165,6 +179,7 @@ public class EntityItem extends Entity {
+             // CraftBukkit end
+             this.die();
+         }
++        markHopperCarts(); // EMC
+     }
+     // Spigot end
+ 
+diff --git a/src/main/java/net/minecraft/server/EntityMinecartHopper.java b/src/main/java/net/minecraft/server/EntityMinecartHopper.java
+index 4130fd8cd980cbb0b0ace6feb8d20ffced0cd360..be10c4c8fd89de73e50af5cca51948d99f133e29 100644
+--- a/src/main/java/net/minecraft/server/EntityMinecartHopper.java
++++ b/src/main/java/net/minecraft/server/EntityMinecartHopper.java
+@@ -7,6 +7,7 @@ public class EntityMinecartHopper extends EntityMinecartContainer implements IHo
+     private boolean d = true;
+     private int e = -1;
+     private final BlockPosition f;
++    public int pickupImmunity = 0; // EMC
+ 
+     public EntityMinecartHopper(EntityTypes<? extends EntityMinecartHopper> entitytypes, World world) {
+         super(entitytypes, world);
+@@ -148,4 +149,18 @@ public class EntityMinecartHopper extends EntityMinecartContainer implements IHo
+     public Container a(int i, PlayerInventory playerinventory) {
+         return new ContainerHopper(i, playerinventory, this);
+     }
++
++    // EMC start - fix compile
++    @Override
++    public org.bukkit.Location getLocation() {
++        //noinspection RedundantCast
++        return new org.bukkit.Location(getWorld().getWorld(), ((IHopper) this).getX(),((IHopper) this).getY(),((IHopper) this).getZ());
++    }
++
++    private long tickAttempts = 0;
++    @Override
++    public long getAndIncrementAttemptCounter() {
++        return tickAttempts++;
++    }
++    // EMC stop
+ }
+diff --git a/src/main/java/net/minecraft/server/IHopper.java b/src/main/java/net/minecraft/server/IHopper.java
+index 54552d181912133577cd2c16c0d54e47d90f59d3..84dcf4a0c5020f54f233e514a101e608d70286d5 100644
+--- a/src/main/java/net/minecraft/server/IHopper.java
++++ b/src/main/java/net/minecraft/server/IHopper.java
+@@ -15,6 +15,7 @@ public interface IHopper extends IInventory {
+     //@Nullable // Paper - it's annoying
+     World getWorld();
+     default BlockPosition getBlockPosition() { return new BlockPosition(getX(), getY(), getZ()); } // Paper
++    long getAndIncrementAttemptCounter(); // EMC
+ 
+     double x(); default double getX() { return this.x(); } // Paper - OBFHELPER
+ 
+diff --git a/src/main/java/net/minecraft/server/TileEntityHopper.java b/src/main/java/net/minecraft/server/TileEntityHopper.java
+index d0ef859d63168baa140297fc928f23cd9a5222d4..dc1b8defc6f15fd4e276d0ff0b97b054ac56ce08 100644
+--- a/src/main/java/net/minecraft/server/TileEntityHopper.java
++++ b/src/main/java/net/minecraft/server/TileEntityHopper.java
+@@ -91,6 +91,23 @@ public class TileEntityHopper extends TileEntityLootable implements IHopper, ITi
+         return ContainerUtil.a(this.f(), i, j);
+     }
+ 
++    // EMC start
++    private long tickAttempts = 0;
++    @Override
++    public long getAndIncrementAttemptCounter() {
++        return tickAttempts++;
++    }
++
++    private static boolean shouldSuckin(IHopper hopper) {
++        if (hopper instanceof EntityMinecartHopper && ((EntityMinecartHopper) hopper).pickupImmunity > MinecraftServer.currentTick) {
++            return true;
++        }
++
++        final int hopperId = (int) hopper.getX() + (int) hopper.getY() + (int) hopper.getZ();
++        return (hopper.getAndIncrementAttemptCounter() + hopperId) % 20 == 0;
++    }
++    // EMC end
++
+     @Override
+     public void setItem(int i, ItemStack itemstack) {
+         this.d((EntityHuman) null);
+@@ -452,7 +469,7 @@ public class TileEntityHopper extends TileEntityLootable implements IHopper, ITi
+                 }
+             });
+             // Paper end
+-        } else {
++        } else if (shouldSuckin(ihopper)) { // EMC
+             Iterator iterator = c(ihopper).iterator();
+ 
+             EntityItem entityitem;
+@@ -467,6 +484,7 @@ public class TileEntityHopper extends TileEntityLootable implements IHopper, ITi
+ 
+             return true;
+         }
++        return false; // EMC
+     }
+ 
+     private static boolean a(IHopper ihopper, IInventory iinventory, int i, EnumDirection enumdirection) {

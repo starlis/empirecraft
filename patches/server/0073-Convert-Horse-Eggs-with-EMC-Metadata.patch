@@ -1,0 +1,74 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: chickeneer <emcchickeneer@gmail.com>
+Date: Sat, 25 Jan 2020 00:28:33 -0600
+Subject: [PATCH] Convert Horse Eggs with EMC Metadata
+
+We stored the Variant in the lore. This allows us to convert those
+horse eggs so that they have the appropriate icon color without
+spawning and re-eggifying it.
+---
+ .../server/DataConverterFlattenSpawnEgg.java  | 44 ++++++++++++++++++-
+ 1 file changed, 43 insertions(+), 1 deletion(-)
+
+diff --git a/src/main/java/net/minecraft/server/DataConverterFlattenSpawnEgg.java b/src/main/java/net/minecraft/server/DataConverterFlattenSpawnEgg.java
+index f83d01310ed97a742f0ad73dce54cb74dd25cb1b..54133c802615f18c579f0227c43c565919d3bcd4 100644
+--- a/src/main/java/net/minecraft/server/DataConverterFlattenSpawnEgg.java
++++ b/src/main/java/net/minecraft/server/DataConverterFlattenSpawnEgg.java
+@@ -4,6 +4,7 @@ import com.google.common.collect.Maps;
+ import com.mojang.datafixers.DSL;
+ import com.mojang.datafixers.DataFix;
+ import com.mojang.datafixers.DataFixUtils;
++import com.mojang.datafixers.Dynamic; // EMC
+ import com.mojang.datafixers.OpticFinder;
+ import com.mojang.datafixers.TypeRewriteRule;
+ import com.mojang.datafixers.Typed;
+@@ -84,7 +85,48 @@ public class DataConverterFlattenSpawnEgg extends DataFix {
+                 Optional<String> optional1 = typed2.getOptional(opticfinder1);
+ 
+                 if (optional1.isPresent()) {
+-                    return typed.set(opticfinder, Pair.of(DataConverterTypes.ITEM_NAME.typeName(), DataConverterFlattenSpawnEgg.a.getOrDefault(optional1.get(), "minecraft:pig_spawn_egg")));
++                    // EMC start
++                    String val = DataConverterFlattenSpawnEgg.a.getOrDefault(optional1.get(), "minecraft:pig_spawn_egg");
++                    if ("minecraft:horse_spawn_egg".equals(val)) {
++                        Dynamic<?> tagDynamic = typed1.get(DSL.remainderFinder());
++                        Optional<? extends Dynamic<?>> displayOptional = tagDynamic.get("display").get();
++                        if (displayOptional.isPresent()) {
++
++                            Dynamic<?> displayDynamic = displayOptional.get();
++                            Optional<? extends Dynamic<?>> loreOptional = displayDynamic.get("Lore").get();
++                            if (loreOptional.isPresent()) {
++                                Dynamic<?> loreDynamic = loreOptional.get();
++                                java.util.List<Optional<String>> lore = loreDynamic.asList(Dynamic::asString);
++
++                                if (lore.size() >= 32) {
++                                    for (int i = 31; i + 1 < lore.size(); i += 2) {
++                                        String string = lore.get(i).orElse(null);
++                                        if ("var".equalsIgnoreCase(string)) {
++                                            String variant = lore.get(i + 1).orElse(null);
++                                            if (variant != null) {
++                                                switch (variant) {
++                                                    case "DONKEY":
++                                                        val = "minecraft:donkey_spawn_egg";
++                                                        break;
++                                                    case "MULE":
++                                                        val = "minecraft:mule_spawn_egg";
++                                                        break;
++                                                    case "UNDEAD_HORSE":
++                                                        val = "minecraft:zombie_horse_spawn_egg";
++                                                        break;
++                                                    case "SKELETON_HORSE":
++                                                        val = "minecraft:skeleton_horse_spawn_egg";
++                                                        break;
++                                                }
++                                            }
++                                        }
++                                    }
++                                }
++                            }
++                        }
++                    }
++                    return typed.set(opticfinder, Pair.of(DataConverterTypes.ITEM_NAME.typeName(), val));
++                    // EMC end
+                 }
+             }
+ 

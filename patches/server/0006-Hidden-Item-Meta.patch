@@ -14,9 +14,9 @@ Also adds a &&::SHINY tag to send a fake enchantment aura if it does not exists.
 Must be set before META
 ---
  .../empireminecraft/api/HiddenItemMeta.java   | 95 +++++++++++++++++++
- .../java/net/minecraft/server/ItemStack.java  | 20 +++-
+ .../java/net/minecraft/server/ItemStack.java  | 22 ++++-
  .../server/PacketDataSerializer.java          |  2 +
- 3 files changed, 115 insertions(+), 2 deletions(-)
+ 3 files changed, 117 insertions(+), 2 deletions(-)
  create mode 100644 src/main/java/com/empireminecraft/api/HiddenItemMeta.java
 
 diff --git a/src/main/java/com/empireminecraft/api/HiddenItemMeta.java b/src/main/java/com/empireminecraft/api/HiddenItemMeta.java
@@ -121,24 +121,24 @@ index 0000000000000000000000000000000000000000..85d0824a0692dcafab25990214881f13
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/ItemStack.java b/src/main/java/net/minecraft/server/ItemStack.java
-index ea60880c6f15b1a39579896d78cf641563621aa4..e31a28a58bd1e45a0284a1f48e83b1dc60bbfbf7 100644
+index 00725529793d6c2fe26ecacf900355b40e31dad8..7790888e109f8968a257ccb46983c223c9c9438f 100644
 --- a/src/main/java/net/minecraft/server/ItemStack.java
 +++ b/src/main/java/net/minecraft/server/ItemStack.java
-@@ -54,7 +54,7 @@ public final class ItemStack {
-     // Paper end
+@@ -60,7 +60,7 @@ public final class ItemStack {
+     private int g;
      @Deprecated
      private Item item;
 -    NBTTagCompound tag; // Paper -> package private
 +    public NBTTagCompound tag; // Paper -> package private // EMC
-     private boolean h;
-     private EntityItemFrame i;
-     private ShapeDetectorBlock j;
-@@ -824,7 +824,23 @@ public final class ItemStack {
+     private boolean j;
+     private Entity k;
+     private ShapeDetectorBlock l;
+@@ -843,8 +843,26 @@ public final class ItemStack {
+         IChatMutableComponent ichatmutablecomponent1 = ChatComponentUtils.a((IChatBaseComponent) ichatmutablecomponent);
  
-         if (!this.h) {
-             NBTTagCompound nbttagcompound = this.save(new NBTTagCompound());
--
+         if (!this.j) {
 +            // EMC start
++            NBTTagCompound nbttagcompound = this.save(new NBTTagCompound());
 +            if (nbttagcompound.hasKey("tag")) {
 +                NBTTagCompound tag = com.empireminecraft.api.HiddenItemMeta.filterItemLore(nbttagcompound.getCompound("tag"), false);
 +                NBTTagCompound display = tag.getCompound("display");
@@ -155,14 +155,17 @@ index ea60880c6f15b1a39579896d78cf641563621aa4..e31a28a58bd1e45a0284a1f48e83b1dc
 +                nbttagcompound.set("tag", tag);
 +            }
 +            // EMC end
-             ichatbasecomponent1.a(this.v().e).a((chatmodifier) -> {
-                 chatmodifier.setChatHoverable(new ChatHoverable(ChatHoverable.EnumHoverAction.SHOW_ITEM, new ChatComponentText(nbttagcompound.toString())));
+             ichatmutablecomponent1.a(this.v().e).format((chatmodifier) -> {
+-                return chatmodifier.setChatHoverable(new ChatHoverable(ChatHoverable.EnumHoverAction.SHOW_ITEM, new ChatHoverable.c(this)));
++                return chatmodifier.setChatHoverable(new ChatHoverable(ChatHoverable.EnumHoverAction.SHOW_ITEM, new ChatHoverable.c(this.getItem(), this.getCount(), tag))); // EMC - use different constructor
              });
+         }
+ 
 diff --git a/src/main/java/net/minecraft/server/PacketDataSerializer.java b/src/main/java/net/minecraft/server/PacketDataSerializer.java
-index c9a2d42d4fed56db4a1177b0d52292fe591a2540..1f072224bb870bf9f278eafa841f0ade75e7b63e 100644
+index 6d3db25dd9bf33b08cb6945d8db3c32420efb7e3..2cdc4f57f7c101e1ee6a80ea2d232844d21183a2 100644
 --- a/src/main/java/net/minecraft/server/PacketDataSerializer.java
 +++ b/src/main/java/net/minecraft/server/PacketDataSerializer.java
-@@ -256,6 +256,7 @@ public class PacketDataSerializer extends ByteBuf {
+@@ -280,6 +280,7 @@ public class PacketDataSerializer extends ByteBuf {
                  // Spigot end
                  nbttagcompound = itemstack.getTag();
                  // Paper start
@@ -170,7 +173,7 @@ index c9a2d42d4fed56db4a1177b0d52292fe591a2540..1f072224bb870bf9f278eafa841f0ade
                  if (nbttagcompound != null && nbttagcompound.hasKeyOfType("SkullOwner", 10)) {
                      NBTTagCompound owner = nbttagcompound.getCompound("SkullOwner");
                      if (owner.hasKey("Id")) {
-@@ -284,6 +285,7 @@ public class PacketDataSerializer extends ByteBuf {
+@@ -308,6 +309,7 @@ public class PacketDataSerializer extends ByteBuf {
              // CraftBukkit start
              if (itemstack.getTag() != null) {
                  // Paper start - Fix skulls of same owner - restore orig ID since we changed it on send to client

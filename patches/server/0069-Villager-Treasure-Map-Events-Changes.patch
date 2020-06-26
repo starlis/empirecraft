@@ -1,0 +1,164 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Tue, 13 Dec 2016 00:40:10 -0500
+Subject: [PATCH] Villager Treasure Map Events / Changes
+
+---
+ .../empireminecraft/api/CraftEAPI_Misc.java   | 35 +++++++++++++++++++
+ .../net/minecraft/server/EntityVillager.java  |  1 -
+ .../java/net/minecraft/server/ItemStack.java  |  1 +
+ .../minecraft/server/StructureGenerator.java  |  1 +
+ .../net/minecraft/server/VillagerTrades.java  | 23 ++++++------
+ src/main/java/net/minecraft/server/World.java | 11 ++++++
+ 6 files changed, 59 insertions(+), 13 deletions(-)
+
+diff --git a/src/main/java/com/empireminecraft/api/CraftEAPI_Misc.java b/src/main/java/com/empireminecraft/api/CraftEAPI_Misc.java
+index fa8cbd5a38a3969ce9c8e0fc2cd36566ea252a2c..c31cba8be495e6e039012f0fd9f4f8ee86daaef8 100644
+--- a/src/main/java/com/empireminecraft/api/CraftEAPI_Misc.java
++++ b/src/main/java/com/empireminecraft/api/CraftEAPI_Misc.java
+@@ -23,5 +23,40 @@
+ 
+ package com.empireminecraft.api;
+ 
++import net.minecraft.server.BlockPosition;
++import net.minecraft.server.ItemStack;
++import net.minecraft.server.ItemWorldMap;
++import net.minecraft.server.MCUtil;
++import net.minecraft.server.MapIcon.Type;
++import net.minecraft.server.World;
++import net.minecraft.server.WorldMap;
++import org.bukkit.Location;
++import org.bukkit.craftbukkit.inventory.CraftItemStack;
++
++import javax.annotation.Nonnull;
++
+ public class CraftEAPI_Misc implements EAPI_Misc {
++
++    @Override
++    public Location findNearestStructure(@Nonnull String structure, @Nonnull Location center, int radius) {
++        final World world = MCUtil.getNMSWorld(center.getWorld());
++        final BlockPosition blockposition = world.findNearestStructure(structure, MCUtil.toBlockPosition(center), radius, true);
++        return blockposition != null ? MCUtil.toLocation(world, blockposition) : null;
++    }
++
++    @Override
++    public org.bukkit.inventory.ItemStack createTreasureMap(@Nonnull String mapType, int iconType, @Nonnull Location loc) {
++        Type[] values = Type.values();
++        if (iconType >= values.length) {
++            throw new IllegalArgumentException("Invalid Icon Type");
++        }
++        final World world = MCUtil.getNMSWorld(loc.getWorld());
++        final BlockPosition pos = MCUtil.toBlockPosition(loc);
++        ItemStack itemstack = ItemWorldMap.createFilledMapView(world, pos.getX(), pos.getZ(), (byte) 2, true, true);
++        ItemWorldMap.applySepiaFilter((net.minecraft.server.WorldServer) world, itemstack);
++
++        WorldMap.decorateMap(itemstack, pos, "+", values[iconType]);
++        itemstack.setLocaleName("filled_map." + mapType);
++        return CraftItemStack.asCraftMirror(itemstack);
++    }
+ }
+diff --git a/src/main/java/net/minecraft/server/EntityVillager.java b/src/main/java/net/minecraft/server/EntityVillager.java
+index bf019043a9338aca8d91da809f1d5520531386e7..4f11dacc91017b02ab2b98dd51937078ebece8ad 100644
+--- a/src/main/java/net/minecraft/server/EntityVillager.java
++++ b/src/main/java/net/minecraft/server/EntityVillager.java
+@@ -406,7 +406,6 @@ public class EntityVillager extends EntityVillagerAbstract implements Reputation
+             MobEffect mobeffect = entityhuman.getEffect(MobEffects.HERO_OF_THE_VILLAGE);
+             int j = mobeffect.getAmplifier();
+             Iterator iterator1 = this.getOffers().iterator();
+-
+             while (iterator1.hasNext()) {
+                 MerchantRecipe merchantrecipe1 = (MerchantRecipe) iterator1.next();
+                 double d0 = 0.3D + 0.0625D * (double) j;
+diff --git a/src/main/java/net/minecraft/server/ItemStack.java b/src/main/java/net/minecraft/server/ItemStack.java
+index 01f6d00ce7cf4d99643d70ba5be31d8b223c5bb8..5c6721516d25e39b2f130eeb35e3f5b69327d21b 100644
+--- a/src/main/java/net/minecraft/server/ItemStack.java
++++ b/src/main/java/net/minecraft/server/ItemStack.java
+@@ -679,6 +679,7 @@ public final class ItemStack {
+         return this.getItem().h(this);
+     }
+ 
++    public ItemStack setLocaleName(String s) { return a(new ChatMessage("filled_map." + s.toLowerCase(Locale.ROOT))); } // EMC - OBF HELPER
+     public ItemStack a(@Nullable IChatBaseComponent ichatbasecomponent) {
+         NBTTagCompound nbttagcompound = this.a("display");
+ 
+diff --git a/src/main/java/net/minecraft/server/StructureGenerator.java b/src/main/java/net/minecraft/server/StructureGenerator.java
+index 6eb81504146af614a806add6e5effe0c2b111c8a..f84ae649749f648c284b8ef619de9788665fe2b7 100644
+--- a/src/main/java/net/minecraft/server/StructureGenerator.java
++++ b/src/main/java/net/minecraft/server/StructureGenerator.java
+@@ -223,6 +223,7 @@ public abstract class StructureGenerator<C extends WorldGenFeatureConfiguration>
+ 
+     public abstract StructureGenerator.a<C> a();
+ 
++    public String getFeatureName() { return this.i(); } // EMC - OBFHELPER
+     public String i() {
+         return (String) StructureGenerator.a.inverse().get(this);
+     }
+diff --git a/src/main/java/net/minecraft/server/VillagerTrades.java b/src/main/java/net/minecraft/server/VillagerTrades.java
+index d0c2ec4050458e26d1bd85cc09b1a3fdca8488c6..d1b9e5808a5cceb4d5b50c2008b1fce1471f6031 100644
+--- a/src/main/java/net/minecraft/server/VillagerTrades.java
++++ b/src/main/java/net/minecraft/server/VillagerTrades.java
+@@ -71,16 +71,16 @@ public class VillagerTrades {
+     static class k implements VillagerTrades.IMerchantRecipeOption {
+ 
+         private final int a;
+-        private final StructureGenerator<?> b;
+-        private final MapIcon.Type c;
++        private final StructureGenerator<?> b; StructureGenerator getDestination() { return b; } // EMC - OBFHELPER
++        private final MapIcon.Type c; MapIcon.Type getDestinationType() { return c; } // EMC - OBFHELPER
+         private final int d;
+         private final int e;
+ 
+         public k(int i, StructureGenerator<?> structuregenerator, MapIcon.Type mapicon_type, int j, int k) {
+-            this.a = i;
++            this.a = Math.min(64 , 35 + i); // EMC - boost cost due to modified behavior - each map is unique, when its not in vanilla
+             this.b = structuregenerator;
+             this.c = mapicon_type;
+-            this.d = j;
++            this.d = 2; // EMC - max 2 purchase befre lock
+             this.e = k;
+         }
+ 
+@@ -92,14 +92,13 @@ public class VillagerTrades {
+             } else {
+                 WorldServer worldserver = (WorldServer) entity.world;
+                 if (!worldserver.paperConfig.enableTreasureMaps) return null; // Paper
+-                BlockPosition blockposition = worldserver.a(this.b, entity.getChunkCoordinates(), 100, !worldserver.paperConfig.treasureMapsAlreadyDiscovered); // Paper
+-
+-                if (blockposition != null) {
+-                    ItemStack itemstack = ItemWorldMap.createFilledMapView(worldserver, blockposition.getX(), blockposition.getZ(), (byte) 2, true, true);
+-
+-                    ItemWorldMap.applySepiaFilter(worldserver, itemstack);
+-                    WorldMap.decorateMap(itemstack, blockposition, "+", this.c);
+-                    itemstack.a((IChatBaseComponent) (new ChatMessage("filled_map." + this.b.i().toLowerCase(Locale.ROOT))));
++                // EMC start - refactor treasure maps to be pending - ABSOLUTELY DEPENDS ON PLUGIN CODE!!!!!!!!!!!
++                //BlockPosition blockposition = worldserver.a(this.b, entity.getChunkCoordinates(), 100, !worldserver.paperConfig.treasureMapsAlreadyDiscovered); // Paper
++                com.empireminecraft.customevents.CreatePendingTreasureMapEvent event = new com.empireminecraft.customevents.CreatePendingTreasureMapEvent(this.getDestination().getFeatureName(), getDestinationType().ordinal());
++                event.callEvent();
++                if (event.getItem() != null) {
++                    ItemStack itemstack = org.bukkit.craftbukkit.inventory.CraftItemStack.asNMSCopy(event.getItem());
++                    // EMC end
+                     return new MerchantRecipe(new ItemStack(Items.EMERALD, this.a), new ItemStack(Items.COMPASS), itemstack, this.d, this.e, 0.2F);
+                 } else {
+                     return null;
+diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
+index a9cb225ef144fb1be2707054c1116f57d55732c9..4d149b27e9720956f2632dcaffe0871ce643f8dc 100644
+--- a/src/main/java/net/minecraft/server/World.java
++++ b/src/main/java/net/minecraft/server/World.java
+@@ -1474,6 +1474,17 @@ public abstract class World implements GeneratorAccess, AutoCloseable {
+         throw new UnsupportedOperationException("Can't send packets to server unless you're on the client.");
+     }
+ 
++    // EMC start - OBF HELPER for WorldServer method
++    @Nullable
++    public BlockPosition findNearestStructure(String type, BlockPosition pos, int radius, boolean flag) {
++        if (this instanceof WorldServer) {
++            return ((WorldServer) this).a(type, pos, radius, flag);
++        } else {
++            return null;
++        }
++    }
++    // EMC end
++
+     @Override
+     public DimensionManager getDimensionManager() {
+         return this.x;
