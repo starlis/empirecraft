@@ -9,8 +9,9 @@ But did a lot of bug fixing and improving upon it, and designing into the Empire
  .../empireminecraft/api/CraftEmpireAPI.java   |   2 +
  .../api/FancifulChatAPIImpl.java              | 286 ++++++++++++++++++
  .../api/meta/CraftEAPI_Chat.java              |  40 +++
+ .../net/minecraft/server/ChatHoverable.java   |  28 +-
  .../java/net/minecraft/server/Entity.java     |   1 +
- 4 files changed, 329 insertions(+)
+ 5 files changed, 343 insertions(+), 14 deletions(-)
  create mode 100644 src/main/java/com/empireminecraft/api/FancifulChatAPIImpl.java
  create mode 100644 src/main/java/com/empireminecraft/api/meta/CraftEAPI_Chat.java
 
@@ -36,7 +37,7 @@ index f3c9419c8148e389f7d9f2e24a8664b1cb2bbfde..44ecf7fff0e23a14eb705e29b39884b7
  }
 diff --git a/src/main/java/com/empireminecraft/api/FancifulChatAPIImpl.java b/src/main/java/com/empireminecraft/api/FancifulChatAPIImpl.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..3d69f9161622228853f99426c9fbe207e19e0a44
+index 0000000000000000000000000000000000000000..3a1b4169889839f8581a95fe4118df879c51ce4e
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/api/FancifulChatAPIImpl.java
 @@ -0,0 +1,286 @@
@@ -272,7 +273,7 @@ index 0000000000000000000000000000000000000000..3d69f9161622228853f99426c9fbe207
 +                                if (root.hasKey("tag")) {
 +                                    hover = HiddenItemMeta.filterItemLore(root.getCompound("tag"), false);
 +                                }
-+                                //TODO: component.getChatModifier().setChatHoverable(new ChatHoverable(ChatHoverable.EnumHoverAction.SHOW_ITEM, new ChatHoverable.c(hoverItemData.getItem(), hoverItemData.getCount(), hover)));
++                                component.getChatModifier().setChatHoverable(new ChatHoverable(ChatHoverable.EnumHoverAction.SHOW_ITEM, new ChatHoverable.c(hoverItemData.getItem(), hoverItemData.getCount(), hover)));
 +                            }
 +                            break;
 +                        case "show_text":
@@ -372,8 +373,94 @@ index 0000000000000000000000000000000000000000..33b49b3d9a12ac6e75ac5f571a0c0c42
 +        FancifulChatAPIImpl.sendTitle(player, (FancifulChatAPIImpl) title, (FancifulChatAPIImpl) subtitle, fadeIn, stay, fadeOut);
 +    }
 +}
+diff --git a/src/main/java/net/minecraft/server/ChatHoverable.java b/src/main/java/net/minecraft/server/ChatHoverable.java
+index 5e366c413cd67e30b8e2f403793e99baf9706283..227148f44ae55ddad9c5161af4bda46392f2a049 100644
+--- a/src/main/java/net/minecraft/server/ChatHoverable.java
++++ b/src/main/java/net/minecraft/server/ChatHoverable.java
+@@ -17,21 +17,21 @@ import org.apache.logging.log4j.Logger;
+ public class ChatHoverable {
+ 
+     private static final Logger LOGGER = LogManager.getLogger();
+-    private final ChatHoverable.EnumHoverAction<?> b;
+-    private final Object c;
++    private final ChatHoverable.EnumHoverAction<?> action; // EMC - OBFHELPER - decompile fix
++    private final Object value; // EMC - OBFHELPER - decompile fix
+ 
+     public <T> ChatHoverable(ChatHoverable.EnumHoverAction<T> chathoverable_enumhoveraction, T t0) {
+-        this.b = chathoverable_enumhoveraction;
+-        this.c = t0;
++        this.action = chathoverable_enumhoveraction; // EMC - decompile fix
++        this.value = t0; // EMC - decompile fix
+     }
+ 
+     public ChatHoverable.EnumHoverAction<?> a() {
+-        return this.b;
++        return this.action; // EMC - decompile fix
+     }
+ 
+     @Nullable
+     public <T> T a(ChatHoverable.EnumHoverAction<T> chathoverable_enumhoveraction) {
+-        return this.b == chathoverable_enumhoveraction ? chathoverable_enumhoveraction.b(this.c) : null;
++        return this.action == chathoverable_enumhoveraction ? chathoverable_enumhoveraction.b(this.value) : null; // EMC - decompile fix
+     }
+ 
+     public boolean equals(Object object) {
+@@ -40,20 +40,20 @@ public class ChatHoverable {
+         } else if (object != null && this.getClass() == object.getClass()) {
+             ChatHoverable chathoverable = (ChatHoverable) object;
+ 
+-            return this.b == chathoverable.b && Objects.equals(this.c, chathoverable.c);
++            return this.action == chathoverable.action && Objects.equals(this.value, chathoverable.value); // EMC - decompile fix
+         } else {
+             return false;
+         }
+     }
+ 
+     public String toString() {
+-        return "HoverEvent{action=" + this.b + ", value='" + this.c + '\'' + '}';
++        return "HoverEvent{action=" + this.action + ", value='" + this.value + '\'' + '}'; // EMC - decompile fix
+     }
+ 
+     public int hashCode() {
+-        int i = this.b.hashCode();
++        int i = this.action.hashCode(); // EMC - decompile fix
+ 
+-        i = 31 * i + (this.c != null ? this.c.hashCode() : 0);
++        i = 31 * i + (this.value != null ? this.value.hashCode() : 0); // EMC - decompile fix
+         return i;
+     }
+ 
+@@ -85,8 +85,8 @@ public class ChatHoverable {
+     public JsonObject b() {
+         JsonObject jsonobject = new JsonObject();
+ 
+-        jsonobject.addProperty("action", this.b.b());
+-        jsonobject.add("contents", this.b.a(this.c));
++        jsonobject.addProperty("action", this.action.b()); // EMC - decompile fix
++        jsonobject.add("contents", this.action.a(this.value)); // EMC - decompile fix
+         return jsonobject;
+     }
+ 
+@@ -132,7 +132,7 @@ public class ChatHoverable {
+         }
+ 
+         private T b(Object object) {
+-            return object;
++            return (T) object; // EMC - decompile fix
+         }
+ 
+         @Nullable
+@@ -165,7 +165,7 @@ public class ChatHoverable {
+         @Nullable
+         private final NBTTagCompound c;
+ 
+-        c(Item item, int i, @Nullable NBTTagCompound nbttagcompound) {
++        public c(Item item, int i, @Nullable NBTTagCompound nbttagcompound) { // EMC - make public
+             this.a = item;
+             this.b = i;
+             this.c = nbttagcompound;
 diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
-index b2f49bdf06abc5ba6a1af2454fa6d2f60ae4266b..806ccc8726401d22014c0a9260525fbc69cb72b3 100644
+index 75eba5022f10a69ddfb2a607bedcca40176442bc..a872ab9590be087f5535a1aa79b79abd7009c2ab 100644
 --- a/src/main/java/net/minecraft/server/Entity.java
 +++ b/src/main/java/net/minecraft/server/Entity.java
 @@ -2907,6 +2907,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
