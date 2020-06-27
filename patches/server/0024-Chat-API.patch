@@ -7,9 +7,10 @@ Initial for Fanciful Credits to http://forums.bukkit.org/threads/lib-fanciful-pl
 But did a lot of bug fixing and improving upon it, and designing into the Empire API
 ---
  .../empireminecraft/api/CraftEmpireAPI.java   |   2 +
- .../api/FancifulChatAPIImpl.java              | 267 ++++++++++++++++++
+ .../api/FancifulChatAPIImpl.java              | 286 ++++++++++++++++++
  .../api/meta/CraftEAPI_Chat.java              |  40 +++
- 3 files changed, 309 insertions(+)
+ .../java/net/minecraft/server/Entity.java     |   1 +
+ 4 files changed, 329 insertions(+)
  create mode 100644 src/main/java/com/empireminecraft/api/FancifulChatAPIImpl.java
  create mode 100644 src/main/java/com/empireminecraft/api/meta/CraftEAPI_Chat.java
 
@@ -35,10 +36,10 @@ index f3c9419c8148e389f7d9f2e24a8664b1cb2bbfde..44ecf7fff0e23a14eb705e29b39884b7
  }
 diff --git a/src/main/java/com/empireminecraft/api/FancifulChatAPIImpl.java b/src/main/java/com/empireminecraft/api/FancifulChatAPIImpl.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..c32f70b0e6fe0e8e69e84e6546281319053a2c60
+index 0000000000000000000000000000000000000000..3d69f9161622228853f99426c9fbe207e19e0a44
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/api/FancifulChatAPIImpl.java
-@@ -0,0 +1,267 @@
+@@ -0,0 +1,286 @@
 +/*
 + * Copyright (c) 2016 Starlis LLC / Daniel Ennis (Aikar) - MIT License
 + *
@@ -64,6 +65,21 @@ index 0000000000000000000000000000000000000000..c32f70b0e6fe0e8e69e84e6546281319
 +
 +package com.empireminecraft.api;
 +
++import java.util.ArrayList;
++import java.util.List;
++
++import net.minecraft.server.*;
++
++import net.minecraft.server.PacketPlayOutTitle.EnumTitleAction;
++import org.bukkit.craftbukkit.entity.CraftPlayer;
++import org.bukkit.craftbukkit.inventory.CraftItemStack;
++import org.bukkit.craftbukkit.util.CraftChatMessage;
++import org.bukkit.entity.Entity;
++import org.bukkit.entity.Player;
++import org.bukkit.inventory.ItemStack;
++import org.json.JSONException;
++import org.json.JSONStringer;
++
 +/**
 + * Credits to original version @
 + * http://forums.bukkit.org/threads/lib-fanciful-pleasant-chat-message-formatting.195148/
@@ -72,31 +88,10 @@ index 0000000000000000000000000000000000000000..c32f70b0e6fe0e8e69e84e6546281319
 + * @author aikar
 + *
 + */
-+
-+import java.util.ArrayList;
-+import java.util.List;
-+
-+import com.empireminecraft.api.HiddenItemMeta;
-+import net.minecraft.server.*;
-+
-+import net.minecraft.server.PacketPlayOutTitle.EnumTitleAction;
-+import org.bukkit.craftbukkit.entity.CraftPlayer;
-+import org.bukkit.craftbukkit.inventory.CraftItemStack;
-+import org.bukkit.craftbukkit.util.CraftChatMessage;
-+import org.bukkit.entity.Player;
-+import org.bukkit.inventory.ItemStack;
-+import org.json.JSONException;
-+import org.json.JSONStringer;
-+
 +public class FancifulChatAPIImpl implements EAPI_Chat.FancifulChat {
-+    private final List<MessagePart> messageParts = new ArrayList<MessagePart>();
++    private final List<MessagePart> messageParts = new ArrayList<>();
 +    private ChatComponentText component;
 +    private boolean isDirty = true;
-+
-+    public FancifulChatAPIImpl file(final String path) {
-+        onClick("open_file", path);
-+        return this;
-+    }
 +
 +    public FancifulChatAPIImpl link(final String url) {
 +        onClick("open_url", url);
@@ -113,46 +108,37 @@ index 0000000000000000000000000000000000000000..c32f70b0e6fe0e8e69e84e6546281319
 +        return this;
 +    }
 +
-+    public FancifulChatAPIImpl achievementTooltip(final String name) {
-+        onHover("show_achievement", "achievement." + name);
++    public EAPI_Chat.FancifulChat page(String page) {
++        onClick("change_page", page);
 +        return this;
 +    }
 +
++    public EAPI_Chat.FancifulChat copy(String text) {
++        return null;
++    }
++
 +    public FancifulChatAPIImpl itemTooltip(final String itemJSON) {
-+        onHover("show_item", itemJSON);
++        //TODO: onHover("show_item", itemJSON);
 +        return this;
 +    }
 +
 +    public FancifulChatAPIImpl itemTooltip(final ItemStack itemStack) {
-+        NBTTagCompound root = CraftItemStack.asNMSCopy(itemStack).save(new NBTTagCompound());
-+        if (root.hasKey("tag")) {
-+            NBTTagCompound tag = HiddenItemMeta.filterItemLore(root.getCompound("tag"), false);
-+            NBTTagCompound display = tag.getCompound("display");
-+            if (display.hasKey("Lore")) {
-+                NBTTagList lore = display.getList("Lore", 8);
-+                NBTTagList newlore = new NBTTagList();
-+
-+                for (int i = 0; i < lore.size(); i++) {
-+                    String line = lore.getString(i);
-+                    String newline = (line.isEmpty() ? " " : line);
-+                    newlore.add(NBTTagString.a(newline));
-+                }
-+                display.set("Lore", newlore);
-+            }
-+
-+            root.set("tag", tag);
-+        }
-+        return itemTooltip(root.toString());
++        onHoverItem(itemStack);
++        return this;
 +    }
 +
 +    public FancifulChatAPIImpl tooltip(final String text) {
 +        final String[] lines = text.split("\\n");
 +        if (lines.length <= 1) {
-+            onHover("show_text", text);
++            onHoverText(text);
 +        } else {
 +            itemTooltip(makeMultilineTooltip(lines));
 +        }
 +        return this;
++    }
++
++    public EAPI_Chat.FancifulChat entityTooltip(Entity entity) {
++        return null;
 +    }
 +
 +    public FancifulChatAPIImpl then(final Object obj) {
@@ -162,7 +148,7 @@ index 0000000000000000000000000000000000000000..c32f70b0e6fe0e8e69e84e6546281319
 +    }
 +
 +    public void send(Player player){
-+        sendPacket(player, new PacketPlayOutChat(buildComponent()));
++        sendPacket(player, new PacketPlayOutChat(buildComponent(), net.minecraft.server.ChatMessageType.SYSTEM, SystemUtils.getNullUUID()));
 +    }
 +
 +    public static void sendTitle(Player player, FancifulChatAPIImpl title, FancifulChatAPIImpl subtitle, Integer fadeIn, Integer stay, Integer fadeOut) {
@@ -226,17 +212,27 @@ index 0000000000000000000000000000000000000000..c32f70b0e6fe0e8e69e84e6546281319
 +        isDirty = true;
 +    }
 +
-+    protected void onHover(final String name, final String data) {
++    protected void onHoverText(final String data) {
 +        final MessagePart latest = latest();
-+        latest.hoverActionName = name;
-+        latest.hoverActionData = data;
++        latest.hoverActionName = "show_text";
++        latest.hoverTextData = data;
 +        isDirty = true;
 +    }
++
++    protected void onHoverItem(ItemStack itemStack) {
++        final MessagePart latest = latest();
++        latest.hoverActionName = "show_item";
++        latest.hoverItemData = CraftItemStack.asNMSCopy(itemStack);
++        isDirty = true;
++    }
++
 +    static final class MessagePart {
 +
 +
 +        String clickActionName = null, clickActionData = null,
-+            hoverActionName = null, hoverActionData = null;
++            hoverActionName = null, hoverTextData = null;
++        net.minecraft.server.ItemStack hoverItemData = null;
++        net.minecraft.server.Entity hoverEntityData = null;
 +        final IChatBaseComponent[] components;
 +
 +        MessagePart(final String text) {
@@ -245,36 +241,60 @@ index 0000000000000000000000000000000000000000..c32f70b0e6fe0e8e69e84e6546281319
 +        public IChatBaseComponent[] getComponents() {
 +            for (IChatBaseComponent component : components) {
 +                if (clickActionName != null) {
-+                    if (clickActionName.equals("open_file")) {
-+
-+                        component.getChatModifier().setChatClickable(
-+
-+                            new ChatClickable(ChatClickable.EnumClickAction.OPEN_FILE, clickActionData));
-+                    } else if (clickActionName.equals("open_url")) {
-+                        component.getChatModifier().setChatClickable(
-+                            new ChatClickable(ChatClickable.EnumClickAction.OPEN_URL, clickActionData));
-+                    } else if (clickActionName.equals("suggest_command")) {
-+                        component.getChatModifier().setChatClickable(
-+                            new ChatClickable(ChatClickable.EnumClickAction.SUGGEST_COMMAND, clickActionData));
-+                    } else if (clickActionName.equals("run_command")) {
-+                        component.getChatModifier().setChatClickable(
-+                            new ChatClickable(ChatClickable.EnumClickAction.RUN_COMMAND, clickActionData));
++                    switch (clickActionName) {
++                        case "open_url":
++                            component.getChatModifier().setChatClickable(
++                                    new ChatClickable(ChatClickable.EnumClickAction.OPEN_URL, clickActionData));
++                            break;
++                        case "suggest_command":
++                            component.getChatModifier().setChatClickable(
++                                    new ChatClickable(ChatClickable.EnumClickAction.SUGGEST_COMMAND, clickActionData));
++                            break;
++                        case "run_command":
++                            component.getChatModifier().setChatClickable(
++                                    new ChatClickable(ChatClickable.EnumClickAction.RUN_COMMAND, clickActionData));
++                            break;
++                        case "change_page":
++                            component.getChatModifier().setChatClickable(
++                                    new ChatClickable(ChatClickable.EnumClickAction.CHANGE_PAGE, clickActionData));
++                            break;
++                        case "copy_to_clipboard":
++                            component.getChatModifier().setChatClickable(
++                                    new ChatClickable(ChatClickable.EnumClickAction.COPY_TO_CLIPBOARD, clickActionData));
 +                    }
 +                }
 +                if (hoverActionName != null) {
-+                    final ChatComponentText hover = new ChatComponentText(hoverActionData);
-+                    if (hoverActionName.equals("show_item")) {
-+                        component.getChatModifier().setChatHoverable(
-+                            new ChatHoverable(ChatHoverable.EnumHoverAction.SHOW_ITEM, hover));
-+                    } else if (hoverActionName.equals("show_text")) {
-+                        component.getChatModifier().setChatHoverable(
-+                            new ChatHoverable(ChatHoverable.EnumHoverAction.SHOW_TEXT, hover));
++                    switch (hoverActionName) {
++                        case "show_item":
++                            if (hoverItemData != null) {
++                                NBTTagCompound root = hoverItemData.save(new NBTTagCompound());
++                                NBTTagCompound hover = null;
++                                if (root.hasKey("tag")) {
++                                    hover = HiddenItemMeta.filterItemLore(root.getCompound("tag"), false);
++                                }
++                                //TODO: component.getChatModifier().setChatHoverable(new ChatHoverable(ChatHoverable.EnumHoverAction.SHOW_ITEM, new ChatHoverable.c(hoverItemData.getItem(), hoverItemData.getCount(), hover)));
++                            }
++                            break;
++                        case "show_text":
++                            if (hoverTextData != null) {
++                                final ChatComponentText hover = new ChatComponentText(hoverTextData);
++                                component.getChatModifier().setChatHoverable(new ChatHoverable(ChatHoverable.EnumHoverAction.SHOW_TEXT, hover));
++                            }
++                            break;
++                        case "show_entity":
++                            if (hoverEntityData != null) {
++                                component.getChatModifier().setChatHoverable(hoverEntityData.createHoverEvent());
++                            }
++                            break;
++                        case "hover_json":
++                            //todo: ChatHoverable.a(JsonObject jsonobject)
 +                    }
 +                }
 +            }
 +
 +            return components;
 +        }
++        //TODO: ChatHoverable#b() (returns json)
 +/*
 +        JSONWriter writeJson(final JSONWriter json) throws JSONException {
 +            json.object().key("text").value(text);
@@ -352,3 +372,15 @@ index 0000000000000000000000000000000000000000..33b49b3d9a12ac6e75ac5f571a0c0c42
 +        FancifulChatAPIImpl.sendTitle(player, (FancifulChatAPIImpl) title, (FancifulChatAPIImpl) subtitle, fadeIn, stay, fadeOut);
 +    }
 +}
+diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
+index b2f49bdf06abc5ba6a1af2454fa6d2f60ae4266b..806ccc8726401d22014c0a9260525fbc69cb72b3 100644
+--- a/src/main/java/net/minecraft/server/Entity.java
++++ b/src/main/java/net/minecraft/server/Entity.java
+@@ -2907,6 +2907,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+         return this.getDirection();
+     }
+ 
++    public ChatHoverable createHoverEvent() { return this.ca(); } // EMC - OBFHELPER
+     protected ChatHoverable ca() {
+         return new ChatHoverable(ChatHoverable.EnumHoverAction.SHOW_ENTITY, new ChatHoverable.b(this.getEntityType(), this.getUniqueID(), this.getDisplayName()));
+     }
