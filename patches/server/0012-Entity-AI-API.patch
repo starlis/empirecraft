@@ -4,8 +4,8 @@ Date: Tue, 6 Dec 2016 22:22:14 -0500
 Subject: [PATCH] Entity AI API
 
 ---
- .../empireminecraft/api/CraftEAPI_Entity.java | 135 ++++++++
- .../com/empireminecraft/api/EntityAIApi.java  | 297 ++++++++++++++++++
+ .../empireminecraft/api/CraftEAPI_Entity.java | 130 ++++++++
+ .../com/empireminecraft/api/EntityAIApi.java  | 293 ++++++++++++++++++
  .../java/net/minecraft/server/Entity.java     |  20 +-
  .../net/minecraft/server/EntityAnimal.java    |   2 +-
  .../net/minecraft/server/EntityBlaze.java     |  27 +-
@@ -13,8 +13,9 @@ Subject: [PATCH] Entity AI API
  .../minecraft/server/EntityEnderSignal.java   |  24 +-
  .../net/minecraft/server/EntityGhast.java     |   3 +-
  .../minecraft/server/EntityGoalAccessor.java  |  20 ++
+ .../minecraft/server/EntityInsentient.java    |   1 +
  .../java/net/minecraft/server/EntityItem.java |   3 +-
- .../net/minecraft/server/EntityLiving.java    |  12 +-
+ .../net/minecraft/server/EntityLiving.java    |  28 +-
  .../net/minecraft/server/EntitySpider.java    |   4 +
  .../java/net/minecraft/server/EntityWolf.java |   7 +
  .../server/PathfinderGoalArrowAttack.java     |   8 +-
@@ -22,17 +23,18 @@ Subject: [PATCH] Entity AI API
  .../server/PathfinderGoalFleeSun.java         |   4 +-
  .../minecraft/server/PathfinderGoalPanic.java |   3 +-
  .../server/PathfinderGoalSelector.java        |   3 +-
+ .../server/PathfinderGoalTarget.java          |   2 +-
  .../net/minecraft/server/WorldServer.java     |   3 +-
  .../bukkit/craftbukkit/entity/CraftBlaze.java |  18 ++
  .../craftbukkit/entity/CraftEnderSignal.java  |   3 +-
  .../bukkit/craftbukkit/entity/CraftGhast.java |   9 +
  .../java/org/spigotmc/ActivationRange.java    |   1 +
- 23 files changed, 584 insertions(+), 27 deletions(-)
+ 25 files changed, 591 insertions(+), 30 deletions(-)
  create mode 100644 src/main/java/com/empireminecraft/api/EntityAIApi.java
  create mode 100644 src/main/java/net/minecraft/server/EntityGoalAccessor.java
 
 diff --git a/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java b/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
-index bb6e5296a801f7053db72d9eb4d7b9becdb751f4..c4efea6bed19874924985a9051c9d61b3789ea75 100644
+index bb6e5296a801f7053db72d9eb4d7b9becdb751f4..c88186f68dbdb6bd8204e7b403238251e5714b1c 100644
 --- a/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
 +++ b/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
 @@ -23,9 +23,21 @@
@@ -57,7 +59,7 @@ index bb6e5296a801f7053db72d9eb4d7b9becdb751f4..c4efea6bed19874924985a9051c9d61b
  
  public class CraftEAPI_Entity implements EAPI_Entity {
  
-@@ -39,4 +51,127 @@ public class CraftEAPI_Entity implements EAPI_Entity {
+@@ -39,4 +51,122 @@ public class CraftEAPI_Entity implements EAPI_Entity {
      public void cancelTasks(Entity entity) {
          ((CraftEntity) entity).getHandle().entityTasks.clear();
      }
@@ -157,11 +159,6 @@ index bb6e5296a801f7053db72d9eb4d7b9becdb751f4..c4efea6bed19874924985a9051c9d61b
 +    }
 +
 +    @Override
-+    public void setEntityMaxPathfindingRange(Mob entity, float range) {
-+        EntityAIApi.setEntityMaxPathfindingRange(entity, range);
-+    }
-+
-+    @Override
 +    public void respawnEntity(Entity entity) {
 +        EntityAIApi.respawnEntity(entity);
 +    }
@@ -187,10 +184,10 @@ index bb6e5296a801f7053db72d9eb4d7b9becdb751f4..c4efea6bed19874924985a9051c9d61b
  }
 diff --git a/src/main/java/com/empireminecraft/api/EntityAIApi.java b/src/main/java/com/empireminecraft/api/EntityAIApi.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..97fbcaa7645cfb63649726136498a40be40617d8
+index 0000000000000000000000000000000000000000..2661020933d78de68df75b10219a422df398dd5c
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/api/EntityAIApi.java
-@@ -0,0 +1,297 @@
+@@ -0,0 +1,293 @@
 +package com.empireminecraft.api;
 +
 +import com.destroystokyo.paper.entity.RangedEntity;
@@ -365,9 +362,9 @@ index 0000000000000000000000000000000000000000..97fbcaa7645cfb63649726136498a40b
 +        ((CraftEntity)entity).getHandle().setSize(width, height);
 +    }
 +
-+    public static void setTargetRange(Mob entity, float range) {
-+        //todo; fix this
-+        //API.attributes.setAttribute(entity, Attribute.TARGET_RANGE, range);
++    public static void setTargetRange(Mob mob, float range) {
++        EntityInsentient entity = (EntityInsentient) ((CraftEntity) mob).getHandle();
++        entity.targetRange = range;
 +    }
 +
 +    public static void setRangedAttackDistance(RangedEntity monster, float range) {
@@ -402,10 +399,6 @@ index 0000000000000000000000000000000000000000..97fbcaa7645cfb63649726136498a40b
 +                ((PathfinderGoalBowShoot) goal).setSpeed(speed);
 +            }
 +        }));
-+    }
-+    public static void setEntityMaxPathfindingRange(Mob entity, float range) {
-+        //todo; fix this
-+        //API.attributes.setAttribute(entity, Attribute.FOLLOW_RANGE, range);
 +    }
 +
 +    public static void respawnEntity(org.bukkit.entity.Entity entity) {
@@ -813,6 +806,18 @@ index 0000000000000000000000000000000000000000..d0ee7f3042a413027964a630f944fe42
 +        return false;
 +    }
 +}
+diff --git a/src/main/java/net/minecraft/server/EntityInsentient.java b/src/main/java/net/minecraft/server/EntityInsentient.java
+index 605bbf0174e60f795e445193a0284739ea452946..83fa0d09483e6c6086efa496f5a4700baf824c63 100644
+--- a/src/main/java/net/minecraft/server/EntityInsentient.java
++++ b/src/main/java/net/minecraft/server/EntityInsentient.java
+@@ -53,6 +53,7 @@ public abstract class EntityInsentient extends EntityLiving {
+     private NBTTagCompound bF;
+     private BlockPosition bG;
+     private float bH;
++    public double targetRange = 16; // EMC
+ 
+     public boolean aware = true; // CraftBukkit
+ 
 diff --git a/src/main/java/net/minecraft/server/EntityItem.java b/src/main/java/net/minecraft/server/EntityItem.java
 index a7860cb4ded3e9f949e6e1a7a2afacd738da756e..25b88459c15420854d46a58dc76ecf69a95c4c4e 100644
 --- a/src/main/java/net/minecraft/server/EntityItem.java
@@ -835,9 +840,18 @@ index a7860cb4ded3e9f949e6e1a7a2afacd738da756e..25b88459c15420854d46a58dc76ecf69
                  if (org.bukkit.craftbukkit.event.CraftEventFactory.callItemDespawnEvent(this).isCancelled()) {
                      this.age = 0;
 diff --git a/src/main/java/net/minecraft/server/EntityLiving.java b/src/main/java/net/minecraft/server/EntityLiving.java
-index 316d1acae3ec3c9f16141ef5304ae394fa8ceda1..87d060969287945fd3d8b7889509237017a25bbb 100644
+index 316d1acae3ec3c9f16141ef5304ae394fa8ceda1..eeb763a1957ca5f33d49577e571c3c6daa77afbd 100644
 --- a/src/main/java/net/minecraft/server/EntityLiving.java
 +++ b/src/main/java/net/minecraft/server/EntityLiving.java
+@@ -212,7 +212,7 @@ public abstract class EntityLiving extends Entity {
+     }
+ 
+     public static AttributeProvider.Builder cK() {
+-        return AttributeProvider.a().a(GenericAttributes.MAX_HEALTH).a(GenericAttributes.KNOCKBACK_RESISTANCE).a(GenericAttributes.MOVEMENT_SPEED).a(GenericAttributes.ARMOR).a(GenericAttributes.ARMOR_TOUGHNESS);
++        return AttributeProvider.a().a(GenericAttributes.MAX_HEALTH).a(GenericAttributes.KNOCKBACK_RESISTANCE).a(GenericAttributes.MOVEMENT_SPEED).a(GenericAttributes.ARMOR).a(GenericAttributes.ARMOR_TOUGHNESS).a(GenericAttributes.ATTACK_DAMAGE, 2.0D); // EMC - add Attack Damage
+     }
+ 
+     @Override
 @@ -534,6 +534,7 @@ public abstract class EntityLiving extends Entity {
          return this.bA;
      }
@@ -846,7 +860,28 @@ index 316d1acae3ec3c9f16141ef5304ae394fa8ceda1..87d060969287945fd3d8b78895092370
      public void z(Entity entity) {
          if (entity instanceof EntityLiving) {
              this.bz = (EntityLiving) entity;
-@@ -2412,7 +2413,16 @@ public abstract class EntityLiving extends Entity {
+@@ -613,7 +614,19 @@ public abstract class EntityLiving extends Entity {
+         this.setAbsorptionHearts(absorptionAmount);
+         // Paper end
+         if (nbttagcompound.hasKeyOfType("Attributes", 9) && this.world != null && !this.world.isClientSide) {
+-            this.getAttributeMap().a(nbttagcompound.getList("Attributes", 10));
++            // EMC start
++            NBTTagList nbttaglist = nbttagcompound.getList("Attributes", 10);
++            Set<Integer> removeIndices = new HashSet<>();
++            for (int i = 0; i < nbttaglist.size(); ++i) {
++                if ("generic.targetRange".equals(nbttaglist.getCompound(i).getString("Name"))) {
++                    removeIndices.add(i);
++                }
++            }
++            for (int index : removeIndices) {
++                nbttaglist.remove(index);
++            }
++            this.getAttributeMap().a(nbttaglist);
++            // EMC end
+         }
+ 
+         if (nbttagcompound.hasKeyOfType("ActiveEffects", 9)) {
+@@ -2412,7 +2425,16 @@ public abstract class EntityLiving extends Entity {
  
      public boolean attackEntity(Entity entity) {
          this.z(entity);
@@ -1009,6 +1044,19 @@ index d3f0327a2a7cdedf3fe8d10df981a9f1cb378d26..80253468fda1c74fa2d691d0ab7625ca
      private final Set<PathfinderGoalWrapped> d = Sets.newLinkedHashSet(); public final Set<PathfinderGoalWrapped> getTasks() { return d; }// Paper - OBFHELPER // Paper - private -> public
      private final Supplier<GameProfilerFiller> e;
      private final EnumSet<PathfinderGoal.Type> f = EnumSet.noneOf(PathfinderGoal.Type.class); // Paper unused, but dummy to prevent plugins from crashing as hard. Theyll need to support paper in a special case if this is super important, but really doesn't seem like it would be.
+diff --git a/src/main/java/net/minecraft/server/PathfinderGoalTarget.java b/src/main/java/net/minecraft/server/PathfinderGoalTarget.java
+index 29822c19496e3927eb9a061869872f4fee525254..43cfaf847b62113a4cf8e0185722f35408ccf79a 100644
+--- a/src/main/java/net/minecraft/server/PathfinderGoalTarget.java
++++ b/src/main/java/net/minecraft/server/PathfinderGoalTarget.java
+@@ -69,7 +69,7 @@ public abstract class PathfinderGoalTarget extends PathfinderGoal {
+     }
+ 
+     protected double k() {
+-        return this.e.b(GenericAttributes.FOLLOW_RANGE);
++        return e.targetRange; // EMC
+     }
+ 
+     @Override
 diff --git a/src/main/java/net/minecraft/server/WorldServer.java b/src/main/java/net/minecraft/server/WorldServer.java
 index 2f9d64015dea2c67ac5bb9243f73599d4cec4ce2..b3d87d15dada196792f536c52a3f3893e023d547 100644
 --- a/src/main/java/net/minecraft/server/WorldServer.java
