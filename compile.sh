@@ -12,7 +12,7 @@ cd "$basedir"
 git pull
 . scripts/init.sh
 git submodule sync
-git submodule update --init
+git submodule update --init --recursive
 (
 	cd Paper/
 	git submodule update --init

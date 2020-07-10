@@ -1,0 +1,79 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: chickeneer <emcchickeneer@gmail.com>
+Date: Sat, 6 Jun 2020 21:17:28 -0500
+Subject: [PATCH] Raid total waves API
+
+---
+ src/main/java/net/minecraft/server/PersistentRaid.java    | 2 +-
+ src/main/java/net/minecraft/server/Raid.java              | 4 +++-
+ src/main/java/org/bukkit/craftbukkit/CraftRaid.java       | 8 +++++++-
+ .../org/bukkit/craftbukkit/event/CraftEventFactory.java   | 2 +-
+ 4 files changed, 12 insertions(+), 4 deletions(-)
+
+diff --git a/src/main/java/net/minecraft/server/PersistentRaid.java b/src/main/java/net/minecraft/server/PersistentRaid.java
+index 64e5c6d1e4273dd5dc9fffe70f4f57d73d72f659..5bfc60769803f0090762b2a325fe11ee0cb3f451 100644
+--- a/src/main/java/net/minecraft/server/PersistentRaid.java
++++ b/src/main/java/net/minecraft/server/PersistentRaid.java
+@@ -114,7 +114,7 @@ public class PersistentRaid extends PersistentBase {
+                         entityplayer.removeEffect(MobEffects.BAD_OMEN);
+                         return null;
+                     }
+-
++                    raid.firstTrigger = false; // EMC
+                     if (!this.raids.containsKey(raid.getId())) {
+                         this.raids.put(raid.getId(), raid);
+                     }
+diff --git a/src/main/java/net/minecraft/server/Raid.java b/src/main/java/net/minecraft/server/Raid.java
+index dea799de35ee137c5ff4a24f39c9c04e649cf3da..db21854769c06051a8eaad272ee77338bdd9e02f 100644
+--- a/src/main/java/net/minecraft/server/Raid.java
++++ b/src/main/java/net/minecraft/server/Raid.java
+@@ -40,7 +40,8 @@ public class Raid {
+     private int postRaidTicks;
+     private int preRaidTicks;
+     private final Random random;
+-    public final int numGroups;
++    public int numGroups; // EMC
++    public boolean firstTrigger = false; // EMC
+     private Raid.Status status;
+     private int x;
+     private Optional<BlockPosition> y;
+@@ -57,6 +58,7 @@ public class Raid {
+         this.center = blockposition;
+         this.numGroups = this.a(worldserver.getDifficulty());
+         this.status = Raid.Status.ONGOING;
++        this.firstTrigger = true; // EMC
+     }
+ 
+     public Raid(WorldServer worldserver, NBTTagCompound nbttagcompound) {
+diff --git a/src/main/java/org/bukkit/craftbukkit/CraftRaid.java b/src/main/java/org/bukkit/craftbukkit/CraftRaid.java
+index 360a4901f5159a3f0606214f1abf2f8cee2ecbe1..d52c68faee58b424003064166b8743cfa6bf3678 100644
+--- a/src/main/java/org/bukkit/craftbukkit/CraftRaid.java
++++ b/src/main/java/org/bukkit/craftbukkit/CraftRaid.java
+@@ -78,7 +78,13 @@ public final class CraftRaid implements Raid {
+     public int getTotalWaves() {
+         return handle.numGroups;
+     }
+-
++    // EMC start
++    @Override
++    public void setTotalWaves(int total) {
++        Preconditions.checkArgument(1 <= total && total <= 7, "Total waves out of bounds 1 <= %s <= 7", total);
++        handle.numGroups = total;
++    }
++    // EMC end
+     @Override
+     public float getTotalHealth() {
+         return handle.sumMobHealth();
+diff --git a/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java b/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
+index 974fcc570a013fd162eddc902c06d77dc4a5f820..5050ea29785f5e1c18342e114005cdf4bc277ec9 100644
+--- a/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
++++ b/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
+@@ -1715,7 +1715,7 @@ public class CraftEventFactory {
+      * Raid events
+      */
+     public static boolean callRaidTriggerEvent(Raid raid, EntityPlayer player) {
+-        RaidTriggerEvent event = new RaidTriggerEvent(new CraftRaid(raid), raid.getWorld().getWorld(), player.getBukkitEntity());
++        RaidTriggerEvent event = new RaidTriggerEvent(new CraftRaid(raid), raid.getWorld().getWorld(), player.getBukkitEntity(), raid.firstTrigger); // EMC
+         Bukkit.getPluginManager().callEvent(event);
+         return !event.isCancelled();
+     }

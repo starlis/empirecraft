@@ -1,0 +1,698 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Mon, 17 Feb 2014 00:05:26 -0500
+Subject: [PATCH] Chat API
+
+Initial for Fanciful Credits to http://forums.bukkit.org/threads/lib-fanciful-pleasant-chat-message-formatting.195148/
+But did a lot of bug fixing and improving upon it, and designing into the Empire API
+---
+ .../empireminecraft/api/CraftEmpireAPI.java   |   2 +
+ .../api/chat/CraftChatBuilder.java            | 163 +++++++++++
+ .../api/chat/CraftEAPI_Chat.java              |  87 ++++++
+ .../api/chat/CraftFancifulChat.java           | 267 ++++++++++++++++++
+ .../net/minecraft/server/ChatHexColor.java    |   1 +
+ .../net/minecraft/server/ChatHoverable.java   |  28 +-
+ .../net/minecraft/server/ChatModifier.java    |   1 +
+ .../java/net/minecraft/server/Entity.java     |   1 +
+ 8 files changed, 536 insertions(+), 14 deletions(-)
+ create mode 100644 src/main/java/com/empireminecraft/api/chat/CraftChatBuilder.java
+ create mode 100644 src/main/java/com/empireminecraft/api/chat/CraftEAPI_Chat.java
+ create mode 100644 src/main/java/com/empireminecraft/api/chat/CraftFancifulChat.java
+
+diff --git a/src/main/java/com/empireminecraft/api/CraftEmpireAPI.java b/src/main/java/com/empireminecraft/api/CraftEmpireAPI.java
+index f3c9419c8148e389f7d9f2e24a8664b1cb2bbfde..b794befb4e5cfe8055c1b5745e52a0f01fc573d1 100644
+--- a/src/main/java/com/empireminecraft/api/CraftEmpireAPI.java
++++ b/src/main/java/com/empireminecraft/api/CraftEmpireAPI.java
+@@ -23,6 +23,7 @@
+ 
+ package com.empireminecraft.api;
+ 
++import com.empireminecraft.api.chat.CraftEAPI_Chat;
+ import com.empireminecraft.api.meta.CraftEAPI_Meta;
+ 
+ public final class CraftEmpireAPI extends API {
+@@ -34,6 +35,7 @@ public final class CraftEmpireAPI extends API {
+         entity = new CraftEAPI_Entity();
+         misc = new CraftEAPI_Misc();
+         meta = new CraftEAPI_Meta();
++        chat = new CraftEAPI_Chat();
+     }
+ 
+ }
+diff --git a/src/main/java/com/empireminecraft/api/chat/CraftChatBuilder.java b/src/main/java/com/empireminecraft/api/chat/CraftChatBuilder.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..ce8f89e1b56b9e4a02bf6053d0d6a52a534e8a10
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/api/chat/CraftChatBuilder.java
+@@ -0,0 +1,163 @@
++package com.empireminecraft.api.chat;
++
++import net.minecraft.server.*;
++import org.bukkit.ChatColor;
++
++import java.util.ArrayList;
++import java.util.List;
++
++public class CraftChatBuilder implements ChatBuilder {
++    List<ChatPart> parts = new ArrayList<>();
++    ChatComponentText component;
++    boolean isDirty = true;
++
++
++    @Override
++    public ChatBuilder color(String hex) {
++        ChatHexColor color = ChatHexColor.fromString(hex);
++        if (color != null) {
++            latest().color(color);
++            isDirty = true;
++        }
++        return this;
++    }
++
++    @Override
++    public ChatBuilder color(ChatColor color) {
++        switch (color) {
++            case BLACK:
++                return color(EnumChatFormat.BLACK);
++            case DARK_BLUE:
++                return color(EnumChatFormat.DARK_BLUE);
++            case DARK_GREEN:
++                return color(EnumChatFormat.DARK_GREEN);
++            case DARK_AQUA:
++                return color(EnumChatFormat.DARK_AQUA);
++            case DARK_RED:
++                return color(EnumChatFormat.DARK_RED);
++            case DARK_PURPLE:
++                return color(EnumChatFormat.DARK_PURPLE);
++            case GOLD:
++                return color(EnumChatFormat.GOLD);
++            case GRAY:
++                return color(EnumChatFormat.GRAY);
++            case DARK_GRAY:
++                return color(EnumChatFormat.DARK_GRAY);
++            case BLUE:
++                return color(EnumChatFormat.BLUE);
++            case GREEN:
++                return color(EnumChatFormat.GREEN);
++            case AQUA:
++                return color(EnumChatFormat.AQUA);
++            case RED:
++                return color(EnumChatFormat.RED);
++            case LIGHT_PURPLE:
++                return color(EnumChatFormat.LIGHT_PURPLE);
++            case YELLOW:
++                return color(EnumChatFormat.YELLOW);
++            case WHITE:
++                return color(EnumChatFormat.WHITE);
++            case MAGIC:
++                return obfuscated();
++            case BOLD:
++                return bold();
++            case STRIKETHROUGH:
++                return strikethrough();
++            case UNDERLINE:
++                return underline();
++            case ITALIC:
++                return italic();
++            case RESET:
++                return reset();
++        }
++        return this;
++    }
++    private ChatBuilder color(EnumChatFormat color) {
++        latest().obfuscated();
++        isDirty = true;
++        return this;
++    }
++
++    @Override
++    public ChatBuilder obfuscated() {
++        latest().obfuscated();
++        isDirty = true;
++        return this;
++    }
++
++    @Override
++    public ChatBuilder bold() {
++        latest().bold();
++        isDirty = true;
++        return this;
++    }
++
++    @Override
++    public ChatBuilder strikethrough() {
++        latest().strikethrough();
++        isDirty = true;
++        return this;
++    }
++
++    @Override
++    public ChatBuilder underline() {
++        latest().underline();
++        isDirty = true;
++        return this;
++    }
++
++    @Override
++    public ChatBuilder italic() {
++        latest().italic();
++        isDirty = true;
++        return this;
++    }
++
++    @Override
++    public ChatBuilder reset() {
++        latest().reset();
++        isDirty = true;
++        return this;
++    }
++
++    protected CraftChatBuilder.ChatPart latest() {
++        return parts.get(parts.size() - 1);
++    }
++
++
++    private static class ChatPart {
++        IChatMutableComponent component;
++
++        ChatPart(String text) {
++            component = new ChatComponentText(text);
++        }
++
++        void color(ChatHexColor color) {
++            component.format(modifier -> modifier.setColor(color));
++        }
++
++        void obfuscated() {
++            component.format(modifier -> modifier.setRandom(true));
++        }
++
++        void bold() {
++            component.format(modifier -> modifier.setBold(true));
++        }
++
++        void strikethrough() {
++            component.format(modifier -> modifier.setStrikethrough(true));
++        }
++
++        void underline() {
++            component.format(modifier -> modifier.setUnderline(true));
++        }
++
++        void italic() {
++            component.format(modifier -> modifier.setItalic(true));
++        }
++
++        void reset() {
++            component.format(modifier -> modifier.setChatModifier(ChatModifier.nullModifier()));
++        }
++    }
++}
+diff --git a/src/main/java/com/empireminecraft/api/chat/CraftEAPI_Chat.java b/src/main/java/com/empireminecraft/api/chat/CraftEAPI_Chat.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..9ac035dd362e688dc509752d8f5454e5bb73989d
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/api/chat/CraftEAPI_Chat.java
+@@ -0,0 +1,87 @@
++/*
++ * Copyright (c) 2016 Starlis LLC / Daniel Ennis (Aikar) - MIT License
++ *
++ *  Permission is hereby granted, free of charge, to any person obtaining
++ *  a copy of this software and associated documentation files (the
++ *  "Software"), to deal in the Software without restriction, including
++ *  without limitation the rights to use, copy, modify, merge, publish,
++ *  distribute, sublicense, and/or sell copies of the Software, and to
++ *  permit persons to whom the Software is furnished to do so, subject to
++ *  the following conditions:
++ *
++ *  The above copyright notice and this permission notice shall be
++ *  included in all copies or substantial portions of the Software.
++ *
++ *  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ *  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
++ *  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ *  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
++ *  LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
++ *  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
++ *  WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package com.empireminecraft.api.chat;
++
++import net.minecraft.server.*;
++
++import org.bukkit.craftbukkit.entity.CraftPlayer;
++import org.bukkit.entity.Player;
++
++public class CraftEAPI_Chat implements EAPI_Chat {
++
++    @Override
++    public FancifulChat createFancyChat() {
++        return new CraftFancifulChat();
++    }
++
++    /*@Override //todo;
++    public FancifulChat fromJson(String json) {
++    }*/
++
++    @Override
++    public void sendTitle(Player player, FancifulChat title, FancifulChat subtitle, Integer fadeIn, Integer stay, Integer fadeOut) {
++        if (fadeIn != null && stay != null && fadeOut != null) {
++            sendPacket(player, new PacketPlayOutTitle(fadeIn, stay, fadeOut));
++        }
++        if (title != null) {
++            sendPacket(player, new PacketPlayOutTitle(PacketPlayOutTitle.EnumTitleAction.TITLE,
++                    ((CraftFancifulChat) title).buildComponent()));
++        }
++        if (subtitle != null ) {
++            sendPacket(player, new PacketPlayOutTitle(PacketPlayOutTitle.EnumTitleAction.SUBTITLE,
++                    ((CraftFancifulChat) subtitle).buildComponent()));
++        }
++    }
++
++    @Override
++    public void sendAction(Player player, FancifulChat message) {
++        sendPacket(player, new PacketPlayOutTitle(PacketPlayOutTitle.EnumTitleAction.ACTIONBAR,
++                ((CraftFancifulChat) message).buildComponent()));
++    }
++
++    @Override
++    public void sendChat(Player player, FancifulChat message) {
++        sendPacket(player, new PacketPlayOutChat(((CraftFancifulChat) message).buildComponent(),
++                ChatMessageType.CHAT, SystemUtils.getNullUUID()));
++    }
++
++    @Override
++    public void sendSystem(Player player, FancifulChat message) {
++        sendPacket(player, new PacketPlayOutChat(((CraftFancifulChat) message).buildComponent(),
++                ChatMessageType.SYSTEM, SystemUtils.getNullUUID()));
++    }
++
++    /* TODO:
++    @Override
++    public void sentToast(Player player, FancifulText title, FancifulText description, ItemStack icon, String frame, String background, Float x, Float y) {
++        sendPacket(player, new PacketPlayOutAdvancements(this.m, set, set1, map));
++    }*/
++    private static void sendPacket(Player player, Packet<?> packet) {
++        final PlayerConnection conn = ((CraftPlayer) player).getHandle().playerConnection;
++        if (conn == null) {
++            return;
++        }
++        conn.sendPacket(packet);
++    }
++}
+diff --git a/src/main/java/com/empireminecraft/api/chat/CraftFancifulChat.java b/src/main/java/com/empireminecraft/api/chat/CraftFancifulChat.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..e92b07d4a553f1ec8c0e47165e471e29cc5a18fb
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/api/chat/CraftFancifulChat.java
+@@ -0,0 +1,267 @@
++package com.empireminecraft.api.chat;
++
++import com.empireminecraft.api.HiddenItemMeta;
++import net.minecraft.server.*;
++import org.bukkit.craftbukkit.entity.CraftEntity;
++import org.bukkit.craftbukkit.inventory.CraftItemStack;
++import org.bukkit.craftbukkit.util.CraftChatMessage;
++import org.bukkit.entity.Entity;
++import org.bukkit.inventory.ItemStack;
++
++import java.util.ArrayList;
++import java.util.List;
++
++/**
++ * Credits to original version @
++ * http://forums.bukkit.org/threads/lib-fanciful-pleasant-chat-message-formatting.195148/
++ *
++ * Improved to use proper components to fix issues
++ *
++ */
++public class CraftFancifulChat implements FancifulChat {
++    final List<MessagePart> messageParts = new ArrayList<>();
++    ChatComponentText component;
++    boolean isDirty = true;
++
++    @Override
++    public FancifulChat then(String text) {
++        messageParts.add(new MessagePart(text));
++        isDirty = true;
++        return this;
++    }
++
++    @Override
++    public FancifulChat then(final Object obj) {
++        return then(obj.toString());
++    }
++
++    @Override
++    public FancifulChat tooltip(ItemStack item) {
++        latest().tooltip(item);
++        isDirty = true;
++        return this;
++    }
++
++    @Override
++    public FancifulChat tooltip(String text) {
++        latest().tooltip(text);
++        isDirty = true;
++        return this;
++    }
++
++    @Override
++    public FancifulChat tooltip(String[] lines) {
++        latest().tooltip(lines);
++        isDirty = true;
++        return this;
++    }
++
++
++    @Override
++    public FancifulChat tooltip(Entity entity) {
++        latest().tooltip(entity);
++        isDirty = true;
++        return this;
++    }
++
++    @Override
++    public FancifulChat link(String url) {
++        latest().link(url);
++        isDirty = true;
++        return this;
++    }
++
++    @Override
++    public FancifulChat insert(String text) {
++        latest().insert(text);
++        isDirty = true;
++        return this;
++    }
++
++    @Override
++    public FancifulChat suggest(String command) {
++        latest().suggest(command);
++        isDirty = true;
++        return this;
++    }
++
++    @Override
++    public FancifulChat command(String command) {
++        latest().command(command);
++        isDirty = true;
++        return this;
++    }
++
++    @Override
++    public FancifulChat copy(String text) {
++        latest().copy(text);
++        isDirty = true;
++        return this;
++    }
++
++    @Override
++    public FancifulChat page(String number) {
++        latest().page(number);
++        isDirty = true;
++        return this;
++    }
++
++    /*TODO: @Override
++    public String toJson() {
++        throw new UnsupportedOperationException("Not supported yet."); //todo;
++    }*/
++
++    protected ChatComponentText buildComponent() {
++        if (component != null && !isDirty) {
++            return component;
++        }
++        isDirty = false;
++        component = new ChatComponentText("");
++        for (MessagePart msg : messageParts) {
++            for (IChatBaseComponent cmp : msg.getComponents()) {
++                component.addSibling(cmp);
++            }
++        }
++        return component;
++    }
++    protected MessagePart latest() {
++        return messageParts.get(messageParts.size() - 1);
++    }
++
++
++    static final class MessagePart {
++        ChatHoverable hoverable;
++        ChatClickable clickable;
++        String insertion;
++        final IChatMutableComponent[] components;
++
++        MessagePart(final String text) {
++            IChatBaseComponent[] compArray = CraftChatMessage.fromString(text, true);
++            components = new IChatMutableComponent[compArray.length];
++            for (int i = 0; i < compArray.length; i++) {
++                components[i] = compArray[i].mutableCopy();
++            }
++        }
++
++        public IChatBaseComponent[] getComponents() {
++            for (IChatMutableComponent component : components) {
++                if (hoverable != null) {
++                    component.format(modifier -> modifier.setChatHoverable(hoverable));
++                }
++                if (clickable != null) {
++                    component.format(modifier -> modifier.setChatClickable(clickable));
++                }
++                if (insertion != null) {
++                    component.format(modifier -> modifier.setInsertion(insertion));
++                }
++            }
++            return components;
++        }
++
++        public void tooltip(ItemStack item) {
++            net.minecraft.server.ItemStack itemStack = CraftItemStack.asNMSCopy(item);
++            NBTTagCompound root = itemStack.save(new NBTTagCompound());
++            NBTTagCompound hover = root;
++            if (root.hasKey("tag")) {
++                hover = HiddenItemMeta.filterItemLore(root.getCompound("tag"), false);
++            }
++
++            hoverable = new ChatHoverable(ChatHoverable.EnumHoverAction.SHOW_ITEM,
++                    new ChatHoverable.c(itemStack.getItem(), itemStack.getCount(), hover));
++        }
++
++        public void tooltip(String text) {
++            this.tooltip(text.split("\\n"));
++        }
++
++        public void tooltip(String[] lines) {
++            ChatBaseComponent hover = new ChatComponentText("");
++
++            for (int i = 0; i < lines.length; i++) {
++                if (i > 0) {
++                    hover.addSibling(new ChatComponentText("\n"));
++                }
++                for (IChatBaseComponent component : CraftChatMessage.fromString(lines[i])) {
++                    hover.addSibling(component);
++                }
++            }
++
++            hoverable = new ChatHoverable(ChatHoverable.EnumHoverAction.SHOW_TEXT, hover);
++        }
++
++        public void tooltip(Entity entity) {
++            hoverable = ((CraftEntity)entity).getHandle().createHoverEvent();
++        }
++
++        public void link(String url) {
++            clickable = new ChatClickable(ChatClickable.EnumClickAction.OPEN_URL, url);
++        }
++
++        public void suggest(String command) {
++            clickable = new ChatClickable(ChatClickable.EnumClickAction.SUGGEST_COMMAND, command);
++        }
++
++        public void command(String command) {
++            clickable = new ChatClickable(ChatClickable.EnumClickAction.RUN_COMMAND, command);
++        }
++
++        public void copy(String text) {
++            clickable = new ChatClickable(ChatClickable.EnumClickAction.COPY_TO_CLIPBOARD, text);
++        }
++
++        public void page(String number) {
++            clickable = new ChatClickable(ChatClickable.EnumClickAction.CHANGE_PAGE, number);
++        }
++
++        public void insert(String text) {
++            insertion = text;
++        }
++
++/* This is probably worthless
++        JSONWriter writeJson(final JSONWriter json) throws JSONException {
++            json.object().key("text").value(text);
++            if (color != null) {
++                json.key("color").value(color.name().toLowerCase());
++            }
++            if (styles != null) {
++                for (final ChatColor style : styles) {
++                    json.key(style.name().toLowerCase()).value(true);
++                }
++            }
++            if (clickActionName != null && clickActionData != null) {
++                json.key("clickEvent")
++                    .object()
++                    .key("action").value(clickActionName)
++                    .key("value").value(clickActionData)
++                    .endObject();
++            }
++            if (hoverActionName != null && hoverActionData != null) {
++                json.key("hoverEvent")
++                    .object()
++                    .key("action").value(hoverActionName)
++                    .key("value").value(hoverActionData)
++                    .endObject();
++            }
++            return json.endObject();
++        }
++*/
++    }
++
++    /*
++      @Override
++    public void doTheThing(Player player) {
++        IChatMutableComponent ichatmutablecomponent = (new ChatComponentText("")).a(EnumChatFormat.GRAY)
++                .format((chatmodifier) -> {
++                    return chatmodifier.setChatClickable(new ChatClickable(ChatClickable.EnumClickAction.SUGGEST_COMMAND, "first")); // CraftBukkit
++                });
++        ichatmutablecomponent.c("Message1");
++        IChatMutableComponent ichatmutablecomponent2 = (new ChatMessage(" Message 2")).a(new EnumChatFormat[]{EnumChatFormat.RED, EnumChatFormat.ITALIC})
++                .format((chatmodifier) -> {
++                    return chatmodifier.setChatClickable(new ChatClickable(ChatClickable.EnumClickAction.SUGGEST_COMMAND, "second")); // CraftBukkit
++                });
++        ichatmutablecomponent.addSibling(ichatmutablecomponent2);
++
++        sendPacket(player, new PacketPlayOutChat(ichatmutablecomponent, ChatMessageType.SYSTEM, SystemUtils.getNullUUID()));
++    }
++     */
++}
+diff --git a/src/main/java/net/minecraft/server/ChatHexColor.java b/src/main/java/net/minecraft/server/ChatHexColor.java
+index 3cb6ad020da3018f4392b0791e50e6c2ebee869a..96e5fa665ad8101797645cf7c72fa67de6c90648 100644
+--- a/src/main/java/net/minecraft/server/ChatHexColor.java
++++ b/src/main/java/net/minecraft/server/ChatHexColor.java
+@@ -72,6 +72,7 @@ public final class ChatHexColor {
+         return new ChatHexColor(i);
+     }
+ 
++    public static @Nullable ChatHexColor fromString(String s) { return a(s); } // EMC - OBFHELPER
+     @Nullable
+     public static ChatHexColor a(String s) {
+         if (s.startsWith("#")) {
+diff --git a/src/main/java/net/minecraft/server/ChatHoverable.java b/src/main/java/net/minecraft/server/ChatHoverable.java
+index 5e366c413cd67e30b8e2f403793e99baf9706283..227148f44ae55ddad9c5161af4bda46392f2a049 100644
+--- a/src/main/java/net/minecraft/server/ChatHoverable.java
++++ b/src/main/java/net/minecraft/server/ChatHoverable.java
+@@ -17,21 +17,21 @@ import org.apache.logging.log4j.Logger;
+ public class ChatHoverable {
+ 
+     private static final Logger LOGGER = LogManager.getLogger();
+-    private final ChatHoverable.EnumHoverAction<?> b;
+-    private final Object c;
++    private final ChatHoverable.EnumHoverAction<?> action; // EMC - OBFHELPER - decompile fix
++    private final Object value; // EMC - OBFHELPER - decompile fix
+ 
+     public <T> ChatHoverable(ChatHoverable.EnumHoverAction<T> chathoverable_enumhoveraction, T t0) {
+-        this.b = chathoverable_enumhoveraction;
+-        this.c = t0;
++        this.action = chathoverable_enumhoveraction; // EMC - decompile fix
++        this.value = t0; // EMC - decompile fix
+     }
+ 
+     public ChatHoverable.EnumHoverAction<?> a() {
+-        return this.b;
++        return this.action; // EMC - decompile fix
+     }
+ 
+     @Nullable
+     public <T> T a(ChatHoverable.EnumHoverAction<T> chathoverable_enumhoveraction) {
+-        return this.b == chathoverable_enumhoveraction ? chathoverable_enumhoveraction.b(this.c) : null;
++        return this.action == chathoverable_enumhoveraction ? chathoverable_enumhoveraction.b(this.value) : null; // EMC - decompile fix
+     }
+ 
+     public boolean equals(Object object) {
+@@ -40,20 +40,20 @@ public class ChatHoverable {
+         } else if (object != null && this.getClass() == object.getClass()) {
+             ChatHoverable chathoverable = (ChatHoverable) object;
+ 
+-            return this.b == chathoverable.b && Objects.equals(this.c, chathoverable.c);
++            return this.action == chathoverable.action && Objects.equals(this.value, chathoverable.value); // EMC - decompile fix
+         } else {
+             return false;
+         }
+     }
+ 
+     public String toString() {
+-        return "HoverEvent{action=" + this.b + ", value='" + this.c + '\'' + '}';
++        return "HoverEvent{action=" + this.action + ", value='" + this.value + '\'' + '}'; // EMC - decompile fix
+     }
+ 
+     public int hashCode() {
+-        int i = this.b.hashCode();
++        int i = this.action.hashCode(); // EMC - decompile fix
+ 
+-        i = 31 * i + (this.c != null ? this.c.hashCode() : 0);
++        i = 31 * i + (this.value != null ? this.value.hashCode() : 0); // EMC - decompile fix
+         return i;
+     }
+ 
+@@ -85,8 +85,8 @@ public class ChatHoverable {
+     public JsonObject b() {
+         JsonObject jsonobject = new JsonObject();
+ 
+-        jsonobject.addProperty("action", this.b.b());
+-        jsonobject.add("contents", this.b.a(this.c));
++        jsonobject.addProperty("action", this.action.b()); // EMC - decompile fix
++        jsonobject.add("contents", this.action.a(this.value)); // EMC - decompile fix
+         return jsonobject;
+     }
+ 
+@@ -132,7 +132,7 @@ public class ChatHoverable {
+         }
+ 
+         private T b(Object object) {
+-            return object;
++            return (T) object; // EMC - decompile fix
+         }
+ 
+         @Nullable
+@@ -165,7 +165,7 @@ public class ChatHoverable {
+         @Nullable
+         private final NBTTagCompound c;
+ 
+-        c(Item item, int i, @Nullable NBTTagCompound nbttagcompound) {
++        public c(Item item, int i, @Nullable NBTTagCompound nbttagcompound) { // EMC - make public
+             this.a = item;
+             this.b = i;
+             this.c = nbttagcompound;
+diff --git a/src/main/java/net/minecraft/server/ChatModifier.java b/src/main/java/net/minecraft/server/ChatModifier.java
+index 9ce4fb103daaf71d399edc6abe422ef6580f3987..a0d3af1d5343b8022b63e0e69401f3e528c580d1 100644
+--- a/src/main/java/net/minecraft/server/ChatModifier.java
++++ b/src/main/java/net/minecraft/server/ChatModifier.java
+@@ -15,6 +15,7 @@ import javax.annotation.Nullable;
+ public class ChatModifier {
+ 
+     public static final MinecraftKey a = new MinecraftKey("minecraft", "default");
++    public static ChatModifier nullModifier() { return b; } // EMC - OBFHELPER
+     public static final ChatModifier b = new ChatModifier((ChatHexColor) null, (Boolean) null, (Boolean) null, (Boolean) null, (Boolean) null, (Boolean) null, (ChatClickable) null, (ChatHoverable) null, (String) null, (MinecraftKey) null);
+     @Nullable
+     private final ChatHexColor color;
+diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
+index 6980118342d6ed231def67c92c98d68beeca5674..073162499518e8fc4ac1f6b780553593ae1cd997 100644
+--- a/src/main/java/net/minecraft/server/Entity.java
++++ b/src/main/java/net/minecraft/server/Entity.java
+@@ -2916,6 +2916,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+         return this.getDirection();
+     }
+ 
++    public ChatHoverable createHoverEvent() { return this.ca(); } // EMC - OBFHELPER
+     protected ChatHoverable ca() {
+         return new ChatHoverable(ChatHoverable.EnumHoverAction.SHOW_ENTITY, new ChatHoverable.b(this.getEntityType(), this.getUniqueID(), this.getDisplayName()));
+     }

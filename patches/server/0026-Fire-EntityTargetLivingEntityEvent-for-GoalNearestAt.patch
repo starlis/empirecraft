@@ -1,0 +1,48 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Fri, 28 Feb 2014 22:25:04 -0500
+Subject: [PATCH] Fire EntityTargetLivingEntityEvent for
+ GoalNearestAttackableTarget
+
+If cancelled, move to next in list
+---
+ src/main/java/net/minecraft/server/Entity.java      |  1 +
+ .../PathfinderGoalNearestAttackableTarget.java      | 13 ++++++++++++-
+ 2 files changed, 13 insertions(+), 1 deletion(-)
+
+diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
+index 073162499518e8fc4ac1f6b780553593ae1cd997..19313a7aee02c9cba82de50119bb499348808328 100644
+--- a/src/main/java/net/minecraft/server/Entity.java
++++ b/src/main/java/net/minecraft/server/Entity.java
+@@ -1403,6 +1403,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+         return d3 * d3 + d4 * d4 + d5 * d5;
+     }
+ 
++    public double distanceToSquared(Entity entity) { return h(entity); }
+     public double h(Entity entity) {
+         return this.d(entity.getPositionVector());
+     }
+diff --git a/src/main/java/net/minecraft/server/PathfinderGoalNearestAttackableTarget.java b/src/main/java/net/minecraft/server/PathfinderGoalNearestAttackableTarget.java
+index c0721c7fe479c8f753b8f48197a70dcd1ecfef5f..683d6742b9129676e2d6232a9aea071670642b54 100644
+--- a/src/main/java/net/minecraft/server/PathfinderGoalNearestAttackableTarget.java
++++ b/src/main/java/net/minecraft/server/PathfinderGoalNearestAttackableTarget.java
+@@ -44,7 +44,18 @@ public class PathfinderGoalNearestAttackableTarget<T extends EntityLiving> exten
+ 
+     protected void g() {
+         if (this.a != EntityHuman.class && this.a != EntityPlayer.class) {
+-            this.c = this.e.world.b(this.a, this.d, this.e, this.e.locX(), this.e.getHeadY(), this.e.locZ(), this.a(this.k()));
++            // EMC start
++            java.util.List<T> list = this.e.world.a(this.a, this.d, this.e, this.a(this.k()));
++            list.sort(java.util.Comparator.comparingDouble(this.e::distanceToSquared));
++            for (T entity : list) {
++                if (org.bukkit.craftbukkit.event.CraftEventFactory.callEntityTargetLivingEvent(
++                        this.e, entity,
++                        org.bukkit.event.entity.EntityTargetEvent.TargetReason.CLOSEST_PLAYER
++                ).isCancelled()) continue;
++                this.c = entity;
++                break;
++            }
++            // EMC end
+         } else {
+             this.c = this.e.world.a(this.d, this.e, this.e.locX(), this.e.getHeadY(), this.e.locZ());
+         }

@@ -1,0 +1,170 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Sat, 30 Mar 2019 00:45:12 -0400
+Subject: [PATCH] Convert Item Stacks
+
+---
+ .../java/net/minecraft/server/ItemStack.java  | 15 +++++++++++--
+ .../inventory/CraftItemFactory.java           | 18 +++++++++++++++-
+ .../craftbukkit/inventory/CraftItemStack.java | 21 +++++++++++++++----
+ .../craftbukkit/inventory/CraftMetaItem.java  | 11 ++++++----
+ 4 files changed, 54 insertions(+), 11 deletions(-)
+
+diff --git a/src/main/java/net/minecraft/server/ItemStack.java b/src/main/java/net/minecraft/server/ItemStack.java
+index 5c6721516d25e39b2f130eeb35e3f5b69327d21b..d1b679c3ef851d9589238b4894dd3a4c4a9d8ea7 100644
+--- a/src/main/java/net/minecraft/server/ItemStack.java
++++ b/src/main/java/net/minecraft/server/ItemStack.java
+@@ -104,12 +104,23 @@ public final class ItemStack {
+         this.checkEmpty();
+     }
+ 
++    private static final boolean DEBUG_CONVERSIONS = Boolean.getBoolean("debug.conversions"); // Paper
+     // Called to run this stack through the data converter to handle older storage methods and serialized items
+     public void convertStack(int version) {
+-        if (0 < version && version < CraftMagicNumbers.INSTANCE.getDataVersion()) {
++        if (0 < version && version < DataConverters.DATA_VERSION && tag != null) { // EMC
+             NBTTagCompound savedStack = new NBTTagCompound();
+             this.save(savedStack);
+-            savedStack = (NBTTagCompound) MinecraftServer.getServer().dataConverterManager.update(DataConverterTypes.ITEM_STACK, new Dynamic(DynamicOpsNBT.a, savedStack), version, CraftMagicNumbers.INSTANCE.getDataVersion()).getValue();
++            NBTTagCompound orig = DEBUG_CONVERSIONS ? savedStack.clone() : null; // Paper
++            savedStack = DataConverters.convert(DataConverterTypes.ITEM_STACK, savedStack, version); // Paper
++            // Paper start
++            if (DEBUG_CONVERSIONS) {
++                boolean equals = orig.equals(savedStack);
++                System.out.println("Converted " + (!equals ? "CHANGED" : "NOT CHANGED") + " - " + orig);
++                if (!equals) {
++                    System.out.println(savedStack);
++                }
++            }
++            // Paper end
+             this.load(savedStack);
+         }
+     }
+diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftItemFactory.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftItemFactory.java
+index d56f8ca6ae9083d721c83b5ce10956b850af409d..c58a37d75d68406225c31414b52bb7f6591e81bd 100644
+--- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftItemFactory.java
++++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftItemFactory.java
+@@ -329,9 +329,25 @@ public final class CraftItemFactory implements ItemFactory {
+         return ((CraftMetaItem) meta).updateMaterial(material);
+     }
+     // Paper start
++    public ItemStack _asServerItemStack(ItemStack item) {
++        if (item instanceof CraftItemStack) {
++            return item;
++        } else {
++            CraftItemStack newStack = CraftItemStack.asCraftMirror(CraftItemStack.asNMSCopy(item));
++            newStack.setDataVersion(item.getDataVersion());
++            return newStack;
++        }
++    }
++
+     @Override
+     public ItemStack ensureServerConversions(ItemStack item) {
+-        return CraftItemStack.asCraftMirror(CraftItemStack.asNMSCopy(item));
++        CraftItemStack newItem = (CraftItemStack) _asServerItemStack(item);
++        net.minecraft.server.ItemStack handle = newItem.getHandle();
++        if (handle != null && handle.tag != null) {
++            handle.convertStack(item.getDataVersion());
++        }
++        newItem.setDataVersion(org.bukkit.Bukkit.getUnsafe().getDataVersion());
++        return newItem;
+     }
+ 
+     @Override
+diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftItemStack.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftItemStack.java
+index 85bda7229d22af2a012b9f6ab7bd3376182d4ef6..73998d0aaaf11574690e0db13f715800d0b90796 100644
+--- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftItemStack.java
++++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftItemStack.java
+@@ -39,7 +39,12 @@ public final class CraftItemStack extends ItemStack {
+ 
+         net.minecraft.server.ItemStack stack = new net.minecraft.server.ItemStack(item, original.getAmount());
+         if (original.hasItemMeta()) {
+-            setItemMeta(stack, original.getItemMeta());
++            // Paper start
++            ItemMeta itemMeta = original.getItemMeta();
++            itemMeta.setVersion(original.getDataVersion());
++            setItemMeta(stack, itemMeta);
++            stack.convertStack(original.getDataVersion());
++            // Paper end
+         }
+         return stack;
+     }
+@@ -71,7 +76,11 @@ public final class CraftItemStack extends ItemStack {
+     public static CraftItemStack asCraftCopy(ItemStack original) {
+         if (original instanceof CraftItemStack) {
+             CraftItemStack stack = (CraftItemStack) original;
+-            return new CraftItemStack(stack.handle == null ? null : stack.handle.cloneItemStack());
++            // Paper start
++            CraftItemStack newStack = new CraftItemStack(stack.handle == null ? null : stack.handle.cloneItemStack());
++            newStack.dataVersion = original.getDataVersion();
++            return newStack;
++            // Paper end
+         }
+         return new CraftItemStack(original);
+     }
+@@ -272,7 +281,11 @@ public final class CraftItemStack extends ItemStack {
+ 
+     @Override
+     public ItemMeta getItemMeta() {
+-        return getItemMeta(handle);
++        // Paper start
++        ItemMeta itemMeta = getItemMeta(handle);
++        ((CraftMetaItem) itemMeta).setVersion(this.dataVersion);
++        return itemMeta;
++        // Paper end
+     }
+ 
+     public static ItemMeta getItemMeta(net.minecraft.server.ItemStack item) {
+@@ -527,7 +540,7 @@ public final class CraftItemStack extends ItemStack {
+         item.setTag(tag);
+ 
+         ((CraftMetaItem) itemMeta).applyToItem(tag);
+-        item.convertStack(((CraftMetaItem) itemMeta).getVersion());
++        //item.convertStack(((CraftMetaItem) itemMeta).getVersion()); // Paper
+         // SpigotCraft#463 this is required now by the Vanilla client, so mimic ItemStack constructor in ensuring it
+         if (item.getItem() != null && item.getItem().usesDurability()) {
+             item.setDamage(item.getDamage());
+diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java
+index aadf49dd9b2b095fda02ee7e3a0aab0cb8705d51..786df3eda602ea3f43fb02d9cfa22f6dc8913772 100644
+--- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java
++++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java
+@@ -312,7 +312,7 @@ class CraftMetaItem implements ItemMeta, Damageable, Repairable, BlockDataMeta {
+         if (meta == null) {
+             return;
+         }
+-
++        this.version = meta.version; // Paper - set before all the code below that might use it...
+         this.displayName = meta.displayName;
+         this.locName = meta.locName;
+ 
+@@ -352,16 +352,18 @@ class CraftMetaItem implements ItemMeta, Damageable, Repairable, BlockDataMeta {
+             deserializeInternal(internalTag, meta);
+         }
+ 
+-        this.version = meta.version;
++        // this.version = meta.version; // Paper - move up
+     }
+ 
+     CraftMetaItem(NBTTagCompound tag) {
++        boolean isLegacy = version <= net.minecraft.server.DataConverters.LEGACY_VERSION; // Paper
+         if (tag.hasKey(DISPLAY.NBT)) {
+             NBTTagCompound display = tag.getCompound(DISPLAY.NBT);
+ 
+             if (display.hasKey(NAME.NBT)) {
+                 try {
+-                    displayName = IChatBaseComponent.ChatSerializer.a( limit( display.getString(NAME.NBT), 1024 ) ); // Spigot
++                    if (isLegacy) displayName = new net.minecraft.server.ChatComponentText(limit( display.getString(NAME.NBT), 1024 )); // Paper
++                    else displayName = IChatBaseComponent.ChatSerializer.a( limit( display.getString(NAME.NBT), 1024 ) ); // Spigot // Paper
+                 } catch (JsonParseException ex) {
+                     // Ignore (stripped like Vanilla)
+                 }
+@@ -369,7 +371,8 @@ class CraftMetaItem implements ItemMeta, Damageable, Repairable, BlockDataMeta {
+ 
+             if (display.hasKey(LOCNAME.NBT)) {
+                 try {
+-                    locName = IChatBaseComponent.ChatSerializer.a( limit( display.getString(LOCNAME.NBT), 1024 ) ); // Spigot
++                    if (isLegacy) locName = new net.minecraft.server.ChatComponentText(limit( display.getString(LOCNAME.NBT), 1024 )); // Paper
++                    else locName = IChatBaseComponent.ChatSerializer.a( limit( display.getString(LOCNAME.NBT), 1024 ) ); // Spigot // Paper
+                 } catch (JsonParseException ex) {
+                     // Ignore (stripped like Vanilla)
+                 }

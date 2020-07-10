@@ -1,0 +1,49 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Fri, 8 May 2015 19:56:21 -0400
+Subject: [PATCH] ServerShutdownEvent and move disablePlugins
+
+---
+ src/main/java/net/minecraft/server/MinecraftServer.java | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
+index 9c80acbecda1fa2ecfd94895ae30f73ca5a74e78..ffaa693ae7f773f07f478570f6f4eb1561f3cc00 100644
+--- a/src/main/java/net/minecraft/server/MinecraftServer.java
++++ b/src/main/java/net/minecraft/server/MinecraftServer.java
+@@ -100,6 +100,7 @@ public abstract class MinecraftServer extends IAsyncTaskHandlerReentrant<TickTas
+     protected final Proxy proxy;
+     private boolean onlineMode;
+     private boolean B;
++    public String shutdownReason; // EMC
+     private boolean pvpMode;
+     private boolean allowFlight;
+     @Nullable
+@@ -771,8 +772,9 @@ public abstract class MinecraftServer extends IAsyncTaskHandlerReentrant<TickTas
+         MinecraftTimings.stopServer(); // Paper
+         // CraftBukkit start
+         if (this.server != null) {
+-            this.server.disablePlugins();
+-            this.server.waitForAsyncTasksShutdown(); // Paper
++            // this.server.disablePlugins(); // EMC - Moved below after everything has unloaded so plugins can get events
++            // this.server.waitForAsyncTasksShutdown(); // Paper // EMC - moved down
++            new com.empireminecraft.customevents.ServerShutdownEvent(shutdownReason).callEvent(); // EMC
+         }
+         // CraftBukkit end
+         if (this.getServerConnection() != null) {
+@@ -811,6 +813,7 @@ public abstract class MinecraftServer extends IAsyncTaskHandlerReentrant<TickTas
+                 }
+             }
+         }
++        if (server != null) { this.server.disablePlugins(); this.server.waitForAsyncTasksShutdown(); } // EMC
+ 
+         if (this.snooper.d()) {
+             this.snooper.e();
+@@ -863,6 +866,7 @@ public abstract class MinecraftServer extends IAsyncTaskHandlerReentrant<TickTas
+         this.safeShutdown(flag, false);
+     }
+     public void safeShutdown(boolean flag, boolean isRestarting) {
++        if (shutdownReason == null) { shutdownReason = "Server Shutting Down"; } // EMC
+         this.isRunning = false;
+         this.isRestarting = isRestarting;
+         if (flag) {
