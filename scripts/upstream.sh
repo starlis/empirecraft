@@ -11,7 +11,7 @@ done
 if [[ "$1" == up* ]]; then
 	(
 		cd "$basedir/Paper/"
-		git fetch && git reset --hard origin/master
+		git fetch && git reset --hard origin/progress/1.16.2
 		cd ../
 		git add Paper
 		$basedir/scripts/rebuildpatches.sh "$basedir" "nofilter"
