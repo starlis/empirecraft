@@ -10,7 +10,7 @@ Subject: [PATCH] Entity AI API
  .../net/minecraft/server/EntityAnimal.java    |   2 +-
  .../net/minecraft/server/EntityBlaze.java     |  27 +-
  .../net/minecraft/server/EntityCreature.java  |   1 +
- .../minecraft/server/EntityEnderSignal.java   |  24 +-
+ .../minecraft/server/EntityEnderSignal.java   |  22 +-
  .../net/minecraft/server/EntityGhast.java     |   3 +-
  .../minecraft/server/EntityGoalAccessor.java  |  20 ++
  .../minecraft/server/EntityInsentient.java    |   1 +
@@ -29,7 +29,7 @@ Subject: [PATCH] Entity AI API
  .../craftbukkit/entity/CraftEnderSignal.java  |   3 +-
  .../bukkit/craftbukkit/entity/CraftGhast.java |   9 +
  .../java/org/spigotmc/ActivationRange.java    |   1 +
- 25 files changed, 591 insertions(+), 30 deletions(-)
+ 25 files changed, 590 insertions(+), 29 deletions(-)
  create mode 100644 src/main/java/com/empireminecraft/api/EntityAIApi.java
  create mode 100644 src/main/java/net/minecraft/server/EntityGoalAccessor.java
 
@@ -482,7 +482,7 @@ index 0000000000000000000000000000000000000000..2661020933d78de68df75b10219a422d
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
-index 4fdb797624621fa7d26c45c0ea184409ba5255ca..21ee9344c43c78130004a975be5004f59b723f9d 100644
+index 0331deb79ea55a8a5cd340c7f834079c74999051..d2dbe7bfceb19ea040ef65d331276c790fceba00 100644
 --- a/src/main/java/net/minecraft/server/Entity.java
 +++ b/src/main/java/net/minecraft/server/Entity.java
 @@ -124,7 +124,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
@@ -559,10 +559,10 @@ index 4fdb797624621fa7d26c45c0ea184409ba5255ca..21ee9344c43c78130004a975be5004f5
  
      public void setPositionRotation(double d0, double d1, double d2, float f, float f1) {
 +        if (isDisabled) { return; } // EMC
+         this.mot = new Vec3D(0, 0, 0); // Paper - cancel entity velocity if teleported
          this.g(d0, d1, d2);
          this.yaw = f;
-         this.pitch = f1;
-@@ -1368,6 +1376,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+@@ -1369,6 +1377,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
      public void pickup(EntityHuman entityhuman) {}
  
      public void collide(Entity entity) {
@@ -570,7 +570,7 @@ index 4fdb797624621fa7d26c45c0ea184409ba5255ca..21ee9344c43c78130004a975be5004f5
          if (!this.isSameVehicle(entity)) {
              if (!entity.noclip && !this.noclip) {
                  double d0 = entity.locX() - this.locX();
-@@ -1404,6 +1413,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+@@ -1405,6 +1414,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
      }
  
      public void i(double d0, double d1, double d2) {
@@ -578,7 +578,7 @@ index 4fdb797624621fa7d26c45c0ea184409ba5255ca..21ee9344c43c78130004a975be5004f5
          this.setMot(this.getMot().add(d0, d1, d2));
          this.impulse = true;
      }
-@@ -1413,6 +1423,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+@@ -1414,6 +1424,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
      }
  
      public boolean damageEntity(DamageSource damagesource, float f) {
@@ -586,7 +586,7 @@ index 4fdb797624621fa7d26c45c0ea184409ba5255ca..21ee9344c43c78130004a975be5004f5
          if (this.isInvulnerable(damagesource)) {
              return false;
          } else {
-@@ -2506,7 +2517,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+@@ -2511,7 +2522,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
      }
  
      public boolean isInvulnerable(DamageSource damagesource) {
@@ -595,7 +595,7 @@ index 4fdb797624621fa7d26c45c0ea184409ba5255ca..21ee9344c43c78130004a975be5004f5
      }
  
      public boolean isInvulnerable() {
-@@ -2944,6 +2955,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+@@ -2949,6 +2960,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
          return false;
      }
  
@@ -689,7 +689,7 @@ index 4757e5a92c9cf04fa52d62bac6dae782e08ddab1..afc2bb4d46ff7813dd68abf382d08895
          super(entitytypes, world);
      }
 diff --git a/src/main/java/net/minecraft/server/EntityEnderSignal.java b/src/main/java/net/minecraft/server/EntityEnderSignal.java
-index 6e5b460770a4d6d89b1fcfdb99752fc8934b0943..1c6b0cd5cacf4fcd0cee23f0aa22778653388ecf 100644
+index e3865a9b4c53656a1e9e1658c678ac6dfdfc55fc..3c043c79e93201e24a7b83eeb967e97cda365793 100644
 --- a/src/main/java/net/minecraft/server/EntityEnderSignal.java
 +++ b/src/main/java/net/minecraft/server/EntityEnderSignal.java
 @@ -9,6 +9,18 @@ public class EntityEnderSignal extends Entity {
@@ -711,17 +711,15 @@ index 6e5b460770a4d6d89b1fcfdb99752fc8934b0943..1c6b0cd5cacf4fcd0cee23f0aa227786
      public EntityEnderSignal(EntityTypes<? extends EntityEnderSignal> entitytypes, World world) {
          super(entitytypes, world);
      }
-@@ -20,8 +32,8 @@ public class EntityEnderSignal extends Entity {
+@@ -20,7 +32,7 @@ public class EntityEnderSignal extends Entity {
      }
  
      public void b(ItemStack itemstack) {
--        if (itemstack.getItem() != Items.ENDER_EYE || itemstack.hasTag()) {
--            this.getDataWatcher().set(EntityEnderSignal.b, SystemUtils.a((Object) itemstack.cloneItemStack(), (itemstack1) -> {
-+        if (!itemstack.isEmpty() && (itemstack.getItem() != Items.ENDER_EYE || itemstack.hasTag())) { // EMC - Hide null item issue
-+            this.getDataWatcher().set(EntityEnderSignal.b, SystemUtils.a(itemstack.cloneItemStack(), (itemstack1) -> { // EMC - Decompile Fix
+-        if (true || itemstack.getItem() != Items.ENDER_EYE || itemstack.hasTag()) { // CraftBukkit - always allow item changing
++        if (!itemstack.isEmpty() && (itemstack.getItem() != Items.ENDER_EYE || itemstack.hasTag())) { // CraftBukkit - always allow item changing // EMC - do not use empty items
+             this.getDataWatcher().set(EntityEnderSignal.b, SystemUtils.a(itemstack.cloneItemStack(), (itemstack1) -> { // CraftBukkit - decompile error
                  itemstack1.setCount(1);
              }));
-         }
 @@ -43,6 +55,7 @@ public class EntityEnderSignal extends Entity {
          this.getDataWatcher().register(EntityEnderSignal.b, ItemStack.b);
      }
@@ -807,7 +805,7 @@ index 0000000000000000000000000000000000000000..d0ee7f3042a413027964a630f944fe42
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/EntityInsentient.java b/src/main/java/net/minecraft/server/EntityInsentient.java
-index 36df27024c0486a1c3c9d72f366d689a94b89749..342c95839e186198a16722ab708aeaa3f06b0ae8 100644
+index 9cf496b5e59b228ed65dca7b6b2fea725fd361d9..e83392942ba2c83a9d9b638795edcb847dac1e4b 100644
 --- a/src/main/java/net/minecraft/server/EntityInsentient.java
 +++ b/src/main/java/net/minecraft/server/EntityInsentient.java
 @@ -53,6 +53,7 @@ public abstract class EntityInsentient extends EntityLiving {
@@ -819,7 +817,7 @@ index 36df27024c0486a1c3c9d72f366d689a94b89749..342c95839e186198a16722ab708aeaa3
      public boolean aware = true; // CraftBukkit
  
 diff --git a/src/main/java/net/minecraft/server/EntityItem.java b/src/main/java/net/minecraft/server/EntityItem.java
-index cfb31c412cc6507c31e4de11592e95ea54bbc4d6..56d718ee02c5b03a93c6224cd068449a85ae683d 100644
+index bc4f84c8857aab45a69c915104de8d70b758698c..85b4f053f3034fcc4f2345dd5d2499d4253ec2bf 100644
 --- a/src/main/java/net/minecraft/server/EntityItem.java
 +++ b/src/main/java/net/minecraft/server/EntityItem.java
 @@ -16,6 +16,7 @@ public class EntityItem extends Entity {
@@ -840,10 +838,10 @@ index cfb31c412cc6507c31e4de11592e95ea54bbc4d6..56d718ee02c5b03a93c6224cd068449a
                  if (org.bukkit.craftbukkit.event.CraftEventFactory.callItemDespawnEvent(this).isCancelled()) {
                      this.age = 0;
 diff --git a/src/main/java/net/minecraft/server/EntityLiving.java b/src/main/java/net/minecraft/server/EntityLiving.java
-index 92608dc9412ec67b116ee134ddbbaefff67a6ad3..a77ba360834a14d8d9fe4a7846fe2ff1e7cff584 100644
+index c8e11c379199b0ae05534137da736876038827f2..8e8a33eefeb37119dee06f76e213c0015b247770 100644
 --- a/src/main/java/net/minecraft/server/EntityLiving.java
 +++ b/src/main/java/net/minecraft/server/EntityLiving.java
-@@ -212,7 +212,7 @@ public abstract class EntityLiving extends Entity {
+@@ -213,7 +213,7 @@ public abstract class EntityLiving extends Entity {
      }
  
      public static AttributeProvider.Builder cK() {
@@ -852,7 +850,7 @@ index 92608dc9412ec67b116ee134ddbbaefff67a6ad3..a77ba360834a14d8d9fe4a7846fe2ff1
      }
  
      @Override
-@@ -534,6 +534,7 @@ public abstract class EntityLiving extends Entity {
+@@ -535,6 +535,7 @@ public abstract class EntityLiving extends Entity {
          return this.bt;
      }
  
@@ -860,7 +858,7 @@ index 92608dc9412ec67b116ee134ddbbaefff67a6ad3..a77ba360834a14d8d9fe4a7846fe2ff1
      public void z(Entity entity) {
          if (entity instanceof EntityLiving) {
              this.bs = (EntityLiving) entity;
-@@ -613,7 +614,19 @@ public abstract class EntityLiving extends Entity {
+@@ -614,7 +615,19 @@ public abstract class EntityLiving extends Entity {
          this.setAbsorptionHearts(absorptionAmount);
          // Paper end
          if (nbttagcompound.hasKeyOfType("Attributes", 9) && this.world != null && !this.world.isClientSide) {
@@ -881,7 +879,7 @@ index 92608dc9412ec67b116ee134ddbbaefff67a6ad3..a77ba360834a14d8d9fe4a7846fe2ff1
          }
  
          if (nbttagcompound.hasKeyOfType("ActiveEffects", 9)) {
-@@ -2410,7 +2423,16 @@ public abstract class EntityLiving extends Entity {
+@@ -2421,7 +2434,16 @@ public abstract class EntityLiving extends Entity {
  
      public boolean attackEntity(Entity entity) {
          this.z(entity);
@@ -1106,10 +1104,10 @@ index 089419edecc0f8f1129e92199c65e6577e1d5786..bf7eee91acccd5db09eb7eca61b05670
 +    // EMC end
  }
 diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftEnderSignal.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftEnderSignal.java
-index d771fdc6ed353dadf1559e453833f3124d7ae2a2..33a67f12a62bc144e3a07c2ed096088d23660a0a 100644
+index dadc7635f08355eccc397cd782a52eb19c03d9a5..12a1a5879059dd3fe21d90faa6ab4c99fff20671 100644
 --- a/src/main/java/org/bukkit/craftbukkit/entity/CraftEnderSignal.java
 +++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftEnderSignal.java
-@@ -34,8 +34,9 @@ public class CraftEnderSignal extends CraftEntity implements EnderSignal {
+@@ -37,8 +37,9 @@ public class CraftEnderSignal extends CraftEntity implements EnderSignal {
      }
  
      @Override
