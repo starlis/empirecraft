@@ -1,32 +1,32 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Aikar <aikar@aikar.co>
 Date: Thu, 14 Aug 2014 18:23:33 -0400
-Subject: [PATCH] Add Player.spigot().getFishingHook() API
+Subject: [PATCH] Add Player.getFishingHook() API and kill hook after rod
+ damage event
 
 ---
- src/main/java/net/minecraft/server/EntityFishingHook.java | 5 +++--
+ src/main/java/net/minecraft/server/EntityFishingHook.java | 4 ++--
  src/main/java/net/minecraft/server/ItemFishingRod.java    | 3 ++-
  .../java/org/bukkit/craftbukkit/entity/CraftPlayer.java   | 8 ++++++++
- 3 files changed, 13 insertions(+), 3 deletions(-)
+ 3 files changed, 12 insertions(+), 3 deletions(-)
 
 diff --git a/src/main/java/net/minecraft/server/EntityFishingHook.java b/src/main/java/net/minecraft/server/EntityFishingHook.java
-index b6cace72ab2f3389408a5e528981fcff3b511180..c171b94d8a5369aa51862f0d3b955d16d1a8c6fe 100644
+index b6cace72ab2f3389408a5e528981fcff3b511180..30dbb7362c3dc35df4174e955dfd4d33cd1bbb5c 100644
 --- a/src/main/java/net/minecraft/server/EntityFishingHook.java
 +++ b/src/main/java/net/minecraft/server/EntityFishingHook.java
-@@ -484,8 +484,9 @@ public class EntityFishingHook extends IProjectile {
+@@ -484,8 +484,8 @@ public class EntityFishingHook extends IProjectile {
              }
              // CraftBukkit end
  
 -            this.die();
 -            return i;
-+            // this.die(); // Spigot - move to after damage event
-+            // this.owner.hookedFish = null; // Spigot - moved to after damage event
-+            return i == 0 ? -1 : i; // Spigot - use -1 to represent "0 but kill entity"
++            // this.die(); // EMC - move to after damage event in EntityFishingRod
++            return i == 0 ? -1 : i; // EMC - use -1 to represent "0 but kill entity"
          } else {
              return 0;
          }
 diff --git a/src/main/java/net/minecraft/server/ItemFishingRod.java b/src/main/java/net/minecraft/server/ItemFishingRod.java
-index 427c593be79fc26d5b8a1b5b60987d15b25f93ed..5edcbdc1cc8b70c6536236245f229fcb9f715a90 100644
+index 427c593be79fc26d5b8a1b5b60987d15b25f93ed..edfddec25d6a30b6a05297ecbcabd3c19dfc3123 100644
 --- a/src/main/java/net/minecraft/server/ItemFishingRod.java
 +++ b/src/main/java/net/minecraft/server/ItemFishingRod.java
 @@ -16,9 +16,10 @@ public class ItemFishingRod extends Item implements ItemVanishable {
@@ -34,10 +34,10 @@ index 427c593be79fc26d5b8a1b5b60987d15b25f93ed..5edcbdc1cc8b70c6536236245f229fcb
              if (!world.isClientSide) {
                  i = entityhuman.hookedFish.b(itemstack);
 -                itemstack.damage(i, entityhuman, (entityhuman1) -> {
-+                itemstack.damage(Math.max(0, i), entityhuman, (entityhuman1) -> { // Spigot - Ignore -1 return using Math.max
++                itemstack.damage(Math.max(0, i), entityhuman, (entityhuman1) -> { // EMC - Ignore -1 return using Math.max
                      entityhuman1.broadcastItemBreak(enumhand);
                  });
-+                if (i != 0) { entityhuman.hookedFish.die(); entityhuman.hookedFish = null; } // Spigot - removed from e(), and 0 = cancelled
++                if (i != 0) { entityhuman.hookedFish.die(); } // EMC - removed EntityFishingHook, and 0 = cancelled
              }
  
              world.playSound((EntityHuman) null, entityhuman.locX(), entityhuman.locY(), entityhuman.locZ(), SoundEffects.ENTITY_FISHING_BOBBER_RETRIEVE, SoundCategory.NEUTRAL, 1.0F, 0.4F / (ItemFishingRod.RANDOM.nextFloat() * 0.4F + 0.8F));
