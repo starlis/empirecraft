@@ -9,7 +9,7 @@ Subject: [PATCH] Persistent and Temporary Meta API
  src/main/java/net/minecraft/server/Chunk.java |   2 +
  .../minecraft/server/ChunkRegionLoader.java   |   3 +
  .../java/net/minecraft/server/Entity.java     |   3 +
- .../net/minecraft/server/MetaApiAccessor.java | 567 ++++++++++++++++++
+ .../net/minecraft/server/MetaApiAccessor.java | 576 ++++++++++++++++++
  .../server/PacketPlayOutMapChunk.java         |   1 +
  .../server/PacketPlayOutTileEntityData.java   |   1 +
  .../net/minecraft/server/PlayerChunkMap.java  |   1 +
@@ -26,7 +26,7 @@ Subject: [PATCH] Persistent and Temporary Meta API
  .../craftbukkit/entity/CraftEntity.java       |   2 +
  .../craftbukkit/event/CraftEventFactory.java  |   5 +
  .../craftbukkit/inventory/CraftInventory.java |  11 +
- 22 files changed, 715 insertions(+), 3 deletions(-)
+ 22 files changed, 724 insertions(+), 3 deletions(-)
  create mode 100644 src/main/java/com/empireminecraft/api/meta/CraftEAPI_Meta.java
  create mode 100644 src/main/java/net/minecraft/server/MetaApiAccessor.java
 
@@ -208,10 +208,10 @@ index 0c952fea30aa6890809d728420e4710d95e10c19..e49548cc0172f741a32453bb6c842a32
                  origin = new org.bukkit.Location(world.getWorld(), originTag.getDoubleAt(0), originTag.getDoubleAt(1), originTag.getDoubleAt(2));
 diff --git a/src/main/java/net/minecraft/server/MetaApiAccessor.java b/src/main/java/net/minecraft/server/MetaApiAccessor.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..ce9229e095a13d372a41955f2e3da7fc47121a35
+index 0000000000000000000000000000000000000000..49ea5eaeef5ef646b88456407496ff50e66eb21f
 --- /dev/null
 +++ b/src/main/java/net/minecraft/server/MetaApiAccessor.java
-@@ -0,0 +1,567 @@
+@@ -0,0 +1,576 @@
 +package net.minecraft.server;
 +
 +import org.bukkit.Bukkit;
@@ -725,13 +725,22 @@ index 0000000000000000000000000000000000000000..ce9229e095a13d372a41955f2e3da7fc
 +            player.getTempMeta().clear();
 +        }
 +        for (WorldServer world : MinecraftServer.getServer().getWorlds()) {
-+            for (Entity entity : world.entitiesById.values()) {
-+                entity.getBukkitEntity().getTempMeta().clear();
++            reloadChunks(world.getChunkProvider().playerChunkMap.visibleChunks.values());
++            reloadChunks(world.getChunkProvider().playerChunkMap.updatingChunks.values());
++        }
++    }
++
++    private static void reloadChunks(Collection<PlayerChunk> playerChunks) {
++        for (PlayerChunk playerChunk : playerChunks) {
++            Chunk chunk = playerChunk.getChunk();
++            if (chunk == null) {
++                continue;
 +            }
-+            for (PlayerChunk playerChunk : world.getChunkProvider().playerChunkMap.visibleChunks.values()) {
-+                Chunk chunk = playerChunk.getChunk();
-+                if (chunk == null) continue;
-+                chunk.chunkTempMeta.clear();
++            chunk.chunkTempMeta.clear();
++            for (List<Entity> entitySlice : chunk.entitySlices) {
++                for (Entity entity : entitySlice) {
++                    entity.getBukkitEntity().getTempMeta().clear();
++                }
 +            }
 +        }
 +    }
