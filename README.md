@@ -4,22 +4,22 @@ EmpireCraft is a fork of Spigot used by the [Empire Minecraft](https://ref.emc.g
 
 It contains many gameplay changes to suit our server, but more importantly, contains new performance improvements pending testing to be contributed to Spigot / Paper / Sponge.
 
-We also have many API that we privately use but [choose not to](#why-we-dont-release-all-api) publicly PR upstream.
+We also have many APIs that we privately use but [choose not to](#why-we-dont-release-all-apis) publicly PR upstream.
 
-## Why we don't release all API
-API are tough to design. In public projects such as Bukkit, Spigot, Paper, etc., once an API is commited, it's almost forever. You can't go breaking it without solid justification. This is the politics game.
+## Why we don't release all APIs
+APIs are tough to design. In public projects such as Bukkit, Spigot, Paper, etc., once an API is commited, it's almost forever. You can't go breaking it without solid justification. This is the politics game.
 
-With that in mind, much thought has to be given to our API in current and future use cases and applications to ensure it can be extended without breaking. 
+With that in mind, much thought has to be given to our APIs in current and future use cases and applications to ensure it can be extended without breaking. 
 
 This is a lot of politics that we don't have time in our lives to deal with.
 
-Therefore, we write API to OUR base needs, which is often not 'complete' or 'up to style guidelines' of upstream repositories. We do not have the time to write code that we personally do not need for these API.
+Therefore, we write APIs to OUR base needs, which is often not 'complete' or 'up to style guidelines' of upstream repositories. We do not have the time to write code that we personally do not need for these APIs.
 
-We also want to retain the ability to make breaking changes to the API if it results in a better way to do things or performance improvements.
+We also want to retain the ability to make breaking changes to these APIs if it results in a better way to do things or performance improvements.
 
 By contributing it upstream, we would give up that power.
 
-So that is why we have many extremely useful API that are not PR'd upstream.
+So that is why we have many extremely useful APIs that are not PR'd upstream.
 
 ## License, Support, & Usage of Patches
 All patches written by Aikar, Starlis LLC, and/or Contractors of Starlis LLC that are included within EmpireCraft are licensed MIT, and are free to be used in your own fork.
