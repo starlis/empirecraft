@@ -1,64 +1,48 @@
-# EmpireCraft #
-## What ##
-EmpireCraft is a fork of Spigot used by the [Empire Minecraft](http://ref.emc.gs/Aikar?gam=EmpireCraft) Server.
+# EmpireCraft
+## What
+EmpireCraft is a fork of Spigot used by the [Empire Minecraft](https://ref.emc.gs/Aikar?gam=EmpireCraft) Server.
 
-It contains many gameplay changes to suit our server, but more importantly, contains new performance improvements pending
-testing to be contributed to Spigot / Sponge.
+It contains many gameplay changes to suit our server, but more importantly, contains new performance improvements pending testing to be contributed to Spigot / Paper / Sponge.
 
-We also have many API's that we privately use but choose to not publicly PR them upstream, see below for why.
+We also have many API that we privately use but [choose not to](#why-we-dont-release-all-api) publicly PR upstream.
 
-## Why we don't release all API ##
-API's are tough to design. In public projects such as Bukkit, Spigot, Sponge etc, once an API is commited. It's almost
-forever. You can't go breaking it without solid justification. This is the politics game.
+## Why we don't release all API
+API are tough to design. In public projects such as Bukkit, Spigot, Paper, etc., once an API is commited, it's almost forever. You can't go breaking it without solid justification. This is the politics game.
 
-With that in mind, much thought has to be given to the API in now and future use cases and applications to ensure it can
-be extended without breaking.
+With that in mind, much thought has to be given to our API in current and future use cases and applications to ensure it can be extended without breaking. 
 
 This is a lot of politics that we don't have time in our lives to deal with.
 
-Therefor, we write API's to OUR base needs, which is often not 'complete' or 'up to style guidelines' of upstream repositories.
-We do not have the time to write code that we personally do not need for these API's.
+Therefore, we write API to OUR base needs, which is often not 'complete' or 'up to style guidelines' of upstream repositories. We do not have the time to write code that we personally do not need for these API.
 
-We also want to retain the ability to make breaking changes to the API if it results in a better way to do things or
-performance improvements.
+We also want to retain the ability to make breaking changes to the API if it results in a better way to do things or performance improvements.
 
 By contributing it upstream, we would give up that power.
 
-So that is why we have many extremely useful API's that are not PR'd upstream
+So that is why we have many extremely useful API that are not PR'd upstream.
 
-## LICENSE / Support / Usage of Patches ##
-All patches written by Aikar, Starlis LLC, Contractors of Starlis LLC that has been included inside of EmpireCraft
-are licensed MIT, and are free to be used in your own fork.
+## License, Support, & Usage of Patches
+All patches written by Aikar, Starlis LLC, and/or Contractors of Starlis LLC that are included within EmpireCraft are licensed MIT, and are free to be used in your own fork.
 
-We offer ABSOLUTELY NO SUPPORT for these patches. If you wish to use them, you must take the effect to extract them
-from our repo, apply them to your own, and repair any code changes to get it to compile (note: we use a .callEvent()
-utility method on the Event class for nearly all Custom Events to reduce diff.)
+We offer __ABSOLUTELY NO SUPPORT__ for these patches. If you wish to use them, you must take the effort to extract them from our repo, apply them to your own, and repair any code changes to get it to compile (note: we use a `.callEvent()` utility method on the Event class for nearly all custom events to reduce diff.)
 
-If we make a breaking change, and you wish to pull the patch to update it after that, it's your job to fix the changes!
+If we make any breaking changes, and you still wish to use these patches, it's your job to fix the changes!
 
 So in summary, we love to share! Use anything we wrote in this repo how ever you please, but support it yourself :)
 
+## OS Support & Scripts
+We only directly support the latest LTS Ubuntu for shell scripts. It may work elsewhere... but no promises.
 
-## OS Support / Scripts##
-We only directly support Ubuntu 14.04 for the shell scripts. It may work elsewhere... but no promises.
+Many scripts will try to push to our repos, please change that if you fork :)
 
-Many scripts will try to push to our repo's, please change that if you fork :)
+### scripts/importmcdev
+Imports specific files from mc-dev that CB/Spigot doesn't use, but we need.
 
-### scripts/importmcdev ###
-Imports specific files from mc-dev that CB/Spigot doesn't use but we need.
+### scripts/generatesources
+Generates an mc-dev folder that can be added to IDE for the other mc-dev files located in minecraft-server.jar.
 
-### scripts/updatespigot ###
-updates the Bukkit/CraftBukkit/Spigot baseline when passed --update, otherwise regenerates the baseline with changes
-to mcdev from importmcdev
+### scripts/rebuildpatches
+Rebuilds patch state from the EmpireCraft-* repo's current state. Automatically handles patch deletion and renaming for you, unlike Spigot's version of these scripts.
 
-Run `scripts/applypatches` then `scripts/rebuildpatches` immediately after
-
-### scripts/generatesources ###
-Generates an mc-dev folder that can be added to IDE for the other mc-dev files located in minecraft-server.jar
-
-### scripts/rebuildpatches ###
-Rebuilds patch state from the EmpireCraft-* repo's current state. Automatically handles patch deletion and renaming
-for you unlike Spigots version of these scripts.
-
-### scripts/applypatches ###
-Takes current patches/{bukkit,craftbukkit} and applys them on latest spigot upstream
+### scripts/applypatches
+Takes current patches, i.e., Bukkit & CraftBukkit, and applies them on the latest Spigot upstream.
