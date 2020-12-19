@@ -1,0 +1,52 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Sat, 19 Dec 2020 12:55:15 -0500
+Subject: [PATCH] Fix Lore comparisons to use legacy format
+
+Strips differences in modifiers that can be different but visibly the same
+---
+ .../craftbukkit/inventory/CraftMetaItem.java  | 22 +++++++++++++++++--
+ 1 file changed, 20 insertions(+), 2 deletions(-)
+
+diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java
+index 1f4fd575537aa5fd8707bc38df451fe50968cc07..549bcef79624fff241a135cc3b52a10bcf5c8477 100644
+--- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java
++++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java
+@@ -1295,10 +1295,10 @@ class CraftMetaItem implements ItemMeta, Damageable, Repairable, BlockDataMeta {
+      */
+     @Overridden
+     boolean equalsCommon(CraftMetaItem that) {
+-        return ((this.hasDisplayName() ? that.hasDisplayName() && this.displayName.equals(that.displayName) : !that.hasDisplayName()))
++        return ((this.hasDisplayName() ? that.hasDisplayName() && CraftChatMessage.fromComponent(this.displayName).equals(CraftChatMessage.fromComponent(that.displayName)) : !that.hasDisplayName())) // Paper
+                 && (this.hasLocalizedName() ? that.hasLocalizedName() && this.locName.equals(that.locName) : !that.hasLocalizedName())
+                 && (this.hasEnchants() ? that.hasEnchants() && this.enchantments.equals(that.enchantments) : !that.hasEnchants())
+-                && (this.hasLore() ? that.hasLore() && this.lore.equals(that.lore) : !that.hasLore())
++                && (this.hasLore() ? that.hasLore() && isLoreSimilar(this.lore, that.lore) : !that.hasLore()) // Paper
+                 && (this.hasCustomModelData() ? that.hasCustomModelData() && this.customModelData.equals(that.customModelData) : !that.hasCustomModelData())
+                 && (this.hasBlockData() ? that.hasBlockData() && this.blockData.equals(that.blockData) : !that.hasBlockData())
+                 && (this.hasRepairCost() ? that.hasRepairCost() && this.repairCost == that.repairCost : !that.hasRepairCost())
+@@ -1315,6 +1315,24 @@ class CraftMetaItem implements ItemMeta, Damageable, Repairable, BlockDataMeta {
+                 // Paper end
+     }
+ 
++    // Paper start
++    private boolean isLoreSimilar(List<IChatBaseComponent> lore1, List<IChatBaseComponent> lore2) {
++        if (lore1.size() != lore2.size()) {
++            return false;
++        }
++
++        for (int i = 0; i < lore1.size(); i++) {
++            String lore1s = CraftChatMessage.fromComponent(lore1.get(i));
++            String lore2s = CraftChatMessage.fromComponent(lore2.get(i));
++            if (!lore1s.equals(lore2s)) {
++                return false;
++            }
++        }
++
++        return true;
++    }
++    // Paper end
++
+     /**
+      * This method is a bit weird...
+      * Return true if you are a common class OR your uncommon parts are empty.
