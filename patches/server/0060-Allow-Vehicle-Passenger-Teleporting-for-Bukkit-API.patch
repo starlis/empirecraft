@@ -6,13 +6,14 @@ Subject: [PATCH] Allow Vehicle/Passenger Teleporting for Bukkit API
 If Bukkit teleport is called, teleport the whole set of entities together and maintain the chain.
 ---
  .../java/net/minecraft/server/Entity.java     | 22 ++++++-
- .../minecraft/server/PlayerConnection.java    | 24 ++++++--
+ .../minecraft/server/PlayerConnection.java    | 26 +++++---
+ .../java/net/minecraft/server/PlayerList.java | 12 +++-
  .../craftbukkit/entity/CraftEntity.java       | 59 ++++++++++++++++++-
- .../craftbukkit/entity/CraftPlayer.java       |  5 +-
- 4 files changed, 100 insertions(+), 10 deletions(-)
+ .../craftbukkit/entity/CraftPlayer.java       |  8 ++-
+ 5 files changed, 113 insertions(+), 14 deletions(-)
 
 diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
-index 693971c47eb109142229bc5cb3da8007bff150be..635a87eed654d53deef532cc9689cc33922d0cde 100644
+index 5f04b37ed235b3178747f1590a7199c7afae3d51..790fb9a068df84794e38cd7101e51d6e945d5245 100644
 --- a/src/main/java/net/minecraft/server/Entity.java
 +++ b/src/main/java/net/minecraft/server/Entity.java
 @@ -109,7 +109,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
@@ -52,7 +53,7 @@ index 693971c47eb109142229bc5cb3da8007bff150be..635a87eed654d53deef532cc9689cc33
      public float pitch;
      public float lastYaw;
 diff --git a/src/main/java/net/minecraft/server/PlayerConnection.java b/src/main/java/net/minecraft/server/PlayerConnection.java
-index 7cd462c707ba266d6a7bf721b81f0384933b22f3..73e47d468b3da30a743728c92e79fe4d528c82cd 100644
+index 7cd462c707ba266d6a7bf721b81f0384933b22f3..4a82630042119ef6c2ce0270e2fd06cda8035ad1 100644
 --- a/src/main/java/net/minecraft/server/PlayerConnection.java
 +++ b/src/main/java/net/minecraft/server/PlayerConnection.java
 @@ -99,12 +99,12 @@ public class PlayerConnection implements PacketListenerPlayIn {
@@ -93,8 +94,43 @@ index 7cd462c707ba266d6a7bf721b81f0384933b22f3..73e47d468b3da30a743728c92e79fe4d
      }
  
      @Override
+@@ -2278,7 +2290,7 @@ public class PlayerConnection implements PacketListenerPlayIn {
+             case PERFORM_RESPAWN:
+                 if (this.player.viewingCredits) {
+                     this.player.viewingCredits = false;
+-                    this.player = this.minecraftServer.getPlayerList().moveToWorld(this.player, true);
++                    this.player = this.minecraftServer.getPlayerList().moveToWorld(this.player, true, org.bukkit.event.player.PlayerTeleportEvent.TeleportCause.END_PORTAL); // Paper
+                     CriterionTriggers.v.a(this.player, World.THE_END, World.OVERWORLD);
+                 } else {
+                     if (this.player.getHealth() > 0.0F) {
+diff --git a/src/main/java/net/minecraft/server/PlayerList.java b/src/main/java/net/minecraft/server/PlayerList.java
+index 2141056ea8922f729c53bc6891277062a7b778bd..652da07cdd96279cc33930bc2abb91f31344b33c 100644
+--- a/src/main/java/net/minecraft/server/PlayerList.java
++++ b/src/main/java/net/minecraft/server/PlayerList.java
+@@ -717,11 +717,19 @@ public abstract class PlayerList {
+ 
+     // CraftBukkit start
+     public EntityPlayer moveToWorld(EntityPlayer entityplayer, boolean flag) {
+-        return this.moveToWorld(entityplayer, this.server.getWorldServer(entityplayer.getSpawnDimension()), flag, null, true);
++        return this.moveToWorld(entityplayer, this.server.getWorldServer(entityplayer.getSpawnDimension()), flag, null, true); // Paper
+     }
+ 
++    // Paper start
++    public EntityPlayer moveToWorld(EntityPlayer entityplayer, boolean flag, org.bukkit.event.player.PlayerTeleportEvent.TeleportCause cause) {
++        return this.moveToWorld(entityplayer, this.server.getWorldServer(entityplayer.getSpawnDimension()), flag, null, true, cause);
++    }
+     public EntityPlayer moveToWorld(EntityPlayer entityplayer, WorldServer worldserver, boolean flag, Location location, boolean avoidSuffocation) {
+-        entityplayer.stopRiding(); // CraftBukkit
++        return this.moveToWorld(entityplayer, worldserver, flag, location, avoidSuffocation, org.bukkit.event.player.PlayerTeleportEvent.TeleportCause.UNKNOWN);
++    }
++    public EntityPlayer moveToWorld(EntityPlayer entityplayer, WorldServer worldserver, boolean flag, Location location, boolean avoidSuffocation, org.bukkit.event.player.PlayerTeleportEvent.TeleportCause cause) {
++        entityplayer.getBukkitEntity().teleportAttachedEntities(location, cause);
++        // Paper end
+         this.players.remove(entityplayer);
+         this.playersByName.remove(entityplayer.getName().toLowerCase(java.util.Locale.ROOT)); // Spigot
+         entityplayer.getWorldServer().removePlayer(entityplayer);
 diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java
-index a45287a9fb3810ac3327188658e75477d3e9de81..ad9c046b7fdff953aad78d0c1b11b669bd672f0b 100644
+index a45287a9fb3810ac3327188658e75477d3e9de81..1b6e333ba7252f53e1abeee5ba4cae23d0699a86 100644
 --- a/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java
 +++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java
 @@ -541,22 +541,75 @@ public abstract class CraftEntity implements org.bukkit.entity.Entity {
@@ -103,7 +139,7 @@ index a45287a9fb3810ac3327188658e75477d3e9de81..ad9c046b7fdff953aad78d0c1b11b669
      }
 +    // Paper start - vehicle passenger teleporting
 +    private static Entity teleportingEntity;
-+    void teleportAttachedEntities(Location location, TeleportCause cause) {
++    public void teleportAttachedEntities(Location location, TeleportCause cause) {
 +        if (teleportingEntity != null) {
 +            return;
 +        }
@@ -185,7 +221,7 @@ index a45287a9fb3810ac3327188658e75477d3e9de81..ad9c046b7fdff953aad78d0c1b11b669
      }
  
 diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
-index 535faff6f9aead8f6af0a87ff4ff947442a6434a..66bc281dc2233e294c1391d83cc24b78940b815a 100644
+index 535faff6f9aead8f6af0a87ff4ff947442a6434a..ec4605ca42433288f37aedce3c7411ba21a65f19 100644
 --- a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
 @@ -836,7 +836,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
@@ -193,13 +229,19 @@ index 535faff6f9aead8f6af0a87ff4ff947442a6434a..66bc281dc2233e294c1391d83cc24b78
  
          // If this player is riding another entity, we must dismount before teleporting.
 -        entity.stopRiding();
-+        this.teleportAttachedEntities(location, cause); // Paper
++        // entity.stopRiding(); // Paper
  
          // SPIGOT-5509: Wakeup, similar to riding
          if (this.isSleeping()) {
-@@ -862,6 +862,9 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+@@ -858,10 +858,14 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+ 
+         // Check if the fromWorld and toWorld are the same.
+         if (fromWorld == toWorld) {
++            this.teleportAttachedEntities(location, cause); // Paper
+             entity.playerConnection.teleport(to);
          } else {
-             server.getHandle().moveToWorld(entity, toWorld, true, to, !toWorld.paperConfig.disableTeleportationSuffocationCheck); // Paper
+-            server.getHandle().moveToWorld(entity, toWorld, true, to, !toWorld.paperConfig.disableTeleportationSuffocationCheck); // Paper
++            server.getHandle().moveToWorld(entity, toWorld, true, to, !toWorld.paperConfig.disableTeleportationSuffocationCheck, cause); // Paper
          }
 +
 +        this.finishTeleporting(); // Paper
