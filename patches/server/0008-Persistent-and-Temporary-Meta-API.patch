@@ -8,6 +8,7 @@ Subject: [PATCH] Persistent and Temporary Meta API
  .../api/meta/CraftEAPI_Meta.java              |  80 +++
  src/main/java/net/minecraft/server/Chunk.java |   2 +
  .../minecraft/server/ChunkRegionLoader.java   |   3 +
+ .../net/minecraft/server/Convertable.java     |   7 +-
  .../java/net/minecraft/server/Entity.java     |   3 +
  .../net/minecraft/server/MetaApiAccessor.java | 577 ++++++++++++++++++
  .../server/PacketPlayOutMapChunk.java         |   1 +
@@ -17,7 +18,7 @@ Subject: [PATCH] Persistent and Temporary Meta API
  .../minecraft/server/ProtoChunkExtension.java |   1 +
  .../java/net/minecraft/server/TileEntity.java |   3 +
  src/main/java/net/minecraft/server/World.java |   1 +
- .../net/minecraft/server/WorldDataServer.java |  11 +-
+ .../net/minecraft/server/WorldDataServer.java |   3 +-
  .../net/minecraft/server/WorldServer.java     |   2 +-
  .../org/bukkit/craftbukkit/CraftChunk.java    |   2 +
  .../org/bukkit/craftbukkit/CraftServer.java   |   3 +
@@ -26,7 +27,7 @@ Subject: [PATCH] Persistent and Temporary Meta API
  .../craftbukkit/entity/CraftEntity.java       |   2 +
  .../craftbukkit/event/CraftEventFactory.java  |   5 +
  .../craftbukkit/inventory/CraftInventory.java |  11 +
- 22 files changed, 725 insertions(+), 3 deletions(-)
+ 23 files changed, 724 insertions(+), 3 deletions(-)
  create mode 100644 src/main/java/com/empireminecraft/api/meta/CraftEAPI_Meta.java
  create mode 100644 src/main/java/net/minecraft/server/MetaApiAccessor.java
 
@@ -178,8 +179,26 @@ index 8e7da2c5f3852920ec5fbcdd2bff4d299e6aa499..0014e22973a0ace170941d62d1dfb701
          nbttagcompound1.setLong("LastUpdate", asyncsavedata != null ? asyncsavedata.worldTime : worldserver.getTime()); // Paper - async chunk unloading
          nbttagcompound1.setLong("InhabitedTime", ichunkaccess.getInhabitedTime());
          nbttagcompound1.setString("Status", ichunkaccess.getChunkStatus().d());
+diff --git a/src/main/java/net/minecraft/server/Convertable.java b/src/main/java/net/minecraft/server/Convertable.java
+index 786d90c635310788eaabc1e211975f003dd3ce22..9a1def67eae7d12af14192a0d5d16f9d1f95caf5 100644
+--- a/src/main/java/net/minecraft/server/Convertable.java
++++ b/src/main/java/net/minecraft/server/Convertable.java
+@@ -158,7 +158,12 @@ public class Convertable {
+                 LevelVersion levelversion = LevelVersion.a(dynamic);
+                 WorldSettings worldsettings = WorldSettings.a(dynamic, datapackconfiguration);
+ 
+-                return WorldDataServer.a(dynamic, datafixer, i, nbttagcompound2, worldsettings, levelversion, (GeneratorSettings) pair.getFirst(), (Lifecycle) pair.getSecond());
++                // EMC start
++                WorldDataServer worldDataServer = WorldDataServer.a(dynamic, datafixer, i, nbttagcompound2, worldsettings, levelversion, (GeneratorSettings) pair.getFirst(),
++                    (Lifecycle) pair.getSecond());
++                MetaApiAccessor.loadWorldMeta(worldDataServer, nbttagcompound1); // Should be Data
++                return worldDataServer;
++                // EMC end
+             } catch (Exception exception) {
+                 Convertable.LOGGER.error("Exception reading {}", file, exception);
+                 return null;
 diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
-index 091d55c04c663df07c69f637515f53990c3c2d46..7fc24fe1213f3cd28bff82219059afa559d473b7 100644
+index e44e5652c12fbee51acedc1f911181b8443fae93..2ee4e3aea65b27f929efcac7551cdcc7276f3c91 100644
 --- a/src/main/java/net/minecraft/server/Entity.java
 +++ b/src/main/java/net/minecraft/server/Entity.java
 @@ -53,6 +53,7 @@ import org.bukkit.plugin.PluginManager;
@@ -891,7 +910,7 @@ index 9ed21f434c5fb019b74dfe9ee0b802ccc5c07fd8..56e085646d4b1451a4bcc90828ae0c10
                  // CraftBukkit start
                  if (!this.captureBlockStates) { // Don't notify clients or update physics while capturing blockstates
 diff --git a/src/main/java/net/minecraft/server/WorldDataServer.java b/src/main/java/net/minecraft/server/WorldDataServer.java
-index a7e623044aece1f46e2d039cd2dcf710120ac267..9ea9a20fda423b82ebd8a59c29c9ed02a9c144bd 100644
+index a7e623044aece1f46e2d039cd2dcf710120ac267..18cd4e01b4753cc423866eb9e0e01df849e45c14 100644
 --- a/src/main/java/net/minecraft/server/WorldDataServer.java
 +++ b/src/main/java/net/minecraft/server/WorldDataServer.java
 @@ -57,6 +57,7 @@ public class WorldDataServer implements IWorldDataServer, SaveData {
@@ -902,24 +921,7 @@ index a7e623044aece1f46e2d039cd2dcf710120ac267..9ea9a20fda423b82ebd8a59c29c9ed02
  
      private WorldDataServer(@Nullable DataFixer datafixer, int i, @Nullable NBTTagCompound nbttagcompound, boolean flag, int j, int k, int l, float f, long i1, long j1, int k1, int l1, int i2, boolean flag1, int j2, boolean flag2, boolean flag3, boolean flag4, WorldBorder.c worldborder_c, int k2, int l2, @Nullable UUID uuid, LinkedHashSet<String> linkedhashset, CustomFunctionCallbackTimerQueue<MinecraftServer> customfunctioncallbacktimerqueue, @Nullable NBTTagCompound nbttagcompound1, NBTTagCompound nbttagcompound2, WorldSettings worldsettings, GeneratorSettings generatorsettings, Lifecycle lifecycle) {
          this.k = datafixer;
-@@ -101,9 +102,15 @@ public class WorldDataServer implements IWorldDataServer, SaveData {
-         });
- 
-         // CraftBukkit - decompile error
--        return new WorldDataServer(datafixer, i, nbttagcompound, dynamic.get("WasModded").asBoolean(false), dynamic.get("SpawnX").asInt(0), dynamic.get("SpawnY").asInt(0), dynamic.get("SpawnZ").asInt(0), dynamic.get("SpawnAngle").asFloat(0.0F), j, dynamic.get("DayTime").asLong(j), levelversion.a(), dynamic.get("clearWeatherTime").asInt(0), dynamic.get("rainTime").asInt(0), dynamic.get("raining").asBoolean(false), dynamic.get("thunderTime").asInt(0), dynamic.get("thundering").asBoolean(false), dynamic.get("initialized").asBoolean(true), dynamic.get("DifficultyLocked").asBoolean(false), WorldBorder.c.a(dynamic, WorldBorder.c), dynamic.get("WanderingTraderSpawnDelay").asInt(0), dynamic.get("WanderingTraderSpawnChance").asInt(0), (UUID) dynamic.get("WanderingTraderId").read(MinecraftSerializableUUID.a).result().orElse(null), (LinkedHashSet) dynamic.get("ServerBrands").asStream().flatMap((dynamic1) -> {
-+        // EMC start
-+        WorldDataServer worldData = new WorldDataServer(datafixer, i, nbttagcompound, dynamic.get("WasModded").asBoolean(false), dynamic.get("SpawnX").asInt(0), dynamic.get("SpawnY").asInt(0), dynamic.get("SpawnZ").asInt(0), dynamic.get("SpawnAngle").asFloat(0.0F), j, dynamic.get("DayTime").asLong(j), levelversion.a(), dynamic.get("clearWeatherTime").asInt(0), dynamic.get("rainTime").asInt(0), dynamic.get("raining").asBoolean(false), dynamic.get("thunderTime").asInt(0), dynamic.get("thundering").asBoolean(false), dynamic.get("initialized").asBoolean(true), dynamic.get("DifficultyLocked").asBoolean(false), WorldBorder.c.a(dynamic, WorldBorder.c), dynamic.get("WanderingTraderSpawnDelay").asInt(0), dynamic.get("WanderingTraderSpawnChance").asInt(0), (UUID) dynamic.get("WanderingTraderId").read(MinecraftSerializableUUID.a).result().orElse(null), (LinkedHashSet) dynamic.get("ServerBrands").asStream().flatMap((dynamic1) -> {
-             return SystemUtils.a(dynamic1.asString().result());
-         }).collect(Collectors.toCollection(Sets::newLinkedHashSet)), new CustomFunctionCallbackTimerQueue<>(CustomFunctionCallbackTimers.a, dynamic.get("ScheduledEvents").asStream()), (NBTTagCompound) dynamic.get("CustomBossEvents").orElseEmptyMap().getValue(), nbttagcompound1, worldsettings, generatorsettings, lifecycle);
-+        if (nbttagcompound != null) {
-+            MetaApiAccessor.loadWorldMeta(worldData, nbttagcompound);
-+        }
-+        return worldData;
-+        // EMC end
-     }
- 
-     @Override
-@@ -180,7 +187,7 @@ public class WorldDataServer implements IWorldDataServer, SaveData {
+@@ -180,7 +181,7 @@ public class WorldDataServer implements IWorldDataServer, SaveData {
          if (this.B != null) {
              nbttagcompound.a("WanderingTraderId", this.B);
          }
@@ -1001,7 +1003,7 @@ index 36d7de6e6540e156499edb4b69b8bbaeb0d6dc54..4e8691917909bf54b655250ada06078b
 +    // EMC end
  }
 diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java
-index 475dc1aa2cba77c13033938e719a66707f358914..19a6ce4d9d70610049d61e971c3af1a97e7d2ba1 100644
+index 4ec0e9220d2fa976dc6dfecd3eedb5b78a0ef8f4..12e65dfca621eaecc504545b4c451a319c7e7e7a 100644
 --- a/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java
 +++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java
 @@ -174,6 +174,8 @@ import org.bukkit.util.NumberConversions;
