@@ -24,18 +24,18 @@ Subject: [PATCH] Entity AI API
  .../server/PathfinderGoalMeleeAttack.java     |   2 +-
  .../minecraft/server/PathfinderGoalPanic.java |   3 +-
  .../server/PathfinderGoalSelector.java        |   3 +-
- .../server/PathfinderGoalTarget.java          |   2 +-
+ .../server/PathfinderGoalTarget.java          |   1 +
  .../net/minecraft/server/WorldServer.java     |   3 +-
  .../bukkit/craftbukkit/entity/CraftBlaze.java |  18 ++
  .../craftbukkit/entity/CraftEnderSignal.java  |   3 +-
  .../bukkit/craftbukkit/entity/CraftGhast.java |   9 +
  .../java/org/spigotmc/ActivationRange.java    |   1 +
- 26 files changed, 590 insertions(+), 29 deletions(-)
+ 26 files changed, 590 insertions(+), 28 deletions(-)
  create mode 100644 src/main/java/com/empireminecraft/api/EntityAIApi.java
  create mode 100644 src/main/java/net/minecraft/server/EntityGoalAccessor.java
 
 diff --git a/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java b/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
-index bb6e5296a801f7053db72d9eb4d7b9becdb751f4..c88186f68dbdb6bd8204e7b403238251e5714b1c 100644
+index bb6e5296a801f7053db72d9eb4d7b9becdb751f4..d0f77336b45415188486f130ef6b89470d2010db 100644
 --- a/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
 +++ b/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
 @@ -23,9 +23,21 @@
@@ -136,7 +136,7 @@ index bb6e5296a801f7053db72d9eb4d7b9becdb751f4..c88186f68dbdb6bd8204e7b403238251
 +    }
 +
 +    @Override
-+    public void setTargetRange(Mob entity, float range) {
++    public void setTargetRange(Mob entity, Double range) {
 +        EntityAIApi.setTargetRange(entity, range);
 +    }
 +
@@ -185,7 +185,7 @@ index bb6e5296a801f7053db72d9eb4d7b9becdb751f4..c88186f68dbdb6bd8204e7b403238251
  }
 diff --git a/src/main/java/com/empireminecraft/api/EntityAIApi.java b/src/main/java/com/empireminecraft/api/EntityAIApi.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..2661020933d78de68df75b10219a422df398dd5c
+index 0000000000000000000000000000000000000000..f76ae96bdccd96b4873e7871c79d4e47894d6d49
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/api/EntityAIApi.java
 @@ -0,0 +1,293 @@
@@ -275,7 +275,7 @@ index 0000000000000000000000000000000000000000..2661020933d78de68df75b10219a422d
 +            handle.goalSelector.addGoal(2, new PathfinderGoalMeleeAttack(handle, 1.0F, false));
 +            handle.targetSelector.addGoal(2, new PathfinderGoalNearestAttackableTarget(handle, EntityHuman.class, true));
 +            Meta.setEntityMeta(creature, ENTITY_AGGRESSIVE_RANGE_KEY, range);
-+            setTargetRange(creature, range);
++            setTargetRange(creature, (double) range);
 +            handle.markedAggressive = true;
 +        }
 +    }
@@ -363,13 +363,13 @@ index 0000000000000000000000000000000000000000..2661020933d78de68df75b10219a422d
 +        ((CraftEntity)entity).getHandle().setSize(width, height);
 +    }
 +
-+    public static void setTargetRange(Mob mob, float range) {
++    public static void setTargetRange(Mob mob, Double range) {
 +        EntityInsentient entity = (EntityInsentient) ((CraftEntity) mob).getHandle();
 +        entity.targetRange = range;
 +    }
 +
 +    public static void setRangedAttackDistance(RangedEntity monster, float range) {
-+        setTargetRange(monster, range);
++        setTargetRange(monster, (double) range);
 +        EntityInsentient entity = (EntityInsentient) ((CraftEntity) monster).getHandle();
 +        getGoalSets(entity).forEach(set -> set.forEach(o -> {
 +            PathfinderGoal goal = o.getGoal();
@@ -797,14 +797,14 @@ index 0000000000000000000000000000000000000000..d0ee7f3042a413027964a630f944fe42
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/EntityInsentient.java b/src/main/java/net/minecraft/server/EntityInsentient.java
-index dcc5b098bfe36ef7ee8536b3da65c4ce1748c9d8..1183aac6c1ee6616fd6f31ba7567359fb0c600c5 100644
+index dcc5b098bfe36ef7ee8536b3da65c4ce1748c9d8..c57c0e35cd7343db6564a9cc46daeda15ad7b1cf 100644
 --- a/src/main/java/net/minecraft/server/EntityInsentient.java
 +++ b/src/main/java/net/minecraft/server/EntityInsentient.java
 @@ -53,6 +53,7 @@ public abstract class EntityInsentient extends EntityLiving {
      private NBTTagCompound by;
      private BlockPosition bz;
      private float bA;
-+    public double targetRange = 16; // EMC
++    public Double targetRange; // EMC
  
      public boolean aware = true; // CraftBukkit
  
@@ -1048,20 +1048,19 @@ index d3f0327a2a7cdedf3fe8d10df981a9f1cb378d26..80253468fda1c74fa2d691d0ab7625ca
      private final Supplier<GameProfilerFiller> e;
      private final EnumSet<PathfinderGoal.Type> f = EnumSet.noneOf(PathfinderGoal.Type.class); // Paper unused, but dummy to prevent plugins from crashing as hard. Theyll need to support paper in a special case if this is super important, but really doesn't seem like it would be.
 diff --git a/src/main/java/net/minecraft/server/PathfinderGoalTarget.java b/src/main/java/net/minecraft/server/PathfinderGoalTarget.java
-index fe77458f07651508f006d8f69ca081db2414f00d..82141c0cbb3de9ab04316c6ee8844ea1bf4ab6c2 100644
+index fe77458f07651508f006d8f69ca081db2414f00d..75e1b657b54be25c39f24ad11ad3dfa6fce32f84 100644
 --- a/src/main/java/net/minecraft/server/PathfinderGoalTarget.java
 +++ b/src/main/java/net/minecraft/server/PathfinderGoalTarget.java
-@@ -69,7 +69,7 @@ public abstract class PathfinderGoalTarget extends PathfinderGoal {
+@@ -69,6 +69,7 @@ public abstract class PathfinderGoalTarget extends PathfinderGoal {
      }
  
      protected double k() {
--        return this.e.b(GenericAttributes.FOLLOW_RANGE);
-+        return e.targetRange; // EMC
++        if (e.targetRange != null) { return e.targetRange; } // EMC
+         return this.e.b(GenericAttributes.FOLLOW_RANGE);
      }
  
-     @Override
 diff --git a/src/main/java/net/minecraft/server/WorldServer.java b/src/main/java/net/minecraft/server/WorldServer.java
-index bf192ac61b6dbbcc4b0f9d02e6d1553064435a32..c340dbf3aba40620a63ea4634fa89f2609c4dfdb 100644
+index 62e0db7cefd7b77e95ac22e55130d1a14ae943f5..5863736500c3cb7aa22d09fcc8699f3b68663a6a 100644
 --- a/src/main/java/net/minecraft/server/WorldServer.java
 +++ b/src/main/java/net/minecraft/server/WorldServer.java
 @@ -832,7 +832,7 @@ public class WorldServer extends World implements GeneratorAccessSeed {
