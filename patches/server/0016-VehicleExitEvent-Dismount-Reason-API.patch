@@ -4,14 +4,14 @@ Date: Wed, 7 Aug 2013 19:52:14 -0400
 Subject: [PATCH] VehicleExitEvent Dismount Reason API
 
 ---
- src/main/java/net/minecraft/server/Entity.java       | 12 +++++++++++-
- src/main/java/net/minecraft/server/EntityHuman.java  |  1 +
- src/main/java/net/minecraft/server/EntityLiving.java |  2 ++
- src/main/java/net/minecraft/server/PlayerList.java   |  1 +
- 4 files changed, 15 insertions(+), 1 deletion(-)
+ src/main/java/net/minecraft/server/Entity.java      | 13 ++++++++++++-
+ src/main/java/net/minecraft/server/EntityHuman.java |  1 +
+ .../java/net/minecraft/server/EntityLiving.java     |  2 ++
+ src/main/java/net/minecraft/server/PlayerList.java  |  1 +
+ 4 files changed, 16 insertions(+), 1 deletion(-)
 
 diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
-index eba3aa11d0cfa86b7ebca8f831f783d380815c5e..c2bf32e070147281f96676b985501b9b064b322a 100644
+index eba3aa11d0cfa86b7ebca8f831f783d380815c5e..375baba40ec82431c3a8cca38c210c19b1b3dd47 100644
 --- a/src/main/java/net/minecraft/server/Entity.java
 +++ b/src/main/java/net/minecraft/server/Entity.java
 @@ -280,6 +280,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
@@ -22,7 +22,15 @@ index eba3aa11d0cfa86b7ebca8f831f783d380815c5e..c2bf32e070147281f96676b985501b9b
              this.stopRiding();
          }
  
-@@ -2022,6 +2023,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+@@ -425,6 +426,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+         if (isDisabled) { return; } // EMC
+         this.world.getMethodProfiler().enter("entityBaseTick");
+         if (this.isPassenger() && this.getVehicle().dead) {
++            this.dismountReason = org.bukkit.event.vehicle.VehicleExitEvent.DismountReason.DEAD_VEHICLE; // EMC
+             this.stopRiding();
+         }
+ 
+@@ -2022,6 +2024,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
              return false;
          } else {
              if (this.isPassenger()) {
@@ -30,20 +38,20 @@ index eba3aa11d0cfa86b7ebca8f831f783d380815c5e..c2bf32e070147281f96676b985501b9b
                  this.stopRiding();
              }
  
-@@ -2042,7 +2044,11 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+@@ -2042,7 +2045,11 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
  
      public void ejectPassengers() {
          for (int i = this.passengers.size() - 1; i >= 0; --i) {
 -            ((Entity) this.passengers.get(i)).stopRiding();
 +            // EMC start
 +            Entity entity = this.passengers.get(i);
-+            if (this.dead) entity.dismountReason = org.bukkit.event.vehicle.VehicleExitEvent.DismountReason.DEAD;
++            if (this.dead) entity.dismountReason = org.bukkit.event.vehicle.VehicleExitEvent.DismountReason.DEAD_VEHICLE;
 +            entity.stopRiding();
 +            // EMC end
          }
  
      }
-@@ -2113,6 +2119,8 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+@@ -2113,6 +2120,8 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
      // Paper start
      protected boolean removePassenger(Entity entity) { return removePassenger(entity, false);}
      protected boolean removePassenger(Entity entity, boolean suppressCancellation) { // CraftBukkit
@@ -52,7 +60,7 @@ index eba3aa11d0cfa86b7ebca8f831f783d380815c5e..c2bf32e070147281f96676b985501b9b
          // Paper end
          if (entity.getVehicle() == this) {
              throw new IllegalStateException("Use x.stopRiding(y), not y.removePassenger(x)");
-@@ -2125,6 +2133,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+@@ -2125,6 +2134,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
                          (Vehicle) getBukkitEntity(),
                          (LivingEntity) entity.getBukkitEntity(), !suppressCancellation // Paper
                  );
@@ -60,7 +68,7 @@ index eba3aa11d0cfa86b7ebca8f831f783d380815c5e..c2bf32e070147281f96676b985501b9b
                  // Suppress during worldgen
                  if (this.valid) {
                      Bukkit.getPluginManager().callEvent(event);
-@@ -2549,6 +2558,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
+@@ -2549,6 +2559,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
          return String.format(Locale.ROOT, "%s['%s'/%d, uuid='%s', l='%s', x=%.2f, y=%.2f, z=%.2f, cx=%d, cz=%d, tl=%d, v=%b, d=%b]", new Object[] { this.getClass().getSimpleName(), this.getDisplayName().getString(), Integer.valueOf(this.id), this.uniqueID.toString(), this.world == null ? "~NULL~" : this.world.toString(), Double.valueOf(this.locX()), Double.valueOf(this.locY()), Double.valueOf(this.locZ()), chunkX, chunkZ, this.ticksLived, this.valid, this.dead}); // Paper - add more information
      }
  
