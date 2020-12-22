@@ -1,0 +1,68 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Mon, 21 Dec 2020 17:24:43 -0500
+Subject: [PATCH] Always convert Lore/Name of an item to ensure consistency
+
+Fixes item comparison checks where an old vs new is only different due
+to wrapper componenents.
+
+By always converting to legacy and back for display text, we ensure that
+an item json is consistent.
+
+because item display text cant have functional modifiers, this is safe.
+---
+ .../java/net/minecraft/server/ItemStack.java  | 25 +++++++++----------
+ 1 file changed, 12 insertions(+), 13 deletions(-)
+
+diff --git a/src/main/java/net/minecraft/server/ItemStack.java b/src/main/java/net/minecraft/server/ItemStack.java
+index 88433f7e85253453a96886d664bbf754de30c686..c991988f046d8236208d6f8f831b77453e4439b7 100644
+--- a/src/main/java/net/minecraft/server/ItemStack.java
++++ b/src/main/java/net/minecraft/server/ItemStack.java
+@@ -89,35 +89,34 @@ public final class ItemStack {
+         if (display != null) {
+             if (display.hasKeyOfType("Name", 8)) {
+                 String json = display.getString("Name");
+-                if (json != null && json.contains("\u00A7")) {
+-                    try {
+-                        display.set("Name", convert(json));
+-                    } catch (JsonParseException jsonparseexception) {
+-                        display.remove("Name");
+-                    }
++                try {
++                    display.set("Name", convertDisplayString(json));
++                } catch (JsonParseException jsonparseexception) {
++                    display.remove("Name");
+                 }
+             }
+             if (display.hasKeyOfType("Lore", 9)) {
+                 NBTTagList list = display.getList("Lore", 8);
+                 for (int index = 0; index < list.size(); index++) {
+                     String json = list.getString(index);
+-                    if (json != null && json.contains("\u00A7")) { // Only try if it has legacy in the unparsed json
+-                        try {
+-                            list.set(index, convert(json));
+-                        } catch (JsonParseException e) {
+-                            list.set(index, NBTTagString.create(org.bukkit.craftbukkit.util.CraftChatMessage.toJSON(new ChatComponentText(""))));
+-                        }
++                    try {
++                        list.set(index, convertDisplayString(json));
++                    } catch (JsonParseException e) {
++                        list.set(index, NBTTagString.create(org.bukkit.craftbukkit.util.CraftChatMessage.toJSON(new ChatComponentText(""))));
+                     }
+                 }
+             }
+         }
+     }
+ 
+-    private NBTTagString convert(String json) {
++    private NBTTagString convertDisplayString(String json) {
+         IChatBaseComponent component = IChatBaseComponent.ChatSerializer.jsonToComponent(json);
+         if (component instanceof ChatComponentText && component.getText().contains("\u00A7") && component.getSiblings().isEmpty()) {
+             // Only convert if the root component is a single comp with legacy in it, don't convert already normal components
+             component = org.bukkit.craftbukkit.util.CraftChatMessage.fromString(component.getText())[0];
++        } else {
++            // pass this to legacy format and back to strip invisible components and ensure consistent modifier format
++            component = org.bukkit.craftbukkit.util.CraftChatMessage.fromString(org.bukkit.craftbukkit.util.CraftChatMessage.fromComponent(component))[0];
+         }
+         return NBTTagString.create(org.bukkit.craftbukkit.util.CraftChatMessage.toJSON(component));
+     }
