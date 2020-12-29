@@ -1,0 +1,147 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: chickeneer <emcchickeneer@gmail.com>
+Date: Tue, 29 Dec 2020 01:31:22 -0600
+Subject: [PATCH] Add FakePlayer api for faking tablist users
+
+---
+ .../java/com/empireminecraft/api/API.java     |  1 +
+ .../com/empireminecraft/api/EAPI_Server.java  | 30 ++++++++++++++++
+ .../com/empireminecraft/api/FakePlayer.java   | 26 ++++++++++++++
+ src/main/java/org/bukkit/entity/Player.java   | 35 ++++++++++++++++++-
+ 4 files changed, 91 insertions(+), 1 deletion(-)
+ create mode 100644 src/main/java/com/empireminecraft/api/EAPI_Server.java
+ create mode 100644 src/main/java/com/empireminecraft/api/FakePlayer.java
+
+diff --git a/src/main/java/com/empireminecraft/api/API.java b/src/main/java/com/empireminecraft/api/API.java
+index b3ff6b13c9dfde87bb59fa637134a7899d0f310b..a98d73d7dc296b6c85fdafaae112d9de31b0917f 100644
+--- a/src/main/java/com/empireminecraft/api/API.java
++++ b/src/main/java/com/empireminecraft/api/API.java
+@@ -33,6 +33,7 @@ public abstract class API {
+     public static EAPI_Misc misc;
+     public static EAPI_Meta meta;
+     public static EAPI_Chat chat;
++    public static EAPI_Server server;
+ 
+     public static String stack() {
+         return ExceptionUtils.getFullStackTrace(new Throwable());
+diff --git a/src/main/java/com/empireminecraft/api/EAPI_Server.java b/src/main/java/com/empireminecraft/api/EAPI_Server.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..861b9fd98e0cb7ca1ee86da5ba8d95aee71ecd99
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/api/EAPI_Server.java
+@@ -0,0 +1,30 @@
++/*
++ * Copyright (c) 2020. Starlis LLC / dba Empire Minecraft
++ *
++ * This source code is proprietary software and must not be redistributed without Starlis LLC's approval
++ *
++ */
++
++package com.empireminecraft.api;
++
++import com.destroystokyo.paper.profile.PlayerProfile;
++import org.bukkit.GameMode;
++
++import javax.annotation.Nullable;
++import java.util.Set;
++import java.util.UUID;
++
++public interface EAPI_Server {
++
++    @Nullable
++    FakePlayer getFakePlayerByUUID(UUID uuid);
++    void doFakePlayerJoin(FakePlayer fakePlayer);
++    void doFakePlayerQuit(FakePlayer fakePlayer);
++    void doUpdateFakePlayerPing(FakePlayer fakePlayer, int ping);
++    void doUpdateFakePlayerGameMode(FakePlayer fakePlayer, GameMode gameMode);
++    void doUpdateFakePlayerListName(FakePlayer fakePlayer, String playerListName);
++
++    FakePlayer createFakePlayer(PlayerProfile profile, int ping, GameMode gameMode, String playerListName);
++
++    Set<FakePlayer> getJoinedFakePlayers();
++}
+diff --git a/src/main/java/com/empireminecraft/api/FakePlayer.java b/src/main/java/com/empireminecraft/api/FakePlayer.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..576344b3a0b0b20fe8b127f518c35e255a3fc842
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/api/FakePlayer.java
+@@ -0,0 +1,26 @@
++/*
++ * Copyright (c) 2020. Starlis LLC / dba Empire Minecraft
++ *
++ * This source code is proprietary software and must not be redistributed without Starlis LLC's approval
++ *
++ */
++
++package com.empireminecraft.api;
++
++import com.destroystokyo.paper.profile.PlayerProfile;
++import org.bukkit.GameMode;
++
++import java.util.UUID;
++
++public interface FakePlayer {
++
++    PlayerProfile getProfile();
++
++    String getPlayerListName();
++
++    int getPing();
++
++    GameMode getGameMode();
++
++    UUID getUniqueId();
++}
+diff --git a/src/main/java/org/bukkit/entity/Player.java b/src/main/java/org/bukkit/entity/Player.java
+index 4dfd70515d54c41c6f4a6b5c64b02bb0892036e8..4090ba395a68ba740d20cf56eaf1218183ce5b26 100644
+--- a/src/main/java/org/bukkit/entity/Player.java
++++ b/src/main/java/org/bukkit/entity/Player.java
+@@ -5,6 +5,7 @@ import java.util.UUID;
+ import com.destroystokyo.paper.ClientOption; // Paper
+ import com.destroystokyo.paper.Title; // Paper
+ import com.destroystokyo.paper.profile.PlayerProfile; // Paper
++import com.empireminecraft.api.FakePlayer; // EMC
+ import java.util.Date; // Paper
+ import org.bukkit.BanEntry; // Paper
+ import org.bukkit.BanList; // Paper
+@@ -1126,7 +1127,39 @@ public interface Player extends HumanEntity, Conversable, OfflinePlayer, PluginM
+      *     player
+      */
+     public boolean canSee(@NotNull Player player);
+-
++    // EMC start
++    /**
++     * Checks to see if a fake player has been hidden from this player
++     *
++     * @param fakePlayer FakePlayer to check
++     * @return True if the provided fakePlayer is not being hidden from this
++     *     player
++     */
++    boolean canSee(@NotNull FakePlayer fakePlayer);
++    /**
++     * Hides a fake player from this player
++     *
++     * @param plugin Plugin that wants to hide the fake player
++     * @param fakePlayer FakePlayer to hide
++     */
++    void hideFakePlayer(@NotNull Plugin plugin, @NotNull FakePlayer fakePlayer);
++    /**
++     * Allows this player to see a fake player that was previously hidden. If
++     * another another plugin had hidden the fake player too, then the player will
++     * remain hidden until the other plugin calls this method too.
++     *
++     * @param plugin Plugin that wants to show the fake player
++     * @param fakePlayer FakePlayer to show
++     */
++    void showFakePlayer(@NotNull Plugin plugin, @NotNull FakePlayer fakePlayer);
++    /**
++     * Gets all fake players hidden with {@link #hideFakePlayer(Plugin, FakePlayer)}.
++     *
++     * @return a Set with all hidden fake players
++     */
++    @NotNull
++    java.util.Set<FakePlayer> getHiddenFakePlayers();
++    // EMC end
+     /**
+      * Checks to see if this player is currently flying or not.
+      *
