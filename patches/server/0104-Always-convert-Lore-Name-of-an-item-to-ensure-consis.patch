@@ -12,10 +12,12 @@ an item json is consistent.
 because item display text cant have functional modifiers, this is safe.
 ---
  .../java/net/minecraft/server/ItemStack.java  | 25 +++++++++----------
- 1 file changed, 12 insertions(+), 13 deletions(-)
+ .../craftbukkit/inventory/CraftMetaItem.java  |  4 +--
+ .../craftbukkit/util/CraftChatMessage.java    |  6 +++++
+ 3 files changed, 20 insertions(+), 15 deletions(-)
 
 diff --git a/src/main/java/net/minecraft/server/ItemStack.java b/src/main/java/net/minecraft/server/ItemStack.java
-index 88433f7e85253453a96886d664bbf754de30c686..c991988f046d8236208d6f8f831b77453e4439b7 100644
+index 18dfc7f555a5587c8a0ad9ea251a9fb731bdac6c..317b8548d92b450a6813cc88bca6f8d599a9e946 100644
 --- a/src/main/java/net/minecraft/server/ItemStack.java
 +++ b/src/main/java/net/minecraft/server/ItemStack.java
 @@ -89,35 +89,34 @@ public final class ItemStack {
@@ -66,3 +68,42 @@ index 88433f7e85253453a96886d664bbf754de30c686..c991988f046d8236208d6f8f831b7745
          }
          return NBTTagString.create(org.bukkit.craftbukkit.util.CraftChatMessage.toJSON(component));
      }
+diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java
+index 549bcef79624fff241a135cc3b52a10bcf5c8477..7bdc9568c347ec5423563227c64af641ec3525fa 100644
+--- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java
++++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java
+@@ -706,7 +706,7 @@ class CraftMetaItem implements ItemMeta, Damageable, Repairable, BlockDataMeta {
+     @Overridden
+     void applyToItem(NBTTagCompound itemTag) {
+         if (hasDisplayName()) {
+-            setDisplayTag(itemTag, NAME.NBT, NBTTagString.a(CraftChatMessage.toJSON(displayName)));
++            setDisplayTag(itemTag, NAME.NBT, NBTTagString.a(CraftChatMessage.toJSON(CraftChatMessage.reencode(displayName)))); // Paper
+         }
+         if (hasLocalizedName()) {
+             setDisplayTag(itemTag, LOCNAME.NBT, NBTTagString.a(CraftChatMessage.toJSON(locName)));
+@@ -798,7 +798,7 @@ class CraftMetaItem implements ItemMeta, Damageable, Repairable, BlockDataMeta {
+         NBTTagList tagList = new NBTTagList();
+         for (IChatBaseComponent value : list) {
+             // SPIGOT-5342 - horrible hack as 0 version does not go through the Mojang updater
+-            tagList.add(NBTTagString.a(version <= 0 || version >= 1803 ? CraftChatMessage.toJSON(value) : CraftChatMessage.fromComponent(value))); // SPIGOT-4935
++            tagList.add(NBTTagString.a(version <= 0 || version >= 1803 ? CraftChatMessage.toJSON(CraftChatMessage.reencode(value)) : CraftChatMessage.fromComponent(value))); // SPIGOT-4935 // Paper
+         }
+ 
+         return tagList;
+diff --git a/src/main/java/org/bukkit/craftbukkit/util/CraftChatMessage.java b/src/main/java/org/bukkit/craftbukkit/util/CraftChatMessage.java
+index 8c6130746c8774a8bd7a565dd999f8b901179e73..e013f738f069613419d1beada4d7ffdacf93fc17 100644
+--- a/src/main/java/org/bukkit/craftbukkit/util/CraftChatMessage.java
++++ b/src/main/java/org/bukkit/craftbukkit/util/CraftChatMessage.java
+@@ -40,6 +40,12 @@ public final class CraftChatMessage {
+         return ChatColor.getByChar(format.character);
+     }
+ 
++    // Paper start
++    public static IChatBaseComponent reencode(IChatBaseComponent cmp) {
++        return org.bukkit.craftbukkit.util.CraftChatMessage.fromString(org.bukkit.craftbukkit.util.CraftChatMessage.fromComponent(cmp))[0];
++    }
++    // Paper end
++
+     private static final class StringMessage {
+         private static final Pattern INCREMENTAL_PATTERN = Pattern.compile("(" + String.valueOf(org.bukkit.ChatColor.COLOR_CHAR) + "[0-9a-fk-orx])|((?:(?:https?):\\/\\/)?(?:[-\\w_\\.]{2,}\\.[a-z]{2,4}.*?(?=[\\.\\?!,;:]?(?:[" + String.valueOf(org.bukkit.ChatColor.COLOR_CHAR) + " \\n]|$))))|(\\n)", Pattern.CASE_INSENSITIVE);
+         // Separate pattern with no group 3, new lines are part of previous string
