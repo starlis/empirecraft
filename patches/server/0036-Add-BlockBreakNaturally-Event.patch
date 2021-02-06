@@ -5,11 +5,11 @@ Subject: [PATCH] Add BlockBreakNaturally Event
 
 To give reliable control over all blocks dropping to world to restore custom item meta
 ---
- src/main/java/net/minecraft/server/Block.java            | 2 ++
- src/main/java/net/minecraft/server/EntityItem.java       | 1 +
- src/main/java/net/minecraft/server/WorldServer.java      | 1 +
- .../org/bukkit/craftbukkit/event/CraftEventFactory.java  | 9 +++++++++
- 4 files changed, 13 insertions(+)
+ src/main/java/net/minecraft/server/Block.java          |  2 ++
+ src/main/java/net/minecraft/server/EntityItem.java     |  1 +
+ src/main/java/net/minecraft/server/WorldServer.java    |  1 +
+ .../bukkit/craftbukkit/event/CraftEventFactory.java    | 10 ++++++++++
+ 4 files changed, 14 insertions(+)
 
 diff --git a/src/main/java/net/minecraft/server/Block.java b/src/main/java/net/minecraft/server/Block.java
 index 1fc98698b81c079ebe4a524200232db1fe143bdf..6c00e18ef9af2b191d714484cde2415d8481aa73 100644
@@ -39,10 +39,10 @@ index 431caf7bfc50cb2f3894f5258c89a6d23f7bb2ca..ccf706d3576df1226f399e69fbe89479
      private int f;
      private UUID thrower;
 diff --git a/src/main/java/net/minecraft/server/WorldServer.java b/src/main/java/net/minecraft/server/WorldServer.java
-index 33eb7f4e6a2acbf46f38232ab4269054e68d4321..2f2c7f438dbd13deacd399d9fc2e684a9af16004 100644
+index 1eae8dff5f2907aae3a86da3992570b71b8dc1bf..c99a9b7d3f2f438ebeec6ee9da3f0e342e150bb0 100644
 --- a/src/main/java/net/minecraft/server/WorldServer.java
 +++ b/src/main/java/net/minecraft/server/WorldServer.java
-@@ -1181,6 +1181,7 @@ public class WorldServer extends World implements GeneratorAccessSeed {
+@@ -1182,6 +1182,7 @@ public class WorldServer extends World implements GeneratorAccessSeed {
          } else {
              // Paper start - capture all item additions to the world
              if (captureDrops != null && entity instanceof EntityItem) {
@@ -51,22 +51,23 @@ index 33eb7f4e6a2acbf46f38232ab4269054e68d4321..2f2c7f438dbd13deacd399d9fc2e684a
                  return true;
              }
 diff --git a/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java b/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
-index 06b13007f836a874404e5ebc231e03d7f055164d..44bf0d5085390823cb4480c21559c217f9c8b5a7 100644
+index da274f3ca2a5966fd642be31997c323fc5de005f..be9c4133eefd78a880190f0a5c0d54ad96b15343 100644
 --- a/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
 +++ b/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
-@@ -383,6 +383,15 @@ public class CraftEventFactory {
+@@ -390,6 +390,16 @@ public class CraftEventFactory {
          Bukkit.getPluginManager().callEvent(event);
  
          if (!event.isCancelled()) {
 +            // EMC start
 +            com.google.common.collect.Multimap<org.bukkit.Location, org.bukkit.entity.Item> drops = com.google.common.collect.ArrayListMultimap.create();
-+            for (EntityItem item : items) {
-+                drops.put(net.minecraft.server.MCUtil.toLocation(item.world, item.droppedPosition), (org.bukkit.entity.Item) item.getBukkitEntity());
++            for (Item item : list) {
++                EntityItem entityItem = (EntityItem) ((org.bukkit.craftbukkit.entity.CraftItem) item).getHandle();
++                drops.put(net.minecraft.server.MCUtil.toLocation(entityItem.world, entityItem.droppedPosition), (org.bukkit.entity.Item) entityItem.getBukkitEntity());
 +            }
 +            for (org.bukkit.Location location : drops.keySet()) {
 +                new com.empireminecraft.customevents.BlockBreakNaturallyEvent(location, drops.get(location)).callEvent();
 +            }
 +            // EMC end
-             for (EntityItem item : items) {
-                 item.world.addEntity(item);
-             }
+             // Paper start
+             for (Item bukkit : list) {
+                 if (!bukkit.isValid()) {
