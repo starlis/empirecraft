@@ -5,12 +5,18 @@ Subject: [PATCH] Add FakePlayer api for faking tablist users
 
 ---
  .../java/com/empireminecraft/api/API.java     |  1 +
- .../com/empireminecraft/api/EAPI_Server.java  | 30 ++++++++++++++++
- .../com/empireminecraft/api/FakePlayer.java   | 26 ++++++++++++++
- src/main/java/org/bukkit/entity/Player.java   | 35 ++++++++++++++++++-
- 4 files changed, 91 insertions(+), 1 deletion(-)
+ .../com/empireminecraft/api/EAPI_Server.java  | 20 ++++++++
+ .../com/empireminecraft/api/FakePlayer.java   | 46 +++++++++++++++++++
+ .../customevents/FakePlayerEvent.java         | 26 +++++++++++
+ .../customevents/FakePlayerJoinEvent.java     | 21 +++++++++
+ .../customevents/FakePlayerQuitEvent.java     | 21 +++++++++
+ src/main/java/org/bukkit/entity/Player.java   | 35 +++++++++++++-
+ 7 files changed, 169 insertions(+), 1 deletion(-)
  create mode 100644 src/main/java/com/empireminecraft/api/EAPI_Server.java
  create mode 100644 src/main/java/com/empireminecraft/api/FakePlayer.java
+ create mode 100644 src/main/java/com/empireminecraft/customevents/FakePlayerEvent.java
+ create mode 100644 src/main/java/com/empireminecraft/customevents/FakePlayerJoinEvent.java
+ create mode 100644 src/main/java/com/empireminecraft/customevents/FakePlayerQuitEvent.java
 
 diff --git a/src/main/java/com/empireminecraft/api/API.java b/src/main/java/com/empireminecraft/api/API.java
 index b3ff6b13c9dfde87bb59fa637134a7899d0f310b..a98d73d7dc296b6c85fdafaae112d9de31b0917f 100644
@@ -26,71 +32,167 @@ index b3ff6b13c9dfde87bb59fa637134a7899d0f310b..a98d73d7dc296b6c85fdafaae112d9de
          return ExceptionUtils.getFullStackTrace(new Throwable());
 diff --git a/src/main/java/com/empireminecraft/api/EAPI_Server.java b/src/main/java/com/empireminecraft/api/EAPI_Server.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..861b9fd98e0cb7ca1ee86da5ba8d95aee71ecd99
+index 0000000000000000000000000000000000000000..577bd77880010f43bf16ef9b91a3239fda3a5564
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/api/EAPI_Server.java
-@@ -0,0 +1,30 @@
-+/*
-+ * Copyright (c) 2020. Starlis LLC / dba Empire Minecraft
-+ *
-+ * This source code is proprietary software and must not be redistributed without Starlis LLC's approval
-+ *
-+ */
-+
+@@ -0,0 +1,20 @@
 +package com.empireminecraft.api;
 +
 +import com.destroystokyo.paper.profile.PlayerProfile;
++import net.kyori.adventure.text.Component;
 +import org.bukkit.GameMode;
++import org.jetbrains.annotations.NotNull;
++import org.jetbrains.annotations.Nullable;
 +
-+import javax.annotation.Nullable;
 +import java.util.Set;
 +import java.util.UUID;
 +
 +public interface EAPI_Server {
 +
 +    @Nullable
-+    FakePlayer getFakePlayerByUUID(UUID uuid);
-+    void doFakePlayerJoin(FakePlayer fakePlayer);
-+    void doFakePlayerQuit(FakePlayer fakePlayer);
-+    void doUpdateFakePlayerPing(FakePlayer fakePlayer, int ping);
-+    void doUpdateFakePlayerGameMode(FakePlayer fakePlayer, GameMode gameMode);
-+    void doUpdateFakePlayerListName(FakePlayer fakePlayer, String playerListName);
-+
-+    FakePlayer createFakePlayer(PlayerProfile profile, int ping, GameMode gameMode, String playerListName);
-+
++    FakePlayer getFakePlayer(@NotNull UUID uuid);
++    @Nullable
++    FakePlayer createFakePlayer(@NotNull PlayerProfile profile, int ping, @NotNull GameMode gameMode, @NotNull Component playerListName);
++    @NotNull
 +    Set<FakePlayer> getJoinedFakePlayers();
 +}
 diff --git a/src/main/java/com/empireminecraft/api/FakePlayer.java b/src/main/java/com/empireminecraft/api/FakePlayer.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..576344b3a0b0b20fe8b127f518c35e255a3fc842
+index 0000000000000000000000000000000000000000..7c8b5c9c70a1c40504a5e1e266c48ef637f53f80
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/api/FakePlayer.java
-@@ -0,0 +1,26 @@
-+/*
-+ * Copyright (c) 2020. Starlis LLC / dba Empire Minecraft
-+ *
-+ * This source code is proprietary software and must not be redistributed without Starlis LLC's approval
-+ *
-+ */
-+
+@@ -0,0 +1,46 @@
 +package com.empireminecraft.api;
 +
 +import com.destroystokyo.paper.profile.PlayerProfile;
++import net.kyori.adventure.text.Component;
 +import org.bukkit.GameMode;
++import org.jetbrains.annotations.NotNull;
++import org.jetbrains.annotations.Nullable;
 +
 +import java.util.UUID;
 +
 +public interface FakePlayer {
 +
++    @NotNull
 +    PlayerProfile getProfile();
 +
-+    String getPlayerListName();
++    @NotNull
++    Component getPlayerListName();
 +
 +    int getPing();
 +
++    @NotNull
 +    GameMode getGameMode();
 +
++    @Nullable
 +    UUID getUniqueId();
++
++    void join();
++    void quit();
++
++    default void setPing(int ping) {
++        setPing(ping, true);
++    }
++    void setPing(int ping, boolean update);
++
++    default void setGameMode(@NotNull GameMode gameMode) {
++        setGameMode(gameMode, true);
++    }
++    void setGameMode(@NotNull GameMode gameMode, boolean update);
++
++    default void setPlayerListName(@NotNull Component playerListName) {
++        setPlayerListName(playerListName, true);
++    }
++    void setPlayerListName(@NotNull Component playerListName, boolean update);
++
++    void update();
++}
+diff --git a/src/main/java/com/empireminecraft/customevents/FakePlayerEvent.java b/src/main/java/com/empireminecraft/customevents/FakePlayerEvent.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..63771966577fa725105e1f966902acfa1c1cc4ac
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/customevents/FakePlayerEvent.java
+@@ -0,0 +1,26 @@
++package com.empireminecraft.customevents;
++
++import com.empireminecraft.api.FakePlayer;
++import org.bukkit.event.Event;
++import org.jetbrains.annotations.NotNull;
++
++/**
++ * Represents a fakeplayer related event
++ */
++public abstract class FakePlayerEvent extends Event {
++    protected FakePlayer fakePlayer;
++
++    public FakePlayerEvent(@NotNull final FakePlayer who) {
++        fakePlayer = who;
++    }
++
++    /**
++     * Returns the fakeplayer involved in this event
++     *
++     * @return Player who is involved in this event
++     */
++    @NotNull
++    public final FakePlayer getFakePlayer() {
++        return fakePlayer;
++    }
++}
+diff --git a/src/main/java/com/empireminecraft/customevents/FakePlayerJoinEvent.java b/src/main/java/com/empireminecraft/customevents/FakePlayerJoinEvent.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..bfc8528442f4ed3fba0bf9ed43fcf49fd0dcfc6e
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/customevents/FakePlayerJoinEvent.java
+@@ -0,0 +1,21 @@
++package com.empireminecraft.customevents;
++
++import com.empireminecraft.api.FakePlayer;
++import org.bukkit.event.HandlerList;
++import org.jetbrains.annotations.NotNull;
++
++public class FakePlayerJoinEvent extends FakePlayerEvent {
++    public FakePlayerJoinEvent(@NotNull FakePlayer who) {
++        super(who);
++    }
++
++    private static final HandlerList handlers = new HandlerList();
++
++    public HandlerList getHandlers() {
++        return handlers;
++    }
++
++    public static HandlerList getHandlerList() {
++        return handlers;
++    }
++}
+diff --git a/src/main/java/com/empireminecraft/customevents/FakePlayerQuitEvent.java b/src/main/java/com/empireminecraft/customevents/FakePlayerQuitEvent.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..a07eb76c6abbe97c355460e6f54ca851ff4e296b
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/customevents/FakePlayerQuitEvent.java
+@@ -0,0 +1,21 @@
++package com.empireminecraft.customevents;
++
++import com.empireminecraft.api.FakePlayer;
++import org.bukkit.event.HandlerList;
++import org.jetbrains.annotations.NotNull;
++
++public class FakePlayerQuitEvent extends FakePlayerEvent {
++    public FakePlayerQuitEvent(@NotNull FakePlayer who) {
++        super(who);
++    }
++
++    private static final HandlerList handlers = new HandlerList();
++
++    public HandlerList getHandlers() {
++        return handlers;
++    }
++
++    public static HandlerList getHandlerList() {
++        return handlers;
++    }
 +}
 diff --git a/src/main/java/org/bukkit/entity/Player.java b/src/main/java/org/bukkit/entity/Player.java
 index c6ab05b021daa63f178e7c6ac5f38360c847773e..1dcac1c69748e3c1f6b30820412f929c7660e35b 100644
