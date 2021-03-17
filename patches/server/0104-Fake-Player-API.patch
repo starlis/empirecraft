@@ -6,17 +6,17 @@ Subject: [PATCH] Fake Player API
 ---
  .../empireminecraft/api/CraftEAPI_Server.java |  37 +++++
  .../empireminecraft/api/CraftEmpireAPI.java   |   4 +
- .../empireminecraft/api/CraftFakePlayer.java  | 139 ++++++++++++++++++
+ .../empireminecraft/api/CraftFakePlayer.java  | 150 ++++++++++++++++++
  .../server/PacketPlayOutPlayerInfo.java       |  16 ++
  .../java/net/minecraft/server/PlayerList.java |  10 +-
- .../craftbukkit/entity/CraftPlayer.java       |  75 ++++++++++
- 6 files changed, 280 insertions(+), 1 deletion(-)
+ .../craftbukkit/entity/CraftPlayer.java       |  75 +++++++++
+ 6 files changed, 291 insertions(+), 1 deletion(-)
  create mode 100644 src/main/java/com/empireminecraft/api/CraftEAPI_Server.java
  create mode 100644 src/main/java/com/empireminecraft/api/CraftFakePlayer.java
 
 diff --git a/src/main/java/com/empireminecraft/api/CraftEAPI_Server.java b/src/main/java/com/empireminecraft/api/CraftEAPI_Server.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..fa08e316c52e161ce20a6dd0f2dba22eb3786e65
+index 0000000000000000000000000000000000000000..37c79216ee02aeadcaa5d9305f654ad8efb43ac5
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/api/CraftEAPI_Server.java
 @@ -0,0 +1,37 @@
@@ -46,7 +46,7 @@ index 0000000000000000000000000000000000000000..fa08e316c52e161ce20a6dd0f2dba22e
 +
 +    @NotNull
 +    @Override
-+    public FakePlayer createFakePlayer(@NotNull PlayerProfile profile, int ping, @NotNull GameMode gameMode, @NotNull Component playerListName) {
++    public FakePlayer createFakePlayer(@NotNull PlayerProfile profile, int ping, @NotNull GameMode gameMode, @NotNull Component playerListName) throws IllegalArgumentException {
 +        return new CraftFakePlayer(profile, ping, gameMode, playerListName);
 +    }
 +
@@ -74,10 +74,10 @@ index b794befb4e5cfe8055c1b5745e52a0f01fc573d1..33757baf4510ab54dd6d73d4dbd1d46e
  }
 diff --git a/src/main/java/com/empireminecraft/api/CraftFakePlayer.java b/src/main/java/com/empireminecraft/api/CraftFakePlayer.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..dadd6d0b9a3fd901e75647bb989ce63f67941333
+index 0000000000000000000000000000000000000000..b15fa11ab81e76ea7023a5dfaaab6a175934ba69
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/api/CraftFakePlayer.java
-@@ -0,0 +1,139 @@
+@@ -0,0 +1,150 @@
 +package com.empireminecraft.api;
 +
 +import com.destroystokyo.paper.profile.PlayerProfile;
@@ -96,13 +96,19 @@ index 0000000000000000000000000000000000000000..dadd6d0b9a3fd901e75647bb989ce63f
 +
 +public class CraftFakePlayer implements FakePlayer {
 +    private final PlayerProfile profile;
++    // Use uuid field to ensure the PlayerProfile is not altered to change the UUID.
++    private final UUID uuid;
 +    public int ping;
 +    public GameMode gameMode;
 +    public Component playerListName;
 +    public boolean sentListPacket;
 +
-+    public CraftFakePlayer(@NotNull PlayerProfile profile, int ping, @NotNull GameMode gameMode, @NotNull Component playerListName) {
++    public CraftFakePlayer(@NotNull PlayerProfile profile, int ping, @NotNull GameMode gameMode, @NotNull Component playerListName) throws IllegalArgumentException {
 +        this.profile = profile;
++        if (profile.getId() == null) {
++            throw new IllegalArgumentException("PlayerProfile does not contain a valid id");
++        }
++        this.uuid = profile.getId();
 +        this.ping = ping;
 +        this.gameMode = gameMode;
 +        this.playerListName = playerListName;
@@ -134,13 +140,13 @@ index 0000000000000000000000000000000000000000..dadd6d0b9a3fd901e75647bb989ce63f
 +    @Nullable
 +    @Override
 +    public UUID getUniqueId() {
-+        return profile.getId();
++        return uuid;
 +    }
 +
 +    @Override
 +    public void join() {
 +        UUID uuid = this.getUniqueId();
-+        if (CraftEmpireAPI.getServer().fakePlayerMap.containsKey(uuid)) {
++        if (this.isJoined()) {
 +            return;
 +        }
 +        new FakePlayerJoinEvent(this).callEvent();
@@ -157,7 +163,7 @@ index 0000000000000000000000000000000000000000..dadd6d0b9a3fd901e75647bb989ce63f
 +    @Override
 +    public void quit() {
 +        UUID uuid = this.getUniqueId();
-+        if (!CraftEmpireAPI.getServer().fakePlayerMap.containsKey(uuid)) {
++        if (!this.isJoined()) {
 +            return;
 +        }
 +        new FakePlayerQuitEvent(this).callEvent();
@@ -206,7 +212,7 @@ index 0000000000000000000000000000000000000000..dadd6d0b9a3fd901e75647bb989ce63f
 +    }
 +
 +    private void sendUpdatePackets(@NotNull EnumPlayerInfoAction action) {
-+        if (CraftEmpireAPI.getServer().fakePlayerMap.containsKey(this.getUniqueId())) {
++        if (this.isJoined()) {
 +            PacketPlayOutPlayerInfo packet = new PacketPlayOutPlayerInfo(action, this);
 +            for (EntityPlayer entityPlayer : MinecraftServer.getServer().getPlayerList().players) {
 +                if (entityPlayer.getBukkitEntity().canSee(this)) {
@@ -214,6 +220,11 @@ index 0000000000000000000000000000000000000000..dadd6d0b9a3fd901e75647bb989ce63f
 +                }
 +            }
 +        }
++    }
++
++    @Override
++    public boolean isJoined() {
++        return CraftEmpireAPI.getServer().fakePlayerMap.containsKey(this.getUniqueId());
 +    }
 +
 +}
