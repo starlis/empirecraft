@@ -5,28 +5,28 @@ Subject: [PATCH] Villager Treasure Map Events / Changes
 
 ---
  .../empireminecraft/api/CraftEAPI_Misc.java   | 28 +++++++++++++++++++
- .../net/minecraft/server/EntityVillager.java  |  1 -
- .../java/net/minecraft/server/ItemStack.java  |  1 +
- .../minecraft/server/StructureGenerator.java  |  1 +
- .../net/minecraft/server/VillagerTrades.java  | 23 ++++++++-------
- src/main/java/net/minecraft/server/World.java |  1 +
- 6 files changed, 42 insertions(+), 13 deletions(-)
+ .../world/entity/npc/EntityVillager.java      |  1 -
+ .../world/entity/npc/VillagerTrades.java      | 23 ++++++++-------
+ .../net/minecraft/world/item/ItemStack.java   |  2 ++
+ .../java/net/minecraft/world/level/World.java |  1 +
+ .../levelgen/feature/StructureGenerator.java  |  1 +
+ 6 files changed, 43 insertions(+), 13 deletions(-)
 
 diff --git a/src/main/java/com/empireminecraft/api/CraftEAPI_Misc.java b/src/main/java/com/empireminecraft/api/CraftEAPI_Misc.java
-index fa8cbd5a38a3969ce9c8e0fc2cd36566ea252a2c..0c0f49cf256f93f507492c4803e92d3dc0fda780 100644
+index fa8cbd5a38a3969ce9c8e0fc2cd36566ea252a2c..95bafa84eb294eed31978d4d6e131624483b7c49 100644
 --- a/src/main/java/com/empireminecraft/api/CraftEAPI_Misc.java
 +++ b/src/main/java/com/empireminecraft/api/CraftEAPI_Misc.java
 @@ -23,5 +23,33 @@
  
  package com.empireminecraft.api;
  
-+import net.minecraft.server.BlockPosition;
-+import net.minecraft.server.ItemStack;
-+import net.minecraft.server.ItemWorldMap;
++import net.minecraft.core.BlockPosition;
 +import net.minecraft.server.MCUtil;
-+import net.minecraft.server.MapIcon.Type;
-+import net.minecraft.server.World;
-+import net.minecraft.server.WorldMap;
++import net.minecraft.server.level.WorldServer;
++import net.minecraft.world.item.ItemStack;
++import net.minecraft.world.item.ItemWorldMap;
++import net.minecraft.world.level.saveddata.maps.MapIcon;
++import net.minecraft.world.level.saveddata.maps.WorldMap;
 +import org.bukkit.Location;
 +import org.bukkit.craftbukkit.inventory.CraftItemStack;
 +
@@ -36,25 +36,25 @@ index fa8cbd5a38a3969ce9c8e0fc2cd36566ea252a2c..0c0f49cf256f93f507492c4803e92d3d
 +
 +    @Override
 +    public org.bukkit.inventory.ItemStack createTreasureMap(@Nonnull String mapType, int iconType, @Nonnull Location loc) {
-+        Type[] values = Type.values();
++        MapIcon.Type[] values = MapIcon.Type.values();
 +        if (iconType >= values.length) {
 +            throw new IllegalArgumentException("Invalid Icon Type");
 +        }
-+        final World world = MCUtil.getNMSWorld(loc.getWorld());
++        final WorldServer world = MCUtil.getNMSWorld(loc.getWorld());
 +        final BlockPosition pos = MCUtil.toBlockPosition(loc);
 +        ItemStack itemstack = ItemWorldMap.createFilledMapView(world, pos.getX(), pos.getZ(), (byte) 2, true, true);
-+        ItemWorldMap.applySepiaFilter((net.minecraft.server.WorldServer) world, itemstack);
++        ItemWorldMap.applySepiaFilter(world, itemstack);
 +
 +        WorldMap.decorateMap(itemstack, pos, "+", values[iconType]);
 +        itemstack.setLocaleName("filled_map." + mapType.toLowerCase());
 +        return CraftItemStack.asCraftMirror(itemstack);
 +    }
  }
-diff --git a/src/main/java/net/minecraft/server/EntityVillager.java b/src/main/java/net/minecraft/server/EntityVillager.java
-index bf9732058c7e55e8f1ed38b3b5e8831e6b21706c..24910213594a0eaf9ba9c3987706064a1e379cd5 100644
---- a/src/main/java/net/minecraft/server/EntityVillager.java
-+++ b/src/main/java/net/minecraft/server/EntityVillager.java
-@@ -406,7 +406,6 @@ public class EntityVillager extends EntityVillagerAbstract implements Reputation
+diff --git a/src/main/java/net/minecraft/world/entity/npc/EntityVillager.java b/src/main/java/net/minecraft/world/entity/npc/EntityVillager.java
+index 2d0b83923d58cc7b6918b4e2ff2bece13ca26899..75268d40f9a842b67c0b9c459301007790d842b0 100644
+--- a/src/main/java/net/minecraft/world/entity/npc/EntityVillager.java
++++ b/src/main/java/net/minecraft/world/entity/npc/EntityVillager.java
+@@ -477,7 +477,6 @@ public class EntityVillager extends EntityVillagerAbstract implements Reputation
              MobEffect mobeffect = entityhuman.getEffect(MobEffects.HERO_OF_THE_VILLAGE);
              int j = mobeffect.getAmplifier();
              Iterator iterator1 = this.getOffers().iterator();
@@ -62,35 +62,11 @@ index bf9732058c7e55e8f1ed38b3b5e8831e6b21706c..24910213594a0eaf9ba9c3987706064a
              while (iterator1.hasNext()) {
                  MerchantRecipe merchantrecipe1 = (MerchantRecipe) iterator1.next();
                  if (merchantrecipe1.ignoreDiscounts) continue; // Paper
-diff --git a/src/main/java/net/minecraft/server/ItemStack.java b/src/main/java/net/minecraft/server/ItemStack.java
-index 4ea50946cc7cee5a5864aab0f7d9a9e7ceef1796..a2db52218135ef3a3f5017f786ea551603177df5 100644
---- a/src/main/java/net/minecraft/server/ItemStack.java
-+++ b/src/main/java/net/minecraft/server/ItemStack.java
-@@ -719,6 +719,7 @@ public final class ItemStack {
-         return this.getItem().h(this);
-     }
- 
-+    public ItemStack setLocaleName(String s) { return a(new ChatMessage("filled_map." + s.toLowerCase(Locale.ROOT))); } // EMC - OBF HELPER
-     public ItemStack a(@Nullable IChatBaseComponent ichatbasecomponent) {
-         NBTTagCompound nbttagcompound = this.a("display");
- 
-diff --git a/src/main/java/net/minecraft/server/StructureGenerator.java b/src/main/java/net/minecraft/server/StructureGenerator.java
-index a62c87bceab2c9700a7b3925f208b0ffa2b9b393..e7c8a9b28140ea0e0a1c38ec2b4e37d96b6cd71d 100644
---- a/src/main/java/net/minecraft/server/StructureGenerator.java
-+++ b/src/main/java/net/minecraft/server/StructureGenerator.java
-@@ -235,6 +235,7 @@ public abstract class StructureGenerator<C extends WorldGenFeatureConfiguration>
- 
-     public abstract StructureGenerator.a<C> a();
- 
-+    public String getFeatureName() { return this.i(); } // EMC - OBFHELPER
-     public String i() {
-         return (String) StructureGenerator.a.inverse().get(this);
-     }
-diff --git a/src/main/java/net/minecraft/server/VillagerTrades.java b/src/main/java/net/minecraft/server/VillagerTrades.java
-index 49f9ae86512ad679aaa71992de2284e024591101..356d92475f3a7454a6e1ed0659ff68d2cb7d4800 100644
---- a/src/main/java/net/minecraft/server/VillagerTrades.java
-+++ b/src/main/java/net/minecraft/server/VillagerTrades.java
-@@ -71,16 +71,16 @@ public class VillagerTrades {
+diff --git a/src/main/java/net/minecraft/world/entity/npc/VillagerTrades.java b/src/main/java/net/minecraft/world/entity/npc/VillagerTrades.java
+index 0a34e319998a95a9654822e55a22eb964b2d626b..b425bbafaeea4d6c267eeabd1c6fdfde76192738 100644
+--- a/src/main/java/net/minecraft/world/entity/npc/VillagerTrades.java
++++ b/src/main/java/net/minecraft/world/entity/npc/VillagerTrades.java
+@@ -104,16 +104,16 @@ public class VillagerTrades {
      static class k implements VillagerTrades.IMerchantRecipeOption {
  
          private final int a;
@@ -111,7 +87,7 @@ index 49f9ae86512ad679aaa71992de2284e024591101..356d92475f3a7454a6e1ed0659ff68d2
              this.e = k;
          }
  
-@@ -92,14 +92,13 @@ public class VillagerTrades {
+@@ -125,14 +125,13 @@ public class VillagerTrades {
              } else {
                  WorldServer worldserver = (WorldServer) entity.world;
                  if (!worldserver.paperConfig.enableTreasureMaps) return null; // Paper
@@ -133,11 +109,31 @@ index 49f9ae86512ad679aaa71992de2284e024591101..356d92475f3a7454a6e1ed0659ff68d2
                      return new MerchantRecipe(new ItemStack(Items.EMERALD, this.a), new ItemStack(Items.COMPASS), itemstack, this.d, this.e, 0.2F);
                  } else {
                      return null;
-diff --git a/src/main/java/net/minecraft/server/World.java b/src/main/java/net/minecraft/server/World.java
-index 11d51efac2725ca108187339b15704172cf7c1ed..0d492335b0aa8c9ab222f5a7ad4533a84963b0bd 100644
---- a/src/main/java/net/minecraft/server/World.java
-+++ b/src/main/java/net/minecraft/server/World.java
-@@ -1404,6 +1404,7 @@ public abstract class World implements GeneratorAccess, AutoCloseable {
+diff --git a/src/main/java/net/minecraft/world/item/ItemStack.java b/src/main/java/net/minecraft/world/item/ItemStack.java
+index 2dad6573734d15bbc507610e6b7bd7b3d5d694d7..41dc8781eb66d6b19c24141b6bb734f6fde2f471 100644
+--- a/src/main/java/net/minecraft/world/item/ItemStack.java
++++ b/src/main/java/net/minecraft/world/item/ItemStack.java
+@@ -31,6 +31,7 @@ import net.minecraft.nbt.NBTTagString;
+ import net.minecraft.network.chat.ChatComponentText;
+ import net.minecraft.network.chat.ChatComponentUtils;
+ import net.minecraft.network.chat.ChatHoverable;
++import net.minecraft.network.chat.ChatMessage;
+ import net.minecraft.network.chat.ChatModifier;
+ import net.minecraft.network.chat.IChatBaseComponent;
+ import net.minecraft.network.chat.IChatMutableComponent;
+@@ -774,6 +775,7 @@ public final class ItemStack {
+         return this.getItem().h(this);
+     }
+ 
++    public ItemStack setLocaleName(String s) { return a(new ChatMessage("filled_map." + s.toLowerCase(Locale.ROOT))); } // EMC - OBF HELPER
+     public ItemStack a(@Nullable IChatBaseComponent ichatbasecomponent) {
+         NBTTagCompound nbttagcompound = this.a("display");
+ 
+diff --git a/src/main/java/net/minecraft/world/level/World.java b/src/main/java/net/minecraft/world/level/World.java
+index 7c742458fea205c6db10dfca7e6c216314d2e93d..e130a78f1825b0cfa6146bd4a092040e3de5854e 100644
+--- a/src/main/java/net/minecraft/world/level/World.java
++++ b/src/main/java/net/minecraft/world/level/World.java
+@@ -1465,6 +1465,7 @@ public abstract class World implements GeneratorAccess, AutoCloseable {
          throw new UnsupportedOperationException("Can't send packets to server unless you're on the client.");
      }
  
@@ -145,3 +141,15 @@ index 11d51efac2725ca108187339b15704172cf7c1ed..0d492335b0aa8c9ab222f5a7ad4533a8
      @Override
      public DimensionManager getDimensionManager() {
          return this.x;
+diff --git a/src/main/java/net/minecraft/world/level/levelgen/feature/StructureGenerator.java b/src/main/java/net/minecraft/world/level/levelgen/feature/StructureGenerator.java
+index 6df42ff26ff6e65ec2885122fe53dde857a3d1d2..975382761657f75879427c4ccd03f878c25681b4 100644
+--- a/src/main/java/net/minecraft/world/level/levelgen/feature/StructureGenerator.java
++++ b/src/main/java/net/minecraft/world/level/levelgen/feature/StructureGenerator.java
+@@ -268,6 +268,7 @@ public abstract class StructureGenerator<C extends WorldGenFeatureConfiguration>
+ 
+     public abstract StructureGenerator.a<C> a();
+ 
++    public String getFeatureName() { return this.i(); } // EMC - OBFHELPER
+     public String i() {
+         return (String) StructureGenerator.a.inverse().get(this);
+     }

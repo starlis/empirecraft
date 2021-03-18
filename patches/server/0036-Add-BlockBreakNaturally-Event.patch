@@ -5,17 +5,49 @@ Subject: [PATCH] Add BlockBreakNaturally Event
 
 To give reliable control over all blocks dropping to world to restore custom item meta
 ---
- src/main/java/net/minecraft/server/Block.java          |  2 ++
- src/main/java/net/minecraft/server/EntityItem.java     |  1 +
- src/main/java/net/minecraft/server/WorldServer.java    |  1 +
+ .../java/net/minecraft/server/level/WorldServer.java   |  1 +
+ .../net/minecraft/world/entity/item/EntityItem.java    |  1 +
+ .../java/net/minecraft/world/level/block/Block.java    |  3 +++
  .../bukkit/craftbukkit/event/CraftEventFactory.java    | 10 ++++++++++
- 4 files changed, 14 insertions(+)
+ 4 files changed, 15 insertions(+)
 
-diff --git a/src/main/java/net/minecraft/server/Block.java b/src/main/java/net/minecraft/server/Block.java
-index 47726a4394d1876d054c6f1c3f5408a81b623e69..699fd2c39e43e2453e324b6fcf5eafb1aa512f52 100644
---- a/src/main/java/net/minecraft/server/Block.java
-+++ b/src/main/java/net/minecraft/server/Block.java
-@@ -234,8 +234,10 @@ public class Block extends BlockBase implements IMaterial {
+diff --git a/src/main/java/net/minecraft/server/level/WorldServer.java b/src/main/java/net/minecraft/server/level/WorldServer.java
+index d4193363791187566461aff9650ad21234c9b215..8ede0859db251989124e984459cf67a62f8105bf 100644
+--- a/src/main/java/net/minecraft/server/level/WorldServer.java
++++ b/src/main/java/net/minecraft/server/level/WorldServer.java
+@@ -1296,6 +1296,7 @@ public class WorldServer extends World implements GeneratorAccessSeed {
+         } else {
+             // Paper start - capture all item additions to the world
+             if (captureDrops != null && entity instanceof EntityItem) {
++                ((EntityItem) entity).droppedPosition = new BlockPosition(entity.locX(), entity.locY(), entity.locZ()); // EMC
+                 captureDrops.add((EntityItem) entity);
+                 return true;
+             }
+diff --git a/src/main/java/net/minecraft/world/entity/item/EntityItem.java b/src/main/java/net/minecraft/world/entity/item/EntityItem.java
+index d0658e84fa1f8bc00de562b749ca1be370b735a3..6c1f08141f585e4680c239c7d099b8d8d6ba9209 100644
+--- a/src/main/java/net/minecraft/world/entity/item/EntityItem.java
++++ b/src/main/java/net/minecraft/world/entity/item/EntityItem.java
+@@ -44,6 +44,7 @@ public class EntityItem extends Entity {
+     private static final DataWatcherObject<ItemStack> ITEM = DataWatcher.a(EntityItem.class, DataWatcherRegistry.g);
+     public int age;
+     public boolean canDespawn = true; // EMC
++    public BlockPosition droppedPosition; // EMC
+     public int pickupDelay;
+     private int f;
+     private UUID thrower;
+diff --git a/src/main/java/net/minecraft/world/level/block/Block.java b/src/main/java/net/minecraft/world/level/block/Block.java
+index 596b4597313b87296d39027b13555b5ad1cba9e6..9d583f2413c8dd0f70b6e3d3f43f91aa084a370f 100644
+--- a/src/main/java/net/minecraft/world/level/block/Block.java
++++ b/src/main/java/net/minecraft/world/level/block/Block.java
+@@ -15,6 +15,7 @@ import net.minecraft.core.EnumDirection;
+ import net.minecraft.core.IRegistry;
+ import net.minecraft.core.NonNullList;
+ import net.minecraft.core.RegistryBlockID;
++import net.minecraft.server.MCUtil;
+ import net.minecraft.server.level.WorldServer;
+ import net.minecraft.stats.StatisticList;
+ import net.minecraft.tags.Tag;
+@@ -273,8 +274,10 @@ public class Block extends BlockBase implements IMaterial {
              entityitem.defaultPickupDelay();
              // CraftBukkit start
              if (world.captureDrops != null) {
@@ -26,35 +58,11 @@ index 47726a4394d1876d054c6f1c3f5408a81b623e69..699fd2c39e43e2453e324b6fcf5eafb1
                  world.addEntity(entityitem);
              }
              // CraftBukkit end
-diff --git a/src/main/java/net/minecraft/server/EntityItem.java b/src/main/java/net/minecraft/server/EntityItem.java
-index 2b167a1a08398f08c951725f9e4f2daf237c2a18..41085cdb8e35d57e176f6df50a57ce7ec30d6b8e 100644
---- a/src/main/java/net/minecraft/server/EntityItem.java
-+++ b/src/main/java/net/minecraft/server/EntityItem.java
-@@ -18,6 +18,7 @@ public class EntityItem extends Entity {
-     private static final DataWatcherObject<ItemStack> ITEM = DataWatcher.a(EntityItem.class, DataWatcherRegistry.g);
-     public int age;
-     public boolean canDespawn = true; // EMC
-+    public BlockPosition droppedPosition; // EMC
-     public int pickupDelay;
-     private int f;
-     private UUID thrower;
-diff --git a/src/main/java/net/minecraft/server/WorldServer.java b/src/main/java/net/minecraft/server/WorldServer.java
-index 0f2dc7f19a00f453bec3e17faf9939cf4c901ba2..fe967c01a8aa9b855b33eb98d4d127eea3795abc 100644
---- a/src/main/java/net/minecraft/server/WorldServer.java
-+++ b/src/main/java/net/minecraft/server/WorldServer.java
-@@ -1182,6 +1182,7 @@ public class WorldServer extends World implements GeneratorAccessSeed {
-         } else {
-             // Paper start - capture all item additions to the world
-             if (captureDrops != null && entity instanceof EntityItem) {
-+                ((EntityItem) entity).droppedPosition = new BlockPosition(entity.locX(), entity.locY(), entity.locZ()); // EMC
-                 captureDrops.add((EntityItem) entity);
-                 return true;
-             }
 diff --git a/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java b/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
-index 4fb32351f42532ce68ffcf544df99af7a19a7990..e970f44174c5035c4ed785418c66f2a4dbbb8b11 100644
+index 170d73946cc8687bdbe2e4e9e78ac3c8aaee74f6..aa16dd9fb789844369f9d9f7d68bb4763030265b 100644
 --- a/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
 +++ b/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
-@@ -391,6 +391,16 @@ public class CraftEventFactory {
+@@ -393,6 +393,16 @@ public class CraftEventFactory {
          Bukkit.getPluginManager().callEvent(event);
  
          if (!event.isCancelled()) {

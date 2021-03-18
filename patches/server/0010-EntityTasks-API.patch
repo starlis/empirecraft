@@ -7,11 +7,11 @@ Allows scheduling repeating task timers on an entity level.
 Avoids Bukkit system so that tasks will simply maintain themselves on entity removal.
 ---
  .../empireminecraft/api/CraftEAPI_Entity.java | 15 +++++
- .../java/net/minecraft/server/Entity.java     |  1 +
- .../minecraft/server/EntityTasksHandler.java  | 56 +++++++++++++++++++
- .../net/minecraft/server/WorldServer.java     |  2 +
+ .../minecraft/server/EntityTasksHandler.java  | 60 +++++++++++++++++++
+ .../minecraft/server/level/WorldServer.java   |  3 +
+ .../net/minecraft/world/entity/Entity.java    |  2 +
  .../org/bukkit/craftbukkit/CraftServer.java   |  1 +
- 5 files changed, 75 insertions(+)
+ 5 files changed, 81 insertions(+)
  create mode 100644 src/main/java/net/minecraft/server/EntityTasksHandler.java
 
 diff --git a/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java b/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
@@ -39,27 +39,19 @@ index e7bb9003da73c8200e1b0bb8d0fadb9009a9f253..bb6e5296a801f7053db72d9eb4d7b9be
 +        ((CraftEntity) entity).getHandle().entityTasks.clear();
 +    }
  }
-diff --git a/src/main/java/net/minecraft/server/Entity.java b/src/main/java/net/minecraft/server/Entity.java
-index a8f401ae2ab3a2528aa202add6f122524d328219..597e9f4905d19134013d19cccdac9ee40ea1f50b 100644
---- a/src/main/java/net/minecraft/server/Entity.java
-+++ b/src/main/java/net/minecraft/server/Entity.java
-@@ -54,6 +54,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, Ke
- 
-     // CraftBukkit start
-     public com.empireminecraft.api.meta.PersistentMetaMap metaMap = null; // EMC
-+    public EntityTasksHandler.TaskList entityTasks = new EntityTasksHandler.TaskList(); // EMC
-     private static final int CURRENT_LEVEL = 2;
-     boolean preserveMotion = true; // Paper - keep initial motion on first setPositionRotation
-     static boolean isLevelAtLeast(NBTTagCompound tag, int level) {
 diff --git a/src/main/java/net/minecraft/server/EntityTasksHandler.java b/src/main/java/net/minecraft/server/EntityTasksHandler.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..fc14f5935761e1f50c34433d80daefddeb923d4d
+index 0000000000000000000000000000000000000000..e0eae5ebdff83c676979ffb4f7f037b7d0edec1d
 --- /dev/null
 +++ b/src/main/java/net/minecraft/server/EntityTasksHandler.java
-@@ -0,0 +1,56 @@
+@@ -0,0 +1,60 @@
 +package net.minecraft.server;
 +
 +import com.empireminecraft.api.EntityTask;
++import net.minecraft.server.level.PlayerChunk;
++import net.minecraft.server.level.WorldServer;
++import net.minecraft.world.entity.Entity;
++import net.minecraft.world.level.chunk.Chunk;
 +
 +import java.util.ArrayList;
 +import java.util.Collection;
@@ -113,11 +105,19 @@ index 0000000000000000000000000000000000000000..fc14f5935761e1f50c34433d80daefdd
 +
 +    public static class TaskList extends ArrayList<EntityTask> {}
 +}
-diff --git a/src/main/java/net/minecraft/server/WorldServer.java b/src/main/java/net/minecraft/server/WorldServer.java
-index cd0843e779711b86bec644a02b8a0cf0c443cbd8..3fe152e070c5fe762809d43f1490d77a29f9f7a0 100644
---- a/src/main/java/net/minecraft/server/WorldServer.java
-+++ b/src/main/java/net/minecraft/server/WorldServer.java
-@@ -835,6 +835,7 @@ public class WorldServer extends World implements GeneratorAccessSeed {
+diff --git a/src/main/java/net/minecraft/server/level/WorldServer.java b/src/main/java/net/minecraft/server/level/WorldServer.java
+index f6b85e3a9c0ac179845a5f07dc1b25d5634ece47..3407e9c703b852fc92c059dc6dbfe1226cba4166 100644
+--- a/src/main/java/net/minecraft/server/level/WorldServer.java
++++ b/src/main/java/net/minecraft/server/level/WorldServer.java
+@@ -68,6 +68,7 @@ import net.minecraft.network.protocol.game.PacketPlayOutWorldEvent;
+ import net.minecraft.network.protocol.game.PacketPlayOutWorldParticles;
+ import net.minecraft.resources.MinecraftKey;
+ import net.minecraft.resources.ResourceKey;
++import net.minecraft.server.EntityTasksHandler;
+ import net.minecraft.server.MCUtil;
+ import net.minecraft.server.MinecraftServer;
+ import net.minecraft.server.ScoreboardServer;
+@@ -948,6 +949,7 @@ public class WorldServer extends World implements GeneratorAccessSeed {
              entity.lastPitch = entity.pitch;
              if (entity.inChunk) {
                  ++entity.ticksLived;
@@ -125,7 +125,7 @@ index cd0843e779711b86bec644a02b8a0cf0c443cbd8..3fe152e070c5fe762809d43f1490d77a
                  GameProfilerFiller gameprofilerfiller = this.getMethodProfiler();
  
                  gameprofilerfiller.a(() -> {
-@@ -878,6 +879,7 @@ public class WorldServer extends World implements GeneratorAccessSeed {
+@@ -991,6 +993,7 @@ public class WorldServer extends World implements GeneratorAccessSeed {
                  entity1.lastPitch = entity1.pitch;
                  if (entity1.inChunk) {
                      ++entity1.ticksLived;
@@ -133,8 +133,28 @@ index cd0843e779711b86bec644a02b8a0cf0c443cbd8..3fe152e070c5fe762809d43f1490d77a
                      GameProfilerFiller gameprofilerfiller = this.getMethodProfiler();
  
                      gameprofilerfiller.a(() -> {
+diff --git a/src/main/java/net/minecraft/world/entity/Entity.java b/src/main/java/net/minecraft/world/entity/Entity.java
+index 2b50ec68f9895e1c1250e5eba6976f4202f06d00..e753c32ddcf1aa4d62bccf7c939483f85aad963b 100644
+--- a/src/main/java/net/minecraft/world/entity/Entity.java
++++ b/src/main/java/net/minecraft/world/entity/Entity.java
+@@ -46,6 +46,7 @@ import net.minecraft.network.syncher.DataWatcherObject;
+ import net.minecraft.network.syncher.DataWatcherRegistry;
+ import net.minecraft.resources.MinecraftKey;
+ import net.minecraft.resources.ResourceKey;
++import net.minecraft.server.EntityTasksHandler;
+ import net.minecraft.server.MCUtil;
+ import net.minecraft.server.MetaApiAccessor;
+ import net.minecraft.server.MinecraftServer;
+@@ -147,6 +148,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, ne
+ 
+     // CraftBukkit start
+     public com.empireminecraft.api.meta.PersistentMetaMap metaMap = null; // EMC
++    public EntityTasksHandler.TaskList entityTasks = new EntityTasksHandler.TaskList(); // EMC
+     private static final int CURRENT_LEVEL = 2;
+     boolean preserveMotion = true; // Paper - keep initial motion on first setPositionRotation
+     static boolean isLevelAtLeast(NBTTagCompound tag, int level) {
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-index 718b0320a03ec1e7c75dc19200518a467bb2de94..eabbe01fbcd30f4f8845da58b545bed4f5d67eb0 100644
+index 0bea5494195d1dfb24bfc2be1a10bcbcb7f1eda7..216fd018ab54b2f44a0861f516ce1914d01c04ad 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 @@ -947,6 +947,7 @@ public final class CraftServer implements Server {

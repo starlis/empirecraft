@@ -12,7 +12,7 @@ workdir=$basedir/Paper/work
 minecraftversion=$(cat $basedir/Paper/work/BuildData/info.json | grep minecraftVersion | cut -d '"' -f 4)
 decompiledir=$workdir/Minecraft/$minecraftversion/spigot
 
-nms="net/minecraft/server"
+nms="net/minecraft"
 export MODLOG=""
 cd $basedir
 
@@ -30,6 +30,7 @@ function import {
 	if [[ ! -f "$target" ]]; then
 		export MODLOG="$MODLOG  Imported $file from mc-dev\n";
 		echo "$(bashColor 1 32) Copying $(bashColor 1 34)$base $(bashColor 1 32)to$(bashColor 1 34) $target $(bashColorReset)"
+		mkdir -p "$(dirname "$target")"
 		cp "$base" "$target"
 	else
 		echo "$(bashColor 1 33) UN-NEEDED IMPORT STATEMENT:$(bashColor 1 34) $file $(bashColorReset)"
@@ -57,17 +58,16 @@ function importLibrary {
 }
 
 (
-	cd Paper/Paper-Server/
+	cd "$basedir/Paper/Paper-Server/"
 	lastlog=$(git log -1 --oneline)
 	if [[ "$lastlog" = *"EMC-Extra mc-dev Imports"* ]]; then
 		git reset --hard HEAD^
 	fi
 )
 
+files=$(cat "$basedir/server/"* | grep "+++ b/src/main/java/net/minecraft/" | sort | uniq | sed 's/\+\+\+ b\/src\/main\/java\/net\/minecraft\///g')
 
-files=$(cat patches/server/* | grep "+++ b/src/main/java/net/minecraft/server/" | sort | uniq | sed 's/\+\+\+ b\/src\/main\/java\/net\/minecraft\/server\///g' | sed 's/.java//g')
-
-nonnms=$(cat patches/server/* | grep "create mode " | grep -Po "src/main/java/net/minecraft/server/(.*?).java" | sort | uniq | sed 's/src\/main\/java\/net\/minecraft\/server\///g' | sed 's/.java//g')
+nonnms=$(cat patches/server/* | grep "create mode " | grep -Po "src/main/java/net/minecraft/(.*?).java" | sort | uniq | sed 's/src\/main\/java\/net\/minecraft\///g' | sed 's/.java//g')
 function containsElement {
 	local e
 	for e in "${@:2}"; do
@@ -78,15 +78,20 @@ function containsElement {
 for f in $files; do
 	containsElement "$f" ${nonnms[@]}
 	if [ "$?" == "1" ]; then
-		if [ ! -f "$basedir/Paper/Paper-Server/src/main/java/net/minecraft/server/$f.java" ]; then
+		if [ ! -f "$basedir/Paper/Paper-Server/src/main/java/net/minecraft/$f.java" ]; then
+		f="$(echo "$f" | sed 's/.java//g')"
 			if [ ! -f "$decompiledir/$nms/$f.java" ]; then
 				echo "$(bashColor 1 31) ERROR!!! Missing NMS$(bashColor 1 34) $f $(bashColorReset)";
+				error=true
 			else
 				import $f
 			fi
 		fi
 	fi
 done
+if [ -n "$error" ]; then
+  exit 1
+fi
 
 ###############################################################################################
 ###############################################################################################
