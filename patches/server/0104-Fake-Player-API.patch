@@ -4,15 +4,16 @@ Date: Tue, 29 Dec 2020 01:32:45 -0600
 Subject: [PATCH] Fake Player API
 
 ---
- .../empireminecraft/api/CraftEAPI_Server.java |  37 +++++
+ .../empireminecraft/api/CraftEAPI_Server.java |  37 +++
  .../empireminecraft/api/CraftEmpireAPI.java   |   4 +
- .../empireminecraft/api/CraftFakePlayer.java  | 150 ++++++++++++++++++
- .../game/PacketPlayOutPlayerInfo.java         |  16 ++
+ .../empireminecraft/api/CraftFakePlayer.java  | 150 +++++++++++
+ .../game/PacketPlayOutPlayerInfo.java         | 233 ++++++++++++++++++
  .../minecraft/server/players/PlayerList.java  |  10 +-
- .../craftbukkit/entity/CraftPlayer.java       |  75 +++++++++
- 6 files changed, 291 insertions(+), 1 deletion(-)
+ .../craftbukkit/entity/CraftPlayer.java       |  75 ++++++
+ 6 files changed, 508 insertions(+), 1 deletion(-)
  create mode 100644 src/main/java/com/empireminecraft/api/CraftEAPI_Server.java
  create mode 100644 src/main/java/com/empireminecraft/api/CraftFakePlayer.java
+ create mode 100644 src/main/java/net/minecraft/network/protocol/game/PacketPlayOutPlayerInfo.java
 
 diff --git a/src/main/java/com/empireminecraft/api/CraftEAPI_Server.java b/src/main/java/com/empireminecraft/api/CraftEAPI_Server.java
 new file mode 100644
@@ -229,25 +230,36 @@ index 0000000000000000000000000000000000000000..9f507a48cc75e5dbaf89f020d9f8f414
 +
 +}
 diff --git a/src/main/java/net/minecraft/network/protocol/game/PacketPlayOutPlayerInfo.java b/src/main/java/net/minecraft/network/protocol/game/PacketPlayOutPlayerInfo.java
-index 2758cf87fe5cb89c101f2495783c72a2fe4ad632..6b38bc0bfce206fab2dbd8e67e1ff7327624cd32 100644
---- a/src/main/java/net/minecraft/network/protocol/game/PacketPlayOutPlayerInfo.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..6b38bc0bfce206fab2dbd8e67e1ff7327624cd32
+--- /dev/null
 +++ b/src/main/java/net/minecraft/network/protocol/game/PacketPlayOutPlayerInfo.java
-@@ -1,9 +1,11 @@
- package net.minecraft.network.protocol.game;
- 
+@@ -0,0 +1,233 @@
++package net.minecraft.network.protocol.game;
++
 +import com.empireminecraft.api.FakePlayer; // EMC
- import com.google.common.base.MoreObjects;
- import com.google.common.collect.Lists;
- import com.mojang.authlib.GameProfile;
- import com.mojang.authlib.properties.Property;
++import com.google.common.base.MoreObjects;
++import com.google.common.collect.Lists;
++import com.mojang.authlib.GameProfile;
++import com.mojang.authlib.properties.Property;
 +import io.papermc.paper.adventure.PaperAdventure; // EMC
- import java.io.IOException;
- import java.util.Iterator;
- import java.util.List;
-@@ -21,6 +23,20 @@ public class PacketPlayOutPlayerInfo implements Packet<PacketListenerPlayOut> {
- 
-     public PacketPlayOutPlayerInfo() {}
- 
++import java.io.IOException;
++import java.util.Iterator;
++import java.util.List;
++import javax.annotation.Nullable;
++import net.minecraft.network.PacketDataSerializer;
++import net.minecraft.network.chat.IChatBaseComponent;
++import net.minecraft.network.protocol.Packet;
++import net.minecraft.server.level.EntityPlayer;
++import net.minecraft.world.level.EnumGamemode;
++
++public class PacketPlayOutPlayerInfo implements Packet<PacketListenerPlayOut> {
++
++    private PacketPlayOutPlayerInfo.EnumPlayerInfoAction a;
++    private final List<PacketPlayOutPlayerInfo.PlayerInfoData> b = Lists.newArrayList();
++
++    public PacketPlayOutPlayerInfo() {}
++
 +    // EMC start
 +    public PacketPlayOutPlayerInfo(PacketPlayOutPlayerInfo.EnumPlayerInfoAction enumplayerinfoaction, FakePlayer... fakePlayers) {
 +        this.a = enumplayerinfoaction;
@@ -262,9 +274,200 @@ index 2758cf87fe5cb89c101f2495783c72a2fe4ad632..6b38bc0bfce206fab2dbd8e67e1ff732
 +        }
 +    }
 +    // EMC end
-     public PacketPlayOutPlayerInfo(PacketPlayOutPlayerInfo.EnumPlayerInfoAction packetplayoutplayerinfo_enumplayerinfoaction, EntityPlayer... aentityplayer) {
-         this.a = packetplayoutplayerinfo_enumplayerinfoaction;
-         EntityPlayer[] aentityplayer1 = aentityplayer;
++    public PacketPlayOutPlayerInfo(PacketPlayOutPlayerInfo.EnumPlayerInfoAction packetplayoutplayerinfo_enumplayerinfoaction, EntityPlayer... aentityplayer) {
++        this.a = packetplayoutplayerinfo_enumplayerinfoaction;
++        EntityPlayer[] aentityplayer1 = aentityplayer;
++        int i = aentityplayer.length;
++
++        for (int j = 0; j < i; ++j) {
++            EntityPlayer entityplayer = aentityplayer1[j];
++
++            this.b.add(new PacketPlayOutPlayerInfo.PlayerInfoData(entityplayer.getProfile(), entityplayer.ping, entityplayer.playerInteractManager.getGameMode(), entityplayer.getPlayerListName()));
++        }
++
++    }
++
++    public PacketPlayOutPlayerInfo(PacketPlayOutPlayerInfo.EnumPlayerInfoAction packetplayoutplayerinfo_enumplayerinfoaction, Iterable<EntityPlayer> iterable) {
++        this.a = packetplayoutplayerinfo_enumplayerinfoaction;
++        Iterator iterator = iterable.iterator();
++
++        while (iterator.hasNext()) {
++            EntityPlayer entityplayer = (EntityPlayer) iterator.next();
++
++            this.b.add(new PacketPlayOutPlayerInfo.PlayerInfoData(entityplayer.getProfile(), entityplayer.ping, entityplayer.playerInteractManager.getGameMode(), entityplayer.getPlayerListName()));
++        }
++
++    }
++
++    @Override
++    public void a(PacketDataSerializer packetdataserializer) throws IOException {
++        this.a = (PacketPlayOutPlayerInfo.EnumPlayerInfoAction) packetdataserializer.a(PacketPlayOutPlayerInfo.EnumPlayerInfoAction.class);
++        int i = packetdataserializer.i();
++
++        for (int j = 0; j < i; ++j) {
++            GameProfile gameprofile = null;
++            int k = 0;
++            EnumGamemode enumgamemode = null;
++            IChatBaseComponent ichatbasecomponent = null;
++
++            switch (this.a) {
++                case ADD_PLAYER:
++                    gameprofile = new GameProfile(packetdataserializer.k(), packetdataserializer.e(16));
++                    int l = packetdataserializer.i();
++
++                    for (int i1 = 0; i1 < l; ++i1) {
++                        String s = packetdataserializer.e(32767);
++                        String s1 = packetdataserializer.e(32767);
++
++                        if (packetdataserializer.readBoolean()) {
++                            gameprofile.getProperties().put(s, new Property(s, s1, packetdataserializer.e(32767)));
++                        } else {
++                            gameprofile.getProperties().put(s, new Property(s, s1));
++                        }
++                    }
++
++                    enumgamemode = EnumGamemode.getById(packetdataserializer.i());
++                    k = packetdataserializer.i();
++                    if (packetdataserializer.readBoolean()) {
++                        ichatbasecomponent = packetdataserializer.h();
++                    }
++                    break;
++                case UPDATE_GAME_MODE:
++                    gameprofile = new GameProfile(packetdataserializer.k(), (String) null);
++                    enumgamemode = EnumGamemode.getById(packetdataserializer.i());
++                    break;
++                case UPDATE_LATENCY:
++                    gameprofile = new GameProfile(packetdataserializer.k(), (String) null);
++                    k = packetdataserializer.i();
++                    break;
++                case UPDATE_DISPLAY_NAME:
++                    gameprofile = new GameProfile(packetdataserializer.k(), (String) null);
++                    if (packetdataserializer.readBoolean()) {
++                        ichatbasecomponent = packetdataserializer.h();
++                    }
++                    break;
++                case REMOVE_PLAYER:
++                    gameprofile = new GameProfile(packetdataserializer.k(), (String) null);
++            }
++
++            this.b.add(new PacketPlayOutPlayerInfo.PlayerInfoData(gameprofile, k, enumgamemode, ichatbasecomponent));
++        }
++
++    }
++
++    @Override
++    public void b(PacketDataSerializer packetdataserializer) throws IOException {
++        packetdataserializer.a((Enum) this.a);
++        packetdataserializer.d(this.b.size());
++        Iterator iterator = this.b.iterator();
++
++        while (iterator.hasNext()) {
++            PacketPlayOutPlayerInfo.PlayerInfoData packetplayoutplayerinfo_playerinfodata = (PacketPlayOutPlayerInfo.PlayerInfoData) iterator.next();
++
++            switch (this.a) {
++                case ADD_PLAYER:
++                    packetdataserializer.a(packetplayoutplayerinfo_playerinfodata.a().getId());
++                    packetdataserializer.a(packetplayoutplayerinfo_playerinfodata.a().getName());
++                    packetdataserializer.d(packetplayoutplayerinfo_playerinfodata.a().getProperties().size());
++                    Iterator iterator1 = packetplayoutplayerinfo_playerinfodata.a().getProperties().values().iterator();
++
++                    while (iterator1.hasNext()) {
++                        Property property = (Property) iterator1.next();
++
++                        packetdataserializer.a(property.getName());
++                        packetdataserializer.a(property.getValue());
++                        if (property.hasSignature()) {
++                            packetdataserializer.writeBoolean(true);
++                            packetdataserializer.a(property.getSignature());
++                        } else {
++                            packetdataserializer.writeBoolean(false);
++                        }
++                    }
++
++                    packetdataserializer.d(packetplayoutplayerinfo_playerinfodata.c().getId());
++                    packetdataserializer.d(packetplayoutplayerinfo_playerinfodata.b());
++                    if (packetplayoutplayerinfo_playerinfodata.d() == null) {
++                        packetdataserializer.writeBoolean(false);
++                    } else {
++                        packetdataserializer.writeBoolean(true);
++                        packetdataserializer.a(packetplayoutplayerinfo_playerinfodata.d());
++                    }
++                    break;
++                case UPDATE_GAME_MODE:
++                    packetdataserializer.a(packetplayoutplayerinfo_playerinfodata.a().getId());
++                    packetdataserializer.d(packetplayoutplayerinfo_playerinfodata.c().getId());
++                    break;
++                case UPDATE_LATENCY:
++                    packetdataserializer.a(packetplayoutplayerinfo_playerinfodata.a().getId());
++                    packetdataserializer.d(packetplayoutplayerinfo_playerinfodata.b());
++                    break;
++                case UPDATE_DISPLAY_NAME:
++                    packetdataserializer.a(packetplayoutplayerinfo_playerinfodata.a().getId());
++                    if (packetplayoutplayerinfo_playerinfodata.d() == null) {
++                        packetdataserializer.writeBoolean(false);
++                    } else {
++                        packetdataserializer.writeBoolean(true);
++                        packetdataserializer.a(packetplayoutplayerinfo_playerinfodata.d());
++                    }
++                    break;
++                case REMOVE_PLAYER:
++                    packetdataserializer.a(packetplayoutplayerinfo_playerinfodata.a().getId());
++            }
++        }
++
++    }
++
++    public void a(PacketListenerPlayOut packetlistenerplayout) {
++        packetlistenerplayout.a(this);
++    }
++
++    public String toString() {
++        return MoreObjects.toStringHelper(this).add("action", this.a).add("entries", this.b).toString();
++    }
++
++    public class PlayerInfoData {
++
++        private final int b;
++        private final EnumGamemode c;
++        private final GameProfile d;
++        private final IChatBaseComponent e;
++
++        public PlayerInfoData(GameProfile gameprofile, int i, EnumGamemode enumgamemode, @Nullable IChatBaseComponent ichatbasecomponent) {
++            this.d = gameprofile;
++            this.b = i;
++            this.c = enumgamemode;
++            this.e = ichatbasecomponent;
++        }
++
++        public GameProfile a() {
++            return this.d;
++        }
++
++        public int b() {
++            return this.b;
++        }
++
++        public EnumGamemode c() {
++            return this.c;
++        }
++
++        @Nullable
++        public IChatBaseComponent d() {
++            return this.e;
++        }
++
++        public String toString() {
++            return MoreObjects.toStringHelper(this).add("latency", this.b).add("gameMode", this.c).add("profile", this.d).add("displayName", this.e == null ? null : IChatBaseComponent.ChatSerializer.a(this.e)).toString();
++        }
++    }
++
++    public static enum EnumPlayerInfoAction {
++
++        ADD_PLAYER, UPDATE_GAME_MODE, UPDATE_LATENCY, UPDATE_DISPLAY_NAME, REMOVE_PLAYER;
++
++        private EnumPlayerInfoAction() {}
++    }
++}
 diff --git a/src/main/java/net/minecraft/server/players/PlayerList.java b/src/main/java/net/minecraft/server/players/PlayerList.java
 index 87c9f9e58fd8692a45aa09624333428b926027db..d50a5b989c4e61549bdcec3bb3716bb285d5be22 100644
 --- a/src/main/java/net/minecraft/server/players/PlayerList.java

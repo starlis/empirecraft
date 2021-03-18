@@ -5,11 +5,12 @@ Subject: [PATCH] Improve Hopper Performance
 
 Only do an item "suck in" action once per second
 ---
- .../world/entity/item/EntityItem.java         | 17 +++++++++++++++
- .../entity/vehicle/EntityMinecartHopper.java  | 15 +++++++++++++
- .../world/level/block/entity/IHopper.java     |  1 +
- .../level/block/entity/TileEntityHopper.java  | 21 ++++++++++++++++++-
- 4 files changed, 53 insertions(+), 1 deletion(-)
+ .../world/entity/item/EntityItem.java         |  17 ++
+ .../entity/vehicle/EntityMinecartHopper.java  | 183 ++++++++++++++++++
+ .../world/level/block/entity/IHopper.java     |   1 +
+ .../level/block/entity/TileEntityHopper.java  |  21 +-
+ 4 files changed, 221 insertions(+), 1 deletion(-)
+ create mode 100644 src/main/java/net/minecraft/world/entity/vehicle/EntityMinecartHopper.java
 
 diff --git a/src/main/java/net/minecraft/world/entity/item/EntityItem.java b/src/main/java/net/minecraft/world/entity/item/EntityItem.java
 index 6c1f08141f585e4680c239c7d099b8d8d6ba9209..f19918bd5cea905d776d16132b403ed9e0a28ae8 100644
@@ -62,21 +63,179 @@ index 6c1f08141f585e4680c239c7d099b8d8d6ba9209..f19918bd5cea905d776d16132b403ed9
      // Spigot end
  
 diff --git a/src/main/java/net/minecraft/world/entity/vehicle/EntityMinecartHopper.java b/src/main/java/net/minecraft/world/entity/vehicle/EntityMinecartHopper.java
-index 3f47253cdb4636931654788a2b81089b0ce4d8c5..93022cb6026862e9e5498f776169a909c5b988c0 100644
---- a/src/main/java/net/minecraft/world/entity/vehicle/EntityMinecartHopper.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..93022cb6026862e9e5498f776169a909c5b988c0
+--- /dev/null
 +++ b/src/main/java/net/minecraft/world/entity/vehicle/EntityMinecartHopper.java
-@@ -24,6 +24,7 @@ public class EntityMinecartHopper extends EntityMinecartContainer implements IHo
-     private boolean d = true;
-     private int e = -1;
-     private final BlockPosition f;
+@@ -0,0 +1,183 @@
++package net.minecraft.world.entity.vehicle;
++
++import java.util.List;
++import net.minecraft.core.BlockPosition;
++import net.minecraft.nbt.NBTTagCompound;
++import net.minecraft.world.IInventory;
++import net.minecraft.world.damagesource.DamageSource;
++import net.minecraft.world.entity.EntityTypes;
++import net.minecraft.world.entity.IEntitySelector;
++import net.minecraft.world.entity.item.EntityItem;
++import net.minecraft.world.entity.player.PlayerInventory;
++import net.minecraft.world.inventory.Container;
++import net.minecraft.world.inventory.ContainerHopper;
++import net.minecraft.world.level.GameRules;
++import net.minecraft.world.level.IMaterial;
++import net.minecraft.world.level.World;
++import net.minecraft.world.level.block.Blocks;
++import net.minecraft.world.level.block.entity.IHopper;
++import net.minecraft.world.level.block.entity.TileEntityHopper;
++import net.minecraft.world.level.block.state.IBlockData;
++
++public class EntityMinecartHopper extends EntityMinecartContainer implements IHopper {
++
++    private boolean d = true;
++    private int e = -1;
++    private final BlockPosition f;
 +    public int pickupImmunity = 0; // EMC
- 
-     public EntityMinecartHopper(EntityTypes<? extends EntityMinecartHopper> entitytypes, World world) {
-         super(entitytypes, world);
-@@ -165,4 +166,18 @@ public class EntityMinecartHopper extends EntityMinecartContainer implements IHo
-     public Container a(int i, PlayerInventory playerinventory) {
-         return new ContainerHopper(i, playerinventory, this);
-     }
++
++    public EntityMinecartHopper(EntityTypes<? extends EntityMinecartHopper> entitytypes, World world) {
++        super(entitytypes, world);
++        this.f = BlockPosition.ZERO;
++    }
++
++    public EntityMinecartHopper(World world, double d0, double d1, double d2) {
++        super(EntityTypes.HOPPER_MINECART, d0, d1, d2, world);
++        this.f = BlockPosition.ZERO;
++    }
++
++    @Override
++    public EntityMinecartAbstract.EnumMinecartType getMinecartType() {
++        return EntityMinecartAbstract.EnumMinecartType.HOPPER;
++    }
++
++    @Override
++    public IBlockData q() {
++        return Blocks.HOPPER.getBlockData();
++    }
++
++    @Override
++    public int s() {
++        return 1;
++    }
++
++    @Override
++    public int getSize() {
++        return 5;
++    }
++
++    @Override
++    public void a(int i, int j, int k, boolean flag) {
++        boolean flag1 = !flag;
++
++        if (flag1 != this.isEnabled()) {
++            this.setEnabled(flag1);
++        }
++
++    }
++
++    public boolean isEnabled() {
++        return this.d;
++    }
++
++    public void setEnabled(boolean flag) {
++        this.d = flag;
++    }
++
++    @Override
++    public World getWorld() {
++        return this.world;
++    }
++
++    @Override
++    public double x() {
++        return this.locX();
++    }
++
++    @Override
++    public double z() {
++        return this.locY() + 0.5D;
++    }
++
++    @Override
++    public double A() {
++        return this.locZ();
++    }
++
++    @Override
++    public void tick() {
++        super.tick();
++        if (!this.world.isClientSide && this.isAlive() && this.isEnabled()) {
++            BlockPosition blockposition = this.getChunkCoordinates();
++
++            if (blockposition.equals(this.f)) {
++                --this.e;
++            } else {
++                this.setCooldown(0);
++            }
++
++            if (!this.C()) {
++                this.setCooldown(0);
++                if (this.B()) {
++                    this.setCooldown(4);
++                    this.update();
++                }
++            }
++        }
++
++    }
++
++    public boolean B() {
++        if (TileEntityHopper.a((IHopper) this)) {
++            return true;
++        } else {
++            List<EntityItem> list = this.world.a(EntityItem.class, this.getBoundingBox().grow(0.25D, 0.0D, 0.25D), IEntitySelector.a);
++
++            if (!list.isEmpty()) {
++                TileEntityHopper.a((IInventory) this, (EntityItem) list.get(0));
++            }
++
++            return false;
++        }
++    }
++
++    @Override
++    public void a(DamageSource damagesource) {
++        super.a(damagesource);
++        if (this.world.getGameRules().getBoolean(GameRules.DO_ENTITY_DROPS)) {
++            this.a((IMaterial) Blocks.HOPPER);
++        }
++
++    }
++
++    @Override
++    protected void saveData(NBTTagCompound nbttagcompound) {
++        super.saveData(nbttagcompound);
++        nbttagcompound.setInt("TransferCooldown", this.e);
++        nbttagcompound.setBoolean("Enabled", this.d);
++    }
++
++    @Override
++    protected void loadData(NBTTagCompound nbttagcompound) {
++        super.loadData(nbttagcompound);
++        this.e = nbttagcompound.getInt("TransferCooldown");
++        this.d = nbttagcompound.hasKey("Enabled") ? nbttagcompound.getBoolean("Enabled") : true;
++    }
++
++    public void setCooldown(int i) {
++        this.e = i;
++    }
++
++    public boolean C() {
++        return this.e > 0;
++    }
++
++    @Override
++    public Container a(int i, PlayerInventory playerinventory) {
++        return new ContainerHopper(i, playerinventory, this);
++    }
 +
 +    // EMC start - fix compile
 +    @Override
@@ -91,7 +250,7 @@ index 3f47253cdb4636931654788a2b81089b0ce4d8c5..93022cb6026862e9e5498f776169a909
 +        return tickAttempts++;
 +    }
 +    // EMC stop
- }
++}
 diff --git a/src/main/java/net/minecraft/world/level/block/entity/IHopper.java b/src/main/java/net/minecraft/world/level/block/entity/IHopper.java
 index 1db7b7bfe98658d0b20800a4178556f8daaf881a..94269603d4dd2c9d319904e2a60f091d5b45d898 100644
 --- a/src/main/java/net/minecraft/world/level/block/entity/IHopper.java
