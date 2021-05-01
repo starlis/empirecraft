@@ -6,12 +6,12 @@ Subject: [PATCH] Allow Vehicle/Passenger Teleporting for Bukkit API
 If Bukkit teleport is called, teleport the whole set of entities together and maintain the chain.
 ---
  .../server/level/PlayerChunkMap.java          |  2 +-
- .../server/network/PlayerConnection.java      | 26 +++++---
- .../minecraft/server/players/PlayerList.java  | 12 +++-
+ .../server/network/PlayerConnection.java      | 24 ++++++--
+ .../minecraft/server/players/PlayerList.java  | 10 +++-
  .../net/minecraft/world/entity/Entity.java    | 22 ++++++-
  .../craftbukkit/entity/CraftEntity.java       | 59 ++++++++++++++++++-
  .../craftbukkit/entity/CraftPlayer.java       |  8 ++-
- 6 files changed, 114 insertions(+), 15 deletions(-)
+ 6 files changed, 112 insertions(+), 13 deletions(-)
 
 diff --git a/src/main/java/net/minecraft/server/level/PlayerChunkMap.java b/src/main/java/net/minecraft/server/level/PlayerChunkMap.java
 index f60b2d85401055233b017c07b1fa53b35b1fd8ce..f2fa4c33e0352b5226fbc39c267bd9b69ed52bf9 100644
@@ -27,7 +27,7 @@ index f60b2d85401055233b017c07b1fa53b35b1fd8ce..f2fa4c33e0352b5226fbc39c267bd9b6
          if (entity instanceof EntityPlayer) {
              EntityPlayer entityplayer = (EntityPlayer) entity;
 diff --git a/src/main/java/net/minecraft/server/network/PlayerConnection.java b/src/main/java/net/minecraft/server/network/PlayerConnection.java
-index 8a4af720cede321a03ab173ecea226fe41009555..f18325a863c7cc7b1314498252d31138d5499868 100644
+index 948052b2454966b30e122a116cabc3bc8fe77559..29b19d8a8b826a58c51285cd3615c05a72b74e33 100644
 --- a/src/main/java/net/minecraft/server/network/PlayerConnection.java
 +++ b/src/main/java/net/minecraft/server/network/PlayerConnection.java
 @@ -248,12 +248,12 @@ public class PlayerConnection implements PacketListenerPlayIn {
@@ -68,36 +68,23 @@ index 8a4af720cede321a03ab173ecea226fe41009555..f18325a863c7cc7b1314498252d31138
      }
  
      @Override
-@@ -2438,7 +2450,7 @@ public class PlayerConnection implements PacketListenerPlayIn {
-             case PERFORM_RESPAWN:
-                 if (this.player.viewingCredits) {
-                     this.player.viewingCredits = false;
--                    this.player = this.minecraftServer.getPlayerList().moveToWorld(this.player, true);
-+                    this.player = this.minecraftServer.getPlayerList().moveToWorld(this.player, true, org.bukkit.event.player.PlayerTeleportEvent.TeleportCause.END_PORTAL); // Paper
-                     CriterionTriggers.v.a(this.player, World.THE_END, World.OVERWORLD);
-                 } else {
-                     if (this.player.getHealth() > 0.0F) {
 diff --git a/src/main/java/net/minecraft/server/players/PlayerList.java b/src/main/java/net/minecraft/server/players/PlayerList.java
-index 92de13c9f02253fcc343ff6656c6a1273745d719..76887bb057de217e17b1e69a3618c55ac99f9e55 100644
+index 59d5f2d78e4cc1713d530f56dba1205026ac4666..dd53d5d6e38338d6a839d9301f333d68c90c240f 100644
 --- a/src/main/java/net/minecraft/server/players/PlayerList.java
 +++ b/src/main/java/net/minecraft/server/players/PlayerList.java
-@@ -818,11 +818,19 @@ public abstract class PlayerList {
- 
-     // CraftBukkit start
-     public EntityPlayer moveToWorld(EntityPlayer entityplayer, boolean flag) {
--        return this.moveToWorld(entityplayer, this.server.getWorldServer(entityplayer.getSpawnDimension()), flag, null, true);
-+        return this.moveToWorld(entityplayer, this.server.getWorldServer(entityplayer.getSpawnDimension()), flag, null, true); // Paper
+@@ -821,8 +821,16 @@ public abstract class PlayerList {
+         return this.moveToWorld(entityplayer, this.server.getWorldServer(entityplayer.getSpawnDimension()), flag, null, true);
      }
  
 +    // Paper start
 +    public EntityPlayer moveToWorld(EntityPlayer entityplayer, boolean flag, org.bukkit.event.player.PlayerTeleportEvent.TeleportCause cause) {
 +        return this.moveToWorld(entityplayer, this.server.getWorldServer(entityplayer.getSpawnDimension()), flag, null, true, cause);
 +    }
-     public EntityPlayer moveToWorld(EntityPlayer entityplayer, WorldServer worldserver, boolean flag, Location location, boolean avoidSuffocation) {
+     public EntityPlayer moveToWorld(EntityPlayer entityplayer, WorldServer worldserver, boolean flag, Location location, boolean avoidSuffocation, org.bukkit.event.player.PlayerRespawnEvent.RespawnFlag...respawnFlags) { // Paper
 -        entityplayer.stopRiding(); // CraftBukkit
-+        return this.moveToWorld(entityplayer, worldserver, flag, location, avoidSuffocation, org.bukkit.event.player.PlayerTeleportEvent.TeleportCause.UNKNOWN);
++        return this.moveToWorld(entityplayer, worldserver, flag, location, avoidSuffocation, org.bukkit.event.player.PlayerTeleportEvent.TeleportCause.UNKNOWN, respawnFlags);
 +    }
-+    public EntityPlayer moveToWorld(EntityPlayer entityplayer, WorldServer worldserver, boolean flag, Location location, boolean avoidSuffocation, org.bukkit.event.player.PlayerTeleportEvent.TeleportCause cause) {
++    public EntityPlayer moveToWorld(EntityPlayer entityplayer, WorldServer worldserver, boolean flag, Location location, boolean avoidSuffocation, org.bukkit.event.player.PlayerTeleportEvent.TeleportCause cause, org.bukkit.event.player.PlayerRespawnEvent.RespawnFlag...respawnFlags) { // Paper
 +        entityplayer.getBukkitEntity().teleportAttachedEntities(location, cause);
 +        // Paper end
          this.players.remove(entityplayer);
