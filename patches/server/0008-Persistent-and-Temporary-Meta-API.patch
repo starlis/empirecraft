@@ -7,7 +7,7 @@ Subject: [PATCH] Persistent and Temporary Meta API
  .../empireminecraft/api/CraftEmpireAPI.java   |   3 +
  .../api/meta/CraftEAPI_Meta.java              |  80 +++
  .../protocol/game/PacketPlayOutMapChunk.java  |   2 +
- .../game/PacketPlayOutTileEntityData.java     |  42 ++
+ .../game/PacketPlayOutTileEntityData.java     |   2 +
  .../net/minecraft/server/MetaApiAccessor.java | 598 ++++++++++++++++++
  .../server/level/PlayerChunkMap.java          |   2 +
  .../minecraft/server/level/WorldServer.java   |   2 +-
@@ -27,9 +27,8 @@ Subject: [PATCH] Persistent and Temporary Meta API
  .../craftbukkit/entity/CraftEntity.java       |   2 +
  .../craftbukkit/event/CraftEventFactory.java  |   5 +
  .../craftbukkit/inventory/CraftInventory.java |  11 +
- 23 files changed, 796 insertions(+), 3 deletions(-)
+ 23 files changed, 756 insertions(+), 3 deletions(-)
  create mode 100644 src/main/java/com/empireminecraft/api/meta/CraftEAPI_Meta.java
- create mode 100644 src/main/java/net/minecraft/network/protocol/game/PacketPlayOutTileEntityData.java
  create mode 100644 src/main/java/net/minecraft/server/MetaApiAccessor.java
 
 diff --git a/src/main/java/com/empireminecraft/api/CraftEmpireAPI.java b/src/main/java/com/empireminecraft/api/CraftEmpireAPI.java
@@ -160,53 +159,25 @@ index 3047cf8c4ec1b664d6b790f18d2b1657e4b00435..9cf4ba94495ab36800d1f445372df7a3
                  this.g.add(nbttagcompound);
              }
 diff --git a/src/main/java/net/minecraft/network/protocol/game/PacketPlayOutTileEntityData.java b/src/main/java/net/minecraft/network/protocol/game/PacketPlayOutTileEntityData.java
-new file mode 100644
-index 0000000000000000000000000000000000000000..b9fdaa49fe5a96b4a10dfbc96194cbcbc3bb7acb
---- /dev/null
+index ec4c658c8aad8b63e4545a5e7d71c9c5bd0ad874..b9fdaa49fe5a96b4a10dfbc96194cbcbc3bb7acb 100644
+--- a/src/main/java/net/minecraft/network/protocol/game/PacketPlayOutTileEntityData.java
 +++ b/src/main/java/net/minecraft/network/protocol/game/PacketPlayOutTileEntityData.java
-@@ -0,0 +1,42 @@
-+package net.minecraft.network.protocol.game;
-+
-+import java.io.IOException;
-+import net.minecraft.core.BlockPosition;
-+import net.minecraft.nbt.NBTTagCompound;
-+import net.minecraft.network.PacketDataSerializer;
-+import net.minecraft.network.protocol.Packet;
+@@ -5,6 +5,7 @@ import net.minecraft.core.BlockPosition;
+ import net.minecraft.nbt.NBTTagCompound;
+ import net.minecraft.network.PacketDataSerializer;
+ import net.minecraft.network.protocol.Packet;
 +import net.minecraft.server.MetaApiAccessor;
-+
-+public class PacketPlayOutTileEntityData implements Packet<PacketListenerPlayOut> {
-+
-+    private BlockPosition a;
-+    private int b;
-+    private NBTTagCompound c;
-+
-+    public PacketPlayOutTileEntityData() {}
-+
-+    public PacketPlayOutTileEntityData(BlockPosition blockposition, int i, NBTTagCompound nbttagcompound) {
+ 
+ public class PacketPlayOutTileEntityData implements Packet<PacketListenerPlayOut> {
+ 
+@@ -15,6 +16,7 @@ public class PacketPlayOutTileEntityData implements Packet<PacketListenerPlayOut
+     public PacketPlayOutTileEntityData() {}
+ 
+     public PacketPlayOutTileEntityData(BlockPosition blockposition, int i, NBTTagCompound nbttagcompound) {
 +        MetaApiAccessor.filterTileEntityMeta(nbttagcompound); // EMC
-+        this.a = blockposition;
-+        this.b = i;
-+        this.c = nbttagcompound;
-+    }
-+
-+    @Override
-+    public void a(PacketDataSerializer packetdataserializer) throws IOException {
-+        this.a = packetdataserializer.e();
-+        this.b = packetdataserializer.readUnsignedByte();
-+        this.c = packetdataserializer.l();
-+    }
-+
-+    @Override
-+    public void b(PacketDataSerializer packetdataserializer) throws IOException {
-+        packetdataserializer.a(this.a);
-+        packetdataserializer.writeByte((byte) this.b);
-+        packetdataserializer.a(this.c);
-+    }
-+
-+    public void a(PacketListenerPlayOut packetlistenerplayout) {
-+        packetlistenerplayout.a(this);
-+    }
-+}
+         this.a = blockposition;
+         this.b = i;
+         this.c = nbttagcompound;
 diff --git a/src/main/java/net/minecraft/server/MetaApiAccessor.java b/src/main/java/net/minecraft/server/MetaApiAccessor.java
 new file mode 100644
 index 0000000000000000000000000000000000000000..06ab716f527cfa0f016a77600953b0dec1d69b69

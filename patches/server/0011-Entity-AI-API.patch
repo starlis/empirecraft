@@ -12,17 +12,17 @@ Subject: [PATCH] Entity AI API
  .../world/entity/EntityCreature.java          |   1 +
  .../world/entity/EntityInsentient.java        |   1 +
  .../minecraft/world/entity/EntityLiving.java  |  28 +-
- .../ai/goal/PathfinderGoalArrowAttack.java    | 103 ++++++
- .../ai/goal/PathfinderGoalBowShoot.java       | 135 ++++++++
- .../entity/ai/goal/PathfinderGoalFleeSun.java |  72 ++++
- .../ai/goal/PathfinderGoalMeleeAttack.java    | 139 ++++++++
+ .../ai/goal/PathfinderGoalArrowAttack.java    |   8 +-
+ .../ai/goal/PathfinderGoalBowShoot.java       |   4 +-
+ .../entity/ai/goal/PathfinderGoalFleeSun.java |   4 +-
+ .../ai/goal/PathfinderGoalMeleeAttack.java    |   2 +-
  .../entity/ai/goal/PathfinderGoalPanic.java   |   3 +-
  .../ai/goal/PathfinderGoalSelector.java       |   3 +-
  .../ai/goal/target/PathfinderGoalTarget.java  |   1 +
  .../world/entity/animal/EntityAnimal.java     |   2 +-
  .../world/entity/animal/EntityWolf.java       |   7 +
  .../world/entity/item/EntityItem.java         |   3 +-
- .../world/entity/monster/EntityBlaze.java     | 281 ++++++++++++++++
+ .../world/entity/monster/EntityBlaze.java     |  28 +-
  .../world/entity/monster/EntityGhast.java     |   3 +-
  .../world/entity/monster/EntitySpider.java    |   4 +
  .../entity/projectile/EntityEnderSignal.java  |  20 +-
@@ -30,14 +30,9 @@ Subject: [PATCH] Entity AI API
  .../craftbukkit/entity/CraftEnderSignal.java  |   3 +-
  .../bukkit/craftbukkit/entity/CraftGhast.java |   9 +
  .../java/org/spigotmc/ActivationRange.java    |   1 +
- 26 files changed, 1319 insertions(+), 16 deletions(-)
+ 26 files changed, 622 insertions(+), 29 deletions(-)
  create mode 100644 src/main/java/com/empireminecraft/api/EntityAIApi.java
  create mode 100644 src/main/java/net/minecraft/server/EntityGoalAccessor.java
- create mode 100644 src/main/java/net/minecraft/world/entity/ai/goal/PathfinderGoalArrowAttack.java
- create mode 100644 src/main/java/net/minecraft/world/entity/ai/goal/PathfinderGoalBowShoot.java
- create mode 100644 src/main/java/net/minecraft/world/entity/ai/goal/PathfinderGoalFleeSun.java
- create mode 100644 src/main/java/net/minecraft/world/entity/ai/goal/PathfinderGoalMeleeAttack.java
- create mode 100644 src/main/java/net/minecraft/world/entity/monster/EntityBlaze.java
 
 diff --git a/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java b/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
 index bb6e5296a801f7053db72d9eb4d7b9becdb751f4..0e9e04ee407c9921421b9a9154364026eb26be22 100644
@@ -773,478 +768,74 @@ index bc9458d7862a9dd7c446caa5de137d945cff9b98..2acdee2673c2d1e4ec34e610cb8fd0b4
  
      @Override
 diff --git a/src/main/java/net/minecraft/world/entity/ai/goal/PathfinderGoalArrowAttack.java b/src/main/java/net/minecraft/world/entity/ai/goal/PathfinderGoalArrowAttack.java
-new file mode 100644
-index 0000000000000000000000000000000000000000..09b95d5bc416688dc7d848591eca2235affcc7f0
---- /dev/null
+index da2bb2aeb23913d27feb06a009dd7705baa9f7b2..09b95d5bc416688dc7d848591eca2235affcc7f0 100644
+--- a/src/main/java/net/minecraft/world/entity/ai/goal/PathfinderGoalArrowAttack.java
 +++ b/src/main/java/net/minecraft/world/entity/ai/goal/PathfinderGoalArrowAttack.java
-@@ -0,0 +1,103 @@
-+package net.minecraft.world.entity.ai.goal;
-+
-+import java.util.EnumSet;
-+import net.minecraft.util.MathHelper;
-+import net.minecraft.world.entity.Entity;
-+import net.minecraft.world.entity.EntityInsentient;
-+import net.minecraft.world.entity.EntityLiving;
-+import net.minecraft.world.entity.monster.IRangedEntity;
-+
-+public class PathfinderGoalArrowAttack extends PathfinderGoal {
-+
-+    private final EntityInsentient a;
-+    private final IRangedEntity b;
-+    private EntityLiving c;
-+    private int d;
-+    private final double e;
-+    private int f;
+@@ -15,10 +15,10 @@ public class PathfinderGoalArrowAttack extends PathfinderGoal {
+     private int d;
+     private final double e;
+     private int f;
+-    private final int g;
+-    private final int h;
+-    private final float i;
+-    private final float j;
 +    public int g;public void setMinTime(int time) { this.g = time; } // EMC - OBF HELPER - min ranged time
 +    public int h;public void setMaxTime(int time) { this.h = time; } // EMC - OBF HELPER - max ranged time
 +    public float i;public void setDist(float range) { this.i = range; j = range*range; } // EMC - OBF HELPER - max ranged dist
 +    public float j; // EMC - max ranged dist square
-+
-+    public PathfinderGoalArrowAttack(IRangedEntity irangedentity, double d0, int i, float f) {
-+        this(irangedentity, d0, i, i, f);
-+    }
-+
-+    public PathfinderGoalArrowAttack(IRangedEntity irangedentity, double d0, int i, int j, float f) {
-+        this.d = -1;
-+        if (!(irangedentity instanceof EntityLiving)) {
-+            throw new IllegalArgumentException("ArrowAttackGoal requires Mob implements RangedAttackMob");
-+        } else {
-+            this.b = irangedentity;
-+            this.a = (EntityInsentient) irangedentity;
-+            this.e = d0;
-+            this.g = i;
-+            this.h = j;
-+            this.i = f;
-+            this.j = f * f;
-+            this.a(EnumSet.of(PathfinderGoal.Type.MOVE, PathfinderGoal.Type.LOOK));
-+        }
-+    }
-+
-+    @Override
-+    public boolean a() {
-+        EntityLiving entityliving = this.a.getGoalTarget();
-+
-+        if (entityliving != null && entityliving.isAlive()) {
-+            this.c = entityliving;
-+            return true;
-+        } else {
-+            return false;
-+        }
-+    }
-+
-+    @Override
-+    public boolean b() {
-+        return this.a() || !this.a.getNavigation().m();
-+    }
-+
-+    @Override
-+    public void d() {
-+        this.c = null;
-+        this.f = 0;
-+        this.d = -1;
-+    }
-+
-+    @Override
-+    public void e() {
-+        double d0 = this.a.h(this.c.locX(), this.c.locY(), this.c.locZ());
-+        boolean flag = this.a.getEntitySenses().a(this.c);
-+
-+        if (flag) {
-+            ++this.f;
-+        } else {
-+            this.f = 0;
-+        }
-+
-+        if (d0 <= (double) this.j && this.f >= 5) {
-+            this.a.getNavigation().o();
-+        } else {
-+            this.a.getNavigation().a((Entity) this.c, this.e);
-+        }
-+
-+        this.a.getControllerLook().a(this.c, 30.0F, 30.0F);
-+        float f;
-+
-+        if (--this.d == 0) {
-+            if (!flag) {
-+                return;
-+            }
-+
-+            f = MathHelper.sqrt(d0) / this.i;
-+            float f1 = MathHelper.a(f, 0.1F, 1.0F);
-+
-+            this.b.a(this.c, f1);
-+            this.d = MathHelper.d(f * (float) (this.h - this.g) + (float) this.g);
-+        } else if (this.d < 0) {
-+            f = MathHelper.sqrt(d0) / this.i;
-+            this.d = MathHelper.d(f * (float) (this.h - this.g) + (float) this.g);
-+        }
-+
-+    }
-+}
+ 
+     public PathfinderGoalArrowAttack(IRangedEntity irangedentity, double d0, int i, float f) {
+         this(irangedentity, d0, i, i, f);
 diff --git a/src/main/java/net/minecraft/world/entity/ai/goal/PathfinderGoalBowShoot.java b/src/main/java/net/minecraft/world/entity/ai/goal/PathfinderGoalBowShoot.java
-new file mode 100644
-index 0000000000000000000000000000000000000000..179206cd5e3bbe79835de9e4f0138acee5a9612e
---- /dev/null
+index 26ed7258edfd838ad777c3dd609898c2b79ae9db..179206cd5e3bbe79835de9e4f0138acee5a9612e 100644
+--- a/src/main/java/net/minecraft/world/entity/ai/goal/PathfinderGoalBowShoot.java
 +++ b/src/main/java/net/minecraft/world/entity/ai/goal/PathfinderGoalBowShoot.java
-@@ -0,0 +1,135 @@
-+package net.minecraft.world.entity.ai.goal;
-+
-+import java.util.EnumSet;
-+import net.minecraft.world.entity.Entity;
-+import net.minecraft.world.entity.EntityLiving;
-+import net.minecraft.world.entity.monster.EntityMonster;
-+import net.minecraft.world.entity.monster.IRangedEntity;
-+import net.minecraft.world.entity.projectile.ProjectileHelper;
-+import net.minecraft.world.item.ItemBow;
-+import net.minecraft.world.item.Items;
-+
-+public class PathfinderGoalBowShoot<T extends EntityMonster & IRangedEntity> extends PathfinderGoal {
-+
-+    private final T a;
-+    private final double b;
+@@ -13,8 +13,8 @@ public class PathfinderGoalBowShoot<T extends EntityMonster & IRangedEntity> ext
+ 
+     private final T a;
+     private final double b;
+-    private int c;
+-    private final float d;
 +    private int c;public void setSpeed(int speed) { this.c = speed; } // EMC - OBF HELPER
 +    private float d;public float getDistSq() { return d; } public void setDist(float range) { this.d = range*range; } // EMC - OBF HELPER - max ranged dist // EMC - OBF HELPER - max ranged dist square
-+    private int e = -1;
-+    private int f;
-+    private boolean g;
-+    private boolean h;
-+    private int i = -1;
-+
-+    public PathfinderGoalBowShoot(T t0, double d0, int i, float f) {
-+        this.a = t0;
-+        this.b = d0;
-+        this.c = i;
-+        this.d = f * f;
-+        this.a(EnumSet.of(PathfinderGoal.Type.MOVE, PathfinderGoal.Type.LOOK));
-+    }
-+
-+    public void a(int i) {
-+        this.c = i;
-+    }
-+
-+    @Override
-+    public boolean a() {
-+        return this.a.getGoalTarget() == null ? false : this.g();
-+    }
-+
-+    protected boolean g() {
-+        return this.a.a(Items.BOW);
-+    }
-+
-+    @Override
-+    public boolean b() {
-+        return (this.a() || !this.a.getNavigation().m()) && this.g();
-+    }
-+
-+    @Override
-+    public void c() {
-+        super.c();
-+        this.a.setAggressive(true);
-+    }
-+
-+    @Override
-+    public void d() {
-+        super.d();
-+        this.a.setAggressive(false);
-+        this.f = 0;
-+        this.e = -1;
-+        this.a.clearActiveItem();
-+    }
-+
-+    @Override
-+    public void e() {
-+        EntityLiving entityliving = this.a.getGoalTarget();
-+
-+        if (entityliving != null) {
-+            double d0 = this.a.h(entityliving.locX(), entityliving.locY(), entityliving.locZ());
-+            boolean flag = this.a.getEntitySenses().a(entityliving);
-+            boolean flag1 = this.f > 0;
-+
-+            if (flag != flag1) {
-+                this.f = 0;
-+            }
-+
-+            if (flag) {
-+                ++this.f;
-+            } else {
-+                --this.f;
-+            }
-+
-+            if (d0 <= (double) this.d && this.f >= 20) {
-+                this.a.getNavigation().o();
-+                ++this.i;
-+            } else {
-+                this.a.getNavigation().a((Entity) entityliving, this.b);
-+                this.i = -1;
-+            }
-+
-+            if (this.i >= 20) {
-+                if ((double) this.a.getRandom().nextFloat() < 0.3D) {
-+                    this.g = !this.g;
-+                }
-+
-+                if ((double) this.a.getRandom().nextFloat() < 0.3D) {
-+                    this.h = !this.h;
-+                }
-+
-+                this.i = 0;
-+            }
-+
-+            if (this.i > -1) {
-+                if (d0 > (double) (this.d * 0.75F)) {
-+                    this.h = false;
-+                } else if (d0 < (double) (this.d * 0.25F)) {
-+                    this.h = true;
-+                }
-+
-+                this.a.getControllerMove().a(this.h ? -0.5F : 0.5F, this.g ? 0.5F : -0.5F);
-+                this.a.a((Entity) entityliving, 30.0F, 30.0F);
-+            } else {
-+                this.a.getControllerLook().a(entityliving, 30.0F, 30.0F);
-+            }
-+
-+            if (this.a.isHandRaised()) {
-+                if (!flag && this.f < -60) {
-+                    this.a.clearActiveItem();
-+                } else if (flag) {
-+                    int i = this.a.ea();
-+
-+                    if (i >= 20) {
-+                        this.a.clearActiveItem();
-+                        ((IRangedEntity) this.a).a(entityliving, ItemBow.a(i));
-+                        this.e = this.c;
-+                    }
-+                }
-+            } else if (--this.e <= 0 && this.f >= -60) {
-+                this.a.c(ProjectileHelper.a((EntityLiving) this.a, Items.BOW));
-+            }
-+
-+        }
-+    }
-+}
+     private int e = -1;
+     private int f;
+     private boolean g;
 diff --git a/src/main/java/net/minecraft/world/entity/ai/goal/PathfinderGoalFleeSun.java b/src/main/java/net/minecraft/world/entity/ai/goal/PathfinderGoalFleeSun.java
-new file mode 100644
-index 0000000000000000000000000000000000000000..83a8f77e85c72abb51e40c662d56bbeea17e5e5f
---- /dev/null
+index b496524f25612d8ce80c0b8a3bbbacdbc006c377..83a8f77e85c72abb51e40c662d56bbeea17e5e5f 100644
+--- a/src/main/java/net/minecraft/world/entity/ai/goal/PathfinderGoalFleeSun.java
 +++ b/src/main/java/net/minecraft/world/entity/ai/goal/PathfinderGoalFleeSun.java
-@@ -0,0 +1,72 @@
-+package net.minecraft.world.entity.ai.goal;
-+
-+import java.util.EnumSet;
-+import java.util.Random;
-+import javax.annotation.Nullable;
-+import net.minecraft.core.BaseBlockPosition;
-+import net.minecraft.core.BlockPosition;
-+import net.minecraft.world.entity.EntityCreature;
-+import net.minecraft.world.entity.EnumItemSlot;
-+import net.minecraft.world.level.World;
-+import net.minecraft.world.phys.Vec3D;
-+
-+public class PathfinderGoalFleeSun extends PathfinderGoal {
-+
+@@ -12,7 +12,7 @@ import net.minecraft.world.phys.Vec3D;
+ 
+ public class PathfinderGoalFleeSun extends PathfinderGoal {
+ 
+-    protected final EntityCreature a;
 +    protected final EntityCreature a;EntityCreature getEntity() { return a; } // EMC - OBF HELPER
-+    private double b;
-+    private double c;
-+    private double d;
-+    private final double e;
-+    private final World f;
-+
-+    public PathfinderGoalFleeSun(EntityCreature entitycreature, double d0) {
-+        this.a = entitycreature;
-+        this.e = d0;
-+        this.f = entitycreature.world;
-+        this.a(EnumSet.of(PathfinderGoal.Type.MOVE));
-+    }
-+
-+    @Override
-+    public boolean a() {
+     private double b;
+     private double c;
+     private double d;
+@@ -28,7 +28,7 @@ public class PathfinderGoalFleeSun extends PathfinderGoal {
+ 
+     @Override
+     public boolean a() {
+-        return this.a.getGoalTarget() != null ? false : (!this.f.isDay() ? false : (!this.a.isBurning() ? false : (!this.f.e(this.a.getChunkCoordinates()) ? false : (!this.a.getEquipment(EnumItemSlot.HEAD).isEmpty() ? false : this.g()))));
 +        return this.a.getGoalTarget() != null ? false : (!this.f.isDay() ? false : ((this.getEntity().firePanicProof || !this.a.isBurning()) ? false : (!this.f.e(this.a.getChunkCoordinates()) ? false : (!this.a.getEquipment(EnumItemSlot.HEAD).isEmpty() ? false : this.g())))); // EMC
-+    }
-+
-+    protected boolean g() {
-+        Vec3D vec3d = this.h();
-+
-+        if (vec3d == null) {
-+            return false;
-+        } else {
-+            this.b = vec3d.x;
-+            this.c = vec3d.y;
-+            this.d = vec3d.z;
-+            return true;
-+        }
-+    }
-+
-+    @Override
-+    public boolean b() {
-+        return !this.a.getNavigation().m();
-+    }
-+
-+    @Override
-+    public void c() {
-+        this.a.getNavigation().a(this.b, this.c, this.d, this.e);
-+    }
-+
-+    @Nullable
-+    protected Vec3D h() {
-+        Random random = this.a.getRandom();
-+        BlockPosition blockposition = this.a.getChunkCoordinates();
-+
-+        for (int i = 0; i < 10; ++i) {
-+            BlockPosition blockposition1 = blockposition.b(random.nextInt(20) - 10, random.nextInt(6) - 3, random.nextInt(20) - 10);
-+
-+            if (!this.f.e(blockposition1) && this.a.f(blockposition1) < 0.0F) {
-+                return Vec3D.c((BaseBlockPosition) blockposition1);
-+            }
-+        }
-+
-+        return null;
-+    }
-+}
+     }
+ 
+     protected boolean g() {
 diff --git a/src/main/java/net/minecraft/world/entity/ai/goal/PathfinderGoalMeleeAttack.java b/src/main/java/net/minecraft/world/entity/ai/goal/PathfinderGoalMeleeAttack.java
-new file mode 100644
-index 0000000000000000000000000000000000000000..52dcf2f2d3e75b64013083298db481c2710570c4
---- /dev/null
+index c67b7fd3eb57993dcb014312ddd84305fe2137d6..52dcf2f2d3e75b64013083298db481c2710570c4 100644
+--- a/src/main/java/net/minecraft/world/entity/ai/goal/PathfinderGoalMeleeAttack.java
 +++ b/src/main/java/net/minecraft/world/entity/ai/goal/PathfinderGoalMeleeAttack.java
-@@ -0,0 +1,139 @@
-+package net.minecraft.world.entity.ai.goal;
-+
-+import java.util.EnumSet;
-+import net.minecraft.world.EnumHand;
-+import net.minecraft.world.entity.Entity;
-+import net.minecraft.world.entity.EntityCreature;
-+import net.minecraft.world.entity.EntityLiving;
-+import net.minecraft.world.entity.IEntitySelector;
-+import net.minecraft.world.entity.player.EntityHuman;
-+import net.minecraft.world.level.pathfinder.PathEntity;
-+
-+public class PathfinderGoalMeleeAttack extends PathfinderGoal {
-+
-+    protected final EntityCreature a;
-+    private final double b;
-+    private final boolean c;
-+    private PathEntity d;
-+    private double e;
-+    private double f;
-+    private double g;
-+    private int h;
-+    private int i;
-+    private final int j = 20;
-+    private long k;
-+
-+    public PathfinderGoalMeleeAttack(EntityCreature entitycreature, double d0, boolean flag) {
-+        this.a = entitycreature;
-+        this.b = d0;
-+        this.c = flag;
-+        this.a(EnumSet.of(PathfinderGoal.Type.MOVE, PathfinderGoal.Type.LOOK));
-+    }
-+
-+    @Override
-+    public boolean a() {
-+        long i = this.a.world.getTime();
-+
-+        if (i - this.k < 20L) {
-+            return false;
-+        } else {
-+            this.k = i;
-+            EntityLiving entityliving = this.a.getGoalTarget();
-+
-+            if (entityliving == null) {
-+                return false;
-+            } else if (!entityliving.isAlive()) {
-+                return false;
-+            } else {
-+                this.d = this.a.getNavigation().a((Entity) entityliving, 0);
-+                return this.d != null ? true : this.a(entityliving) >= this.a.h(entityliving.locX(), entityliving.locY(), entityliving.locZ());
-+            }
-+        }
-+    }
-+
-+    @Override
-+    public boolean b() {
-+        EntityLiving entityliving = this.a.getGoalTarget();
-+
-+        return entityliving == null ? false : (!entityliving.isAlive() ? false : (!this.c ? !this.a.getNavigation().m() : (!this.a.a(entityliving.getChunkCoordinates()) ? false : !(entityliving instanceof EntityHuman) || !entityliving.isSpectator() && !((EntityHuman) entityliving).isCreative())));
-+    }
-+
-+    @Override
-+    public void c() {
-+        this.a.getNavigation().a(this.d, this.b);
-+        this.a.setAggressive(true);
-+        this.h = 0;
-+        this.i = 0;
-+    }
-+
-+    @Override
-+    public void d() {
-+        EntityLiving entityliving = this.a.getGoalTarget();
-+
-+        if (!IEntitySelector.e.test(entityliving)) {
-+            this.a.setGoalTarget((EntityLiving) null);
-+        }
-+
-+        this.a.setAggressive(false);
-+        this.a.getNavigation().o();
-+    }
-+
-+    @Override
-+    public void e() {
-+        EntityLiving entityliving = this.a.getGoalTarget();
+@@ -81,7 +81,7 @@ public class PathfinderGoalMeleeAttack extends PathfinderGoal {
+     @Override
+     public void e() {
+         EntityLiving entityliving = this.a.getGoalTarget();
+-
 +        if (entityliving == null) { return; } // EMC - Do not process for null targets
-+        this.a.getControllerLook().a(entityliving, 30.0F, 30.0F);
-+        double d0 = this.a.h(entityliving.locX(), entityliving.locY(), entityliving.locZ());
-+
-+        this.h = Math.max(this.h - 1, 0);
-+        if ((this.c || this.a.getEntitySenses().a(entityliving)) && this.h <= 0 && (this.e == 0.0D && this.f == 0.0D && this.g == 0.0D || entityliving.h(this.e, this.f, this.g) >= 1.0D || this.a.getRandom().nextFloat() < 0.05F)) {
-+            this.e = entityliving.locX();
-+            this.f = entityliving.locY();
-+            this.g = entityliving.locZ();
-+            this.h = 4 + this.a.getRandom().nextInt(7);
-+            if (d0 > 1024.0D) {
-+                this.h += 10;
-+            } else if (d0 > 256.0D) {
-+                this.h += 5;
-+            }
-+
-+            if (!this.a.getNavigation().a((Entity) entityliving, this.b)) {
-+                this.h += 15;
-+            }
-+        }
-+
-+        this.i = Math.max(this.i - 1, 0);
-+        this.a(entityliving, d0);
-+    }
-+
-+    protected void a(EntityLiving entityliving, double d0) {
-+        double d1 = this.a(entityliving);
-+
-+        if (d0 <= d1 && this.i <= 0) {
-+            this.g();
-+            this.a.swingHand(EnumHand.MAIN_HAND);
-+            this.a.attackEntity(entityliving);
-+        }
-+
-+    }
-+
-+    protected void g() {
-+        this.i = 20;
-+    }
-+
-+    protected boolean h() {
-+        return this.i <= 0;
-+    }
-+
-+    protected int j() {
-+        return this.i;
-+    }
-+
-+    protected int k() {
-+        return 20;
-+    }
-+
-+    protected double a(EntityLiving entityliving) {
-+        return (double) (this.a.getWidth() * 2.0F * this.a.getWidth() * 2.0F + entityliving.getWidth());
-+    }
-+}
+         this.a.getControllerLook().a(entityliving, 30.0F, 30.0F);
+         double d0 = this.a.h(entityliving.locX(), entityliving.locY(), entityliving.locZ());
+ 
 diff --git a/src/main/java/net/minecraft/world/entity/ai/goal/PathfinderGoalPanic.java b/src/main/java/net/minecraft/world/entity/ai/goal/PathfinderGoalPanic.java
 index 8bbd69aaebd599ab259720fd421848bdf1236da6..8ed1cab18b560eb1afaa2a0866b72557357a386e 100644
 --- a/src/main/java/net/minecraft/world/entity/ai/goal/PathfinderGoalPanic.java
@@ -1352,46 +943,13 @@ index 575833807ff647f30d7c2b7abcd01701c7dec85b..d0658e84fa1f8bc00de562b749ca1be3
                  if (org.bukkit.craftbukkit.event.CraftEventFactory.callItemDespawnEvent(this).isCancelled()) {
                      this.age = 0;
 diff --git a/src/main/java/net/minecraft/world/entity/monster/EntityBlaze.java b/src/main/java/net/minecraft/world/entity/monster/EntityBlaze.java
-new file mode 100644
-index 0000000000000000000000000000000000000000..40172ad88889e9e24fe04cda717001e8a62237ed
---- /dev/null
+index 88a4dcf9feaa5f66da1394c139b795582c00a8ac..5f0c46bf298551b160ae5eaacf817939eba2a988 100644
+--- a/src/main/java/net/minecraft/world/entity/monster/EntityBlaze.java
 +++ b/src/main/java/net/minecraft/world/entity/monster/EntityBlaze.java
-@@ -0,0 +1,281 @@
-+package net.minecraft.world.entity.monster;
-+
-+import java.util.EnumSet;
-+import net.minecraft.core.particles.Particles;
-+import net.minecraft.network.syncher.DataWatcher;
-+import net.minecraft.network.syncher.DataWatcherObject;
-+import net.minecraft.network.syncher.DataWatcherRegistry;
-+import net.minecraft.sounds.SoundEffect;
-+import net.minecraft.sounds.SoundEffects;
-+import net.minecraft.util.MathHelper;
-+import net.minecraft.world.damagesource.DamageSource;
-+import net.minecraft.world.entity.Entity;
-+import net.minecraft.world.entity.EntityLiving;
-+import net.minecraft.world.entity.EntityTypes;
-+import net.minecraft.world.entity.ai.attributes.AttributeProvider;
-+import net.minecraft.world.entity.ai.attributes.GenericAttributes;
-+import net.minecraft.world.entity.ai.goal.PathfinderGoal;
-+import net.minecraft.world.entity.ai.goal.PathfinderGoalLookAtPlayer;
-+import net.minecraft.world.entity.ai.goal.PathfinderGoalMoveTowardsRestriction;
-+import net.minecraft.world.entity.ai.goal.PathfinderGoalRandomLookaround;
-+import net.minecraft.world.entity.ai.goal.PathfinderGoalRandomStrollLand;
-+import net.minecraft.world.entity.ai.goal.target.PathfinderGoalHurtByTarget;
-+import net.minecraft.world.entity.ai.goal.target.PathfinderGoalNearestAttackableTarget;
-+import net.minecraft.world.entity.player.EntityHuman;
-+import net.minecraft.world.entity.projectile.EntitySmallFireball;
-+import net.minecraft.world.level.World;
-+import net.minecraft.world.level.pathfinder.PathType;
-+import net.minecraft.world.phys.Vec3D;
-+
-+public class EntityBlaze extends EntityMonster {
-+
-+    private float b = 0.5F;
-+    private int c;
-+    private static final DataWatcherObject<Byte> d = DataWatcher.a(EntityBlaze.class, DataWatcherRegistry.a);
-+
+@@ -33,6 +33,24 @@ public class EntityBlaze extends EntityMonster {
+     private int c;
+     private static final DataWatcherObject<Byte> d = DataWatcher.a(EntityBlaze.class, DataWatcherRegistry.a);
+ 
 +    // EMC start
 +    int numFireballs = 4;
 +    int timeBetweenFireballs = 6;
@@ -1410,234 +968,48 @@ index 0000000000000000000000000000000000000000..40172ad88889e9e24fe04cda717001e8
 +        this.timeBetweenFireballs = timeBetweenFireballs;
 +    }
 +    // EMC end
-+
-+    public EntityBlaze(EntityTypes<? extends EntityBlaze> entitytypes, World world) {
-+        super(entitytypes, world);
-+        this.a(PathType.WATER, -1.0F);
-+        this.a(PathType.LAVA, 8.0F);
-+        this.a(PathType.DANGER_FIRE, 0.0F);
-+        this.a(PathType.DAMAGE_FIRE, 0.0F);
-+        this.f = 10;
-+    }
-+
-+    @Override
-+    protected void initPathfinder() {
-+        this.goalSelector.a(4, new EntityBlaze.PathfinderGoalBlazeFireball(this));
-+        this.goalSelector.a(5, new PathfinderGoalMoveTowardsRestriction(this, 1.0D));
-+        this.goalSelector.a(7, new PathfinderGoalRandomStrollLand(this, 1.0D, 0.0F));
-+        this.goalSelector.a(8, new PathfinderGoalLookAtPlayer(this, EntityHuman.class, 8.0F));
-+        this.goalSelector.a(8, new PathfinderGoalRandomLookaround(this));
+     public EntityBlaze(EntityTypes<? extends EntityBlaze> entitytypes, World world) {
+         super(entitytypes, world);
+         this.a(PathType.WATER, -1.0F);
+@@ -49,7 +67,7 @@ public class EntityBlaze extends EntityMonster {
+         this.goalSelector.a(7, new PathfinderGoalRandomStrollLand(this, 1.0D, 0.0F));
+         this.goalSelector.a(8, new PathfinderGoalLookAtPlayer(this, EntityHuman.class, 8.0F));
+         this.goalSelector.a(8, new PathfinderGoalRandomLookaround(this));
+-        this.targetSelector.a(1, (new PathfinderGoalHurtByTarget(this, new Class[0])).a());
 +        this.targetSelector.a(1, new PathfinderGoalHurtByTarget(this, new Class[0])); // EMC - Decompile Fix
-+        this.targetSelector.a(2, new PathfinderGoalNearestAttackableTarget<>(this, EntityHuman.class, true));
-+    }
-+
-+    public static AttributeProvider.Builder m() {
-+        return EntityMonster.eR().a(GenericAttributes.ATTACK_DAMAGE, 6.0D).a(GenericAttributes.MOVEMENT_SPEED, 0.23000000417232513D).a(GenericAttributes.FOLLOW_RANGE, 48.0D);
-+    }
-+
-+    @Override
-+    protected void initDatawatcher() {
-+        super.initDatawatcher();
-+        this.datawatcher.register(EntityBlaze.d, (byte) 0);
-+    }
-+
-+    @Override
-+    protected SoundEffect getSoundAmbient() {
-+        return SoundEffects.ENTITY_BLAZE_AMBIENT;
-+    }
-+
-+    @Override
-+    protected SoundEffect getSoundHurt(DamageSource damagesource) {
-+        return SoundEffects.ENTITY_BLAZE_HURT;
-+    }
-+
-+    @Override
-+    protected SoundEffect getSoundDeath() {
-+        return SoundEffects.ENTITY_BLAZE_DEATH;
-+    }
-+
-+    @Override
-+    public float aR() {
-+        return 1.0F;
-+    }
-+
-+    @Override
-+    public void movementTick() {
-+        if (!this.onGround && this.getMot().y < 0.0D) {
-+            this.setMot(this.getMot().d(1.0D, 0.6D, 1.0D));
-+        }
-+
-+        if (this.world.isClientSide) {
-+            if (this.random.nextInt(24) == 0 && !this.isSilent()) {
-+                this.world.a(this.locX() + 0.5D, this.locY() + 0.5D, this.locZ() + 0.5D, SoundEffects.ENTITY_BLAZE_BURN, this.getSoundCategory(), 1.0F + this.random.nextFloat(), this.random.nextFloat() * 0.7F + 0.3F, false);
-+            }
-+
-+            for (int i = 0; i < 2; ++i) {
-+                this.world.addParticle(Particles.LARGE_SMOKE, this.d(0.5D), this.cF(), this.g(0.5D), 0.0D, 0.0D, 0.0D);
-+            }
-+        }
-+
-+        super.movementTick();
-+    }
-+
-+    @Override
-+    public boolean dO() {
-+        return true;
-+    }
-+
-+    @Override
-+    protected void mobTick() {
-+        --this.c;
-+        if (this.c <= 0) {
-+            this.c = 100;
-+            this.b = 0.5F + (float) this.random.nextGaussian() * 3.0F;
-+        }
-+
-+        EntityLiving entityliving = this.getGoalTarget();
-+
-+        if (entityliving != null && entityliving.getHeadY() > this.getHeadY() + (double) this.b && this.c(entityliving)) {
-+            Vec3D vec3d = this.getMot();
-+
-+            this.setMot(this.getMot().add(0.0D, (0.30000001192092896D - vec3d.y) * 0.30000001192092896D, 0.0D));
-+            this.impulse = true;
-+        }
-+
-+        super.mobTick();
-+    }
-+
-+    @Override
-+    public boolean b(float f, float f1) {
-+        return false;
-+    }
-+
-+    @Override
-+    public boolean isBurning() {
-+        return this.eK();
-+    }
-+
-+    private boolean eK() {
-+        return ((Byte) this.datawatcher.get(EntityBlaze.d) & 1) != 0;
-+    }
-+
-+    private void t(boolean flag) {
-+        byte b0 = (Byte) this.datawatcher.get(EntityBlaze.d);
-+
-+        if (flag) {
-+            b0 = (byte) (b0 | 1);
-+        } else {
-+            b0 &= -2;
-+        }
-+
-+        this.datawatcher.set(EntityBlaze.d, b0);
-+    }
-+
+         this.targetSelector.a(2, new PathfinderGoalNearestAttackableTarget<>(this, EntityHuman.class, true));
+     }
+ 
+@@ -153,7 +171,7 @@ public class EntityBlaze extends EntityMonster {
+         this.datawatcher.set(EntityBlaze.d, b0);
+     }
+ 
+-    static class PathfinderGoalBlazeFireball extends PathfinderGoal {
 +    public static class PathfinderGoalBlazeFireball extends PathfinderGoal { // EMC - make public
-+
-+        private final EntityBlaze a;
-+        private int b;
-+        private int c;
-+        private int d;
-+
-+        public PathfinderGoalBlazeFireball(EntityBlaze entityblaze) {
-+            this.a = entityblaze;
-+            this.a(EnumSet.of(PathfinderGoal.Type.MOVE, PathfinderGoal.Type.LOOK));
-+        }
-+
-+        @Override
-+        public boolean a() {
-+            EntityLiving entityliving = this.a.getGoalTarget();
-+
-+            return entityliving != null && entityliving.isAlive() && this.a.c(entityliving);
-+        }
-+
-+        @Override
-+        public void c() {
-+            this.b = 0;
-+        }
-+
-+        @Override
-+        public void d() {
-+            this.a.t(false);
-+            this.d = 0;
-+        }
-+
-+        @Override
-+        public void e() {
-+            --this.c;
-+            EntityLiving entityliving = this.a.getGoalTarget();
-+
-+            if (entityliving != null) {
-+                boolean flag = this.a.getEntitySenses().a(entityliving);
-+
-+                if (flag) {
-+                    this.d = 0;
-+                } else {
-+                    ++this.d;
-+                }
-+
-+                double d0 = this.a.h((Entity) entityliving);
-+
-+                if (d0 < 4.0D) {
-+                    if (!flag) {
-+                        return;
-+                    }
-+
-+                    if (this.c <= 0) {
-+                        this.c = 20;
-+                        this.a.attackEntity(entityliving);
-+                    }
-+
-+                    this.a.getControllerMove().a(entityliving.locX(), entityliving.locY(), entityliving.locZ(), 1.0D);
-+                } else if (d0 < this.g() * this.g() && flag) {
-+                    double d1 = entityliving.locX() - this.a.locX();
-+                    double d2 = entityliving.e(0.5D) - this.a.e(0.5D);
-+                    double d3 = entityliving.locZ() - this.a.locZ();
-+
-+                    if (this.c <= 0) {
-+                        ++this.b;
-+                        if (this.b == 1) {
-+                            this.c = 60;
-+                            this.a.t(true);
+ 
+         private final EntityBlaze a;
+         private int b;
+@@ -220,8 +238,8 @@ public class EntityBlaze extends EntityMonster {
+                         if (this.b == 1) {
+                             this.c = 60;
+                             this.a.t(true);
+-                        } else if (this.b <= 4) {
+-                            this.c = 6;
 +                        } else if (this.b <= this.a.numFireballs) { // EMC
 +                            this.c = this.a.timeBetweenFireballs; // EMC
-+                        } else {
-+                            this.c = 100;
-+                            this.b = 0;
-+                            this.a.t(false);
-+                        }
-+
-+                        if (this.b > 1) {
-+                            float f = MathHelper.c(MathHelper.sqrt(d0)) * 0.5F;
-+
-+                            if (!this.a.isSilent()) {
-+                                this.a.world.a((EntityHuman) null, 1018, this.a.getChunkCoordinates(), 0);
-+                            }
-+
-+                            for (int i = 0; i < 1; ++i) {
-+                                EntitySmallFireball entitysmallfireball = new EntitySmallFireball(this.a.world, this.a, d1 + this.a.getRandom().nextGaussian() * (double) f, d2, d3 + this.a.getRandom().nextGaussian() * (double) f);
-+
-+                                entitysmallfireball.setPosition(entitysmallfireball.locX(), this.a.e(0.5D) + 0.5D, entitysmallfireball.locZ());
+                         } else {
+                             this.c = 100;
+                             this.b = 0;
+@@ -239,7 +257,9 @@ public class EntityBlaze extends EntityMonster {
+                                 EntitySmallFireball entitysmallfireball = new EntitySmallFireball(this.a.world, this.a, d1 + this.a.getRandom().nextGaussian() * (double) f, d2, d3 + this.a.getRandom().nextGaussian() * (double) f);
+ 
+                                 entitysmallfireball.setPosition(entitysmallfireball.locX(), this.a.e(0.5D) + 0.5D, entitysmallfireball.locZ());
 +                                if (new com.empireminecraft.customevents.BlazeLaunchFireballEvent((org.bukkit.entity.Blaze) this.a.getBukkitEntity(), (org.bukkit.entity.SmallFireball) entitysmallfireball.getBukkitEntity()).callEvent()) { // EMC
-+                                this.a.world.addEntity(entitysmallfireball);
+                                 this.a.world.addEntity(entitysmallfireball);
 +                                } else { entitysmallfireball.die(); }// EMC
-+                            }
-+                        }
-+                    }
-+
-+                    this.a.getControllerLook().a(entityliving, 10.0F, 10.0F);
-+                } else if (this.d < 5) {
-+                    this.a.getControllerMove().a(entityliving.locX(), entityliving.locY(), entityliving.locZ(), 1.0D);
-+                }
-+
-+                super.e();
-+            }
-+        }
-+
-+        private double g() {
-+            return this.a.b(GenericAttributes.FOLLOW_RANGE);
-+        }
-+    }
-+}
+                             }
+                         }
+                     }
 diff --git a/src/main/java/net/minecraft/world/entity/monster/EntityGhast.java b/src/main/java/net/minecraft/world/entity/monster/EntityGhast.java
 index a3e3f6e07674c54c2d2a02661ce4342b43aafe44..b29aafc3b305119ab0b3b2b29db2bc93db4a1fde 100644
 --- a/src/main/java/net/minecraft/world/entity/monster/EntityGhast.java
