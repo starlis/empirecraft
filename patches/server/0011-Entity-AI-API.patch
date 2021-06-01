@@ -4,9 +4,8 @@ Date: Tue, 6 Dec 2016 22:22:14 -0500
 Subject: [PATCH] Entity AI API
 
 ---
- .../empireminecraft/api/CraftEAPI_Entity.java | 130 ++++++++
- .../com/empireminecraft/api/EntityAIApi.java  | 315 ++++++++++++++++++
- .../minecraft/server/EntityGoalAccessor.java  |  30 ++
+ .../empireminecraft/api/CraftEAPI_Entity.java | 130 +++++++
+ .../com/empireminecraft/api/EntityAIApi.java  | 331 ++++++++++++++++++
  .../minecraft/server/level/WorldServer.java   |   3 +-
  .../net/minecraft/world/entity/Entity.java    |  20 +-
  .../world/entity/EntityCreature.java          |   1 +
@@ -30,12 +29,11 @@ Subject: [PATCH] Entity AI API
  .../craftbukkit/entity/CraftEnderSignal.java  |   3 +-
  .../bukkit/craftbukkit/entity/CraftGhast.java |   9 +
  .../java/org/spigotmc/ActivationRange.java    |   1 +
- 26 files changed, 622 insertions(+), 29 deletions(-)
+ 25 files changed, 608 insertions(+), 29 deletions(-)
  create mode 100644 src/main/java/com/empireminecraft/api/EntityAIApi.java
- create mode 100644 src/main/java/net/minecraft/server/EntityGoalAccessor.java
 
 diff --git a/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java b/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
-index bb6e5296a801f7053db72d9eb4d7b9becdb751f4..0e9e04ee407c9921421b9a9154364026eb26be22 100644
+index fb4ebf8e637ff0b2fb878166c310f82b0bfb3e6f..91895268016cddd37fc62dba8ca131c487df1169 100644
 --- a/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
 +++ b/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
 @@ -23,9 +23,21 @@
@@ -45,7 +43,7 @@ index bb6e5296a801f7053db72d9eb4d7b9becdb751f4..0e9e04ee407c9921421b9a9154364026
 +import com.destroystokyo.paper.entity.RangedEntity;
 +import net.minecraft.world.entity.animal.EntityWolf;
 +import org.bukkit.entity.Mob;
- import net.minecraft.server.EntityTasksHandler;
+ import com.empireminecraft.EntityTasksHandler;
 +import org.bukkit.Location;
  import org.bukkit.craftbukkit.entity.CraftEntity;
 +import org.bukkit.craftbukkit.entity.CraftSpider;
@@ -185,14 +183,13 @@ index bb6e5296a801f7053db72d9eb4d7b9becdb751f4..0e9e04ee407c9921421b9a9154364026
  }
 diff --git a/src/main/java/com/empireminecraft/api/EntityAIApi.java b/src/main/java/com/empireminecraft/api/EntityAIApi.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..1f0f20b48188db24bcbd6f6a5d02c47d65ffd8fb
+index 0000000000000000000000000000000000000000..f7d6ad91032debc8bb10a2863f2673fd4bf9d074
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/api/EntityAIApi.java
-@@ -0,0 +1,315 @@
+@@ -0,0 +1,331 @@
 +package com.empireminecraft.api;
 +
 +import com.destroystokyo.paper.entity.RangedEntity;
-+import net.minecraft.server.EntityGoalAccessor;
 +import net.minecraft.server.MCUtil;
 +import net.minecraft.server.MinecraftServer;
 +import net.minecraft.world.entity.Entity;
@@ -202,10 +199,15 @@ index 0000000000000000000000000000000000000000..1f0f20b48188db24bcbd6f6a5d02c47d
 +import net.minecraft.world.entity.ai.goal.PathfinderGoal;
 +import net.minecraft.world.entity.ai.goal.PathfinderGoalArrowAttack;
 +import net.minecraft.world.entity.ai.goal.PathfinderGoalBowShoot;
++import net.minecraft.world.entity.ai.goal.PathfinderGoalBreakDoor;
 +import net.minecraft.world.entity.ai.goal.PathfinderGoalMeleeAttack;
++import net.minecraft.world.entity.ai.goal.PathfinderGoalMoveThroughVillage;
++import net.minecraft.world.entity.ai.goal.PathfinderGoalOcelotAttack;
 +import net.minecraft.world.entity.ai.goal.PathfinderGoalWrapped;
++import net.minecraft.world.entity.ai.goal.target.PathfinderGoalHurtByTarget;
 +import net.minecraft.world.entity.ai.goal.target.PathfinderGoalNearestAttackableTarget;
 +import net.minecraft.world.entity.item.EntityItem;
++import net.minecraft.world.entity.monster.EntityBlaze;
 +import net.minecraft.world.entity.player.EntityHuman;
 +import net.minecraft.world.entity.projectile.EntityEnderSignal;
 +import net.minecraft.world.level.pathfinder.PathEntity;
@@ -305,9 +307,21 @@ index 0000000000000000000000000000000000000000..1f0f20b48188db24bcbd6f6a5d02c47d
 +    public static void makePeaceful(Mob entity) {
 +        final EntityInsentient handle = getInsentientHandle(entity);
 +
-+        getGoalSets(handle).forEach(set -> set.removeIf(o -> {
-+            return EntityGoalAccessor.isHostileGoal(o.getGoal());
-+        }));
++        getGoalSets(handle).forEach(set -> set.removeIf(o -> EntityAIApi.isHostileGoal(o.getGoal())));
++    }
++
++    public static boolean isHostileGoal(PathfinderGoal goal) {
++        if (goal instanceof PathfinderGoalMeleeAttack ||
++            goal instanceof PathfinderGoalOcelotAttack ||
++            goal instanceof EntityBlaze.PathfinderGoalBlazeFireball ||
++            goal instanceof PathfinderGoalArrowAttack ||
++            goal instanceof PathfinderGoalMoveThroughVillage ||
++            goal instanceof PathfinderGoalBreakDoor ||
++            goal instanceof PathfinderGoalNearestAttackableTarget ||
++            goal instanceof PathfinderGoalHurtByTarget) {
++            return true;
++        }
++        return false;
 +    }
 +
 +    public static void removeGoalByName(Mob entity, String goalName) {
@@ -504,44 +518,8 @@ index 0000000000000000000000000000000000000000..1f0f20b48188db24bcbd6f6a5d02c47d
 +        return new Location(entity.getWorld(), pathPoint.a, pathPoint.b, pathPoint.c);
 +    }
 +}
-diff --git a/src/main/java/net/minecraft/server/EntityGoalAccessor.java b/src/main/java/net/minecraft/server/EntityGoalAccessor.java
-new file mode 100644
-index 0000000000000000000000000000000000000000..ab6d0d765fdefd919570a5e207a01ba5742d5bae
---- /dev/null
-+++ b/src/main/java/net/minecraft/server/EntityGoalAccessor.java
-@@ -0,0 +1,30 @@
-+package net.minecraft.server;
-+
-+import net.minecraft.world.entity.ai.goal.PathfinderGoal;
-+import net.minecraft.world.entity.ai.goal.PathfinderGoalArrowAttack;
-+import net.minecraft.world.entity.ai.goal.PathfinderGoalBreakDoor;
-+import net.minecraft.world.entity.ai.goal.PathfinderGoalMeleeAttack;
-+import net.minecraft.world.entity.ai.goal.PathfinderGoalMoveThroughVillage;
-+import net.minecraft.world.entity.ai.goal.PathfinderGoalOcelotAttack;
-+import net.minecraft.world.entity.ai.goal.target.PathfinderGoalHurtByTarget;
-+import net.minecraft.world.entity.ai.goal.target.PathfinderGoalNearestAttackableTarget;
-+import net.minecraft.world.entity.monster.EntityBlaze;
-+
-+public final class EntityGoalAccessor {
-+    private EntityGoalAccessor() {
-+    }
-+
-+    public static boolean isHostileGoal(PathfinderGoal goal) {
-+        if (goal instanceof PathfinderGoalMeleeAttack ||
-+            goal instanceof PathfinderGoalOcelotAttack ||
-+            goal instanceof EntityBlaze.PathfinderGoalBlazeFireball ||
-+            goal instanceof PathfinderGoalArrowAttack ||
-+            goal instanceof PathfinderGoalMoveThroughVillage ||
-+            goal instanceof PathfinderGoalBreakDoor ||
-+            goal instanceof PathfinderGoalNearestAttackableTarget ||
-+            goal instanceof PathfinderGoalHurtByTarget) {
-+            return true;
-+        }
-+        return false;
-+    }
-+}
 diff --git a/src/main/java/net/minecraft/server/level/WorldServer.java b/src/main/java/net/minecraft/server/level/WorldServer.java
-index 55c70b789707a37e930f8063b903a0fb0739d0ef..bb97cb9f708a44f32600d080ce23f557fe65851b 100644
+index 589447349afc44f4c3e3c3fd4945fa04aa858556..c11711263d02f40a31e788b8b58c774aa3657e78 100644
 --- a/src/main/java/net/minecraft/server/level/WorldServer.java
 +++ b/src/main/java/net/minecraft/server/level/WorldServer.java
 @@ -948,7 +948,7 @@ public class WorldServer extends World implements GeneratorAccessSeed {
@@ -562,7 +540,7 @@ index 55c70b789707a37e930f8063b903a0fb0739d0ef..bb97cb9f708a44f32600d080ce23f557
          }
  
 diff --git a/src/main/java/net/minecraft/world/entity/Entity.java b/src/main/java/net/minecraft/world/entity/Entity.java
-index aa6739ea7d7c29b321b4d98b1c799dadb8963e5c..58da8ae52aaf0b1abdd23b1754ea7da9b9362b76 100644
+index 25635b3a796d1f8b766c83c07275ede1ccf5271f..76f591b1f6adc8d6602d2935eddc68204032d5ed 100644
 --- a/src/main/java/net/minecraft/world/entity/Entity.java
 +++ b/src/main/java/net/minecraft/world/entity/Entity.java
 @@ -217,7 +217,7 @@ public abstract class Entity implements INamableTileEntity, ICommandListener, ne

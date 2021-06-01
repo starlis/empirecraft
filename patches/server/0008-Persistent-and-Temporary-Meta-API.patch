@@ -4,11 +4,11 @@ Date: Mon, 4 Mar 2013 23:35:02 -0500
 Subject: [PATCH] Persistent and Temporary Meta API
 
 ---
+ .../com/empireminecraft/MetaApiAccessor.java  | 600 ++++++++++++++++++
  .../empireminecraft/api/CraftEmpireAPI.java   |   3 +
  .../api/meta/CraftEAPI_Meta.java              |  80 +++
  .../protocol/game/PacketPlayOutMapChunk.java  |   2 +
  .../game/PacketPlayOutTileEntityData.java     |   2 +
- .../net/minecraft/server/MetaApiAccessor.java | 599 ++++++++++++++++++
  .../server/level/PlayerChunkMap.java          |   2 +
  .../minecraft/server/level/WorldServer.java   |   2 +-
  .../net/minecraft/world/entity/Entity.java    |   4 +
@@ -17,7 +17,7 @@ Subject: [PATCH] Persistent and Temporary Meta API
  .../minecraft/world/level/chunk/Chunk.java    |   3 +
  .../world/level/chunk/ProtoChunk.java         |   3 +
  .../level/chunk/ProtoChunkExtension.java      |   1 +
- .../chunk/storage/ChunkRegionLoader.java      |   4 +
+ .../chunk/storage/ChunkRegionLoader.java      |   3 +
  .../world/level/storage/Convertable.java      |   8 +-
  .../world/level/storage/WorldDataServer.java  |   4 +-
  .../org/bukkit/craftbukkit/CraftChunk.java    |   2 +
@@ -28,165 +28,17 @@ Subject: [PATCH] Persistent and Temporary Meta API
  .../craftbukkit/event/CraftEventFactory.java  |   5 +
  .../craftbukkit/inventory/CraftInventory.java |  11 +
  23 files changed, 757 insertions(+), 3 deletions(-)
+ create mode 100644 src/main/java/com/empireminecraft/MetaApiAccessor.java
  create mode 100644 src/main/java/com/empireminecraft/api/meta/CraftEAPI_Meta.java
- create mode 100644 src/main/java/net/minecraft/server/MetaApiAccessor.java
 
-diff --git a/src/main/java/com/empireminecraft/api/CraftEmpireAPI.java b/src/main/java/com/empireminecraft/api/CraftEmpireAPI.java
-index 7b295bc869fd8fac878fd25fdcd3f03422fc8e63..f3c9419c8148e389f7d9f2e24a8664b1cb2bbfde 100644
---- a/src/main/java/com/empireminecraft/api/CraftEmpireAPI.java
-+++ b/src/main/java/com/empireminecraft/api/CraftEmpireAPI.java
-@@ -23,6 +23,8 @@
- 
- package com.empireminecraft.api;
- 
-+import com.empireminecraft.api.meta.CraftEAPI_Meta;
-+
- public final class CraftEmpireAPI extends API {
- 
-     private CraftEmpireAPI() {}
-@@ -31,6 +33,7 @@ public final class CraftEmpireAPI extends API {
-     static {
-         entity = new CraftEAPI_Entity();
-         misc = new CraftEAPI_Misc();
-+        meta = new CraftEAPI_Meta();
-     }
- 
- }
-diff --git a/src/main/java/com/empireminecraft/api/meta/CraftEAPI_Meta.java b/src/main/java/com/empireminecraft/api/meta/CraftEAPI_Meta.java
+diff --git a/src/main/java/com/empireminecraft/MetaApiAccessor.java b/src/main/java/com/empireminecraft/MetaApiAccessor.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..a9a194b3a78401454817350f7fa7190a1980dd82
+index 0000000000000000000000000000000000000000..3b9499c009625beacfe9c9f9641fe1f87d33a089
 --- /dev/null
-+++ b/src/main/java/com/empireminecraft/api/meta/CraftEAPI_Meta.java
-@@ -0,0 +1,80 @@
-+/*
-+ * Copyright (c) 2016 Starlis LLC / Daniel Ennis (Aikar) - MIT License
-+ *
-+ *  Permission is hereby granted, free of charge, to any person obtaining
-+ *  a copy of this software and associated documentation files (the
-+ *  "Software"), to deal in the Software without restriction, including
-+ *  without limitation the rights to use, copy, modify, merge, publish,
-+ *  distribute, sublicense, and/or sell copies of the Software, and to
-+ *  permit persons to whom the Software is furnished to do so, subject to
-+ *  the following conditions:
-+ *
-+ *  The above copyright notice and this permission notice shall be
-+ *  included in all copies or substantial portions of the Software.
-+ *
-+ *  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-+ *  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-+ *  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-+ *  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-+ *  LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-+ *  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-+ *  WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-+ */
++++ b/src/main/java/com/empireminecraft/MetaApiAccessor.java
+@@ -0,0 +1,600 @@
++package com.empireminecraft;
 +
-+package com.empireminecraft.api.meta;
-+
-+import com.empireminecraft.api.Vector3i;
-+import net.minecraft.server.MetaApiAccessor;
-+import org.bukkit.Chunk;
-+import org.bukkit.Location;
-+import org.bukkit.World;
-+import org.bukkit.block.Block;
-+import org.bukkit.block.BlockState;
-+import org.bukkit.craftbukkit.CraftChunk;
-+import org.bukkit.craftbukkit.CraftWorld;
-+import org.bukkit.entity.Entity;
-+
-+import java.util.Map;
-+
-+public class CraftEAPI_Meta implements EAPI_Meta {
-+
-+    @Override
-+    public PersistentMetaMap getTileEntityMetaMap(BlockState tileEntity, boolean isWrite) {
-+        return MetaApiAccessor.getTileEntityMetaMap(tileEntity, isWrite);
-+    }
-+
-+    @Override
-+    public PersistentMetaMap getBlockMetaMap(Location loc, boolean isWrite) {
-+        return MetaApiAccessor.getBlockMetaMap(loc, isWrite);
-+    }
-+
-+    @Override
-+    public PersistentMetaMap getChunkMetaMap(Chunk chunk, boolean isWrite) {
-+        return MetaApiAccessor.getChunkMetaMap(chunk, isWrite);
-+    }
-+
-+    @Override
-+    public TempMetaMap getChunkTempMetaMap(Chunk chunk, boolean isWrite) {
-+        return chunk.getTempMeta();
-+    }
-+
-+    @Override
-+    public Map<Vector3i, PersistentMetaMap> getChunkMetaData(Chunk chunk) {
-+        return ((CraftChunk) chunk).getHandle().chunkMeta;
-+    }
-+
-+    @Override
-+    public PersistentMetaMap getEntityMetaMap(Entity entity, boolean isWrite) {
-+        return MetaApiAccessor.getEntityMetaMap(entity, isWrite);
-+    }
-+
-+    @Override
-+    public PersistentMetaMap getWorldMetaMap(World world) {
-+        return MetaApiAccessor.getWorldMetaMap((CraftWorld) world);
-+    }
-+
-+    @Override
-+    public Map<String, Object> getBlockTempMeta(Block block, boolean isWrite) {
-+        return MetaApiAccessor.getChunkTempMeta(block, isWrite);
-+    }
-+}
-diff --git a/src/main/java/net/minecraft/network/protocol/game/PacketPlayOutMapChunk.java b/src/main/java/net/minecraft/network/protocol/game/PacketPlayOutMapChunk.java
-index 3047cf8c4ec1b664d6b790f18d2b1657e4b00435..9cf4ba94495ab36800d1f445372df7a300ee6b27 100644
---- a/src/main/java/net/minecraft/network/protocol/game/PacketPlayOutMapChunk.java
-+++ b/src/main/java/net/minecraft/network/protocol/game/PacketPlayOutMapChunk.java
-@@ -14,6 +14,7 @@ import net.minecraft.nbt.NBTTagCompound;
- import net.minecraft.nbt.NBTTagLongArray;
- import net.minecraft.network.PacketDataSerializer;
- import net.minecraft.network.protocol.Packet;
-+import net.minecraft.server.MetaApiAccessor;
- import net.minecraft.world.level.ChunkCoordIntPair;
- import net.minecraft.world.level.block.entity.TileEntity;
- import net.minecraft.world.level.block.entity.TileEntitySkull;
-@@ -106,6 +107,7 @@ public class PacketPlayOutMapChunk implements Packet<PacketListenerPlayOut> {
-                 // Paper end
-                 NBTTagCompound nbttagcompound = tileentity.b();
-                 if (tileentity instanceof TileEntitySkull) { TileEntitySkull.sanitizeTileEntityUUID(nbttagcompound); } // Paper
-+                MetaApiAccessor.filterTileEntityMeta(nbttagcompound); // EMC
- 
-                 this.g.add(nbttagcompound);
-             }
-diff --git a/src/main/java/net/minecraft/network/protocol/game/PacketPlayOutTileEntityData.java b/src/main/java/net/minecraft/network/protocol/game/PacketPlayOutTileEntityData.java
-index ec4c658c8aad8b63e4545a5e7d71c9c5bd0ad874..b9fdaa49fe5a96b4a10dfbc96194cbcbc3bb7acb 100644
---- a/src/main/java/net/minecraft/network/protocol/game/PacketPlayOutTileEntityData.java
-+++ b/src/main/java/net/minecraft/network/protocol/game/PacketPlayOutTileEntityData.java
-@@ -5,6 +5,7 @@ import net.minecraft.core.BlockPosition;
- import net.minecraft.nbt.NBTTagCompound;
- import net.minecraft.network.PacketDataSerializer;
- import net.minecraft.network.protocol.Packet;
-+import net.minecraft.server.MetaApiAccessor;
- 
- public class PacketPlayOutTileEntityData implements Packet<PacketListenerPlayOut> {
- 
-@@ -15,6 +16,7 @@ public class PacketPlayOutTileEntityData implements Packet<PacketListenerPlayOut
-     public PacketPlayOutTileEntityData() {}
- 
-     public PacketPlayOutTileEntityData(BlockPosition blockposition, int i, NBTTagCompound nbttagcompound) {
-+        MetaApiAccessor.filterTileEntityMeta(nbttagcompound); // EMC
-         this.a = blockposition;
-         this.b = i;
-         this.c = nbttagcompound;
-diff --git a/src/main/java/net/minecraft/server/MetaApiAccessor.java b/src/main/java/net/minecraft/server/MetaApiAccessor.java
-new file mode 100644
-index 0000000000000000000000000000000000000000..d3add7280ed537005dff1a4a8202eb113727cc09
---- /dev/null
-+++ b/src/main/java/net/minecraft/server/MetaApiAccessor.java
-@@ -0,0 +1,599 @@
-+package net.minecraft.server;
-+
-+import com.empireminecraft.DataConverters;
 +import net.minecraft.core.BlockPosition;
 +import net.minecraft.nbt.NBTBase;
 +import net.minecraft.nbt.NBTNumber;
@@ -197,6 +49,8 @@ index 0000000000000000000000000000000000000000..d3add7280ed537005dff1a4a8202eb11
 +import net.minecraft.nbt.NBTTagList;
 +import net.minecraft.nbt.NBTTagLong;
 +import net.minecraft.nbt.NBTTagString;
++import net.minecraft.server.MCUtil;
++import net.minecraft.server.MinecraftServer;
 +import net.minecraft.server.level.PlayerChunk;
 +import net.minecraft.server.level.WorldServer;
 +import net.minecraft.util.datafix.fixes.DataConverterTypes;
@@ -783,15 +637,162 @@ index 0000000000000000000000000000000000000000..d3add7280ed537005dff1a4a8202eb11
 +        }
 +    }
 +}
+diff --git a/src/main/java/com/empireminecraft/api/CraftEmpireAPI.java b/src/main/java/com/empireminecraft/api/CraftEmpireAPI.java
+index 7b295bc869fd8fac878fd25fdcd3f03422fc8e63..f3c9419c8148e389f7d9f2e24a8664b1cb2bbfde 100644
+--- a/src/main/java/com/empireminecraft/api/CraftEmpireAPI.java
++++ b/src/main/java/com/empireminecraft/api/CraftEmpireAPI.java
+@@ -23,6 +23,8 @@
+ 
+ package com.empireminecraft.api;
+ 
++import com.empireminecraft.api.meta.CraftEAPI_Meta;
++
+ public final class CraftEmpireAPI extends API {
+ 
+     private CraftEmpireAPI() {}
+@@ -31,6 +33,7 @@ public final class CraftEmpireAPI extends API {
+     static {
+         entity = new CraftEAPI_Entity();
+         misc = new CraftEAPI_Misc();
++        meta = new CraftEAPI_Meta();
+     }
+ 
+ }
+diff --git a/src/main/java/com/empireminecraft/api/meta/CraftEAPI_Meta.java b/src/main/java/com/empireminecraft/api/meta/CraftEAPI_Meta.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..330b8f284497247ffff289a45dcc09744ec3c01f
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/api/meta/CraftEAPI_Meta.java
+@@ -0,0 +1,80 @@
++/*
++ * Copyright (c) 2016 Starlis LLC / Daniel Ennis (Aikar) - MIT License
++ *
++ *  Permission is hereby granted, free of charge, to any person obtaining
++ *  a copy of this software and associated documentation files (the
++ *  "Software"), to deal in the Software without restriction, including
++ *  without limitation the rights to use, copy, modify, merge, publish,
++ *  distribute, sublicense, and/or sell copies of the Software, and to
++ *  permit persons to whom the Software is furnished to do so, subject to
++ *  the following conditions:
++ *
++ *  The above copyright notice and this permission notice shall be
++ *  included in all copies or substantial portions of the Software.
++ *
++ *  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ *  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
++ *  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ *  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
++ *  LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
++ *  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
++ *  WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package com.empireminecraft.api.meta;
++
++import com.empireminecraft.api.Vector3i;
++import com.empireminecraft.MetaApiAccessor;
++import org.bukkit.Chunk;
++import org.bukkit.Location;
++import org.bukkit.World;
++import org.bukkit.block.Block;
++import org.bukkit.block.BlockState;
++import org.bukkit.craftbukkit.CraftChunk;
++import org.bukkit.craftbukkit.CraftWorld;
++import org.bukkit.entity.Entity;
++
++import java.util.Map;
++
++public class CraftEAPI_Meta implements EAPI_Meta {
++
++    @Override
++    public PersistentMetaMap getTileEntityMetaMap(BlockState tileEntity, boolean isWrite) {
++        return MetaApiAccessor.getTileEntityMetaMap(tileEntity, isWrite);
++    }
++
++    @Override
++    public PersistentMetaMap getBlockMetaMap(Location loc, boolean isWrite) {
++        return MetaApiAccessor.getBlockMetaMap(loc, isWrite);
++    }
++
++    @Override
++    public PersistentMetaMap getChunkMetaMap(Chunk chunk, boolean isWrite) {
++        return MetaApiAccessor.getChunkMetaMap(chunk, isWrite);
++    }
++
++    @Override
++    public TempMetaMap getChunkTempMetaMap(Chunk chunk, boolean isWrite) {
++        return chunk.getTempMeta();
++    }
++
++    @Override
++    public Map<Vector3i, PersistentMetaMap> getChunkMetaData(Chunk chunk) {
++        return ((CraftChunk) chunk).getHandle().chunkMeta;
++    }
++
++    @Override
++    public PersistentMetaMap getEntityMetaMap(Entity entity, boolean isWrite) {
++        return MetaApiAccessor.getEntityMetaMap(entity, isWrite);
++    }
++
++    @Override
++    public PersistentMetaMap getWorldMetaMap(World world) {
++        return MetaApiAccessor.getWorldMetaMap((CraftWorld) world);
++    }
++
++    @Override
++    public Map<String, Object> getBlockTempMeta(Block block, boolean isWrite) {
++        return MetaApiAccessor.getChunkTempMeta(block, isWrite);
++    }
++}
+diff --git a/src/main/java/net/minecraft/network/protocol/game/PacketPlayOutMapChunk.java b/src/main/java/net/minecraft/network/protocol/game/PacketPlayOutMapChunk.java
+index 3047cf8c4ec1b664d6b790f18d2b1657e4b00435..9d4bd099a4781e77204a11e0ce19e22c265ae48b 100644
+--- a/src/main/java/net/minecraft/network/protocol/game/PacketPlayOutMapChunk.java
++++ b/src/main/java/net/minecraft/network/protocol/game/PacketPlayOutMapChunk.java
+@@ -14,6 +14,7 @@ import net.minecraft.nbt.NBTTagCompound;
+ import net.minecraft.nbt.NBTTagLongArray;
+ import net.minecraft.network.PacketDataSerializer;
+ import net.minecraft.network.protocol.Packet;
++import com.empireminecraft.MetaApiAccessor;
+ import net.minecraft.world.level.ChunkCoordIntPair;
+ import net.minecraft.world.level.block.entity.TileEntity;
+ import net.minecraft.world.level.block.entity.TileEntitySkull;
+@@ -106,6 +107,7 @@ public class PacketPlayOutMapChunk implements Packet<PacketListenerPlayOut> {
+                 // Paper end
+                 NBTTagCompound nbttagcompound = tileentity.b();
+                 if (tileentity instanceof TileEntitySkull) { TileEntitySkull.sanitizeTileEntityUUID(nbttagcompound); } // Paper
++                MetaApiAccessor.filterTileEntityMeta(nbttagcompound); // EMC
+ 
+                 this.g.add(nbttagcompound);
+             }
+diff --git a/src/main/java/net/minecraft/network/protocol/game/PacketPlayOutTileEntityData.java b/src/main/java/net/minecraft/network/protocol/game/PacketPlayOutTileEntityData.java
+index ec4c658c8aad8b63e4545a5e7d71c9c5bd0ad874..b04c236ff972d73ba994105da6980c67d7f1fa39 100644
+--- a/src/main/java/net/minecraft/network/protocol/game/PacketPlayOutTileEntityData.java
++++ b/src/main/java/net/minecraft/network/protocol/game/PacketPlayOutTileEntityData.java
+@@ -5,6 +5,7 @@ import net.minecraft.core.BlockPosition;
+ import net.minecraft.nbt.NBTTagCompound;
+ import net.minecraft.network.PacketDataSerializer;
+ import net.minecraft.network.protocol.Packet;
++import com.empireminecraft.MetaApiAccessor;
+ 
+ public class PacketPlayOutTileEntityData implements Packet<PacketListenerPlayOut> {
+ 
+@@ -15,6 +16,7 @@ public class PacketPlayOutTileEntityData implements Packet<PacketListenerPlayOut
+     public PacketPlayOutTileEntityData() {}
+ 
+     public PacketPlayOutTileEntityData(BlockPosition blockposition, int i, NBTTagCompound nbttagcompound) {
++        MetaApiAccessor.filterTileEntityMeta(nbttagcompound); // EMC
+         this.a = blockposition;
+         this.b = i;
+         this.c = nbttagcompound;
 diff --git a/src/main/java/net/minecraft/server/level/PlayerChunkMap.java b/src/main/java/net/minecraft/server/level/PlayerChunkMap.java
-index 6835401bd7863bbd655502547a9fd4ae0f298da1..bbbf26fbb0c7f4a655c39afdb2796c4df7d3f748 100644
+index 6835401bd7863bbd655502547a9fd4ae0f298da1..ab0a61829c2b3535ec644a1bc03505eb3deb2ca0 100644
 --- a/src/main/java/net/minecraft/server/level/PlayerChunkMap.java
 +++ b/src/main/java/net/minecraft/server/level/PlayerChunkMap.java
 @@ -64,6 +64,7 @@ import net.minecraft.network.protocol.game.PacketPlayOutMount;
  import net.minecraft.network.protocol.game.PacketPlayOutViewCentre;
  import net.minecraft.network.protocol.game.PacketPlayOutViewDistance;
  import net.minecraft.server.MCUtil;
-+import net.minecraft.server.MetaApiAccessor;
++import com.empireminecraft.MetaApiAccessor;
  import net.minecraft.server.MinecraftServer;
  import net.minecraft.server.level.progress.WorldLoadListener;
  import net.minecraft.server.network.PlayerConnection;
@@ -817,14 +818,14 @@ index f68a252378a94c8fcab622d2d89d738aceab45a4..c3db36bd4b000106c931458071ebdf73
      public final List<EntityPlayer> players = Lists.newArrayList(); // Paper - private -> public
      public final ChunkProviderServer chunkProvider; // Paper - public
 diff --git a/src/main/java/net/minecraft/world/entity/Entity.java b/src/main/java/net/minecraft/world/entity/Entity.java
-index 6fdcd96fd75cd63d769b012827519f554af4cf54..835e7f686079923943c52f0dc7be320bc57f8fb4 100644
+index 6fdcd96fd75cd63d769b012827519f554af4cf54..c98265f3524fd60e726958913b0108ccf5387356 100644
 --- a/src/main/java/net/minecraft/world/entity/Entity.java
 +++ b/src/main/java/net/minecraft/world/entity/Entity.java
 @@ -47,6 +47,7 @@ import net.minecraft.network.syncher.DataWatcherRegistry;
  import net.minecraft.resources.MinecraftKey;
  import net.minecraft.resources.ResourceKey;
  import net.minecraft.server.MCUtil;
-+import net.minecraft.server.MetaApiAccessor;
++import com.empireminecraft.MetaApiAccessor;
  import net.minecraft.server.MinecraftServer;
  import net.minecraft.server.level.ChunkProviderServer;
  import net.minecraft.server.level.EntityPlayer;
@@ -853,14 +854,14 @@ index 6fdcd96fd75cd63d769b012827519f554af4cf54..835e7f686079923943c52f0dc7be320b
              if (!originTag.isEmpty()) {
                  origin = new org.bukkit.Location(world.getWorld(), originTag.getDoubleAt(0), originTag.getDoubleAt(1), originTag.getDoubleAt(2));
 diff --git a/src/main/java/net/minecraft/world/level/World.java b/src/main/java/net/minecraft/world/level/World.java
-index f7f593a9e58b537109fa6ca1c783f6614f4bfad5..112343fc22d2c0ffa1ac157433af4227babf1af2 100644
+index f7f593a9e58b537109fa6ca1c783f6614f4bfad5..de9918b6e43bd3bdd40d048bee1422ba58f79c48 100644
 --- a/src/main/java/net/minecraft/world/level/World.java
 +++ b/src/main/java/net/minecraft/world/level/World.java
 @@ -29,6 +29,7 @@ import net.minecraft.network.protocol.Packet;
  import net.minecraft.resources.MinecraftKey;
  import net.minecraft.resources.ResourceKey;
  import net.minecraft.server.MCUtil;
-+import net.minecraft.server.MetaApiAccessor;
++import com.empireminecraft.MetaApiAccessor;
  import net.minecraft.server.MinecraftServer;
  import net.minecraft.server.level.EntityPlayer;
  import net.minecraft.server.level.PlayerChunk;
@@ -873,14 +874,14 @@ index f7f593a9e58b537109fa6ca1c783f6614f4bfad5..112343fc22d2c0ffa1ac157433af4227
                  // CraftBukkit start
                  if (!this.captureBlockStates) { // Don't notify clients or update physics while capturing blockstates
 diff --git a/src/main/java/net/minecraft/world/level/block/entity/TileEntity.java b/src/main/java/net/minecraft/world/level/block/entity/TileEntity.java
-index 93d02ccb87c17404c55884f52ae40c7b7ddfb103..250ef2196f9bc6b3fa3ac6036267d85eaac95911 100644
+index 93d02ccb87c17404c55884f52ae40c7b7ddfb103..58d211bb807cf14143cd36044bc2dde140fce447 100644
 --- a/src/main/java/net/minecraft/world/level/block/entity/TileEntity.java
 +++ b/src/main/java/net/minecraft/world/level/block/entity/TileEntity.java
 @@ -8,6 +8,7 @@ import net.minecraft.core.IRegistry;
  import net.minecraft.nbt.NBTTagCompound;
  import net.minecraft.network.protocol.game.PacketPlayOutTileEntityData;
  import net.minecraft.resources.MinecraftKey;
-+import net.minecraft.server.MetaApiAccessor;
++import com.empireminecraft.MetaApiAccessor;
  import net.minecraft.world.level.World;
  import net.minecraft.world.level.block.EnumBlockMirror;
  import net.minecraft.world.level.block.EnumBlockRotation;
@@ -909,14 +910,14 @@ index 93d02ccb87c17404c55884f52ae40c7b7ddfb103..250ef2196f9bc6b3fa3ac6036267d85e
      // Paper start
      public InventoryHolder getOwner() {
 diff --git a/src/main/java/net/minecraft/world/level/chunk/Chunk.java b/src/main/java/net/minecraft/world/level/chunk/Chunk.java
-index 0727b12b5ff146b4efa9204bf4f495f2f1aa20b9..bff39a33367fee818328a13be5a48b83992fcc8d 100644
+index 0727b12b5ff146b4efa9204bf4f495f2f1aa20b9..5531e65d66656222c8247e86cf292348d99047f2 100644
 --- a/src/main/java/net/minecraft/world/level/chunk/Chunk.java
 +++ b/src/main/java/net/minecraft/world/level/chunk/Chunk.java
 @@ -26,6 +26,7 @@ import net.minecraft.ReportedException;
  import net.minecraft.core.BlockPosition;
  import net.minecraft.core.IRegistry;
  import net.minecraft.nbt.NBTTagCompound;
-+import net.minecraft.server.MetaApiAccessor;
++import com.empireminecraft.MetaApiAccessor;
  import net.minecraft.server.MinecraftServer;
  import net.minecraft.server.level.ChunkProviderServer;
  import net.minecraft.network.protocol.Packet;
@@ -963,26 +964,18 @@ index 7a82d43d51d80a3054e0871bf4b9aa7635920efc..25196a7fe231c99624e0cdaaaf1d74f6
          return this.a;
      }
 diff --git a/src/main/java/net/minecraft/world/level/chunk/storage/ChunkRegionLoader.java b/src/main/java/net/minecraft/world/level/chunk/storage/ChunkRegionLoader.java
-index 4eaf497d048324a85ce49fc1c6e9559991c20df7..13c3643fa01ed44b7564e260aa54c6a66d202d6a 100644
+index 4eaf497d048324a85ce49fc1c6e9559991c20df7..c10ec95c89428399f15aafc22103fef493193342 100644
 --- a/src/main/java/net/minecraft/world/level/chunk/storage/ChunkRegionLoader.java
 +++ b/src/main/java/net/minecraft/world/level/chunk/storage/ChunkRegionLoader.java
-@@ -1,6 +1,7 @@
- package net.minecraft.world.level.chunk.storage;
- 
- import co.aikar.timings.Timings;
-+import com.empireminecraft.api.API;
- import com.google.common.collect.Maps;
- import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
- import it.unimi.dsi.fastutil.longs.LongSet;
-@@ -27,6 +28,7 @@ import net.minecraft.nbt.NBTTagCompound;
+@@ -27,6 +27,7 @@ import net.minecraft.nbt.NBTTagCompound;
  import net.minecraft.nbt.NBTTagList;
  import net.minecraft.nbt.NBTTagLongArray;
  import net.minecraft.nbt.NBTTagShort;
-+import net.minecraft.server.MetaApiAccessor;
++import com.empireminecraft.MetaApiAccessor;
  import net.minecraft.server.level.ChunkProviderServer;
  import net.minecraft.server.level.EntityPlayer;
  import net.minecraft.server.level.LightEngineThreaded;
-@@ -258,6 +260,7 @@ public class ChunkRegionLoader {
+@@ -258,6 +259,7 @@ public class ChunkRegionLoader {
          }
  
          HeightMap.a((IChunkAccess) object, enumset);
@@ -990,7 +983,7 @@ index 4eaf497d048324a85ce49fc1c6e9559991c20df7..13c3643fa01ed44b7564e260aa54c6a6
          NBTTagCompound nbttagcompound4 = nbttagcompound1.getCompound("Structures");
  
          ((IChunkAccess) object).a(a(definedstructuremanager, nbttagcompound4, worldserver.getSeed()));
-@@ -448,6 +451,7 @@ public class ChunkRegionLoader {
+@@ -448,6 +450,7 @@ public class ChunkRegionLoader {
          nbttagcompound.set("Level", nbttagcompound1);
          nbttagcompound1.setInt("xPos", chunkcoordintpair.x);
          nbttagcompound1.setInt("zPos", chunkcoordintpair.z);
@@ -999,14 +992,14 @@ index 4eaf497d048324a85ce49fc1c6e9559991c20df7..13c3643fa01ed44b7564e260aa54c6a6
          nbttagcompound1.setLong("InhabitedTime", ichunkaccess.getInhabitedTime());
          nbttagcompound1.setString("Status", ichunkaccess.getChunkStatus().d());
 diff --git a/src/main/java/net/minecraft/world/level/storage/Convertable.java b/src/main/java/net/minecraft/world/level/storage/Convertable.java
-index fcc6a3251f02822c1caba37bb884049c774b0252..799bfb7fb33ca48e8d2b6b165a79588ca0d8c368 100644
+index fcc6a3251f02822c1caba37bb884049c774b0252..a6dd1a5e706d27fa111492a4a94df18bff04a1da 100644
 --- a/src/main/java/net/minecraft/world/level/storage/Convertable.java
 +++ b/src/main/java/net/minecraft/world/level/storage/Convertable.java
 @@ -32,6 +32,7 @@ import net.minecraft.nbt.NBTCompressedStreamTools;
  import net.minecraft.nbt.NBTTagCompound;
  import net.minecraft.resources.RegistryLookupCodec;
  import net.minecraft.resources.ResourceKey;
-+import net.minecraft.server.MetaApiAccessor;
++import com.empireminecraft.MetaApiAccessor;
  import net.minecraft.util.IProgressUpdate;
  import net.minecraft.util.SessionLock;
  import net.minecraft.util.datafix.DataConverterRegistry;
@@ -1025,14 +1018,14 @@ index fcc6a3251f02822c1caba37bb884049c774b0252..799bfb7fb33ca48e8d2b6b165a79588c
                  Convertable.LOGGER.error("Exception reading {}", file, exception);
                  return null;
 diff --git a/src/main/java/net/minecraft/world/level/storage/WorldDataServer.java b/src/main/java/net/minecraft/world/level/storage/WorldDataServer.java
-index 16ebfe8d873ba05521e0a49156325f14e8bd6eb9..9e02c03bdb213e1f1056c206453f69a61e40566f 100644
+index 16ebfe8d873ba05521e0a49156325f14e8bd6eb9..fe49b250e113a3214d3a3ea84774247138c62715 100644
 --- a/src/main/java/net/minecraft/world/level/storage/WorldDataServer.java
 +++ b/src/main/java/net/minecraft/world/level/storage/WorldDataServer.java
 @@ -24,6 +24,7 @@ import net.minecraft.nbt.NBTTagCompound;
  import net.minecraft.nbt.NBTTagList;
  import net.minecraft.nbt.NBTTagString;
  import net.minecraft.resources.RegistryWriteOps;
-+import net.minecraft.server.MetaApiAccessor;
++import com.empireminecraft.MetaApiAccessor;
  import net.minecraft.server.MinecraftServer;
  import net.minecraft.util.datafix.DataFixTypes;
  import net.minecraft.world.EnumDifficulty;
@@ -1067,7 +1060,7 @@ index 98ab124b4dca9387b4793cef68a33c67aed64e21..52d0e76f675d8c22768c3c2bb08afe97
      private final int x;
      private final int z;
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-index 048e780c1462a67cc7ea82fb89863d1c9463e351..e10dd3738a21c25e1ff6f011b4eae005b1c40e71 100644
+index 048e780c1462a67cc7ea82fb89863d1c9463e351..6cd56a8f98909886beb0ea37a81f0ba3ce435fef 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 @@ -961,6 +961,9 @@ public final class CraftServer implements Server {
@@ -1075,7 +1068,7 @@ index 048e780c1462a67cc7ea82fb89863d1c9463e351..e10dd3738a21c25e1ff6f011b4eae005
              if (console.isDebugging()) TraceUtil.dumpTraceForThread(worker.getThread(), "still running"); // Paper
          }
 +        // EMC start
-+        net.minecraft.server.MetaApiAccessor.reload();
++        com.empireminecraft.MetaApiAccessor.reload();
 +        // EMC end
          loadPlugins();
          enablePlugins(PluginLoadOrder.STARTUP);
