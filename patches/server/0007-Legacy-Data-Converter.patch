@@ -3,18 +3,13 @@ From: Aikar <aikar@aikar.co>
 Date: Thu, 21 Mar 2019 23:31:44 -0400
 Subject: [PATCH] Legacy Data Converter
 
----
- .../com/empireminecraft/DataConverters.java   | 2657 +++++++++++++++++
- .../util/datafix/DataConverterRegistry.java   |    3 +-
- 2 files changed, 2659 insertions(+), 1 deletion(-)
- create mode 100644 src/main/java/com/empireminecraft/DataConverters.java
 
 diff --git a/src/main/java/com/empireminecraft/DataConverters.java b/src/main/java/com/empireminecraft/DataConverters.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9e2f45a08
+index 0000000000000000000000000000000000000000..254117a69fa1812c557abe4ed0f871befca0cc82
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/DataConverters.java
-@@ -0,0 +1,2657 @@
+@@ -0,0 +1,2644 @@
 +package com.empireminecraft;
 +
 +import com.google.common.collect.Lists;
@@ -24,7 +19,6 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +import java.util.ArrayList;
 +import java.util.EnumMap;
 +import java.util.HashMap;
-+import java.util.Iterator;
 +import java.util.List;
 +import java.util.Locale;
 +import java.util.Map;
@@ -46,20 +40,20 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +import com.mojang.datafixers.DataFixerBuilder;
 +import com.mojang.serialization.Dynamic;
 +import com.mojang.datafixers.schemas.Schema;
-+import net.minecraft.core.EnumDirection;
-+import net.minecraft.nbt.DynamicOpsNBT;
-+import net.minecraft.nbt.NBTTagCompound;
-+import net.minecraft.nbt.NBTTagFloat;
-+import net.minecraft.nbt.NBTTagList;
-+import net.minecraft.nbt.NBTTagString;
-+import net.minecraft.network.chat.ChatComponentText;
-+import net.minecraft.network.chat.IChatBaseComponent;
-+import net.minecraft.resources.MinecraftKey;
-+import net.minecraft.util.ChatDeserializer;
-+import net.minecraft.util.UtilColor;
++import net.minecraft.core.Direction;
++import net.minecraft.nbt.CompoundTag;
++import net.minecraft.nbt.FloatTag;
++import net.minecraft.nbt.ListTag;
++import net.minecraft.nbt.NbtOps;
++import net.minecraft.nbt.StringTag;
++import net.minecraft.network.chat.Component;
++import net.minecraft.network.chat.TextComponent;
++import net.minecraft.resources.ResourceLocation;
++import net.minecraft.util.GsonHelper;
++import net.minecraft.util.StringUtil;
 +import net.minecraft.util.datafix.DataFixTypes;
-+import net.minecraft.util.datafix.fixes.DataConverterTypes;
-+import net.minecraft.world.item.EnumColor;
++import net.minecraft.util.datafix.fixes.References;
++import net.minecraft.world.item.DyeColor;
 +import org.apache.logging.log4j.LogManager;
 +import org.apache.logging.log4j.Logger;
 +
@@ -79,27 +73,27 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 + */
 +public class DataConverters extends DataFixerBuilder {
 +
-+    private static final DynamicOpsNBT OPS_NBT = DynamicOpsNBT.a;
++    private static final NbtOps OPS_NBT = NbtOps.INSTANCE;
 +    public static final int LEGACY_VERSION = 1343;
 +    public static int DATA_VERSION;
 +    public static DataConverters INSTANCE;
 +
 +    private final Map<LegacyType, List<DataConverter>> converters = new EnumMap<>(LegacyType.class);
-+    private final Map<LegacyType, List<DataInspector>> inspectors = new EnumMap(LegacyType.class);
++    private final Map<LegacyType, List<DataInspector>> inspectors = new EnumMap<>(LegacyType.class);
 +
 +    // Set on build
 +    private DataFixer fixer;
 +    private static final Map<String, LegacyType> DFU_TO_LEGACY = new HashMap<>();
 +
 +    public enum LegacyType {
-+        LEVEL(DataFixTypes.LEVEL.a()),
-+        PLAYER(DataFixTypes.PLAYER.a()),
-+        CHUNK(DataFixTypes.CHUNK.a()),
++        LEVEL(DataFixTypes.LEVEL.getType()),
++        PLAYER(DataFixTypes.PLAYER.getType()),
++        CHUNK(DataFixTypes.CHUNK.getType()),
 +        BLOCK_ENTITY(() -> "block_entity"),
-+        ENTITY(DataConverterTypes.ENTITY),
-+        ITEM_INSTANCE(DataConverterTypes.ITEM_STACK),
-+        OPTIONS(DataFixTypes.OPTIONS.a()),
-+        STRUCTURE(DataFixTypes.STRUCTURE.a());
++        ENTITY(References.ENTITY),
++        ITEM_INSTANCE(References.ITEM_STACK),
++        OPTIONS(DataFixTypes.OPTIONS.getType()),
++        STRUCTURE(DataFixTypes.STRUCTURE.getType());
 +
 +        private final TypeReference type;
 +
@@ -138,7 +132,7 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +        public <T> Dynamic<T> update(TypeReference type, Dynamic<T> dynamic, int sourceVer, int targetVer) {
 +            LegacyType legacyType = DFU_TO_LEGACY.get(type.typeName());
 +            if (sourceVer < LEGACY_VERSION && legacyType != null) {
-+                NBTTagCompound cmp = (NBTTagCompound) dynamic.getValue();
++                CompoundTag cmp = (CompoundTag) dynamic.getValue();
 +                int desiredVersion = Math.min(targetVer, LEGACY_VERSION);
 +
 +                cmp = convert(legacyType, cmp, sourceVer, desiredVersion);
@@ -148,7 +142,7 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +            return realFixer.update(type, dynamic, sourceVer, targetVer);
 +        }
 +
-+        private NBTTagCompound convert(LegacyType type, NBTTagCompound cmp, int sourceVer, int desiredVersion) {
++        private CompoundTag convert(LegacyType type, CompoundTag cmp, int sourceVer, int desiredVersion) {
 +            List<DataConverter> converters = DataConverters.this.converters.get(type);
 +            if (converters != null && !converters.isEmpty()) {
 +                for (DataConverter converter : converters) {
@@ -175,43 +169,43 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +        }
 +    }
 +
-+    public static NBTTagCompound convert(LegacyType type, NBTTagCompound cmp) {
++    public static CompoundTag convert(LegacyType type, CompoundTag cmp) {
 +        return convert(type.getDFUType(), cmp);
 +    }
 +
-+    public static NBTTagCompound convert(LegacyType type, NBTTagCompound cmp, int sourceVer) {
++    public static CompoundTag convert(LegacyType type, CompoundTag cmp, int sourceVer) {
 +        return convert(type.getDFUType(), cmp, sourceVer);
 +    }
-+    public static NBTTagCompound convert(LegacyType type, NBTTagCompound cmp, int sourceVer, int targetVer) {
++    public static CompoundTag convert(LegacyType type, CompoundTag cmp, int sourceVer, int targetVer) {
 +        return convert(type.getDFUType(), cmp, sourceVer, targetVer);
 +    }
 +
-+    public static NBTTagCompound convert(TypeReference type, NBTTagCompound cmp) {
-+        int i = cmp.hasKeyOfType("DataVersion", 99) ? cmp.getInt("DataVersion") : -1;
++    public static CompoundTag convert(TypeReference type, CompoundTag cmp) {
++        int i = cmp.contains("DataVersion", 99) ? cmp.getInt("DataVersion") : -1;
 +        return convert(type, cmp, i);
 +    }
 +
-+    public static NBTTagCompound convert(TypeReference type, NBTTagCompound cmp, int sourceVer) {
++    public static CompoundTag convert(TypeReference type, CompoundTag cmp, int sourceVer) {
 +        return convert(type, cmp, sourceVer, DATA_VERSION);
 +    }
 +
-+    public static NBTTagCompound convert(TypeReference type, NBTTagCompound cmp, int sourceVer, int targetVer) {
++    public static CompoundTag convert(TypeReference type, CompoundTag cmp, int sourceVer, int targetVer) {
 +        if (sourceVer >= targetVer) {
 +            return cmp;
 +        }
-+        return (NBTTagCompound) INSTANCE.fixer.update(type, new Dynamic<>(OPS_NBT, cmp), sourceVer, targetVer).getValue();
++        return (CompoundTag) INSTANCE.fixer.update(type, new Dynamic<>(OPS_NBT, cmp), sourceVer, targetVer).getValue();
 +    }
-+    
++
 +
 +    public interface DataInspector {
-+        NBTTagCompound inspect(NBTTagCompound cmp, int sourceVer, int targetVer);
++        CompoundTag inspect(CompoundTag cmp, int sourceVer, int targetVer);
 +    }
 +
 +    public interface DataConverter {
 +
 +        int getDataVersion();
 +
-+        NBTTagCompound convert(NBTTagCompound cmp);
++        CompoundTag convert(CompoundTag cmp);
 +    }
 +
 +
@@ -366,141 +360,141 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +    private void registerEntityItemListEquipment(String type) {
 +        registerEntityItemList(type, "ArmorItems", "HandItems");
 +    }
-+    private static final Map<String, MinecraftKey> OLD_ID_TO_KEY_MAP = new HashMap<>();
++    private static final Map<String, ResourceLocation> OLD_ID_TO_KEY_MAP = new HashMap<>();
 +
 +    static {
-+        final Map<String, MinecraftKey> map = OLD_ID_TO_KEY_MAP;
-+        map.put("EntityItem", new MinecraftKey("item"));
-+        map.put("EntityExperienceOrb", new MinecraftKey("xp_orb"));
-+        map.put("EntityAreaEffectCloud", new MinecraftKey("area_effect_cloud"));
-+        map.put("EntityGuardianElder", new MinecraftKey("elder_guardian"));
-+        map.put("EntitySkeletonWither", new MinecraftKey("wither_skeleton"));
-+        map.put("EntitySkeletonStray", new MinecraftKey("stray"));
-+        map.put("EntityEgg", new MinecraftKey("egg"));
-+        map.put("EntityLeash", new MinecraftKey("leash_knot"));
-+        map.put("EntityPainting", new MinecraftKey("painting"));
-+        map.put("EntityTippedArrow", new MinecraftKey("arrow"));
-+        map.put("EntitySnowball", new MinecraftKey("snowball"));
-+        map.put("EntityLargeFireball", new MinecraftKey("fireball"));
-+        map.put("EntitySmallFireball", new MinecraftKey("small_fireball"));
-+        map.put("EntityEnderPearl", new MinecraftKey("ender_pearl"));
-+        map.put("EntityEnderSignal", new MinecraftKey("eye_of_ender_signal"));
-+        map.put("EntityPotion", new MinecraftKey("potion"));
-+        map.put("EntityThrownExpBottle", new MinecraftKey("xp_bottle"));
-+        map.put("EntityItemFrame", new MinecraftKey("item_frame"));
-+        map.put("EntityWitherSkull", new MinecraftKey("wither_skull"));
-+        map.put("EntityTNTPrimed", new MinecraftKey("tnt"));
-+        map.put("EntityFallingBlock", new MinecraftKey("falling_block"));
-+        map.put("EntityFireworks", new MinecraftKey("fireworks_rocket"));
-+        map.put("EntityZombieHusk", new MinecraftKey("husk"));
-+        map.put("EntitySpectralArrow", new MinecraftKey("spectral_arrow"));
-+        map.put("EntityShulkerBullet", new MinecraftKey("shulker_bullet"));
-+        map.put("EntityDragonFireball", new MinecraftKey("dragon_fireball"));
-+        map.put("EntityZombieVillager", new MinecraftKey("zombie_villager"));
-+        map.put("EntityHorseSkeleton", new MinecraftKey("skeleton_horse"));
-+        map.put("EntityHorseZombie", new MinecraftKey("zombie_horse"));
-+        map.put("EntityArmorStand", new MinecraftKey("armor_stand"));
-+        map.put("EntityHorseDonkey", new MinecraftKey("donkey"));
-+        map.put("EntityHorseMule", new MinecraftKey("mule"));
-+        map.put("EntityEvokerFangs", new MinecraftKey("evocation_fangs"));
-+        map.put("EntityEvoker", new MinecraftKey("evocation_illager"));
-+        map.put("EntityVex", new MinecraftKey("vex"));
-+        map.put("EntityVindicator", new MinecraftKey("vindication_illager"));
-+        map.put("EntityIllagerIllusioner", new MinecraftKey("illusion_illager"));
-+        map.put("EntityMinecartCommandBlock", new MinecraftKey("commandblock_minecart"));
-+        map.put("EntityBoat", new MinecraftKey("boat"));
-+        map.put("EntityMinecartRideable", new MinecraftKey("minecart"));
-+        map.put("EntityMinecartChest", new MinecraftKey("chest_minecart"));
-+        map.put("EntityMinecartFurnace", new MinecraftKey("furnace_minecart"));
-+        map.put("EntityMinecartTNT", new MinecraftKey("tnt_minecart"));
-+        map.put("EntityMinecartHopper", new MinecraftKey("hopper_minecart"));
-+        map.put("EntityMinecartMobSpawner", new MinecraftKey("spawner_minecart"));
-+        map.put("EntityCreeper", new MinecraftKey("creeper"));
-+        map.put("EntitySkeleton", new MinecraftKey("skeleton"));
-+        map.put("EntitySpider", new MinecraftKey("spider"));
-+        map.put("EntityGiantZombie", new MinecraftKey("giant"));
-+        map.put("EntityZombie", new MinecraftKey("zombie"));
-+        map.put("EntitySlime", new MinecraftKey("slime"));
-+        map.put("EntityGhast", new MinecraftKey("ghast"));
-+        map.put("EntityPigZombie", new MinecraftKey("zombie_pigman"));
-+        map.put("EntityEnderman", new MinecraftKey("enderman"));
-+        map.put("EntityCaveSpider", new MinecraftKey("cave_spider"));
-+        map.put("EntitySilverfish", new MinecraftKey("silverfish"));
-+        map.put("EntityBlaze", new MinecraftKey("blaze"));
-+        map.put("EntityMagmaCube", new MinecraftKey("magma_cube"));
-+        map.put("EntityEnderDragon", new MinecraftKey("ender_dragon"));
-+        map.put("EntityWither", new MinecraftKey("wither"));
-+        map.put("EntityBat", new MinecraftKey("bat"));
-+        map.put("EntityWitch", new MinecraftKey("witch"));
-+        map.put("EntityEndermite", new MinecraftKey("endermite"));
-+        map.put("EntityGuardian", new MinecraftKey("guardian"));
-+        map.put("EntityShulker", new MinecraftKey("shulker"));
-+        map.put("EntityPig", new MinecraftKey("pig"));
-+        map.put("EntitySheep", new MinecraftKey("sheep"));
-+        map.put("EntityCow", new MinecraftKey("cow"));
-+        map.put("EntityChicken", new MinecraftKey("chicken"));
-+        map.put("EntitySquid", new MinecraftKey("squid"));
-+        map.put("EntityWolf", new MinecraftKey("wolf"));
-+        map.put("EntityMushroomCow", new MinecraftKey("mooshroom"));
-+        map.put("EntitySnowman", new MinecraftKey("snowman"));
-+        map.put("EntityOcelot", new MinecraftKey("ocelot"));
-+        map.put("EntityIronGolem", new MinecraftKey("villager_golem"));
-+        map.put("EntityHorse", new MinecraftKey("horse"));
-+        map.put("EntityRabbit", new MinecraftKey("rabbit"));
-+        map.put("EntityPolarBear", new MinecraftKey("polar_bear"));
-+        map.put("EntityLlama", new MinecraftKey("llama"));
-+        map.put("EntityLlamaSpit", new MinecraftKey("llama_spit"));
-+        map.put("EntityParrot", new MinecraftKey("parrot"));
-+        map.put("EntityVillager", new MinecraftKey("villager"));
-+        map.put("EntityEnderCrystal", new MinecraftKey("ender_crystal"));
-+        map.put("TileEntityFurnace", new MinecraftKey("furnace"));
-+        map.put("TileEntityChest", new MinecraftKey("chest"));
-+        map.put("TileEntityEnderChest", new MinecraftKey("ender_chest"));
-+        map.put("TileEntityRecordPlayer", new MinecraftKey("jukebox"));
-+        map.put("TileEntityDispenser", new MinecraftKey("dispenser"));
-+        map.put("TileEntityDropper", new MinecraftKey("dropper"));
-+        map.put("TileEntitySign", new MinecraftKey("sign"));
-+        map.put("TileEntityMobSpawner", new MinecraftKey("mob_spawner"));
-+        map.put("TileEntityNote", new MinecraftKey("noteblock"));
-+        map.put("TileEntityPiston", new MinecraftKey("piston"));
-+        map.put("TileEntityBrewingStand", new MinecraftKey("brewing_stand"));
-+        map.put("TileEntityEnchantTable", new MinecraftKey("enchanting_table"));
-+        map.put("TileEntityEnderPortal", new MinecraftKey("end_portal"));
-+        map.put("TileEntityBeacon", new MinecraftKey("beacon"));
-+        map.put("TileEntitySkull", new MinecraftKey("skull"));
-+        map.put("TileEntityLightDetector", new MinecraftKey("daylight_detector"));
-+        map.put("TileEntityHopper", new MinecraftKey("hopper"));
-+        map.put("TileEntityComparator", new MinecraftKey("comparator"));
-+        map.put("TileEntityFlowerPot", new MinecraftKey("flower_pot"));
-+        map.put("TileEntityBanner", new MinecraftKey("banner"));
-+        map.put("TileEntityStructure", new MinecraftKey("structure_block"));
-+        map.put("TileEntityEndGateway", new MinecraftKey("end_gateway"));
-+        map.put("TileEntityCommand", new MinecraftKey("command_block"));
-+        map.put("TileEntityShulkerBox", new MinecraftKey("shulker_box"));
-+        map.put("TileEntityBed", new MinecraftKey("bed"));
++        final Map<String, ResourceLocation> map = OLD_ID_TO_KEY_MAP;
++        map.put("EntityItem", new ResourceLocation("item"));
++        map.put("EntityExperienceOrb", new ResourceLocation("xp_orb"));
++        map.put("EntityAreaEffectCloud", new ResourceLocation("area_effect_cloud"));
++        map.put("EntityGuardianElder", new ResourceLocation("elder_guardian"));
++        map.put("EntitySkeletonWither", new ResourceLocation("wither_skeleton"));
++        map.put("EntitySkeletonStray", new ResourceLocation("stray"));
++        map.put("EntityEgg", new ResourceLocation("egg"));
++        map.put("EntityLeash", new ResourceLocation("leash_knot"));
++        map.put("EntityPainting", new ResourceLocation("painting"));
++        map.put("EntityTippedArrow", new ResourceLocation("arrow"));
++        map.put("EntitySnowball", new ResourceLocation("snowball"));
++        map.put("EntityLargeFireball", new ResourceLocation("fireball"));
++        map.put("EntitySmallFireball", new ResourceLocation("small_fireball"));
++        map.put("EntityEnderPearl", new ResourceLocation("ender_pearl"));
++        map.put("EntityEnderSignal", new ResourceLocation("eye_of_ender_signal"));
++        map.put("EntityPotion", new ResourceLocation("potion"));
++        map.put("EntityThrownExpBottle", new ResourceLocation("xp_bottle"));
++        map.put("EntityItemFrame", new ResourceLocation("item_frame"));
++        map.put("EntityWitherSkull", new ResourceLocation("wither_skull"));
++        map.put("EntityTNTPrimed", new ResourceLocation("tnt"));
++        map.put("EntityFallingBlock", new ResourceLocation("falling_block"));
++        map.put("EntityFireworks", new ResourceLocation("fireworks_rocket"));
++        map.put("EntityZombieHusk", new ResourceLocation("husk"));
++        map.put("EntitySpectralArrow", new ResourceLocation("spectral_arrow"));
++        map.put("EntityShulkerBullet", new ResourceLocation("shulker_bullet"));
++        map.put("EntityDragonFireball", new ResourceLocation("dragon_fireball"));
++        map.put("EntityZombieVillager", new ResourceLocation("zombie_villager"));
++        map.put("EntityHorseSkeleton", new ResourceLocation("skeleton_horse"));
++        map.put("EntityHorseZombie", new ResourceLocation("zombie_horse"));
++        map.put("EntityArmorStand", new ResourceLocation("armor_stand"));
++        map.put("EntityHorseDonkey", new ResourceLocation("donkey"));
++        map.put("EntityHorseMule", new ResourceLocation("mule"));
++        map.put("EntityEvokerFangs", new ResourceLocation("evocation_fangs"));
++        map.put("EntityEvoker", new ResourceLocation("evocation_illager"));
++        map.put("EntityVex", new ResourceLocation("vex"));
++        map.put("EntityVindicator", new ResourceLocation("vindication_illager"));
++        map.put("EntityIllagerIllusioner", new ResourceLocation("illusion_illager"));
++        map.put("EntityMinecartCommandBlock", new ResourceLocation("commandblock_minecart"));
++        map.put("EntityBoat", new ResourceLocation("boat"));
++        map.put("EntityMinecartRideable", new ResourceLocation("minecart"));
++        map.put("EntityMinecartChest", new ResourceLocation("chest_minecart"));
++        map.put("EntityMinecartFurnace", new ResourceLocation("furnace_minecart"));
++        map.put("EntityMinecartTNT", new ResourceLocation("tnt_minecart"));
++        map.put("EntityMinecartHopper", new ResourceLocation("hopper_minecart"));
++        map.put("EntityMinecartMobSpawner", new ResourceLocation("spawner_minecart"));
++        map.put("EntityCreeper", new ResourceLocation("creeper"));
++        map.put("EntitySkeleton", new ResourceLocation("skeleton"));
++        map.put("EntitySpider", new ResourceLocation("spider"));
++        map.put("EntityGiantZombie", new ResourceLocation("giant"));
++        map.put("EntityZombie", new ResourceLocation("zombie"));
++        map.put("EntitySlime", new ResourceLocation("slime"));
++        map.put("EntityGhast", new ResourceLocation("ghast"));
++        map.put("EntityPigZombie", new ResourceLocation("zombie_pigman"));
++        map.put("EntityEnderman", new ResourceLocation("enderman"));
++        map.put("EntityCaveSpider", new ResourceLocation("cave_spider"));
++        map.put("EntitySilverfish", new ResourceLocation("silverfish"));
++        map.put("EntityBlaze", new ResourceLocation("blaze"));
++        map.put("EntityMagmaCube", new ResourceLocation("magma_cube"));
++        map.put("EntityEnderDragon", new ResourceLocation("ender_dragon"));
++        map.put("EntityWither", new ResourceLocation("wither"));
++        map.put("EntityBat", new ResourceLocation("bat"));
++        map.put("EntityWitch", new ResourceLocation("witch"));
++        map.put("EntityEndermite", new ResourceLocation("endermite"));
++        map.put("EntityGuardian", new ResourceLocation("guardian"));
++        map.put("EntityShulker", new ResourceLocation("shulker"));
++        map.put("EntityPig", new ResourceLocation("pig"));
++        map.put("EntitySheep", new ResourceLocation("sheep"));
++        map.put("EntityCow", new ResourceLocation("cow"));
++        map.put("EntityChicken", new ResourceLocation("chicken"));
++        map.put("EntitySquid", new ResourceLocation("squid"));
++        map.put("EntityWolf", new ResourceLocation("wolf"));
++        map.put("EntityMushroomCow", new ResourceLocation("mooshroom"));
++        map.put("EntitySnowman", new ResourceLocation("snowman"));
++        map.put("EntityOcelot", new ResourceLocation("ocelot"));
++        map.put("EntityIronGolem", new ResourceLocation("villager_golem"));
++        map.put("EntityHorse", new ResourceLocation("horse"));
++        map.put("EntityRabbit", new ResourceLocation("rabbit"));
++        map.put("EntityPolarBear", new ResourceLocation("polar_bear"));
++        map.put("EntityLlama", new ResourceLocation("llama"));
++        map.put("EntityLlamaSpit", new ResourceLocation("llama_spit"));
++        map.put("EntityParrot", new ResourceLocation("parrot"));
++        map.put("EntityVillager", new ResourceLocation("villager"));
++        map.put("EntityEnderCrystal", new ResourceLocation("ender_crystal"));
++        map.put("TileEntityFurnace", new ResourceLocation("furnace"));
++        map.put("TileEntityChest", new ResourceLocation("chest"));
++        map.put("TileEntityEnderChest", new ResourceLocation("ender_chest"));
++        map.put("TileEntityRecordPlayer", new ResourceLocation("jukebox"));
++        map.put("TileEntityDispenser", new ResourceLocation("dispenser"));
++        map.put("TileEntityDropper", new ResourceLocation("dropper"));
++        map.put("TileEntitySign", new ResourceLocation("sign"));
++        map.put("TileEntityMobSpawner", new ResourceLocation("mob_spawner"));
++        map.put("TileEntityNote", new ResourceLocation("noteblock"));
++        map.put("TileEntityPiston", new ResourceLocation("piston"));
++        map.put("TileEntityBrewingStand", new ResourceLocation("brewing_stand"));
++        map.put("TileEntityEnchantTable", new ResourceLocation("enchanting_table"));
++        map.put("TileEntityEnderPortal", new ResourceLocation("end_portal"));
++        map.put("TileEntityBeacon", new ResourceLocation("beacon"));
++        map.put("TileEntitySkull", new ResourceLocation("skull"));
++        map.put("TileEntityLightDetector", new ResourceLocation("daylight_detector"));
++        map.put("TileEntityHopper", new ResourceLocation("hopper"));
++        map.put("TileEntityComparator", new ResourceLocation("comparator"));
++        map.put("TileEntityFlowerPot", new ResourceLocation("flower_pot"));
++        map.put("TileEntityBanner", new ResourceLocation("banner"));
++        map.put("TileEntityStructure", new ResourceLocation("structure_block"));
++        map.put("TileEntityEndGateway", new ResourceLocation("end_gateway"));
++        map.put("TileEntityCommand", new ResourceLocation("command_block"));
++        map.put("TileEntityShulkerBox", new ResourceLocation("shulker_box"));
++        map.put("TileEntityBed", new ResourceLocation("bed"));
 +    }
 +
-+    private static MinecraftKey getKey(String type) {
-+        final MinecraftKey key = OLD_ID_TO_KEY_MAP.get(type);
++    private static ResourceLocation getKey(String type) {
++        final ResourceLocation key = OLD_ID_TO_KEY_MAP.get(type);
 +        if (key == null) {
 +            throw new IllegalArgumentException("Unknown mapping for " + type);
 +        }
 +        return key;
 +    }
 +
-+    private static void convertCompound(LegacyType type, NBTTagCompound cmp, String key, int sourceVer, int targetVer) {
-+        cmp.set(key, convert(type, cmp.getCompound(key), sourceVer, targetVer));
++    private static void convertCompound(LegacyType type, CompoundTag cmp, String key, int sourceVer, int targetVer) {
++        cmp.put(key, convert(type, cmp.getCompound(key), sourceVer, targetVer));
 +    }
 +
-+    private static void convertItem(NBTTagCompound nbttagcompound, String key, int sourceVer, int targetVer) {
-+        if (nbttagcompound.hasKeyOfType(key, 10)) {
++    private static void convertItem(CompoundTag nbttagcompound, String key, int sourceVer, int targetVer) {
++        if (nbttagcompound.contains(key, 10)) {
 +            convertCompound(LegacyType.ITEM_INSTANCE, nbttagcompound, key, sourceVer, targetVer);
 +        }
 +    }
 +
-+    private static void convertItems(NBTTagCompound nbttagcompound, String key, int sourceVer, int targetVer) {
-+        if (nbttagcompound.hasKeyOfType(key, 9)) {
-+            NBTTagList nbttaglist = nbttagcompound.getList(key, 10);
++    private static void convertItems(CompoundTag nbttagcompound, String key, int sourceVer, int targetVer) {
++        if (nbttagcompound.contains(key, 9)) {
++            ListTag nbttaglist = nbttagcompound.getList(key, 10);
 +
 +            for (int j = 0; j < nbttaglist.size(); ++j) {
 +                nbttaglist.set(j, convert(LegacyType.ITEM_INSTANCE, nbttaglist.getCompound(j), sourceVer, targetVer));
@@ -517,45 +511,45 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +            return 100;
 +        }
 +
-+        public NBTTagCompound convert(NBTTagCompound cmp) {
-+            NBTTagList nbttaglist = cmp.getList("Equipment", 10);
-+            NBTTagList nbttaglist1;
++        public CompoundTag convert(CompoundTag cmp) {
++            ListTag nbttaglist = cmp.getList("Equipment", 10);
++            ListTag nbttaglist1;
 +
-+            if (!nbttaglist.isEmpty() && !cmp.hasKeyOfType("HandItems", 10)) {
-+                nbttaglist1 = new NBTTagList();
++            if (!nbttaglist.isEmpty() && !cmp.contains("HandItems", 10)) {
++                nbttaglist1 = new ListTag();
 +                nbttaglist1.add(nbttaglist.get(0));
-+                nbttaglist1.add(new NBTTagCompound());
-+                cmp.set("HandItems", nbttaglist1);
++                nbttaglist1.add(new CompoundTag());
++                cmp.put("HandItems", nbttaglist1);
 +            }
 +
-+            if (nbttaglist.size() > 1 && !cmp.hasKeyOfType("ArmorItem", 10)) {
-+                nbttaglist1 = new NBTTagList();
++            if (nbttaglist.size() > 1 && !cmp.contains("ArmorItem", 10)) {
++                nbttaglist1 = new ListTag();
 +                nbttaglist1.add(nbttaglist.get(1));
 +                nbttaglist1.add(nbttaglist.get(2));
 +                nbttaglist1.add(nbttaglist.get(3));
 +                nbttaglist1.add(nbttaglist.get(4));
-+                cmp.set("ArmorItems", nbttaglist1);
++                cmp.put("ArmorItems", nbttaglist1);
 +            }
 +
 +            cmp.remove("Equipment");
-+            if (cmp.hasKeyOfType("DropChances", 9)) {
++            if (cmp.contains("DropChances", 9)) {
 +                nbttaglist1 = cmp.getList("DropChances", 5);
-+                NBTTagList nbttaglist2;
++                ListTag nbttaglist2;
 +
-+                if (!cmp.hasKeyOfType("HandDropChances", 10)) {
-+                    nbttaglist2 = new NBTTagList();
-+                    nbttaglist2.add(NBTTagFloat.a(nbttaglist1.d(0)));
-+                    nbttaglist2.add(NBTTagFloat.a(0.0F));
-+                    cmp.set("HandDropChances", nbttaglist2);
++                if (!cmp.contains("HandDropChances", 10)) {
++                    nbttaglist2 = new ListTag();
++                    nbttaglist2.add(FloatTag.valueOf(nbttaglist1.getShort(0)));
++                    nbttaglist2.add(FloatTag.valueOf(0.0F));
++                    cmp.put("HandDropChances", nbttaglist2);
 +                }
 +
-+                if (!cmp.hasKeyOfType("ArmorDropChances", 10)) {
-+                    nbttaglist2 = new NBTTagList();
-+                    nbttaglist2.add(NBTTagFloat.a(nbttaglist1.d(1)));
-+                    nbttaglist2.add(NBTTagFloat.a(nbttaglist1.d(2)));
-+                    nbttaglist2.add(NBTTagFloat.a(nbttaglist1.d(3)));
-+                    nbttaglist2.add(NBTTagFloat.a(nbttaglist1.d(4)));
-+                    cmp.set("ArmorDropChances", nbttaglist2);
++                if (!cmp.contains("ArmorDropChances", 10)) {
++                    nbttaglist2 = new ListTag();
++                    nbttaglist2.add(FloatTag.valueOf(nbttaglist1.getShort(1)));
++                    nbttaglist2.add(FloatTag.valueOf(nbttaglist1.getShort(2)));
++                    nbttaglist2.add(FloatTag.valueOf(nbttaglist1.getShort(3)));
++                    nbttaglist2.add(FloatTag.valueOf(nbttaglist1.getShort(4)));
++                    cmp.put("ArmorDropChances", nbttaglist2);
 +                }
 +
 +                cmp.remove("DropChances");
@@ -574,7 +568,7 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +
 +        @Nullable
 +        private static String convertEntityId(int i, String s) {
-+            String key = new MinecraftKey(s).toString();
++            String key = new ResourceLocation(s).toString();
 +            if (i < 515 && DataInspectorBlockEntity.b.containsKey(key)) {
 +                return DataInspectorBlockEntity.b.get(key);
 +            } else {
@@ -582,14 +576,12 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +            }
 +        }
 +
-+        public NBTTagCompound inspect(NBTTagCompound cmp, int sourceVer, int targetVer) {
-+            if (!cmp.hasKeyOfType("tag", 10)) {
-+                return cmp;
-+            } else {
-+                NBTTagCompound nbttagcompound1 = cmp.getCompound("tag");
++        public CompoundTag inspect(CompoundTag cmp, int sourceVer, int targetVer) {
++            if (cmp.contains("tag", 10)) {
++                CompoundTag nbttagcompound1 = cmp.getCompound("tag");
 +
-+                if (nbttagcompound1.hasKeyOfType("BlockEntityTag", 10)) {
-+                    NBTTagCompound nbttagcompound2 = nbttagcompound1.getCompound("BlockEntityTag");
++                if (nbttagcompound1.contains("BlockEntityTag", 10)) {
++                    CompoundTag nbttagcompound2 = nbttagcompound1.getCompound("BlockEntityTag");
 +                    String s = cmp.getString("id");
 +                    String s1 = convertEntityId(sourceVer, s);
 +                    boolean flag;
@@ -599,8 +591,8 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +                        // DataInspectorBlockEntity.a.warn("Unable to resolve BlockEntity for ItemInstance: {}", s);
 +                        flag = false;
 +                    } else {
-+                        flag = !nbttagcompound2.hasKey("id");
-+                        nbttagcompound2.setString("id", s1);
++                        flag = !nbttagcompound2.contains("id");
++                        nbttagcompound2.putString("id", s1);
 +                    }
 +
 +                    convert(LegacyType.BLOCK_ENTITY, nbttagcompound2, sourceVer, targetVer);
@@ -608,13 +600,12 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +                        nbttagcompound2.remove("id");
 +                    }
 +                }
-+
-+                return cmp;
 +            }
++            return cmp;
 +        }
 +
 +        static {
-+            Map map = DataInspectorBlockEntity.b;
++            Map<String, String> map = DataInspectorBlockEntity.b;
 +
 +            map.put("minecraft:furnace", "Furnace");
 +            map.put("minecraft:lit_furnace", "Furnace");
@@ -712,11 +703,11 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +
 +        DataInspectorEntity() {}
 +
-+        public NBTTagCompound inspect(NBTTagCompound cmp, int sourceVer, int targetVer) {
-+            NBTTagCompound nbttagcompound1 = cmp.getCompound("tag");
++        public CompoundTag inspect(CompoundTag cmp, int sourceVer, int targetVer) {
++            CompoundTag nbttagcompound1 = cmp.getCompound("tag");
 +
-+            if (nbttagcompound1.hasKeyOfType("EntityTag", 10)) {
-+                NBTTagCompound nbttagcompound2 = nbttagcompound1.getCompound("EntityTag");
++            if (nbttagcompound1.contains("EntityTag", 10)) {
++                CompoundTag nbttagcompound2 = nbttagcompound1.getCompound("EntityTag");
 +                String s = cmp.getString("id");
 +                String s1;
 +
@@ -736,8 +727,8 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +                    DataInspectorEntity.a.warn("Unable to resolve Entity for ItemInstance: {}", s);
 +                    flag = false;
 +                } else {
-+                    flag = !nbttagcompound2.hasKeyOfType("id", 8);
-+                    nbttagcompound2.setString("id", s1);
++                    flag = !nbttagcompound2.contains("id", 8);
++                    nbttagcompound2.putString("id", s1);
 +                }
 +
 +                convert(LegacyType.ENTITY, nbttagcompound2, sourceVer, targetVer);
@@ -753,21 +744,21 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +
 +    private abstract static class DataInspectorTagged implements DataInspector {
 +
-+        private final MinecraftKey key;
++        private final ResourceLocation key;
 +
 +        DataInspectorTagged(String type) {
 +            this.key = getKey(type);
 +        }
 +
-+        public NBTTagCompound inspect(NBTTagCompound cmp, int sourceVer, int targetVer) {
-+            if (this.key.equals(new MinecraftKey(cmp.getString("id")))) {
++        public CompoundTag inspect(CompoundTag cmp, int sourceVer, int targetVer) {
++            if (this.key.equals(new ResourceLocation(cmp.getString("id")))) {
 +                cmp = this.inspectChecked(cmp, sourceVer, targetVer);
 +            }
 +
 +            return cmp;
 +        }
 +
-+        abstract NBTTagCompound inspectChecked(NBTTagCompound nbttagcompound, int sourceVer, int targetVer);
++        abstract CompoundTag inspectChecked(CompoundTag nbttagcompound, int sourceVer, int targetVer);
 +    }
 +
 +    private static class DataInspectorItemList extends DataInspectorTagged {
@@ -779,7 +770,7 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +            this.keys = astring;
 +        }
 +
-+        NBTTagCompound inspectChecked(NBTTagCompound nbttagcompound, int sourceVer, int targetVer) {
++        CompoundTag inspectChecked(CompoundTag nbttagcompound, int sourceVer, int targetVer) {
 +            for (String s : this.keys) {
 +                DataConverters.convertItems(nbttagcompound, s, sourceVer, targetVer);
 +            }
@@ -796,7 +787,7 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +            this.keys = astring;
 +        }
 +
-+        NBTTagCompound inspectChecked(NBTTagCompound nbttagcompound, int sourceVer, int targetVer) {
++        CompoundTag inspectChecked(CompoundTag nbttagcompound, int sourceVer, int targetVer) {
 +            for (String key : this.keys) {
 +                DataConverters.convertItem(nbttagcompound, key, sourceVer, targetVer);
 +            }
@@ -815,12 +806,12 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +            return 102;
 +        }
 +
-+        public NBTTagCompound convert(NBTTagCompound cmp) {
-+            if (cmp.hasKeyOfType("id", 99)) {
++        public CompoundTag convert(CompoundTag cmp) {
++            if (cmp.contains("id", 99)) {
 +                short short0 = cmp.getShort("id");
 +
 +                if (short0 > 0 && short0 < materials.length && materials[short0] != null) {
-+                    cmp.setString("id", materials[short0]);
++                    cmp.putString("id", materials[short0]);
 +                }
 +            }
 +
@@ -1194,7 +1185,7 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +            return 147;
 +        }
 +
-+        public NBTTagCompound convert(NBTTagCompound cmp) {
++        public CompoundTag convert(CompoundTag cmp) {
 +            if ("ArmorStand".equals(cmp.getString("id")) && cmp.getBoolean("Silent") && !cmp.getBoolean("Marker")) {
 +                cmp.remove("Silent");
 +            }
@@ -1211,20 +1202,20 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +            return 804;
 +        }
 +
-+        public NBTTagCompound convert(NBTTagCompound cmp) {
-+            if ("minecraft:banner".equals(cmp.getString("id")) && cmp.hasKeyOfType("tag", 10)) {
-+                NBTTagCompound nbttagcompound1 = cmp.getCompound("tag");
++        public CompoundTag convert(CompoundTag cmp) {
++            if ("minecraft:banner".equals(cmp.getString("id")) && cmp.contains("tag", 10)) {
++                CompoundTag nbttagcompound1 = cmp.getCompound("tag");
 +
-+                if (nbttagcompound1.hasKeyOfType("BlockEntityTag", 10)) {
-+                    NBTTagCompound nbttagcompound2 = nbttagcompound1.getCompound("BlockEntityTag");
++                if (nbttagcompound1.contains("BlockEntityTag", 10)) {
++                    CompoundTag nbttagcompound2 = nbttagcompound1.getCompound("BlockEntityTag");
 +
-+                    if (nbttagcompound2.hasKeyOfType("Base", 99)) {
-+                        cmp.setShort("Damage", (short) (nbttagcompound2.getShort("Base") & 15));
-+                        if (nbttagcompound1.hasKeyOfType("display", 10)) {
-+                            NBTTagCompound nbttagcompound3 = nbttagcompound1.getCompound("display");
++                    if (nbttagcompound2.contains("Base", 99)) {
++                        cmp.putShort("Damage", (short) (nbttagcompound2.getShort("Base") & 15));
++                        if (nbttagcompound1.contains("display", 10)) {
++                            CompoundTag nbttagcompound3 = nbttagcompound1.getCompound("display");
 +
-+                            if (nbttagcompound3.hasKeyOfType("Lore", 9)) {
-+                                NBTTagList nbttaglist = nbttagcompound3.getList("Lore", 8);
++                            if (nbttagcompound3.contains("Lore", 9)) {
++                                ListTag nbttaglist = nbttagcompound3.getList("Lore", 8);
 +
 +                                if (nbttaglist.size() == 1 && "(+NBT)".equals(nbttaglist.getString(0))) {
 +                                    return cmp;
@@ -1258,23 +1249,23 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +            return 102;
 +        }
 +
-+        public NBTTagCompound convert(NBTTagCompound cmp) {
++        public CompoundTag convert(CompoundTag cmp) {
 +            if ("minecraft:potion".equals(cmp.getString("id"))) {
-+                NBTTagCompound nbttagcompound1 = cmp.getCompound("tag");
++                CompoundTag nbttagcompound1 = cmp.getCompound("tag");
 +                short short0 = cmp.getShort("Damage");
 +
-+                if (!nbttagcompound1.hasKeyOfType("Potion", 8)) {
++                if (!nbttagcompound1.contains("Potion", 8)) {
 +                    String s = DataConverterPotionId.potions[short0 & 127];
 +
-+                    nbttagcompound1.setString("Potion", s == null ? "minecraft:water" : s);
-+                    cmp.set("tag", nbttagcompound1);
++                    nbttagcompound1.putString("Potion", s == null ? "minecraft:water" : s);
++                    cmp.put("tag", nbttagcompound1);
 +                    if ((short0 & 16384) == 16384) {
-+                        cmp.setString("id", "minecraft:splash_potion");
++                        cmp.putString("id", "minecraft:splash_potion");
 +                    }
 +                }
 +
 +                if (short0 != 0) {
-+                    cmp.setShort("Damage", (short) 0);
++                    cmp.putShort("Damage", (short) 0);
 +                }
 +            }
 +
@@ -1423,24 +1414,24 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +            return 105;
 +        }
 +
-+        public NBTTagCompound convert(NBTTagCompound cmp) {
++        public CompoundTag convert(CompoundTag cmp) {
 +            if ("minecraft:spawn_egg".equals(cmp.getString("id"))) {
-+                NBTTagCompound nbttagcompound1 = cmp.getCompound("tag");
-+                NBTTagCompound nbttagcompound2 = nbttagcompound1.getCompound("EntityTag");
++                CompoundTag nbttagcompound1 = cmp.getCompound("tag");
++                CompoundTag nbttagcompound2 = nbttagcompound1.getCompound("EntityTag");
 +                short short0 = cmp.getShort("Damage");
 +
-+                if (!nbttagcompound2.hasKeyOfType("id", 8)) {
++                if (!nbttagcompound2.contains("id", 8)) {
 +                    String s = DataConverterSpawnEgg.eggs[short0 & 255];
 +
 +                    if (s != null) {
-+                        nbttagcompound2.setString("id", s);
-+                        nbttagcompound1.set("EntityTag", nbttagcompound2);
-+                        cmp.set("tag", nbttagcompound1);
++                        nbttagcompound2.putString("id", s);
++                        nbttagcompound1.put("EntityTag", nbttagcompound2);
++                        cmp.put("tag", nbttagcompound1);
 +                    }
 +                }
 +
 +                if (short0 != 0) {
-+                    cmp.setShort("Damage", (short) 0);
++                    cmp.putShort("Damage", (short) 0);
 +                }
 +            }
 +
@@ -1521,7 +1512,8 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +
 +    private static class DataConverterMinecart implements DataConverter {
 +
-+        private static final List<String> a = Lists.newArrayList(new String[] { "MinecartRideable", "MinecartChest", "MinecartFurnace", "MinecartTNT", "MinecartSpawner", "MinecartHopper", "MinecartCommandBlock"});
++        private static final List<String> a = Lists.newArrayList("MinecartRideable", "MinecartChest", "MinecartFurnace", "MinecartTNT", "MinecartSpawner",
++            "MinecartHopper", "MinecartCommandBlock");
 +
 +        DataConverterMinecart() {}
 +
@@ -1529,7 +1521,7 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +            return 106;
 +        }
 +
-+        public NBTTagCompound convert(NBTTagCompound cmp) {
++        public CompoundTag convert(CompoundTag cmp) {
 +            if ("Minecart".equals(cmp.getString("id"))) {
 +                String s = "MinecartRideable";
 +                int i = cmp.getInt("Type");
@@ -1538,7 +1530,7 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +                    s = DataConverterMinecart.a.get(i);
 +                }
 +
-+                cmp.setString("id", s);
++                cmp.putString("id", s);
 +                cmp.remove("Type");
 +            }
 +
@@ -1554,38 +1546,36 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +            return 107;
 +        }
 +
-+        public NBTTagCompound convert(NBTTagCompound cmp) {
-+            if (!"MobSpawner".equals(cmp.getString("id"))) {
-+                return cmp;
-+            } else {
-+                if (cmp.hasKeyOfType("EntityId", 8)) {
++        public CompoundTag convert(CompoundTag cmp) {
++            if ("MobSpawner".equals(cmp.getString("id"))) {
++                if (cmp.contains("EntityId", 8)) {
 +                    String s = cmp.getString("EntityId");
-+                    NBTTagCompound nbttagcompound1 = cmp.getCompound("SpawnData");
++                    CompoundTag nbttagcompound1 = cmp.getCompound("SpawnData");
 +
-+                    nbttagcompound1.setString("id", s.isEmpty() ? "Pig" : s);
-+                    cmp.set("SpawnData", nbttagcompound1);
++                    nbttagcompound1.putString("id", s.isEmpty() ? "Pig" : s);
++                    cmp.put("SpawnData", nbttagcompound1);
 +                    cmp.remove("EntityId");
 +                }
 +
-+                if (cmp.hasKeyOfType("SpawnPotentials", 9)) {
-+                    NBTTagList nbttaglist = cmp.getList("SpawnPotentials", 10);
++                if (cmp.contains("SpawnPotentials", 9)) {
++                    ListTag nbttaglist = cmp.getList("SpawnPotentials", 10);
 +
 +                    for (int i = 0; i < nbttaglist.size(); ++i) {
-+                        NBTTagCompound nbttagcompound2 = nbttaglist.getCompound(i);
++                        CompoundTag nbttagcompound2 = nbttaglist.getCompound(i);
 +
-+                        if (nbttagcompound2.hasKeyOfType("Type", 8)) {
-+                            NBTTagCompound nbttagcompound3 = nbttagcompound2.getCompound("Properties");
++                        if (nbttagcompound2.contains("Type", 8)) {
++                            CompoundTag nbttagcompound3 = nbttagcompound2.getCompound("Properties");
 +
-+                            nbttagcompound3.setString("id", nbttagcompound2.getString("Type"));
-+                            nbttagcompound2.set("Entity", nbttagcompound3);
++                            nbttagcompound3.putString("id", nbttagcompound2.getString("Type"));
++                            nbttagcompound2.put("Entity", nbttagcompound3);
 +                            nbttagcompound2.remove("Type");
 +                            nbttagcompound2.remove("Properties");
 +                        }
 +                    }
 +                }
 +
-+                return cmp;
 +            }
++            return cmp;
 +        }
 +    }
 +
@@ -1597,8 +1587,8 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +            return 108;
 +        }
 +
-+        public NBTTagCompound convert(NBTTagCompound cmp) {
-+            if (cmp.hasKeyOfType("UUID", 8)) {
++        public CompoundTag convert(CompoundTag cmp) {
++            if (cmp.contains("UUID", 8)) {
 +                cmp.setUUID("UUID", UUID.fromString(cmp.getString("UUID")));
 +            }
 +
@@ -1608,7 +1598,9 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +
 +    private static class DataConverterHealth implements DataConverter {
 +
-+        private static final Set<String> a = Sets.newHashSet(new String[] { "ArmorStand", "Bat", "Blaze", "CaveSpider", "Chicken", "Cow", "Creeper", "EnderDragon", "Enderman", "Endermite", "EntityHorse", "Ghast", "Giant", "Guardian", "LavaSlime", "MushroomCow", "Ozelot", "Pig", "PigZombie", "Rabbit", "Sheep", "Shulker", "Silverfish", "Skeleton", "Slime", "SnowMan", "Spider", "Squid", "Villager", "VillagerGolem", "Witch", "WitherBoss", "Wolf", "Zombie"});
++        private static final Set<String> a = Sets.newHashSet("ArmorStand", "Bat", "Blaze", "CaveSpider", "Chicken", "Cow", "Creeper", "EnderDragon", "Enderman",
++            "Endermite", "EntityHorse", "Ghast", "Giant", "Guardian", "LavaSlime", "MushroomCow", "Ozelot", "Pig", "PigZombie", "Rabbit", "Sheep", "Shulker",
++            "Silverfish", "Skeleton", "Slime", "SnowMan", "Spider", "Squid", "Villager", "VillagerGolem", "Witch", "WitherBoss", "Wolf", "Zombie");
 +
 +        DataConverterHealth() {}
 +
@@ -1616,22 +1608,22 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +            return 109;
 +        }
 +
-+        public NBTTagCompound convert(NBTTagCompound cmp) {
++        public CompoundTag convert(CompoundTag cmp) {
 +            if (DataConverterHealth.a.contains(cmp.getString("id"))) {
 +                float f;
 +
-+                if (cmp.hasKeyOfType("HealF", 99)) {
++                if (cmp.contains("HealF", 99)) {
 +                    f = cmp.getFloat("HealF");
 +                    cmp.remove("HealF");
 +                } else {
-+                    if (!cmp.hasKeyOfType("Health", 99)) {
++                    if (!cmp.contains("Health", 99)) {
 +                        return cmp;
 +                    }
 +
 +                    f = cmp.getFloat("Health");
 +                }
 +
-+                cmp.setFloat("Health", f);
++                cmp.putFloat("Health", f);
 +            }
 +
 +            return cmp;
@@ -1646,14 +1638,14 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +            return 110;
 +        }
 +
-+        public NBTTagCompound convert(NBTTagCompound cmp) {
-+            if ("EntityHorse".equals(cmp.getString("id")) && !cmp.hasKeyOfType("SaddleItem", 10) && cmp.getBoolean("Saddle")) {
-+                NBTTagCompound nbttagcompound1 = new NBTTagCompound();
++        public CompoundTag convert(CompoundTag cmp) {
++            if ("EntityHorse".equals(cmp.getString("id")) && !cmp.contains("SaddleItem", 10) && cmp.getBoolean("Saddle")) {
++                CompoundTag nbttagcompound1 = new CompoundTag();
 +
-+                nbttagcompound1.setString("id", "minecraft:saddle");
-+                nbttagcompound1.setByte("Count", (byte) 1);
-+                nbttagcompound1.setShort("Damage", (short) 0);
-+                cmp.set("SaddleItem", nbttagcompound1);
++                nbttagcompound1.putString("id", "minecraft:saddle");
++                nbttagcompound1.putByte("Count", (byte) 1);
++                nbttagcompound1.putShort("Damage", (short) 0);
++                cmp.put("SaddleItem", nbttagcompound1);
 +                cmp.remove("Saddle");
 +            }
 +
@@ -1669,29 +1661,29 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +            return 111;
 +        }
 +
-+        public NBTTagCompound convert(NBTTagCompound cmp) {
++        public CompoundTag convert(CompoundTag cmp) {
 +            String s = cmp.getString("id");
 +            boolean flag = "Painting".equals(s);
 +            boolean flag1 = "ItemFrame".equals(s);
 +
-+            if ((flag || flag1) && !cmp.hasKeyOfType("Facing", 99)) {
-+                EnumDirection enumdirection;
++            if ((flag || flag1) && !cmp.contains("Facing", 99)) {
++                Direction enumdirection;
 +
-+                if (cmp.hasKeyOfType("Direction", 99)) {
-+                    enumdirection = EnumDirection.fromType2(cmp.getByte("Direction"));
-+                    cmp.setInt("TileX", cmp.getInt("TileX") + enumdirection.getAdjacentX());
-+                    cmp.setInt("TileY", cmp.getInt("TileY") + enumdirection.getAdjacentY());
-+                    cmp.setInt("TileZ", cmp.getInt("TileZ") + enumdirection.getAdjacentZ());
++                if (cmp.contains("Direction", 99)) {
++                    enumdirection = Direction.from2DDataValue(cmp.getByte("Direction"));
++                    cmp.putInt("TileX", cmp.getInt("TileX") + enumdirection.getStepX());
++                    cmp.putInt("TileY", cmp.getInt("TileY") + enumdirection.getStepY());
++                    cmp.putInt("TileZ", cmp.getInt("TileZ") + enumdirection.getStepZ());
 +                    cmp.remove("Direction");
-+                    if (flag1 && cmp.hasKeyOfType("ItemRotation", 99)) {
-+                        cmp.setByte("ItemRotation", (byte) (cmp.getByte("ItemRotation") * 2));
++                    if (flag1 && cmp.contains("ItemRotation", 99)) {
++                        cmp.putByte("ItemRotation", (byte) (cmp.getByte("ItemRotation") * 2));
 +                    }
 +                } else {
-+                    enumdirection = EnumDirection.fromType2(cmp.getByte("Dir"));
++                    enumdirection = Direction.from2DDataValue(cmp.getByte("Dir"));
 +                    cmp.remove("Dir");
 +                }
 +
-+                cmp.setByte("Facing", (byte) enumdirection.get2DRotationValue());
++                cmp.putByte("Facing", (byte) enumdirection.get2DDataValue());
 +            }
 +
 +            return cmp;
@@ -1706,19 +1698,19 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +            return 113;
 +        }
 +
-+        public NBTTagCompound convert(NBTTagCompound cmp) {
-+            NBTTagList nbttaglist;
++        public CompoundTag convert(CompoundTag cmp) {
++            ListTag nbttaglist;
 +
-+            if (cmp.hasKeyOfType("HandDropChances", 9)) {
++            if (cmp.contains("HandDropChances", 9)) {
 +                nbttaglist = cmp.getList("HandDropChances", 5);
-+                if (nbttaglist.size() == 2 && nbttaglist.d(0) == 0.0F && nbttaglist.d(1) == 0.0F) {
++                if (nbttaglist.size() == 2 && nbttaglist.getShort(0) == 0.0F && nbttaglist.getShort(1) == 0.0F) {
 +                    cmp.remove("HandDropChances");
 +                }
 +            }
 +
-+            if (cmp.hasKeyOfType("ArmorDropChances", 9)) {
++            if (cmp.contains("ArmorDropChances", 9)) {
 +                nbttaglist = cmp.getList("ArmorDropChances", 5);
-+                if (nbttaglist.size() == 4 && nbttaglist.d(0) == 0.0F && nbttaglist.d(1) == 0.0F && nbttaglist.d(2) == 0.0F && nbttaglist.d(3) == 0.0F) {
++                if (nbttaglist.size() == 4 && nbttaglist.getShort(0) == 0.0F && nbttaglist.getShort(1) == 0.0F && nbttaglist.getShort(2) == 0.0F && nbttaglist.getShort(3) == 0.0F) {
 +                    cmp.remove("ArmorDropChances");
 +                }
 +            }
@@ -1735,9 +1727,9 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +            return 135;
 +        }
 +
-+        public NBTTagCompound convert(NBTTagCompound cmp) {
-+            while (cmp.hasKeyOfType("Riding", 10)) {
-+                NBTTagCompound nbttagcompound1 = this.b(cmp);
++        public CompoundTag convert(CompoundTag cmp) {
++            while (cmp.contains("Riding", 10)) {
++                CompoundTag nbttagcompound1 = this.b(cmp);
 +
 +                this.convert(cmp, nbttagcompound1);
 +                cmp = nbttagcompound1;
@@ -1746,15 +1738,15 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +            return cmp;
 +        }
 +
-+        protected void convert(NBTTagCompound nbttagcompound, NBTTagCompound nbttagcompound1) {
-+            NBTTagList nbttaglist = new NBTTagList();
++        protected void convert(CompoundTag nbttagcompound, CompoundTag nbttagcompound1) {
++            ListTag nbttaglist = new ListTag();
 +
 +            nbttaglist.add(nbttagcompound);
-+            nbttagcompound1.set("Passengers", nbttaglist);
++            nbttagcompound1.put("Passengers", nbttaglist);
 +        }
 +
-+        protected NBTTagCompound b(NBTTagCompound nbttagcompound) {
-+            NBTTagCompound nbttagcompound1 = nbttagcompound.getCompound("Riding");
++        protected CompoundTag b(CompoundTag nbttagcompound) {
++            CompoundTag nbttagcompound1 = nbttagcompound.getCompound("Riding");
 +
 +            nbttagcompound.remove("Riding");
 +            return nbttagcompound1;
@@ -1769,58 +1761,55 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +            return 165;
 +        }
 +
-+        public NBTTagCompound convert(NBTTagCompound cmp) {
++        public CompoundTag convert(CompoundTag cmp) {
 +            if ("minecraft:written_book".equals(cmp.getString("id"))) {
-+                NBTTagCompound nbttagcompound1 = cmp.getCompound("tag");
++                CompoundTag nbttagcompound1 = cmp.getCompound("tag");
 +
-+                if (nbttagcompound1.hasKeyOfType("pages", 9)) {
-+                    NBTTagList nbttaglist = nbttagcompound1.getList("pages", 8);
++                if (nbttagcompound1.contains("pages", 9)) {
++                    ListTag nbttaglist = nbttagcompound1.getList("pages", 8);
 +
 +                    for (int i = 0; i < nbttaglist.size(); ++i) {
 +                        String s = nbttaglist.getString(i);
-+                        Object object = null;
++                        Component object = null;
 +
-+                        if (!"null".equals(s) && !UtilColor.b(s)) {
++                        if (!"null".equals(s) && !StringUtil.isNullOrEmpty(s)) {
 +                            if ((s.charAt(0) != 34 || s.charAt(s.length() - 1) != 34) && (s.charAt(0) != 123 || s.charAt(s.length() - 1) != 125)) {
-+                                object = new ChatComponentText(s);
++                                object = new TextComponent(s);
 +                            } else {
 +                                try {
-+                                    object = ChatDeserializer.a(DataConverterSignText.a, s, IChatBaseComponent.class, true);
++                                    object = GsonHelper.fromJson(DataConverterSignText.a, s, Component.class, true);
 +                                    if (object == null) {
-+                                        object = new ChatComponentText("");
++                                        object = new TextComponent("");
 +                                    }
-+                                } catch (JsonParseException jsonparseexception) {
-+                                    ;
++                                } catch (JsonParseException ignored) {
 +                                }
 +
 +                                if (object == null) {
 +                                    try {
-+                                        object = IChatBaseComponent.ChatSerializer.a(s);
-+                                    } catch (JsonParseException jsonparseexception1) {
-+                                        ;
++                                        object = Component.Serializer.fromJson(s);
++                                    } catch (JsonParseException ignored) {
 +                                    }
 +                                }
 +
 +                                if (object == null) {
 +                                    try {
-+                                        object = IChatBaseComponent.ChatSerializer.b(s);
-+                                    } catch (JsonParseException jsonparseexception2) {
-+                                        ;
++                                        object = Component.Serializer.fromJsonLenient(s);
++                                    } catch (JsonParseException ignored) {
 +                                    }
 +                                }
 +
 +                                if (object == null) {
-+                                    object = new ChatComponentText(s);
++                                    object = new TextComponent(s);
 +                                }
 +                            }
 +                        } else {
-+                            object = new ChatComponentText("");
++                            object = new TextComponent("");
 +                        }
 +
-+                        nbttaglist.set(i, NBTTagString.a(IChatBaseComponent.ChatSerializer.a((IChatBaseComponent) object)));
++                        nbttaglist.set(i, StringTag.valueOf(Component.Serializer.toJson(object)));
 +                    }
 +
-+                    nbttagcompound1.set("pages", nbttaglist);
++                    nbttagcompound1.put("pages", nbttaglist);
 +                }
 +            }
 +
@@ -1830,7 +1819,7 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +
 +    private static class DataConverterCookedFish implements DataConverter {
 +
-+        private static final MinecraftKey a = new MinecraftKey("cooked_fished");
++        private static final ResourceLocation a = new ResourceLocation("cooked_fished");
 +
 +        DataConverterCookedFish() {}
 +
@@ -1838,9 +1827,9 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +            return 502;
 +        }
 +
-+        public NBTTagCompound convert(NBTTagCompound cmp) {
-+            if (cmp.hasKeyOfType("id", 8) && DataConverterCookedFish.a.equals(new MinecraftKey(cmp.getString("id")))) {
-+                cmp.setString("id", "minecraft:cooked_fish");
++        public CompoundTag convert(CompoundTag cmp) {
++            if (cmp.contains("id", 8) && DataConverterCookedFish.a.equals(new ResourceLocation(cmp.getString("id")))) {
++                cmp.putString("id", "minecraft:cooked_fish");
 +            }
 +
 +            return cmp;
@@ -1857,16 +1846,15 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +            return 502;
 +        }
 +
-+        public NBTTagCompound convert(NBTTagCompound cmp) {
++        public CompoundTag convert(CompoundTag cmp) {
 +            if ("Zombie".equals(cmp.getString("id")) && cmp.getBoolean("IsVillager")) {
-+                if (!cmp.hasKeyOfType("ZombieType", 99)) {
++                if (!cmp.contains("ZombieType", 99)) {
 +                    int i = -1;
 +
-+                    if (cmp.hasKeyOfType("VillagerProfession", 99)) {
++                    if (cmp.contains("VillagerProfession", 99)) {
 +                        try {
 +                            i = this.convert(cmp.getInt("VillagerProfession"));
-+                        } catch (RuntimeException runtimeexception) {
-+                            ;
++                        } catch (RuntimeException ignored) {
 +                        }
 +                    }
 +
@@ -1874,7 +1862,7 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +                        i = this.convert(DataConverterZombie.a.nextInt(6));
 +                    }
 +
-+                    cmp.setInt("ZombieType", i);
++                    cmp.putInt("ZombieType", i);
 +                }
 +
 +                cmp.remove("IsVillager");
@@ -1896,8 +1884,8 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +            return 505;
 +        }
 +
-+        public NBTTagCompound convert(NBTTagCompound cmp) {
-+            cmp.setString("useVbo", "true");
++        public CompoundTag convert(CompoundTag cmp) {
++            cmp.putString("useVbo", "true");
 +            return cmp;
 +        }
 +    }
@@ -1910,10 +1898,10 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +            return 700;
 +        }
 +
-+        public NBTTagCompound convert(NBTTagCompound cmp) {
++        public CompoundTag convert(CompoundTag cmp) {
 +            if ("Guardian".equals(cmp.getString("id"))) {
 +                if (cmp.getBoolean("Elder")) {
-+                    cmp.setString("id", "ElderGuardian");
++                    cmp.putString("id", "ElderGuardian");
 +                }
 +
 +                cmp.remove("Elder");
@@ -1931,16 +1919,16 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +            return 701;
 +        }
 +
-+        public NBTTagCompound convert(NBTTagCompound cmp) {
++        public CompoundTag convert(CompoundTag cmp) {
 +            String s = cmp.getString("id");
 +
 +            if ("Skeleton".equals(s)) {
 +                int i = cmp.getInt("SkeletonType");
 +
 +                if (i == 1) {
-+                    cmp.setString("id", "WitherSkeleton");
++                    cmp.putString("id", "WitherSkeleton");
 +                } else if (i == 2) {
-+                    cmp.setString("id", "Stray");
++                    cmp.putString("id", "Stray");
 +                }
 +
 +                cmp.remove("SkeletonType");
@@ -1958,7 +1946,7 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +            return 702;
 +        }
 +
-+        public NBTTagCompound convert(NBTTagCompound cmp) {
++        public CompoundTag convert(CompoundTag cmp) {
 +            if ("Zombie".equals(cmp.getString("id"))) {
 +                int i = cmp.getInt("ZombieType");
 +
@@ -1972,12 +1960,12 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +                    case 3:
 +                    case 4:
 +                    case 5:
-+                        cmp.setString("id", "ZombieVillager");
-+                        cmp.setInt("Profession", i - 1);
++                        cmp.putString("id", "ZombieVillager");
++                        cmp.putInt("Profession", i - 1);
 +                        break;
 +
 +                    case 6:
-+                        cmp.setString("id", "Husk");
++                        cmp.putString("id", "Husk");
 +                }
 +
 +                cmp.remove("ZombieType");
@@ -1995,30 +1983,30 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +            return 703;
 +        }
 +
-+        public NBTTagCompound convert(NBTTagCompound cmp) {
++        public CompoundTag convert(CompoundTag cmp) {
 +            if ("EntityHorse".equals(cmp.getString("id"))) {
 +                int i = cmp.getInt("Type");
 +
 +                switch (i) {
 +                    case 0:
 +                    default:
-+                        cmp.setString("id", "Horse");
++                        cmp.putString("id", "Horse");
 +                        break;
 +
 +                    case 1:
-+                        cmp.setString("id", "Donkey");
++                        cmp.putString("id", "Donkey");
 +                        break;
 +
 +                    case 2:
-+                        cmp.setString("id", "Mule");
++                        cmp.putString("id", "Mule");
 +                        break;
 +
 +                    case 3:
-+                        cmp.setString("id", "ZombieHorse");
++                        cmp.putString("id", "ZombieHorse");
 +                        break;
 +
 +                    case 4:
-+                        cmp.setString("id", "SkeletonHorse");
++                        cmp.putString("id", "SkeletonHorse");
 +                }
 +
 +                cmp.remove("Type");
@@ -2038,11 +2026,11 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +            return 704;
 +        }
 +
-+        public NBTTagCompound convert(NBTTagCompound cmp) {
++        public CompoundTag convert(CompoundTag cmp) {
 +            String s = DataConverterTileEntity.a.get(cmp.getString("id"));
 +
 +            if (s != null) {
-+                cmp.setString("id", s);
++                cmp.putString("id", s);
 +            }
 +
 +            return cmp;
@@ -2087,11 +2075,11 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +            return 704;
 +        }
 +
-+        public NBTTagCompound convert(NBTTagCompound cmp) {
++        public CompoundTag convert(CompoundTag cmp) {
 +            String s = DataConverterEntity.a.get(cmp.getString("id"));
 +
 +            if (s != null) {
-+                cmp.setString("id", s);
++                cmp.putString("id", s);
 +            }
 +
 +            return cmp;
@@ -2184,18 +2172,18 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +            return 806;
 +        }
 +
-+        public NBTTagCompound convert(NBTTagCompound cmp) {
++        public CompoundTag convert(CompoundTag cmp) {
 +            String s = cmp.getString("id");
 +
 +            if ("minecraft:potion".equals(s) || "minecraft:splash_potion".equals(s) || "minecraft:lingering_potion".equals(s) || "minecraft:tipped_arrow".equals(s)) {
-+                NBTTagCompound nbttagcompound1 = cmp.getCompound("tag");
++                CompoundTag nbttagcompound1 = cmp.getCompound("tag");
 +
-+                if (!nbttagcompound1.hasKeyOfType("Potion", 8)) {
-+                    nbttagcompound1.setString("Potion", "minecraft:water");
++                if (!nbttagcompound1.contains("Potion", 8)) {
++                    nbttagcompound1.putString("Potion", "minecraft:water");
 +                }
 +
-+                if (!cmp.hasKeyOfType("tag", 10)) {
-+                    cmp.set("tag", nbttagcompound1);
++                if (!cmp.contains("tag", 10)) {
++                    cmp.put("tag", nbttagcompound1);
 +                }
 +            }
 +
@@ -2211,9 +2199,9 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +            return 808;
 +        }
 +
-+        public NBTTagCompound convert(NBTTagCompound cmp) {
-+            if ("minecraft:shulker".equals(cmp.getString("id")) && !cmp.hasKeyOfType("Color", 99)) {
-+                cmp.setByte("Color", (byte) 10);
++        public CompoundTag convert(CompoundTag cmp) {
++            if ("minecraft:shulker".equals(cmp.getString("id")) && !cmp.contains("Color", 99)) {
++                cmp.putByte("Color", (byte) 10);
 +            }
 +
 +            return cmp;
@@ -2222,7 +2210,8 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +
 +    private static class DataConverterShulkerBoxItem implements DataConverter {
 +
-+        public static final String[] a = new String[] { "minecraft:white_shulker_box", "minecraft:orange_shulker_box", "minecraft:magenta_shulker_box", "minecraft:light_blue_shulker_box", "minecraft:yellow_shulker_box", "minecraft:lime_shulker_box", "minecraft:pink_shulker_box", "minecraft:gray_shulker_box", "minecraft:silver_shulker_box", "minecraft:cyan_shulker_box", "minecraft:purple_shulker_box", "minecraft:blue_shulker_box", "minecraft:brown_shulker_box", "minecraft:green_shulker_box", "minecraft:red_shulker_box", "minecraft:black_shulker_box"};
++        public static final String[] a =
++            { "minecraft:white_shulker_box", "minecraft:orange_shulker_box", "minecraft:magenta_shulker_box", "minecraft:light_blue_shulker_box", "minecraft:yellow_shulker_box", "minecraft:lime_shulker_box", "minecraft:pink_shulker_box", "minecraft:gray_shulker_box", "minecraft:silver_shulker_box", "minecraft:cyan_shulker_box", "minecraft:purple_shulker_box", "minecraft:blue_shulker_box", "minecraft:brown_shulker_box", "minecraft:green_shulker_box", "minecraft:red_shulker_box", "minecraft:black_shulker_box"};
 +
 +        DataConverterShulkerBoxItem() {}
 +
@@ -2230,12 +2219,12 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +            return 813;
 +        }
 +
-+        public NBTTagCompound convert(NBTTagCompound cmp) {
-+            if ("minecraft:shulker_box".equals(cmp.getString("id")) && cmp.hasKeyOfType("tag", 10)) {
-+                NBTTagCompound nbttagcompound1 = cmp.getCompound("tag");
++        public CompoundTag convert(CompoundTag cmp) {
++            if ("minecraft:shulker_box".equals(cmp.getString("id")) && cmp.contains("tag", 10)) {
++                CompoundTag nbttagcompound1 = cmp.getCompound("tag");
 +
-+                if (nbttagcompound1.hasKeyOfType("BlockEntityTag", 10)) {
-+                    NBTTagCompound nbttagcompound2 = nbttagcompound1.getCompound("BlockEntityTag");
++                if (nbttagcompound1.contains("BlockEntityTag", 10)) {
++                    CompoundTag nbttagcompound2 = nbttagcompound1.getCompound("BlockEntityTag");
 +
 +                    if (nbttagcompound2.getList("Items", 10).isEmpty()) {
 +                        nbttagcompound2.remove("Items");
@@ -2252,7 +2241,7 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +                        cmp.remove("tag");
 +                    }
 +
-+                    cmp.setString("id", DataConverterShulkerBoxItem.a[i % 16]);
++                    cmp.putString("id", DataConverterShulkerBoxItem.a[i % 16]);
 +                }
 +            }
 +
@@ -2268,7 +2257,7 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +            return 813;
 +        }
 +
-+        public NBTTagCompound convert(NBTTagCompound cmp) {
++        public CompoundTag convert(CompoundTag cmp) {
 +            if ("minecraft:shulker".equals(cmp.getString("id"))) {
 +                cmp.remove("Color");
 +            }
@@ -2285,9 +2274,9 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +            return 816;
 +        }
 +
-+        public NBTTagCompound convert(NBTTagCompound cmp) {
-+            if (cmp.hasKeyOfType("lang", 8)) {
-+                cmp.setString("lang", cmp.getString("lang").toLowerCase(Locale.ROOT));
++        public CompoundTag convert(CompoundTag cmp) {
++            if (cmp.contains("lang", 8)) {
++                cmp.putString("lang", cmp.getString("lang").toLowerCase(Locale.ROOT));
 +            }
 +
 +            return cmp;
@@ -2302,9 +2291,9 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +            return 820;
 +        }
 +
-+        public NBTTagCompound convert(NBTTagCompound cmp) {
++        public CompoundTag convert(CompoundTag cmp) {
 +            if ("minecraft:totem".equals(cmp.getString("id"))) {
-+                cmp.setString("id", "minecraft:totem_of_undying");
++                cmp.putString("id", "minecraft:totem_of_undying");
 +            }
 +
 +            return cmp;
@@ -2321,18 +2310,16 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +            return 1125;
 +        }
 +
-+        public NBTTagCompound convert(NBTTagCompound cmp) {
-+            boolean flag = true;
-+
++        public CompoundTag convert(CompoundTag cmp) {
 +            try {
-+                NBTTagCompound nbttagcompound1 = cmp.getCompound("Level");
++                CompoundTag nbttagcompound1 = cmp.getCompound("Level");
 +                int i = nbttagcompound1.getInt("xPos");
 +                int j = nbttagcompound1.getInt("zPos");
-+                NBTTagList nbttaglist = nbttagcompound1.getList("TileEntities", 10);
-+                NBTTagList nbttaglist1 = nbttagcompound1.getList("Sections", 10);
++                ListTag nbttaglist = nbttagcompound1.getList("TileEntities", 10);
++                ListTag nbttaglist1 = nbttagcompound1.getList("Sections", 10);
 +
 +                for (int k = 0; k < nbttaglist1.size(); ++k) {
-+                    NBTTagCompound nbttagcompound2 = nbttaglist1.getCompound(k);
++                    CompoundTag nbttagcompound2 = nbttaglist1.getCompound(k);
 +                    byte b0 = nbttagcompound2.getByte("Y");
 +                    byte[] abyte = nbttagcompound2.getByteArray("Blocks");
 +
@@ -2341,12 +2328,12 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +                            int i1 = l & 15;
 +                            int j1 = l >> 8 & 15;
 +                            int k1 = l >> 4 & 15;
-+                            NBTTagCompound nbttagcompound3 = new NBTTagCompound();
++                            CompoundTag nbttagcompound3 = new CompoundTag();
 +
-+                            nbttagcompound3.setString("id", "bed");
-+                            nbttagcompound3.setInt("x", i1 + (i << 4));
-+                            nbttagcompound3.setInt("y", j1 + (b0 << 4));
-+                            nbttagcompound3.setInt("z", k1 + (j << 4));
++                            nbttagcompound3.putString("id", "bed");
++                            nbttagcompound3.putInt("x", i1 + (i << 4));
++                            nbttagcompound3.putInt("y", j1 + (b0 << 4));
++                            nbttagcompound3.putInt("z", k1 + (j << 4));
 +                            nbttaglist.add(nbttagcompound3);
 +                        }
 +                    }
@@ -2367,9 +2354,9 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +            return 1125;
 +        }
 +
-+        public NBTTagCompound convert(NBTTagCompound cmp) {
++        public CompoundTag convert(CompoundTag cmp) {
 +            if ("minecraft:bed".equals(cmp.getString("id")) && cmp.getShort("Damage") == 0) {
-+                cmp.setShort("Damage", (short) EnumColor.RED.getColorIndex());
++                cmp.putShort("Damage", (short) DyeColor.RED.getId());
 +            }
 +
 +            return cmp;
@@ -2378,18 +2365,16 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +
 +    private static class DataConverterSignText implements DataConverter {
 +
-+        public static final Gson a = new GsonBuilder().registerTypeAdapter(IChatBaseComponent.class, new JsonDeserializer() {
-+            IChatBaseComponent a(JsonElement jsonelement, Type type, JsonDeserializationContext jsondeserializationcontext) throws JsonParseException {
++        public static final Gson a = new GsonBuilder().registerTypeAdapter(Component.class, new JsonDeserializer() {
++            Component a(JsonElement jsonelement, Type type, JsonDeserializationContext jsondeserializationcontext) throws JsonParseException {
 +                if (jsonelement.isJsonPrimitive()) {
-+                    return new ChatComponentText(jsonelement.getAsString());
++                    return new TextComponent(jsonelement.getAsString());
 +                } else if (jsonelement.isJsonArray()) {
 +                    JsonArray jsonarray = jsonelement.getAsJsonArray();
-+                    IChatBaseComponent ichatbasecomponent = null;
-+                    Iterator iterator = jsonarray.iterator();
++                    Component ichatbasecomponent = null;
 +
-+                    while (iterator.hasNext()) {
-+                        JsonElement jsonelement1 = (JsonElement) iterator.next();
-+                        IChatBaseComponent ichatbasecomponent1 = this.a(jsonelement1, jsonelement1.getClass(), jsondeserializationcontext);
++                    for (JsonElement jsonelement1 : jsonarray) {
++                        Component ichatbasecomponent1 = this.a(jsonelement1, jsonelement1.getClass(), jsondeserializationcontext);
 +
 +                        if (ichatbasecomponent == null) {
 +                            ichatbasecomponent = ichatbasecomponent1;
@@ -2400,7 +2385,7 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +
 +                    return ichatbasecomponent;
 +                } else {
-+                    throw new JsonParseException("Don\'t know how to turn " + jsonelement + " into a Component");
++                    throw new JsonParseException("Don't know how to turn " + jsonelement + " into a Component");
 +                }
 +            }
 +
@@ -2415,7 +2400,7 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +            return 101;
 +        }
 +
-+        public NBTTagCompound convert(NBTTagCompound cmp) {
++        public CompoundTag convert(CompoundTag cmp) {
 +            if ("Sign".equals(cmp.getString("id"))) {
 +                this.convert(cmp, "Text1");
 +                this.convert(cmp, "Text2");
@@ -2426,58 +2411,55 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +            return cmp;
 +        }
 +
-+        private void convert(NBTTagCompound nbttagcompound, String s) {
++        private void convert(CompoundTag nbttagcompound, String s) {
 +            String s1 = nbttagcompound.getString(s);
-+            Object object = null;
++            Component object = null;
 +
-+            if (!"null".equals(s1) && !UtilColor.b(s1)) {
++            if (!"null".equals(s1) && !StringUtil.isNullOrEmpty(s1)) {
 +                if ((s1.charAt(0) != 34 || s1.charAt(s1.length() - 1) != 34) && (s1.charAt(0) != 123 || s1.charAt(s1.length() - 1) != 125)) {
-+                    object = new ChatComponentText(s1);
++                    object = new TextComponent(s1);
 +                } else {
 +                    try {
-+                        object = ChatDeserializer.a(DataConverterSignText.a, s1, IChatBaseComponent.class, true);
++                        object = GsonHelper.fromJson(DataConverterSignText.a, s1, Component.class, true);
 +                        if (object == null) {
-+                            object = new ChatComponentText("");
++                            object = new TextComponent("");
 +                        }
-+                    } catch (JsonParseException jsonparseexception) {
-+                        ;
++                    } catch (JsonParseException ignored) {
 +                    }
 +
 +                    if (object == null) {
 +                        try {
-+                            object = IChatBaseComponent.ChatSerializer.a(s1);
-+                        } catch (JsonParseException jsonparseexception1) {
-+                            ;
++                            object = Component.Serializer.fromJson(s1);
++                        } catch (JsonParseException ignored) {
 +                        }
 +                    }
 +
 +                    if (object == null) {
 +                        try {
-+                            object = IChatBaseComponent.ChatSerializer.b(s1);
-+                        } catch (JsonParseException jsonparseexception2) {
-+                            ;
++                            object = Component.Serializer.fromJsonLenient(s1);
++                        } catch (JsonParseException ignored) {
 +                        }
 +                    }
 +
 +                    if (object == null) {
-+                        object = new ChatComponentText(s1);
++                        object = new TextComponent(s1);
 +                    }
 +                }
 +            } else {
-+                object = new ChatComponentText("");
++                object = new TextComponent("");
 +            }
 +
-+            nbttagcompound.setString(s, IChatBaseComponent.ChatSerializer.a((IChatBaseComponent) object));
++            nbttagcompound.putString(s, Component.Serializer.toJson(object));
 +        }
 +    }
 +
 +    private static class DataInspectorPlayerVehicle implements DataInspector {
 +        @Override
-+        public NBTTagCompound inspect(NBTTagCompound cmp, int sourceVer, int targetVer) {
-+            if (cmp.hasKeyOfType("RootVehicle", 10)) {
-+                NBTTagCompound nbttagcompound1 = cmp.getCompound("RootVehicle");
++        public CompoundTag inspect(CompoundTag cmp, int sourceVer, int targetVer) {
++            if (cmp.contains("RootVehicle", 10)) {
++                CompoundTag nbttagcompound1 = cmp.getCompound("RootVehicle");
 +
-+                if (nbttagcompound1.hasKeyOfType("Entity", 10)) {
++                if (nbttagcompound1.contains("Entity", 10)) {
 +                    convertCompound(LegacyType.ENTITY, nbttagcompound1, "Entity", sourceVer, targetVer);
 +                }
 +            }
@@ -2488,8 +2470,8 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +
 +    private static class DataInspectorLevelPlayer implements DataInspector {
 +        @Override
-+        public NBTTagCompound inspect(NBTTagCompound cmp, int sourceVer, int targetVer) {
-+            if (cmp.hasKeyOfType("Player", 10)) {
++        public CompoundTag inspect(CompoundTag cmp, int sourceVer, int targetVer) {
++            if (cmp.contains("Player", 10)) {
 +                convertCompound(LegacyType.PLAYER, cmp, "Player", sourceVer, targetVer);
 +            }
 +
@@ -2499,28 +2481,28 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +
 +    private static class DataInspectorStructure implements DataInspector {
 +        @Override
-+        public NBTTagCompound inspect(NBTTagCompound cmp, int sourceVer, int targetVer) {
-+            NBTTagList nbttaglist;
++        public CompoundTag inspect(CompoundTag cmp, int sourceVer, int targetVer) {
++            ListTag nbttaglist;
 +            int j;
-+            NBTTagCompound nbttagcompound1;
++            CompoundTag nbttagcompound1;
 +
-+            if (cmp.hasKeyOfType("entities", 9)) {
++            if (cmp.contains("entities", 9)) {
 +                nbttaglist = cmp.getList("entities", 10);
 +
 +                for (j = 0; j < nbttaglist.size(); ++j) {
-+                    nbttagcompound1 = (NBTTagCompound) nbttaglist.get(j);
-+                    if (nbttagcompound1.hasKeyOfType("nbt", 10)) {
++                    nbttagcompound1 = (CompoundTag) nbttaglist.get(j);
++                    if (nbttagcompound1.contains("nbt", 10)) {
 +                        convertCompound(LegacyType.ENTITY, nbttagcompound1, "nbt", sourceVer, targetVer);
 +                    }
 +                }
 +            }
 +
-+            if (cmp.hasKeyOfType("blocks", 9)) {
++            if (cmp.contains("blocks", 9)) {
 +                nbttaglist = cmp.getList("blocks", 10);
 +
 +                for (j = 0; j < nbttaglist.size(); ++j) {
-+                    nbttagcompound1 = (NBTTagCompound) nbttaglist.get(j);
-+                    if (nbttagcompound1.hasKeyOfType("nbt", 10)) {
++                    nbttagcompound1 = (CompoundTag) nbttaglist.get(j);
++                    if (nbttagcompound1.contains("nbt", 10)) {
 +                        convertCompound(LegacyType.BLOCK_ENTITY, nbttagcompound1, "nbt", sourceVer, targetVer);
 +                    }
 +                }
@@ -2532,25 +2514,25 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +
 +    private static class DataInspectorChunks implements DataInspector {
 +        @Override
-+        public NBTTagCompound inspect(NBTTagCompound cmp, int sourceVer, int targetVer) {
-+            if (cmp.hasKeyOfType("Level", 10)) {
-+                NBTTagCompound nbttagcompound1 = cmp.getCompound("Level");
-+                NBTTagList nbttaglist;
++        public CompoundTag inspect(CompoundTag cmp, int sourceVer, int targetVer) {
++            if (cmp.contains("Level", 10)) {
++                CompoundTag nbttagcompound1 = cmp.getCompound("Level");
++                ListTag nbttaglist;
 +                int j;
 +
-+                if (nbttagcompound1.hasKeyOfType("Entities", 9)) {
++                if (nbttagcompound1.contains("Entities", 9)) {
 +                    nbttaglist = nbttagcompound1.getList("Entities", 10);
 +
 +                    for (j = 0; j < nbttaglist.size(); ++j) {
-+                        nbttaglist.set(j, convert(LegacyType.ENTITY, (NBTTagCompound) nbttaglist.get(j), sourceVer, targetVer));
++                        nbttaglist.set(j, convert(LegacyType.ENTITY, (CompoundTag) nbttaglist.get(j), sourceVer, targetVer));
 +                    }
 +                }
 +
-+                if (nbttagcompound1.hasKeyOfType("TileEntities", 9)) {
++                if (nbttagcompound1.contains("TileEntities", 9)) {
 +                    nbttaglist = nbttagcompound1.getList("TileEntities", 10);
 +
 +                    for (j = 0; j < nbttaglist.size(); ++j) {
-+                        nbttaglist.set(j, convert(LegacyType.BLOCK_ENTITY, (NBTTagCompound) nbttaglist.get(j), sourceVer, targetVer));
++                        nbttaglist.set(j, convert(LegacyType.BLOCK_ENTITY, (CompoundTag) nbttaglist.get(j), sourceVer, targetVer));
 +                    }
 +                }
 +            }
@@ -2561,9 +2543,9 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +
 +    private static class DataInspectorEntityPassengers implements DataInspector {
 +        @Override
-+        public NBTTagCompound inspect(NBTTagCompound cmp, int sourceVer, int targetVer) {
-+            if (cmp.hasKeyOfType("Passengers", 9)) {
-+                NBTTagList nbttaglist = cmp.getList("Passengers", 10);
++        public CompoundTag inspect(CompoundTag cmp, int sourceVer, int targetVer) {
++            if (cmp.contains("Passengers", 9)) {
++                ListTag nbttaglist = cmp.getList("Passengers", 10);
 +
 +                for (int j = 0; j < nbttaglist.size(); ++j) {
 +                    nbttaglist.set(j, convert(LegacyType.ENTITY, nbttaglist.getCompound(j), sourceVer, targetVer));
@@ -2576,14 +2558,14 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +
 +    private static class DataInspectorPlayer implements DataInspector {
 +        @Override
-+        public NBTTagCompound inspect(NBTTagCompound cmp, int sourceVer, int targetVer) {
++        public CompoundTag inspect(CompoundTag cmp, int sourceVer, int targetVer) {
 +            convertItems(cmp, "Inventory", sourceVer, targetVer);
 +            convertItems(cmp, "EnderItems", sourceVer, targetVer);
-+            if (cmp.hasKeyOfType("ShoulderEntityLeft", 10)) {
++            if (cmp.contains("ShoulderEntityLeft", 10)) {
 +                convertCompound(LegacyType.ENTITY, cmp, "ShoulderEntityLeft", sourceVer, targetVer);
 +            }
 +
-+            if (cmp.hasKeyOfType("ShoulderEntityRight", 10)) {
++            if (cmp.contains("ShoulderEntityRight", 10)) {
 +                convertCompound(LegacyType.ENTITY, cmp, "ShoulderEntityRight", sourceVer, targetVer);
 +            }
 +
@@ -2592,18 +2574,18 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +    }
 +
 +    private static class DataInspectorVillagers implements DataInspector {
-+        MinecraftKey entityVillager = getKey("EntityVillager");
++        ResourceLocation entityVillager = getKey("EntityVillager");
 +
 +        @Override
-+        public NBTTagCompound inspect(NBTTagCompound cmp, int sourceVer, int targetVer) {
-+            if (entityVillager.equals(new MinecraftKey(cmp.getString("id"))) && cmp.hasKeyOfType("Offers", 10)) {
-+                NBTTagCompound nbttagcompound1 = cmp.getCompound("Offers");
++        public CompoundTag inspect(CompoundTag cmp, int sourceVer, int targetVer) {
++            if (entityVillager.equals(new ResourceLocation(cmp.getString("id"))) && cmp.contains("Offers", 10)) {
++                CompoundTag nbttagcompound1 = cmp.getCompound("Offers");
 +
-+                if (nbttagcompound1.hasKeyOfType("Recipes", 9)) {
-+                    NBTTagList nbttaglist = nbttagcompound1.getList("Recipes", 10);
++                if (nbttagcompound1.contains("Recipes", 9)) {
++                    ListTag nbttaglist = nbttagcompound1.getList("Recipes", 10);
 +
 +                    for (int j = 0; j < nbttaglist.size(); ++j) {
-+                        NBTTagCompound nbttagcompound2 = nbttaglist.getCompound(j);
++                        CompoundTag nbttagcompound2 = nbttaglist.getCompound(j);
 +
 +                        convertItem(nbttagcompound2, "buy", sourceVer, targetVer);
 +                        convertItem(nbttagcompound2, "buyB", sourceVer, targetVer);
@@ -2618,16 +2600,16 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +    }
 +
 +    private static class DataInspectorMobSpawnerMinecart implements DataInspector {
-+        MinecraftKey entityMinecartMobSpawner = getKey("EntityMinecartMobSpawner");
-+        MinecraftKey tileEntityMobSpawner = getKey("TileEntityMobSpawner");
++        ResourceLocation entityMinecartMobSpawner = getKey("EntityMinecartMobSpawner");
++        ResourceLocation tileEntityMobSpawner = getKey("TileEntityMobSpawner");
 +
 +        @Override
-+        public NBTTagCompound inspect(NBTTagCompound cmp, int sourceVer, int targetVer) {
++        public CompoundTag inspect(CompoundTag cmp, int sourceVer, int targetVer) {
 +            String s = cmp.getString("id");
-+            if (entityMinecartMobSpawner.equals(new MinecraftKey(s))) {
-+                cmp.setString("id", tileEntityMobSpawner.toString());
++            if (entityMinecartMobSpawner.equals(new ResourceLocation(s))) {
++                cmp.putString("id", tileEntityMobSpawner.toString());
 +                convert(LegacyType.BLOCK_ENTITY, cmp, sourceVer, targetVer);
-+                cmp.setString("id", s);
++                cmp.putString("id", s);
 +            }
 +
 +            return cmp;
@@ -2635,16 +2617,16 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +    }
 +
 +    private static class DataInspectorMobSpawnerMobs implements DataInspector {
-+        MinecraftKey tileEntityMobSpawner = getKey("TileEntityMobSpawner");
++        ResourceLocation tileEntityMobSpawner = getKey("TileEntityMobSpawner");
 +
 +        @Override
-+        public NBTTagCompound inspect(NBTTagCompound cmp, int sourceVer, int targetVer) {
-+            if (tileEntityMobSpawner.equals(new MinecraftKey(cmp.getString("id")))) {
-+                if (cmp.hasKeyOfType("SpawnPotentials", 9)) {
-+                    NBTTagList nbttaglist = cmp.getList("SpawnPotentials", 10);
++        public CompoundTag inspect(CompoundTag cmp, int sourceVer, int targetVer) {
++            if (tileEntityMobSpawner.equals(new ResourceLocation(cmp.getString("id")))) {
++                if (cmp.contains("SpawnPotentials", 9)) {
++                    ListTag nbttaglist = cmp.getList("SpawnPotentials", 10);
 +
 +                    for (int j = 0; j < nbttaglist.size(); ++j) {
-+                        NBTTagCompound nbttagcompound1 = nbttaglist.getCompound(j);
++                        CompoundTag nbttagcompound1 = nbttaglist.getCompound(j);
 +
 +                        convertCompound(LegacyType.ENTITY, nbttagcompound1, "Entity", sourceVer, targetVer);
 +                    }
@@ -2658,38 +2640,37 @@ index 0000000000000000000000000000000000000000..eab8cdadd7e331f132c92e475e6273e9
 +    }
 +
 +    private static class DataInspectorCommandBlock implements DataInspector {
-+        MinecraftKey tileEntityCommand = getKey("TileEntityCommand");
++        ResourceLocation tileEntityCommand = getKey("TileEntityCommand");
 +
 +        @Override
-+        public NBTTagCompound inspect(NBTTagCompound cmp, int sourceVer, int targetVer) {
-+            if (tileEntityCommand.equals(new MinecraftKey(cmp.getString("id")))) {
-+                cmp.setString("id", "Control");
++        public CompoundTag inspect(CompoundTag cmp, int sourceVer, int targetVer) {
++            if (tileEntityCommand.equals(new ResourceLocation(cmp.getString("id")))) {
++                cmp.putString("id", "Control");
 +                convert(LegacyType.BLOCK_ENTITY, cmp, sourceVer, targetVer);
-+                cmp.setString("id", "MinecartCommandBlock");
++                cmp.putString("id", "MinecartCommandBlock");
 +            }
 +
 +            return cmp;
 +        }
 +    }
 +}
-diff --git a/src/main/java/net/minecraft/util/datafix/DataConverterRegistry.java b/src/main/java/net/minecraft/util/datafix/DataConverterRegistry.java
-index 28e36ee76da533f8aa0a09cfc4f1fc0f744af715..ae9d398a37db04036a9fb125e3b49fc58d05f1a9 100644
---- a/src/main/java/net/minecraft/util/datafix/DataConverterRegistry.java
-+++ b/src/main/java/net/minecraft/util/datafix/DataConverterRegistry.java
-@@ -12,6 +12,7 @@ import java.util.function.BiFunction;
- import java.util.function.UnaryOperator;
- import net.minecraft.SharedConstants;
- import net.minecraft.SystemUtils;
+diff --git a/src/main/java/net/minecraft/util/datafix/DataFixers.java b/src/main/java/net/minecraft/util/datafix/DataFixers.java
+index f7c100c975210ba3c3af68311ee53f845ebe8dd3..69e377957da6952b32933dcd5481ab928e07c807 100644
+--- a/src/main/java/net/minecraft/util/datafix/DataFixers.java
++++ b/src/main/java/net/minecraft/util/datafix/DataFixers.java
+@@ -1,5 +1,6 @@
+ package net.minecraft.util.datafix;
+ 
 +import com.empireminecraft.DataConverters;
- import net.minecraft.util.datafix.fixes.ChunkConverterPalette;
- import net.minecraft.util.datafix.fixes.DataConverterAddChoices;
- import net.minecraft.util.datafix.fixes.DataConverterAdvancement;
-@@ -202,7 +203,7 @@ public class DataConverterRegistry {
-     private static final DataFixer c = b();
+ import com.google.common.collect.ImmutableMap;
+ import com.mojang.datafixers.DSL;
+ import com.mojang.datafixers.DataFixer;
+@@ -80,7 +81,7 @@ public class DataFixers {
+     public DataFixers() {}
  
-     private static DataFixer b() {
--        DataFixerBuilder datafixerbuilder = new DataFixerBuilder(SharedConstants.getGameVersion().getWorldVersion());
-+        DataConverters datafixerbuilder = new DataConverters(SharedConstants.getGameVersion().getWorldVersion()); // Paper
+     private static DataFixer createFixerUpper() {
+-        DataFixerBuilder datafixerbuilder = new DataFixerBuilder(SharedConstants.getCurrentVersion().getWorldVersion());
++        DataConverters datafixerbuilder = new DataConverters(SharedConstants.getCurrentVersion().getWorldVersion()); // Paper
  
-         a(datafixerbuilder);
-         return datafixerbuilder.build(SystemUtils.e());
+         DataFixers.addFixers(datafixerbuilder);
+         return datafixerbuilder.build(Util.bootstrapExecutor());

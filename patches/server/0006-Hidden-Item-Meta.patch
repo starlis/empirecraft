@@ -1,0 +1,179 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Wed, 27 Feb 2013 23:27:45 -0500
+Subject: [PATCH] Hidden Item Meta
+
+This adds the ability to store hidden metadata in item lore.
+
+Simply set a line to "&&::META" and every blank line before, that line, and every line after will be hidden from view on the client.
+
+for example, you can set &&::META on line 20, and there will not be 19 blank lines before it.
+Then you can store Data on 21+
+
+Also adds a &&::SHINY tag to send a fake enchantment aura if it does not exists.
+Must be set before META
+
+diff --git a/src/main/java/com/empireminecraft/api/HiddenItemMeta.java b/src/main/java/com/empireminecraft/api/HiddenItemMeta.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..4fd2df47edee792327da7fbb434f184a7bec44ef
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/api/HiddenItemMeta.java
+@@ -0,0 +1,98 @@
++package com.empireminecraft.api;
++
++import net.minecraft.nbt.CompoundTag;
++import net.minecraft.nbt.ListTag;
++import net.minecraft.nbt.StringTag;
++import net.minecraft.network.chat.Component;
++
++public final class HiddenItemMeta {
++    private HiddenItemMeta() {
++    }
++
++    public static CompoundTag filterItemLore(CompoundTag nbttagcompound, boolean storeOriginal) {
++        if (nbttagcompound != null && nbttagcompound.contains("display")) {
++            CompoundTag display = nbttagcompound.getCompound("display");
++            if (display.contains("Lore")) {
++                ListTag lore = display.getList("Lore", 8);
++                int lastLine = 0;
++                boolean hasSpecial = false;
++                boolean hasShiny = false;
++                for (int i = 0; i < lore.size(); i++) {
++                    String line = lore.getString(i);
++                    if (line.startsWith("{") && line.endsWith("}")) {
++                        Component component = Component.Serializer.fromJson(line);
++                        line = component != null ? component.getString() : line;
++                    }
++
++                    if ("&&::META".equals(line)) {
++                        hasSpecial = true;
++                        break;
++                    } else if (!line.isEmpty()) {
++                        if ("&&::SHINY".equals(line)) {
++                            hasShiny = true;
++                            hasSpecial = true;
++                            break;
++                        } else {
++                            lastLine = i+1;
++                        }
++                    }
++                }
++                if (hasSpecial) {
++                    ListTag newlore = new ListTag();
++                    for (int x = 0; x < lastLine; x++) {
++                        newlore.add(StringTag.valueOf(lore.getString(x)));
++                    }
++
++                    nbttagcompound = nbttagcompound.copy();
++                    if (hasShiny && !nbttagcompound.contains("Enchantments")) {
++                        ListTag nbtbase = new ListTag();
++                        CompoundTag enchant = new CompoundTag();
++                        enchant.putShort("id", (short) 1);
++                        enchant.putShort("lvl", (short) 1);
++                        nbtbase.add(enchant);
++                        nbttagcompound.put("Enchantments" , nbtbase);
++                        int flags = 1;
++                        if (nbttagcompound.contains("HideFlags")) {
++                            flags = nbttagcompound.getInt("HideFlags");
++                            nbttagcompound.putInt("HideFlagsOrig", flags);
++                            flags &= 1;
++                        } else {
++                            nbttagcompound.remove("HideFlagsOrig");
++                        }
++                        nbttagcompound.putInt("HideFlags", flags);
++                        nbttagcompound.putInt("fakeench", 1);
++                    }
++                    display = nbttagcompound.getCompound("display");
++                    display.put("Lore", newlore);
++                    if (storeOriginal) {
++                        display.put("OriginalLore", lore);
++                    }
++                }
++            }
++        }
++        return nbttagcompound;
++    }
++
++    public static CompoundTag restoreItemLore(CompoundTag tag) {
++        if (tag.contains("display")) {
++            CompoundTag display = tag.getCompound("display");
++            if (display.contains("OriginalLore")) {
++                display.put("Lore", display.getList("OriginalLore", 8));
++                display.remove("OriginalLore");
++            }
++        }
++        // If shiny was used
++        if (tag.contains("fakeench")) {
++            int orig = tag.getInt("HideFlagsOrig");
++            if (tag.contains("HideFlagsOrig") && orig != 1) {
++                tag.putInt("HideFlags", orig);
++            } else {
++                tag.remove("HideFlags");
++            }
++            tag.remove("fakeench");
++            tag.remove("Enchantments");
++            tag.remove("HideFlagsOrig");
++        }
++        return tag;
++    }
++}
+diff --git a/src/main/java/net/minecraft/network/FriendlyByteBuf.java b/src/main/java/net/minecraft/network/FriendlyByteBuf.java
+index 813814a09ad4c8040d9bf7fff12c8c7b88f164c2..c0b65fa32b2fcda8ab52ef926406cf0616d7cfac 100644
+--- a/src/main/java/net/minecraft/network/FriendlyByteBuf.java
++++ b/src/main/java/net/minecraft/network/FriendlyByteBuf.java
+@@ -477,6 +477,7 @@ public class FriendlyByteBuf extends ByteBuf {
+                 // Spigot end
+                 nbttagcompound = stack.getTag();
+                 // Paper start
++                com.empireminecraft.api.HiddenItemMeta.filterItemLore(nbttagcompound, true); // EMC
+                 if (nbttagcompound != null && nbttagcompound.contains("SkullOwner", 10)) {
+                     CompoundTag owner = nbttagcompound.getCompound("SkullOwner");
+                     if (owner.hasUUID("Id")) {
+@@ -505,6 +506,7 @@ public class FriendlyByteBuf extends ByteBuf {
+             // CraftBukkit start
+             if (itemstack.getTag() != null) {
+                 // Paper start - Fix skulls of same owner - restore orig ID since we changed it on send to client
++                com.empireminecraft.api.HiddenItemMeta.restoreItemLore(itemstack.tag); // EMC - get around creative menu having ultimate control of the NBT...
+                 if (itemstack.tag.contains("SkullOwnerOrig")) {
+                     CompoundTag owner = itemstack.tag.getCompound("SkullOwner");
+                     if (itemstack.tag.contains("SkullOwnerOrig")) {
+diff --git a/src/main/java/net/minecraft/world/item/ItemStack.java b/src/main/java/net/minecraft/world/item/ItemStack.java
+index f85e9fb13ddeb5c3260592e3cdfe958a14bd63f6..26fe5aa864e3a30ebbe970a0e151adc81a6257cb 100644
+--- a/src/main/java/net/minecraft/world/item/ItemStack.java
++++ b/src/main/java/net/minecraft/world/item/ItemStack.java
+@@ -71,6 +71,7 @@ import net.minecraft.core.Registry;
+ import net.minecraft.nbt.CompoundTag;
+ import net.minecraft.nbt.ListTag;
+ import net.minecraft.nbt.NbtOps;
++import net.minecraft.nbt.StringTag;
+ import net.minecraft.network.chat.Component;
+ import net.minecraft.network.chat.ComponentUtils;
+ import net.minecraft.network.chat.HoverEvent;
+@@ -1226,8 +1227,26 @@ public final class ItemStack {
+         MutableComponent ichatmutablecomponent1 = ComponentUtils.wrapInSquareBrackets((Component) ichatmutablecomponent);
+ 
+         if (!this.emptyCacheFlag) {
++            // EMC start
++            CompoundTag nbttagcompound = this.save(new CompoundTag());
++            if (nbttagcompound.contains("tag")) {
++                CompoundTag tag = com.empireminecraft.api.HiddenItemMeta.filterItemLore(nbttagcompound.getCompound("tag"), false);
++                CompoundTag display = tag.getCompound("display");
++                if (display.contains("Lore")) {
++                    ListTag lore = display.getList("Lore", 8);
++                    ListTag newlore = new ListTag();
++                    for (int i = 0; i < lore.size(); i++) {
++                        String line = lore.getString(i);
++                        String newline = (line.isEmpty() ? " " : line);
++                        newlore.add(StringTag.valueOf(newline));
++                    }
++                    display.put("Lore", newlore);
++                }
++                nbttagcompound.put("tag", tag);
++            }
++            // EMC end
+             ichatmutablecomponent1.withStyle(this.getRarity().color).withStyle((chatmodifier) -> {
+-                return chatmodifier.withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_ITEM, new HoverEvent.ItemStackInfo(this)));
++                return chatmodifier.withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_ITEM, new HoverEvent.ItemStackInfo(this, this.getCount(), tag))); // EMC - use different constructor
+             });
+         }
+ 
