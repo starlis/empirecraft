@@ -1,0 +1,1463 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Thu, 4 Jul 2013 21:04:26 -0400
+Subject: [PATCH] Persistent and Temporary Metadata API
+
+Entity, TileEntity, World, Chunk, Block, Inventory API's
+
+diff --git a/src/main/java/com/empireminecraft/api/API.java b/src/main/java/com/empireminecraft/api/API.java
+index d71c58751956fb560cc2bf18ac672dd87f28ee86..e605ed7a4201d42110db4430fcc2bf06ccb21e8f 100644
+--- a/src/main/java/com/empireminecraft/api/API.java
++++ b/src/main/java/com/empireminecraft/api/API.java
+@@ -23,6 +23,7 @@
+ 
+ package com.empireminecraft.api;
+ 
++import com.empireminecraft.api.meta.EAPI_Meta;
+ import org.apache.commons.lang.exception.ExceptionUtils;
+ import org.jetbrains.annotations.NotNull;
+ import org.jetbrains.annotations.Nullable;
+@@ -31,6 +32,7 @@ public abstract class API {
+ 
+     public static EAPI_Entity entity;
+     public static EAPI_Misc misc;
++    public static EAPI_Meta meta;
+ 
+     @NotNull
+     public static String stack() {
+diff --git a/src/main/java/com/empireminecraft/api/Vector3i.java b/src/main/java/com/empireminecraft/api/Vector3i.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..29a3feea686c1a0cfa39fd36ba5115ff80138ae1
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/api/Vector3i.java
+@@ -0,0 +1,64 @@
++/*
++ * Copyright (c) 2016 Starlis LLC / Daniel Ennis (Aikar) - MIT License
++ *
++ *  Permission is hereby granted, free of charge, to any person obtaining
++ *  a copy of this software and associated documentation files (the
++ *  "Software"), to deal in the Software without restriction, including
++ *  without limitation the rights to use, copy, modify, merge, publish,
++ *  distribute, sublicense, and/or sell copies of the Software, and to
++ *  permit persons to whom the Software is furnished to do so, subject to
++ *  the following conditions:
++ *
++ *  The above copyright notice and this permission notice shall be
++ *  included in all copies or substantial portions of the Software.
++ *
++ *  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ *  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
++ *  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ *  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
++ *  LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
++ *  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
++ *  WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package com.empireminecraft.api;
++
++@SuppressWarnings("PublicInnerClass")
++public final class Vector3i {
++    public final int x;
++    public final int y;
++    public final int z;
++
++    public Vector3i(int x, int y, int z) {
++        this.x = x;
++        this.y = y;
++        this.z = z;
++    }
++
++    @Override
++    public boolean equals(Object o) {
++        if (this == o) { return true; }
++        if (o == null || getClass() != o.getClass()) { return false; }
++
++        Vector3i vector = (Vector3i) o;
++
++        return (x == vector.x && z == vector.z && y == vector.y);
++    }
++
++    @Override
++    public int hashCode() {
++        int result = x;
++        result = result * 73 + y;
++        result = result * 73 + z;
++        return result;
++    }
++
++    @Override
++    public String toString() {
++        return "BlockPos{" +
++            "x=" + x +
++            ", y=" + y +
++            ", z=" + z +
++            '}';
++    }
++}
+diff --git a/src/main/java/com/empireminecraft/api/meta/EAPI_Meta.java b/src/main/java/com/empireminecraft/api/meta/EAPI_Meta.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..5eac6d55681f88b90d453d9d32197fae6e92cae0
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/api/meta/EAPI_Meta.java
+@@ -0,0 +1,69 @@
++/*
++ * Copyright (c) 2016 Starlis LLC / Daniel Ennis (Aikar) - MIT License
++ *
++ *  Permission is hereby granted, free of charge, to any person obtaining
++ *  a copy of this software and associated documentation files (the
++ *  "Software"), to deal in the Software without restriction, including
++ *  without limitation the rights to use, copy, modify, merge, publish,
++ *  distribute, sublicense, and/or sell copies of the Software, and to
++ *  permit persons to whom the Software is furnished to do so, subject to
++ *  the following conditions:
++ *
++ *  The above copyright notice and this permission notice shall be
++ *  included in all copies or substantial portions of the Software.
++ *
++ *  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ *  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
++ *  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ *  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
++ *  LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
++ *  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
++ *  WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package com.empireminecraft.api.meta;
++
++import com.empireminecraft.api.Vector3i;
++import com.empireminecraft.api.meta.MetaKey.TempKey;
++import org.bukkit.Chunk;
++import org.bukkit.Location;
++import org.bukkit.World;
++import org.bukkit.block.Block;
++import org.bukkit.block.BlockState;
++import org.bukkit.entity.Entity;
++import org.jetbrains.annotations.Contract;
++import org.jetbrains.annotations.NotNull;
++import org.jetbrains.annotations.Nullable;
++
++import java.util.Map;
++
++public interface EAPI_Meta {
++    @Nullable
++    PersistentMetaMap getTileEntityMetaMap(@NotNull BlockState tileEntity, boolean isWrite);
++
++    @Nullable
++    @Contract("_, true -> !null")
++    PersistentMetaMap getBlockMetaMap(@NotNull Location loc, boolean isWrite);
++
++    @Nullable
++    @Contract("_, true -> !null")
++    PersistentMetaMap getChunkMetaMap(@NotNull Chunk chunk, boolean isWrite);
++
++    @Nullable
++    @Contract("_, true -> !null")
++    TempMetaMap getChunkTempMetaMap(@NotNull Chunk chunk, boolean isWrite);
++
++    @Nullable
++    Map<Vector3i,PersistentMetaMap> getChunkMetaData(@NotNull Chunk chunk);
++
++    @Nullable
++    @Contract("_, true -> !null")
++    PersistentMetaMap getEntityMetaMap(@NotNull Entity entity, boolean isWrite);
++
++    @NotNull
++    PersistentMetaMap getWorldMetaMap(@NotNull World world);
++
++    @Nullable
++    @Contract("_, true -> !null")
++    Map<String,Object> getBlockTempMeta(@NotNull Block block, boolean isWrite);
++}
+diff --git a/src/main/java/com/empireminecraft/api/meta/Meta.java b/src/main/java/com/empireminecraft/api/meta/Meta.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..28976a889ed64d4892223d48774eb856621c1b3f
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/api/meta/Meta.java
+@@ -0,0 +1,635 @@
++/*
++ * Copyright (c) 2016 Starlis LLC / Daniel Ennis (Aikar) - MIT License
++ *
++ *  Permission is hereby granted, free of charge, to any person obtaining
++ *  a copy of this software and associated documentation files (the
++ *  "Software"), to deal in the Software without restriction, including
++ *  without limitation the rights to use, copy, modify, merge, publish,
++ *  distribute, sublicense, and/or sell copies of the Software, and to
++ *  permit persons to whom the Software is furnished to do so, subject to
++ *  the following conditions:
++ *
++ *  The above copyright notice and this permission notice shall be
++ *  included in all copies or substantial portions of the Software.
++ *
++ *  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ *  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
++ *  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ *  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
++ *  LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
++ *  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
++ *  WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package com.empireminecraft.api.meta;
++
++import com.empireminecraft.api.API;
++import com.empireminecraft.api.Vector3i;
++import com.empireminecraft.api.meta.MetaKey.PersistentKey;
++import com.empireminecraft.api.meta.MetaKey.TempKey;
++import org.bukkit.Chunk;
++import org.bukkit.Location;
++import org.bukkit.World;
++import org.bukkit.block.Block;
++import org.bukkit.block.BlockState;
++import org.bukkit.entity.Entity;
++import org.bukkit.inventory.Inventory;
++import org.bukkit.inventory.ItemStack;
++import org.jetbrains.annotations.Contract;
++import org.jetbrains.annotations.NotNull;
++import org.jetbrains.annotations.Nullable;
++
++import java.util.Map;
++
++@SuppressWarnings({"WeakerAccess", "unused"})
++public final class Meta {
++    private Meta() {}
++
++    //////////////////////////////////////////////////
++    //// UTIL & KEYS
++    //////////////////////////////////////////////////
++
++    @NotNull
++    public static TempKey createTempKey(@NotNull String key) {
++        return new TempKeyImpl(key);
++    }
++    @NotNull
++    public static PersistentKey createPersistentKey(@NotNull String key) {
++        return new PersistentKeyImpl(key);
++    }
++
++    /**
++     * Checks if the passed object can be stored as Meta Data
++     * @param value
++     * @return
++     */
++    public static boolean isValidPersistentMeta(@Nullable Object value) {
++        return (value instanceof String) || (value instanceof Long) ||
++                (value instanceof Integer) || (value instanceof ItemStack) ||
++                (value instanceof Float) || (value instanceof Double) ||
++                (value instanceof PersistentMetaMap) || (value instanceof PersistentMetaList);
++    }
++
++    /**
++     * General method for determining if value is null to remove it, else set.
++     * Return previous value
++     *
++     * @param map
++     * @param key
++     * @param val
++     * @param <T>
++     * @return
++     */
++    @Nullable
++    private static <T, K extends MetaKey> T setMetaMapValue(@NotNull MetaMap<K> map, @NotNull K key, @Nullable Object val) {
++        if (val == null) {
++            return (T) map.remove(key.key());
++        } else {
++            return (T) map.put(key.key(), val);
++        }
++    }
++
++
++    //////////////////////////////////////////////////
++    //// PERSISTENT WORLD META
++    //////////////////////////////////////////////////
++
++    @NotNull
++    public static PersistentMetaMap getWorldPersistentMetaMap(@NotNull World world) {
++        return API.meta.getWorldMetaMap(world);
++    }
++
++    @Nullable
++    public static <T> T getWorldMeta(@NotNull World world, @NotNull PersistentKey key) {
++        return getWorldMeta(world, key, null);
++    }
++
++    @Nullable
++    @Contract("_, _, !null -> !null")
++    public static <T> T getWorldMeta(@NotNull World world, @NotNull PersistentKey key, @Nullable T def) {
++        final PersistentMetaMap worldMetaMap = getWorldPersistentMetaMap(world);
++        T ret = !worldMetaMap.isEmpty() ? (T) worldMetaMap.get(key.key()) : null;
++        return ret != null ? ret : def;
++    }
++
++    public static boolean hasWorldMeta(@NotNull World world, @NotNull PersistentKey key) {
++        final PersistentMetaMap worldMetaMap = getWorldPersistentMetaMap(world);
++        return !worldMetaMap.isEmpty() && worldMetaMap.containsKey(key.key());
++    }
++
++    @Nullable
++    public static <T> T setWorldMeta(@NotNull World world, @NotNull PersistentKey key, @Nullable Object val) {
++        return setMetaMapValue(getWorldPersistentMetaMap(world), key, val);
++    }
++
++    @Nullable
++    public static <T> T removeWorldMeta(@NotNull World world, @NotNull PersistentKey key) {
++        return setWorldMeta(world, key, null);
++    }
++
++    public static double incrementWorldMeta(@NotNull World world, @NotNull PersistentKey key, double amount) {
++        return incrementWorldMeta(world, key, amount, 0D);
++    }
++
++    public static double incrementWorldMeta(@NotNull World world, @NotNull PersistentKey key, double amount, double start) {
++        double val = getWorldMeta(world, key, start);
++        val += amount;
++        setWorldMeta(world, key, val);
++        return val;
++    }
++
++    public static long incrementWorldMeta(@NotNull World world, @NotNull PersistentKey key, long amount) {
++        return incrementWorldMeta(world, key, amount, 0L);
++    }
++
++    public static long incrementWorldMeta(@NotNull World world, @NotNull PersistentKey key, long amount, long start) {
++        long val = getWorldMeta(world, key, start);
++        val += amount;
++        setWorldMeta(world, key, val);
++        return val;
++    }
++
++    //////////////////////////////////////////////////
++    //// PERSISTENT ENTITY META
++    //////////////////////////////////////////////////
++
++    @Nullable
++    @Contract("_, true -> !null")
++    public static PersistentMetaMap getEntityPersistentMetaMap(@NotNull Entity entity, boolean isWrite) {
++        return API.meta.getEntityMetaMap(entity, isWrite);
++    }
++
++    @Nullable
++    public static <T> T getEntityMeta(@NotNull Entity entity, @NotNull PersistentKey key) {
++        return getEntityMeta(entity, key, null);
++    }
++
++    @Nullable
++    @Contract("_, _, !null -> !null")
++    public static <T> T getEntityMeta(@NotNull Entity entity, @NotNull PersistentKey key, @Nullable T def) {
++        final PersistentMetaMap entityMetaMap = getEntityPersistentMetaMap(entity, false);
++        T ret = entityMetaMap != null && !entityMetaMap.isEmpty() ? (T) entityMetaMap.get(key.key()) : null;
++        return ret != null ? ret : def;
++    }
++
++    public static boolean hasEntityMeta(@NotNull Entity entity, @NotNull PersistentKey key) {
++        final PersistentMetaMap entityMetaMap = getEntityPersistentMetaMap(entity, false);
++        return entityMetaMap != null && !entityMetaMap.isEmpty() && entityMetaMap.containsKey(key.key());
++    }
++
++    @Nullable
++    public static <T> T setEntityMeta(@NotNull Entity entity, @NotNull PersistentKey key, @Nullable Object val) {
++        return setMetaMapValue(getEntityPersistentMetaMap(entity, true), key, val);
++    }
++
++    @Nullable
++    public static <T> T removeEntityMeta(@NotNull Entity entity, @NotNull PersistentKey key) {
++        PersistentMetaMap metaMap = getEntityPersistentMetaMap(entity, false);
++        return metaMap != null ? setMetaMapValue(metaMap, key, null) : null;
++    }
++
++    public static double incrementEntityMeta(@NotNull Entity entity, @NotNull PersistentKey key, double val) {
++        return incrementEntityMeta(entity, key, val, 0D);
++    }
++
++    public static double incrementEntityMeta(@NotNull Entity entity, @NotNull PersistentKey key, double amount, double start) {
++        double val = getEntityMeta(entity, key, start);
++        val += amount;
++        setEntityMeta(entity, key, val);
++        return val;
++    }
++
++    public static long incrementEntityMeta(@NotNull Entity entity, @NotNull PersistentKey key, long val) {
++        return incrementEntityMeta(entity, key, val, 0L);
++    }
++
++    public static long incrementEntityMeta(@NotNull Entity entity, @NotNull PersistentKey key, long amount, long start) {
++        long val = getEntityMeta(entity, key, start);
++        val += amount;
++        setEntityMeta(entity, key, val);
++        return val;
++    }
++
++    //////////////////////////////////////////////////
++    //// PERSISTENT CHUNK META
++    //////////////////////////////////////////////////
++
++    /**
++     * Only provided for low level access as debug command
++     * @param chunk
++     * @return
++     */
++    @Deprecated
++    @Nullable
++    public static Map<Vector3i, PersistentMetaMap> getChunkMetaData(@NotNull Chunk chunk) {
++        return API.meta.getChunkMetaData(chunk);
++    }
++
++    @Nullable
++    @Contract("_, true -> !null")
++    public static PersistentMetaMap getChunkPersistentMetaMap(@NotNull Chunk chunk, boolean isWrite) {
++        return API.meta.getChunkMetaMap(chunk, isWrite);
++    }
++
++    public static boolean hasChunkMeta(@NotNull Chunk chunk, @NotNull PersistentKey key) {
++        final PersistentMetaMap chunkMetaMap = getChunkPersistentMetaMap(chunk, false);
++        return chunkMetaMap != null && !chunkMetaMap.isEmpty() && chunkMetaMap.containsKey(key.key());
++    }
++
++    @Nullable
++    public static <T> T getChunkMeta(@NotNull Chunk chunk, @NotNull PersistentKey key) {
++        return getChunkMeta(chunk, key, null);
++    }
++
++    @Nullable
++    @Contract("_, _, !null -> !null")
++    public static <T> T getChunkMeta(@NotNull Chunk chunk, @NotNull PersistentKey key, @Nullable T def) {
++        final PersistentMetaMap chunkMetaMap = getChunkPersistentMetaMap(chunk, false);
++        T ret = chunkMetaMap != null && !chunkMetaMap.isEmpty() ? (T) chunkMetaMap.get(key.key()) : null;
++        return ret != null ? ret : def;
++    }
++
++    @Nullable
++    public static <T> T setChunkMeta(@NotNull Chunk chunk, @NotNull PersistentKey key, @Nullable Object val) {
++        return setMetaMapValue(getChunkPersistentMetaMap(chunk, true), key, val);
++    }
++
++    @Nullable
++    public static <T> T removeChunkMeta(@NotNull Chunk chunk, @NotNull PersistentKey key) {
++        PersistentMetaMap metaMap = getChunkPersistentMetaMap(chunk, false);
++        return metaMap != null ? setMetaMapValue(metaMap, key, null) : null;
++    }
++
++    public static long incrementChunkMeta(@NotNull Chunk chunk, @NotNull PersistentKey key, long amount) {
++        return incrementChunkMeta(chunk, key, amount, 0L);
++    }
++    public static long incrementChunkMeta(@NotNull Chunk chunk, @NotNull PersistentKey key, long amount, long start) {
++        long val = getChunkMeta(chunk, key, start);
++        val += amount;
++        setChunkMeta(chunk, key, val);
++        return val;
++    }
++
++    public static double incrementChunkMeta(@NotNull Chunk chunk, @NotNull PersistentKey key, double amount) {
++        return incrementChunkMeta(chunk, key, amount, 0D);
++    }
++    public static double incrementChunkMeta(@NotNull Chunk chunk, @NotNull PersistentKey key, double amount, double start) {
++        double val = getChunkMeta(chunk, key, start);
++        val += amount;
++        setChunkMeta(chunk, key, val);
++        return val;
++    }
++
++    //////////////////////////////////////////////////
++    //// PERSISTENT BLOCK META
++    //////////////////////////////////////////////////
++
++    @Nullable
++    @Contract("_, true -> !null")
++    public static PersistentMetaMap getBlockPersistentMetaMap(@NotNull Location loc, boolean isWrite) {
++        return API.meta.getBlockMetaMap(loc, isWrite);
++    }
++
++    public static boolean hasBlockMeta(@NotNull Location loc, @NotNull PersistentKey key) {
++        final PersistentMetaMap blockMetaMap = getBlockPersistentMetaMap(loc, false);
++        return blockMetaMap != null && !blockMetaMap.isEmpty() && blockMetaMap.containsKey(key.key());
++    }
++
++    @Nullable
++    public static <T> T getBlockMeta(@NotNull Location loc, @NotNull PersistentKey key) {
++        return getBlockMeta(loc, key, null);
++    }
++
++    @Nullable
++    @Contract("_, _, !null -> !null")
++    public static <T> T getBlockMeta(@NotNull Location loc, @NotNull PersistentKey key, @Nullable T def) {
++        final PersistentMetaMap blockMetaMap = getBlockPersistentMetaMap(loc, false);
++        T ret = blockMetaMap != null && !blockMetaMap.isEmpty() ? (T) blockMetaMap.get(key.key()) : null;
++        return ret != null ? ret : def;
++    }
++
++    @Nullable
++    public static <T> T setBlockMeta(@NotNull Location loc, @NotNull PersistentKey key, @Nullable Object val) {
++        return setMetaMapValue(getBlockPersistentMetaMap(loc, true), key, val);
++    }
++
++    @Nullable
++    public static <T> T removeBlockMeta(@NotNull Location loc, @NotNull PersistentKey key) {
++        PersistentMetaMap metaMap = getBlockPersistentMetaMap(loc, false);
++        return metaMap != null ? setMetaMapValue(metaMap, key, null) : null;
++    }
++
++    public static long incrementBlockMeta(@NotNull Location loc, @NotNull PersistentKey key, long amount) {
++        return incrementBlockMeta(loc, key, amount, 0L);
++    }
++    public static long incrementBlockMeta(@NotNull Location loc, @NotNull PersistentKey key, long amount, long start) {
++        long val = getBlockMeta(loc, key, start);
++        val += amount;
++        setBlockMeta(loc, key, val);
++        return val;
++    }
++
++    public static double incrementBlockMeta(@NotNull Location loc, @NotNull PersistentKey key, double amount) {
++        return incrementBlockMeta(loc, key, amount, 0D);
++    }
++    public static double incrementBlockMeta(@NotNull Location loc, @NotNull PersistentKey key, double amount, double start) {
++        double val = getBlockMeta(loc, key, start);
++        val += amount;
++        setBlockMeta(loc, key, val);
++        return val;
++    }
++
++    //////////////////////////////////////////////////
++    //// PERSISTENT TILE ENTITY META
++    //////////////////////////////////////////////////
++
++    @Nullable
++    public static PersistentMetaMap getTileEntityPersistentMetaMap(@NotNull Location tileEntity, boolean isWrite) {
++        return API.meta.getTileEntityMetaMap(tileEntity.getBlock().getState(), isWrite);
++    }
++
++    @Nullable
++    public static PersistentMetaMap getTileEntityPersistentMetaMap(@NotNull BlockState tileEntity, boolean isWrite) {
++        return API.meta.getTileEntityMetaMap(tileEntity, isWrite);
++    }
++
++    public static boolean hasTileEntityMeta(@NotNull Location tileEntity, @NotNull PersistentKey key) {
++        return hasTileEntityMeta(tileEntity.getBlock().getState(), key);
++    }
++
++    public static boolean hasTileEntityMeta(@NotNull BlockState tileEntity, @NotNull PersistentKey key) {
++        final PersistentMetaMap tileEntityMetaMap = getTileEntityPersistentMetaMap(tileEntity, false);
++        return tileEntityMetaMap != null && !tileEntityMetaMap.isEmpty() && tileEntityMetaMap.containsKey(key.key());
++    }
++
++    @Nullable
++    public static <T> T getTileEntityMeta(@NotNull Location tileEntity, @NotNull PersistentKey key) {
++        return getTileEntityMeta(tileEntity.getBlock().getState(), key, null);
++    }
++
++    @Nullable
++    public static <T> T getTileEntityMeta(@NotNull BlockState tileEntity, @NotNull PersistentKey key) {
++        return getTileEntityMeta(tileEntity, key, null);
++    }
++
++    @Nullable
++    public static <T> T getTileEntityMeta(@NotNull Location tileEntity, @NotNull PersistentKey key, @Nullable T def) {
++        return getTileEntityMeta(tileEntity.getBlock().getState(), key, def);
++    }
++
++    @Nullable
++    public static <T> T getTileEntityMeta(@NotNull BlockState tileEntity, @NotNull PersistentKey key, @Nullable T def) {
++        final PersistentMetaMap tileEntityMetaMap = getTileEntityPersistentMetaMap(tileEntity, false);
++        T ret = tileEntityMetaMap != null && !tileEntityMetaMap.isEmpty() ? (T) tileEntityMetaMap.get(key.key()) : null;
++        return ret != null ? ret : def;
++    }
++
++    @Nullable
++    public static <T> T setTileEntityMeta(@NotNull Location tileEntity, @NotNull PersistentKey key, @Nullable Object val) {
++        return setTileEntityMeta(tileEntity.getBlock().getState(), key, val);
++    }
++
++    @Nullable
++    public static <T> T setTileEntityMeta(@NotNull BlockState tileEntity, @NotNull PersistentKey key, @Nullable Object val) {
++        PersistentMetaMap metaMap = getTileEntityPersistentMetaMap(tileEntity, true);
++        return metaMap != null ? setMetaMapValue(metaMap, key, val) : null;
++    }
++
++    @Nullable
++    public static <T> T removeTileEntityMeta(@NotNull Location tileEntity, @NotNull PersistentKey key) {
++        return removeTileEntityMeta(tileEntity.getBlock().getState(), key);
++    }
++
++    @Nullable
++    public static <T> T removeTileEntityMeta(@NotNull BlockState tileEntity, @NotNull PersistentKey key) {
++        PersistentMetaMap metaMap = getTileEntityPersistentMetaMap(tileEntity, false);
++        return metaMap != null ? setMetaMapValue(metaMap, key, null) : null;
++    }
++
++    //////////////////////////////////////////////////
++    //// TEMP ENTITY META
++    //////////////////////////////////////////////////
++
++    @NotNull
++    public static TempMetaMap getEntityTempMetaMap(@NotNull Entity entity) {
++        return entity.getTempMeta();
++    }
++
++    public static boolean hasEntityMeta(@NotNull Entity entity, @NotNull TempKey key) {
++        TempMetaMap metaMap = getEntityTempMetaMap(entity);
++        return metaMap.containsKey(key.key());
++    }
++
++    @Nullable
++    public static <T> T setEntityMeta(@NotNull Entity entity, @NotNull TempKey key, @Nullable Object val) {
++        TempMetaMap metaMap = getEntityTempMetaMap(entity);
++        return (T) metaMap.put(key.key(), val);
++    }
++
++    @Nullable
++    public static <T> T removeEntityMeta(@NotNull Entity entity, @NotNull TempKey key) {
++        TempMetaMap metaMap = getEntityTempMetaMap(entity);
++        return (T) metaMap.remove(key.key());
++    }
++
++    @Nullable
++    public static <T> T getEntityMeta(@NotNull Entity entity, @NotNull TempKey key) {
++        return getEntityMeta(entity, key, null);
++    }
++
++    @Nullable
++    @Contract("_, _, !null -> !null")
++    public static <T> T getEntityMeta(@NotNull Entity entity, @NotNull TempKey key, @Nullable T def) {
++        TempMetaMap metaMap = getEntityTempMetaMap(entity);
++        T val = (T) metaMap.get(key.key());
++        return val != null ? val : def;
++    }
++
++    public static long incrementEntityMeta(@NotNull Entity entity, @NotNull TempKey key, long amount) {
++        return incrementEntityMeta(entity, key, amount, 0L);
++    }
++    public static long incrementEntityMeta(@NotNull Entity entity, @NotNull TempKey key, long amount, long start) {
++        long val = getEntityMeta(entity, key, start);
++        val += amount;
++        setEntityMeta(entity, key, val);
++        return val;
++    }
++
++    public static double incrementEntityMeta(@NotNull Entity entity, @NotNull TempKey key, double amount) {
++        return incrementEntityMeta(entity, key, amount, 0D);
++    }
++    public static double incrementEntityMeta(@NotNull Entity entity, @NotNull TempKey key, double amount, double start) {
++        double val = getEntityMeta(entity, key, start);
++        val += amount;
++        setEntityMeta(entity, key, val);
++        return val;
++    }
++
++    //////////////////////////////////////////////////
++    //// TEMP BLOCK META
++    //////////////////////////////////////////////////
++
++    public static boolean hasBlockMeta(@NotNull Block block, @NotNull TempKey key) {
++        Map<String, Object> blockMeta = API.meta.getBlockTempMeta(block, false);
++        return blockMeta != null && blockMeta.containsKey(key.key());
++    }
++
++    @Nullable
++    public static <T> T setBlockMeta(@NotNull Block block, @NotNull TempKey key, @Nullable Object val) {
++        Map<String, Object> blockMeta = API.meta.getBlockTempMeta(block, true);
++        return (T) blockMeta.put(key.key(), val);
++    }
++
++    @Nullable
++    public static <T> T removeBlockMeta(@NotNull Block block, @NotNull TempKey key) {
++        Map<String, Object> blockMeta = API.meta.getBlockTempMeta(block, true);
++        return (T) blockMeta.remove(key.key());
++    }
++
++    @Nullable
++    public static <T> T getBlockMeta(@NotNull Block block, @NotNull TempKey key) {
++        return getBlockMeta(block, key, null);
++    }
++
++    @Nullable
++    @Contract("_, _, !null -> !null")
++    public static <T> T getBlockMeta(@NotNull Block block, @NotNull TempKey key, @Nullable T def) {
++        Map<String, Object> blockMeta = API.meta.getBlockTempMeta(block, false);
++        T val = blockMeta != null ? (T) blockMeta.get(key.key()) : null;
++        return val != null ? val : def;
++    }
++
++    public static long incrementBlockMeta(@NotNull Block block, @NotNull TempKey key, long amount) {
++        return incrementBlockMeta(block, key, amount, 0L);
++    }
++    public static long incrementBlockMeta(@NotNull Block block, @NotNull TempKey key, long amount, long start) {
++        long val = getBlockMeta(block, key, start);
++        val += amount;
++        setBlockMeta(block, key, val);
++        return val;
++    }
++
++    public static double incrementBlockMeta(@NotNull Block block, @NotNull TempKey key, double amount) {
++        return incrementBlockMeta(block, key, amount, 0D);
++    }
++    public static double incrementBlockMeta(@NotNull Block block, @NotNull TempKey key, double amount, double start) {
++        double val = getBlockMeta(block, key, start);
++        val += amount;
++        setBlockMeta(block, key, val);
++        return val;
++    }
++
++    //////////////////////////////////////////////////
++    //// TEMP CHUNK META
++    //////////////////////////////////////////////////
++
++    @Nullable
++    @Contract("_, true -> !null")
++    public static TempMetaMap getChunkTempMetaMap(@NotNull Chunk chunk, boolean isWrite) {
++        return API.meta.getChunkTempMetaMap(chunk, isWrite);
++    }
++
++    public static boolean hasChunkMeta(@NotNull Chunk chunk, @NotNull TempKey key) {
++        final TempMetaMap chunkMetaMap = getChunkTempMetaMap(chunk, false);
++        return chunkMetaMap != null && !chunkMetaMap.isEmpty() && chunkMetaMap.containsKey(key);
++    }
++
++    @Nullable
++    public static <T> T getChunkMeta(@NotNull Chunk chunk, @NotNull TempKey key) {
++        return getChunkMeta(chunk, key, null);
++    }
++
++    @Nullable
++    @Contract("_, _, !null -> !null")
++    public static <T> T getChunkMeta(@NotNull Chunk chunk, @NotNull TempKey key, @Nullable T def) {
++        final TempMetaMap chunkMetaMap = getChunkTempMetaMap(chunk, false);
++        T ret = chunkMetaMap != null && !chunkMetaMap.isEmpty() ? (T) chunkMetaMap.get(key) : null;
++        return ret != null ? ret : def;
++    }
++
++    @Nullable
++    public static <T> T setChunkMeta(@NotNull Chunk chunk, @NotNull TempKey key, @Nullable Object val) {
++        TempMetaMap chunkMap = getChunkTempMetaMap(chunk, true);
++        return setMetaMapValue(chunkMap, key, val);
++    }
++
++    @Nullable
++    public static <T> T removeChunkMeta(@NotNull Chunk chunk, @NotNull TempKey key) {
++        TempMetaMap chunkMap = getChunkTempMetaMap(chunk, false);
++        return chunkMap != null ? setMetaMapValue(chunkMap, key, null): null;
++    }
++
++    public static long incrementChunkMeta(@NotNull Chunk chunk, @NotNull TempKey key, long amount) {
++        return incrementChunkMeta(chunk, key, amount, 0L);
++    }
++    public static long incrementChunkMeta(@NotNull Chunk chunk, @NotNull TempKey key, long amount, long start) {
++        long val = getChunkMeta(chunk, key, start);
++        val += amount;
++        setChunkMeta(chunk, key, val);
++        return val;
++    }
++
++    public static double incrementChunkMeta(@NotNull Chunk chunk, @NotNull TempKey key, double amount) {
++        return incrementChunkMeta(chunk, key, amount, 0D);
++    }
++    public static double incrementChunkMeta(@NotNull Chunk chunk, @NotNull TempKey key, double amount, double start) {
++        double val = getChunkMeta(chunk, key, start);
++        val += amount;
++        setChunkMeta(chunk, key, val);
++        return val;
++    }
++
++    //////////////////////////////////////////////////
++    //// TEMP INVENTORY META
++    //////////////////////////////////////////////////
++
++    public static boolean hasInventoryMeta(@NotNull Inventory inv, @NotNull TempKey key) {
++        return inv.getMeta().containsKey(key.key());
++    }
++
++    @Nullable
++    public static <T> T setInventoryMeta(@NotNull Inventory inv, @NotNull TempKey key, @Nullable Object val) {
++        return (T) inv.getMeta().put(key.key(), val);
++    }
++
++    @Nullable
++    public static <T> T removeInventoryMeta(@NotNull Inventory inv, @NotNull TempKey key) {
++        return (T) inv.getMeta().remove(key.key());
++    }
++
++    @Nullable
++    public static <T> T getInventoryMeta(@NotNull Inventory inv, @NotNull TempKey key) {
++        return getInventoryMeta(inv, key, null);
++    }
++
++    @Nullable
++    @Contract("_, _, !null -> !null")
++    public static <T> T getInventoryMeta(@NotNull Inventory inv, @NotNull TempKey key, @Nullable T def) {
++        Object val = inv.getMeta().get(key.key());
++        if (val != null) {
++            return (T) val;
++        }
++        return def;
++    }
++
++    public static long incrementInventoryMeta(@NotNull Inventory inv, @NotNull TempKey key, long amount) {
++        return incrementInventoryMeta(inv, key, amount, 0L);
++    }
++    public static long incrementInventoryMeta(@NotNull Inventory inv, @NotNull TempKey key, long amount, long start) {
++        long val = getInventoryMeta(inv, key, start);
++        val += amount;
++        setInventoryMeta(inv, key, val);
++        return val;
++    }
++
++    public static double incrementInventoryMeta(@NotNull Inventory inv, @NotNull TempKey key, double amount) {
++        return incrementInventoryMeta(inv, key, amount, 0D);
++    }
++    public static double incrementInventoryMeta(@NotNull Inventory inv, @NotNull TempKey key, double amount, double start) {
++        double val = getInventoryMeta(inv, key, start);
++        val += amount;
++        setInventoryMeta(inv, key, val);
++        return val;
++    }
++
++}
+diff --git a/src/main/java/com/empireminecraft/api/meta/MetaKey.java b/src/main/java/com/empireminecraft/api/meta/MetaKey.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..1d39cff1b2c47e07f8edb1f0d30fd95d6a07b744
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/api/meta/MetaKey.java
+@@ -0,0 +1,56 @@
++/*
++ * Copyright (c) 2016 Starlis LLC / Daniel Ennis (Aikar) - MIT License
++ *
++ *  Permission is hereby granted, free of charge, to any person obtaining
++ *  a copy of this software and associated documentation files (the
++ *  "Software"), to deal in the Software without restriction, including
++ *  without limitation the rights to use, copy, modify, merge, publish,
++ *  distribute, sublicense, and/or sell copies of the Software, and to
++ *  permit persons to whom the Software is furnished to do so, subject to
++ *  the following conditions:
++ *
++ *  The above copyright notice and this permission notice shall be
++ *  included in all copies or substantial portions of the Software.
++ *
++ *  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ *  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
++ *  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ *  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
++ *  LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
++ *  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
++ *  WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package com.empireminecraft.api.meta;
++
++import org.jetbrains.annotations.NotNull;
++
++public interface MetaKey {
++
++    /**
++     * Key name
++     * @return The key
++     */
++    @NotNull
++    String key();
++
++    /**
++     * Represents a key used for persistent metadata
++     */
++    interface PersistentKey extends MetaKey {
++        @NotNull
++        default PersistentKey append(@NotNull String key) {
++            return Meta.createPersistentKey(key() + key);
++        }
++    }
++
++    /**
++     * Represents a key used for temporary metadata
++     */
++    interface TempKey extends MetaKey {
++        @NotNull
++        default TempKey append(@NotNull String key) {
++            return Meta.createTempKey(key() + key);
++        }
++    }
++}
+diff --git a/src/main/java/com/empireminecraft/api/meta/MetaMap.java b/src/main/java/com/empireminecraft/api/meta/MetaMap.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..5a039c72f08269664b4572d70da241cc638dc6f7
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/api/meta/MetaMap.java
+@@ -0,0 +1,146 @@
++/*
++ * Copyright (c) 2018 Daniel Ennis (Aikar) MIT License
++ *
++ *  Permission is hereby granted, free of charge, to any person obtaining
++ *  a copy of this software and associated documentation files (the
++ *  "Software"), to deal in the Software without restriction, including
++ *  without limitation the rights to use, copy, modify, merge, publish,
++ *  distribute, sublicense, and/or sell copies of the Software, and to
++ *  permit persons to whom the Software is furnished to do so, subject to
++ *  the following conditions:
++ *
++ *  The above copyright notice and this permission notice shall be
++ *  included in all copies or substantial portions of the Software.
++ *
++ *  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ *  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
++ *  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ *  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
++ *  LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
++ *  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
++ *  WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package com.empireminecraft.api.meta;
++
++import org.jetbrains.annotations.Contract;
++import org.jetbrains.annotations.NotNull;
++import org.jetbrains.annotations.Nullable;
++
++import java.util.HashMap;
++
++public class MetaMap <K extends MetaKey> extends HashMap<String, Object> {
++
++    public MetaMap() {
++        super(0);
++    }
++
++    @Nullable
++    public Integer getInteger(@NotNull K key) {
++        return getInteger(key, null);
++    }
++    @Nullable
++    @Contract("_, !null -> !null")
++    public Integer getInteger(@NotNull K key, @Nullable Integer def) {
++        Number number = (Number) get(key);
++        if (number != null) {
++            return number.intValue();
++        }
++        return def;
++    }
++
++    @Nullable
++    public Long getLong(@NotNull K key) {
++        return getLong(key, null);
++    }
++    @Nullable
++    @Contract("_, !null -> !null")
++    public Long getLong(@NotNull K key, @Nullable Long def) {
++        Number number = (Number) get(key);
++        if (number != null) {
++            return number.longValue();
++        }
++        return def;
++    }
++
++    @Nullable
++    public Double getDouble(@NotNull K key) {
++        return getDouble(key, null);
++    }
++    @Nullable
++    @Contract("_, !null -> !null")
++    public Double getDouble(@NotNull K key, @Nullable Double def) {
++        Number number = (Number) get(key);
++        if (number != null) {
++            return number.doubleValue();
++        }
++        return def;
++    }
++
++    @Nullable
++    public Float getFloat(@NotNull K key) {
++        return getFloat(key, null);
++    }
++    @Nullable
++    @Contract("_, !null -> !null")
++    public Float getFloat(@NotNull K key, @Nullable Float def) {
++        Number number = (Number) get(key);
++        if (number != null) {
++            return number.floatValue();
++        }
++        return def;
++    }
++
++    @Nullable
++    public Short getShort(@NotNull K key) {
++        return getShort(key, null);
++    }
++    @Nullable
++    @Contract("_, !null -> !null")
++    public Short getShort(@NotNull K key, @Nullable Short def) {
++        Number number = (Number) get(key);
++        if (number != null) {
++            return number.shortValue();
++        }
++        return def;
++    }
++
++    @Nullable
++    public Boolean getBoolean(@Nullable K key) {
++        return getBoolean(key, null);
++    }
++    @Nullable
++    @Contract("_, !null -> !null")
++    public Boolean getBoolean(@NotNull K key, @Nullable Boolean def) {
++        Number number = (Number) get(key);
++        if (number != null) {
++            return number.intValue() != 0;
++        }
++        return def;
++    }
++
++    @Nullable
++    public <T> T getValue(@NotNull K key) {
++        return (T) get(key);
++    }
++    @Nullable
++    @Contract("_, !null -> !null")
++    public <T> T getValue(@NotNull K key, @Nullable T def) {
++        Object value = get(key);
++        return value != null ? (T) value : def;
++    }
++
++    @Nullable
++    public Object get(@NotNull K key) {
++        return get(key.key());
++    }
++
++    @Nullable
++    public Object put(@NotNull MetaKey key, @Nullable Object value) {
++        return put(key.key(), value);
++    }
++
++    public boolean containsKey(@NotNull K key) {
++        return containsKey(key.key());
++    }
++}
+diff --git a/src/main/java/com/empireminecraft/api/meta/PersistentKeyImpl.java b/src/main/java/com/empireminecraft/api/meta/PersistentKeyImpl.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..78296a0d596037bd0e465c5c8aa3c0ce935243a1
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/api/meta/PersistentKeyImpl.java
+@@ -0,0 +1,46 @@
++/*
++ * Copyright (c) 2016 Starlis LLC / Daniel Ennis (Aikar) - MIT License
++ *
++ *  Permission is hereby granted, free of charge, to any person obtaining
++ *  a copy of this software and associated documentation files (the
++ *  "Software"), to deal in the Software without restriction, including
++ *  without limitation the rights to use, copy, modify, merge, publish,
++ *  distribute, sublicense, and/or sell copies of the Software, and to
++ *  permit persons to whom the Software is furnished to do so, subject to
++ *  the following conditions:
++ *
++ *  The above copyright notice and this permission notice shall be
++ *  included in all copies or substantial portions of the Software.
++ *
++ *  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ *  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
++ *  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ *  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
++ *  LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
++ *  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
++ *  WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package com.empireminecraft.api.meta;
++
++import com.empireminecraft.api.meta.MetaKey.PersistentKey;
++import org.jetbrains.annotations.NotNull;
++
++class PersistentKeyImpl implements PersistentKey {
++    private final String key;
++
++    PersistentKeyImpl(@NotNull String key) {
++        this.key = key;
++    }
++
++    @Override
++    @NotNull
++    public final String key() {
++        return key;
++    }
++
++    @Override
++    public String toString() {
++        return key;
++    }
++}
+diff --git a/src/main/java/com/empireminecraft/api/meta/PersistentMetaList.java b/src/main/java/com/empireminecraft/api/meta/PersistentMetaList.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..185e38984e55cf33effc8af73cf70997a2f8c450
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/api/meta/PersistentMetaList.java
+@@ -0,0 +1,77 @@
++/*
++ * Copyright (c) 2016 Starlis LLC / Daniel Ennis (Aikar) - MIT License
++ *
++ *  Permission is hereby granted, free of charge, to any person obtaining
++ *  a copy of this software and associated documentation files (the
++ *  "Software"), to deal in the Software without restriction, including
++ *  without limitation the rights to use, copy, modify, merge, publish,
++ *  distribute, sublicense, and/or sell copies of the Software, and to
++ *  permit persons to whom the Software is furnished to do so, subject to
++ *  the following conditions:
++ *
++ *  The above copyright notice and this permission notice shall be
++ *  included in all copies or substantial portions of the Software.
++ *
++ *  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ *  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
++ *  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ *  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
++ *  LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
++ *  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
++ *  WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package com.empireminecraft.api.meta;
++
++import org.jetbrains.annotations.NotNull;
++import org.jetbrains.annotations.Nullable;
++
++import java.security.InvalidParameterException;
++import java.util.ArrayList;
++import java.util.Collection;
++
++/**
++ * A type protected array for storing meta values
++ */
++public class PersistentMetaList<T> extends ArrayList<T> {
++    public PersistentMetaList(int initialCapacity) {
++        super(initialCapacity);
++    }
++
++    public PersistentMetaList() {
++    }
++
++    public PersistentMetaList(@NotNull Collection<? extends T> c) {
++        super(c);
++    }
++
++    @Override
++    public boolean add(@NotNull T o) {
++        if (!Meta.isValidPersistentMeta(o)) {
++            throw new InvalidParameterException();
++        }
++        return super.add(o);
++    }
++
++    @Override
++    @Nullable
++    public T set(int index, @NotNull T element) {
++        if (!Meta.isValidPersistentMeta(element)) {
++            throw new InvalidParameterException();
++        }
++        return super.set(index, element);
++    }
++
++    @Override
++    public void add(int index, @NotNull T element) {
++        if (!Meta.isValidPersistentMeta(element)) {
++            throw new InvalidParameterException();
++        }
++        super.add(index, element);
++    }
++
++    @Override
++    public PersistentMetaList<T> clone()  {
++        return new PersistentMetaList<>(this);
++    }
++}
+diff --git a/src/main/java/com/empireminecraft/api/meta/PersistentMetaMap.java b/src/main/java/com/empireminecraft/api/meta/PersistentMetaMap.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..ca7e19cb5b8c1b59012c2be0f815cf7479028c96
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/api/meta/PersistentMetaMap.java
+@@ -0,0 +1,101 @@
++/*
++ * Copyright (c) 2016 Starlis LLC / Daniel Ennis (Aikar) - MIT License
++ *
++ *  Permission is hereby granted, free of charge, to any person obtaining
++ *  a copy of this software and associated documentation files (the
++ *  "Software"), to deal in the Software without restriction, including
++ *  without limitation the rights to use, copy, modify, merge, publish,
++ *  distribute, sublicense, and/or sell copies of the Software, and to
++ *  permit persons to whom the Software is furnished to do so, subject to
++ *  the following conditions:
++ *
++ *  The above copyright notice and this permission notice shall be
++ *  included in all copies or substantial portions of the Software.
++ *
++ *  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ *  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
++ *  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ *  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
++ *  LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
++ *  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
++ *  WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package com.empireminecraft.api.meta;
++
++import com.empireminecraft.api.meta.MetaKey.PersistentKey;
++import org.bukkit.inventory.ItemStack;
++import org.jetbrains.annotations.NotNull;
++import org.jetbrains.annotations.Nullable;
++
++import java.security.InvalidParameterException;
++import java.util.Map;
++
++/**
++ * A type protected hashmap for storing meta values
++ */
++public class PersistentMetaMap extends MetaMap<PersistentKey> {
++
++    @Nullable
++    public <T extends PersistentMetaMap> T put(@NotNull PersistentKey key, @NotNull PersistentMetaMap value) {
++        if (!Meta.isValidPersistentMeta(value)) {
++            throw new InvalidParameterException();
++        }
++        return (T) super.put(key, value);
++    }
++    @Nullable
++    public <Z, T extends PersistentMetaList<Z>> T put(@NotNull PersistentKey key, @NotNull PersistentMetaList<Z> value) {
++        if (!Meta.isValidPersistentMeta(value)) {
++            throw new InvalidParameterException();
++        }
++        return (T) super.put(key, value);
++    }
++    @Nullable
++    public <T extends ItemStack> T put(@NotNull PersistentKey key, @Nullable ItemStack value) {
++        return (T) super.put(key, value);
++    }
++    @Nullable
++    public <T extends Number> T put(@NotNull PersistentKey key, @Nullable Number value) {
++        return (T) super.put(key, value);
++    }
++    @Nullable
++    public <T extends String> T put(@NotNull PersistentKey key, @Nullable String value) {
++        return (T) super.put(key, value);
++    }
++    @Nullable
++    public <T extends String> T put(@NotNull PersistentKey key, boolean value) {
++        return (T) super.put(key, value ? 1 : 0);
++    }
++
++    @Nullable
++    public Object put(@NotNull PersistentKey key, @NotNull Object value) {
++        return put(key.key(), value);
++    }
++
++    @Override
++    public void putAll(@NotNull Map<? extends String, ?> map) {
++        for (Object value : map.values()) {
++            if (!Meta.isValidPersistentMeta(value)) {
++                throw new InvalidParameterException();
++            }
++        }
++
++        super.putAll(map);
++    }
++
++    @Override
++    @Nullable
++    public Object put(@NotNull String key, @NotNull Object value) {
++        if (!Meta.isValidPersistentMeta(value)) {
++            throw new InvalidParameterException();
++        }
++        return super.put(key, value);
++    }
++
++    @Override
++    public PersistentMetaMap clone() {
++        PersistentMetaMap map = new PersistentMetaMap();
++        map.putAll(this);
++        return map;
++    }
++}
+diff --git a/src/main/java/com/empireminecraft/api/meta/TempKeyImpl.java b/src/main/java/com/empireminecraft/api/meta/TempKeyImpl.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..b815b0821cbd2707e15e1a1cd59ce478a949e4d9
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/api/meta/TempKeyImpl.java
+@@ -0,0 +1,46 @@
++/*
++ * Copyright (c) 2016 Starlis LLC / Daniel Ennis (Aikar) - MIT License
++ *
++ *  Permission is hereby granted, free of charge, to any person obtaining
++ *  a copy of this software and associated documentation files (the
++ *  "Software"), to deal in the Software without restriction, including
++ *  without limitation the rights to use, copy, modify, merge, publish,
++ *  distribute, sublicense, and/or sell copies of the Software, and to
++ *  permit persons to whom the Software is furnished to do so, subject to
++ *  the following conditions:
++ *
++ *  The above copyright notice and this permission notice shall be
++ *  included in all copies or substantial portions of the Software.
++ *
++ *  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ *  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
++ *  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ *  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
++ *  LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
++ *  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
++ *  WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package com.empireminecraft.api.meta;
++
++import com.empireminecraft.api.meta.MetaKey.TempKey;
++import org.jetbrains.annotations.NotNull;
++
++class TempKeyImpl implements TempKey {
++    private final String key;
++
++    TempKeyImpl(@NotNull String key) {
++        this.key = key;
++    }
++
++    @Override
++    @NotNull
++    public final String key() {
++        return key;
++    }
++
++    @Override
++    public String toString() {
++        return key;
++    }
++}
+diff --git a/src/main/java/com/empireminecraft/api/meta/TempMetaMap.java b/src/main/java/com/empireminecraft/api/meta/TempMetaMap.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..8177936f3539e9542880cb4925b578aeaae103a3
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/api/meta/TempMetaMap.java
+@@ -0,0 +1,29 @@
++/*
++ * Copyright (c) 2018 Daniel Ennis (Aikar) MIT License
++ *
++ *  Permission is hereby granted, free of charge, to any person obtaining
++ *  a copy of this software and associated documentation files (the
++ *  "Software"), to deal in the Software without restriction, including
++ *  without limitation the rights to use, copy, modify, merge, publish,
++ *  distribute, sublicense, and/or sell copies of the Software, and to
++ *  permit persons to whom the Software is furnished to do so, subject to
++ *  the following conditions:
++ *
++ *  The above copyright notice and this permission notice shall be
++ *  included in all copies or substantial portions of the Software.
++ *
++ *  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ *  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
++ *  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ *  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
++ *  LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
++ *  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
++ *  WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package com.empireminecraft.api.meta;
++
++import com.empireminecraft.api.meta.MetaKey.TempKey;
++
++public class TempMetaMap extends MetaMap<TempKey> {
++}
+diff --git a/src/main/java/com/empireminecraft/customevents/BlockWithPersistentMetaClearedEvent.java b/src/main/java/com/empireminecraft/customevents/BlockWithPersistentMetaClearedEvent.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..3695dfc172c2802caf6d98a7007c64a77028111e
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/customevents/BlockWithPersistentMetaClearedEvent.java
+@@ -0,0 +1,53 @@
++/*
++ * Copyright (c) 2016 Starlis LLC / Daniel Ennis (Aikar) - MIT License
++ *
++ *  Permission is hereby granted, free of charge, to any person obtaining
++ *  a copy of this software and associated documentation files (the
++ *  "Software"), to deal in the Software without restriction, including
++ *  without limitation the rights to use, copy, modify, merge, publish,
++ *  distribute, sublicense, and/or sell copies of the Software, and to
++ *  permit persons to whom the Software is furnished to do so, subject to
++ *  the following conditions:
++ *
++ *  The above copyright notice and this permission notice shall be
++ *  included in all copies or substantial portions of the Software.
++ *
++ *  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ *  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
++ *  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ *  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
++ *  LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
++ *  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
++ *  WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package com.empireminecraft.customevents;
++
++import org.bukkit.block.Block;
++import org.bukkit.event.Event;
++import org.bukkit.event.HandlerList;
++import org.jetbrains.annotations.NotNull;
++
++public class BlockWithPersistentMetaClearedEvent extends Event {
++    private final Block block;
++    public BlockWithPersistentMetaClearedEvent(@NotNull Block block) {
++        this.block = block;
++    }
++
++    @NotNull
++    public Block getBlock() {
++        return block;
++    }
++
++    private static final HandlerList handlers = new HandlerList();
++
++    @NotNull
++    public HandlerList getHandlers() {
++        return handlers;
++    }
++
++    @NotNull
++    public static HandlerList getHandlerList() {
++        return handlers;
++    }
++}
+diff --git a/src/main/java/org/bukkit/Chunk.java b/src/main/java/org/bukkit/Chunk.java
+index 98263d896f316983609432c45b85401a2692432d..2072312637a321ea2159e2c89e5c50a6505b52f0 100644
+--- a/src/main/java/org/bukkit/Chunk.java
++++ b/src/main/java/org/bukkit/Chunk.java
+@@ -136,6 +136,8 @@ public interface Chunk extends PersistentDataHolder {
+     Collection<BlockState> getTileEntities(@NotNull Predicate<Block> blockPredicate, boolean useSnapshot);
+     // Paper end
+ 
++    @NotNull com.empireminecraft.api.meta.TempMetaMap getTempMeta(); // EMC
++
+     /**
+      * Checks if the chunk is loaded.
+      *
+diff --git a/src/main/java/org/bukkit/block/BlockState.java b/src/main/java/org/bukkit/block/BlockState.java
+index 631cbf2be51040eee00aa39a39c5ec4003f91843..de0276394998a2d4e61305879febe05fad3aae91 100644
+--- a/src/main/java/org/bukkit/block/BlockState.java
++++ b/src/main/java/org/bukkit/block/BlockState.java
+@@ -221,4 +221,6 @@ public interface BlockState extends Metadatable {
+      *         or 'virtual' (e.g. on an itemstack)
+      */
+     boolean isPlaced();
++
++    boolean isTileEntity(); // EMC
+ }
+diff --git a/src/main/java/org/bukkit/entity/Entity.java b/src/main/java/org/bukkit/entity/Entity.java
+index 59012a790172b9899b93aef32668ad81fd123546..19b5bfa3afb3d7dc51965b1bf7163d1ebba66400 100644
+--- a/src/main/java/org/bukkit/entity/Entity.java
++++ b/src/main/java/org/bukkit/entity/Entity.java
+@@ -309,6 +309,7 @@ public interface Entity extends Metadatable, CommandSender, Nameable, Persistent
+     @NotNull
+     public Server getServer();
+ 
++    @NotNull com.empireminecraft.api.meta.TempMetaMap getTempMeta(); // EMC
+     /**
+      * Returns true if the entity gets persisted.
+      * <p>
+diff --git a/src/main/java/org/bukkit/inventory/Inventory.java b/src/main/java/org/bukkit/inventory/Inventory.java
+index c64b6201a439e93b7612da2d68efc455bc125a9f..cb805275fface96519005b0f40d801ae08dacb70 100644
+--- a/src/main/java/org/bukkit/inventory/Inventory.java
++++ b/src/main/java/org/bukkit/inventory/Inventory.java
+@@ -27,6 +27,7 @@ import org.jetbrains.annotations.Nullable;
+  */
+ public interface Inventory extends Iterable<ItemStack> {
+ 
++    @NotNull HashMap<String, Object> getMeta(); // EMC
+     /**
+      * Returns the size of the inventory
+      *

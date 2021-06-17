@@ -1,0 +1,83 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Wed, 16 Jan 2019 21:29:20 -0500
+Subject: [PATCH] Add API to skip checking names for exact stack matches
+
+
+diff --git a/src/main/java/org/bukkit/inventory/RecipeChoice.java b/src/main/java/org/bukkit/inventory/RecipeChoice.java
+index 90208bc96085f05a3b657b9467b1670d00b03104..7a7054bab646afc57b7180828dd3e245aee12248 100644
+--- a/src/main/java/org/bukkit/inventory/RecipeChoice.java
++++ b/src/main/java/org/bukkit/inventory/RecipeChoice.java
+@@ -161,7 +161,17 @@ public interface RecipeChoice extends Predicate<ItemStack>, Cloneable {
+             this(Arrays.asList(stacks));
+         }
+ 
++        // Paper start
++        private final boolean skipCheckingName;
+         public ExactChoice(@NotNull List<ItemStack> choices) {
++            this(choices, false);
++        }
++        public ExactChoice(@NotNull ItemStack stack, boolean skipCheckingName) {
++            this(Arrays.asList(stack), skipCheckingName);
++        }
++        public ExactChoice(@NotNull List<ItemStack> choices, boolean skipCheckingName) {
++            this.skipCheckingName = skipCheckingName;
++            // Paper end
+             Preconditions.checkArgument(choices != null, "choices");
+             Preconditions.checkArgument(!choices.isEmpty(), "Must have at least one choice");
+             for (ItemStack choice : choices) {
+@@ -197,7 +207,7 @@ public interface RecipeChoice extends Predicate<ItemStack>, Cloneable {
+         @Override
+         public boolean test(@NotNull ItemStack t) {
+             for (ItemStack match : choices) {
+-                if (t.isSimilar(match)) {
++                if (t.isSimilar(match, false, skipCheckingName)) { // Paper
+                     return true;
+                 }
+             }
+diff --git a/src/main/java/org/bukkit/inventory/ShapedRecipe.java b/src/main/java/org/bukkit/inventory/ShapedRecipe.java
+index 222a12baa8e93ad686ab59426653f066d5876e38..caf23ce3a762d9e7d8bd8088e543ccc7248ce838 100644
+--- a/src/main/java/org/bukkit/inventory/ShapedRecipe.java
++++ b/src/main/java/org/bukkit/inventory/ShapedRecipe.java
+@@ -150,6 +150,10 @@ public class ShapedRecipe implements Recipe, Keyed {
+     public ShapedRecipe setIngredient(char key, @NotNull ItemStack item) {
+         return setIngredient(key, new RecipeChoice.ExactChoice(item));
+     }
++    @NotNull
++    public ShapedRecipe setIngredient(char key, @NotNull ItemStack item, boolean skipCheckingName) {
++        return setIngredient(key, new RecipeChoice.ExactChoice(item, skipCheckingName));
++    }
+     // Paper end
+ 
+     /**
+diff --git a/src/main/java/org/bukkit/inventory/ShapelessRecipe.java b/src/main/java/org/bukkit/inventory/ShapelessRecipe.java
+index 7f6d3c71c5b3a9aa54c84a4c3b7c3614a0d477ce..c840b604e40b7336ae49030b3edd34efe17e7b90 100644
+--- a/src/main/java/org/bukkit/inventory/ShapelessRecipe.java
++++ b/src/main/java/org/bukkit/inventory/ShapelessRecipe.java
+@@ -146,14 +146,24 @@ public class ShapelessRecipe implements Recipe, Keyed {
+     // Paper start
+     @NotNull
+     public ShapelessRecipe addIngredient(@NotNull ItemStack item) {
+-        return addIngredient(item.getAmount(), item);
++        return addIngredient(item.getAmount(), item, false);
++    }
++
++    @NotNull
++    public ShapelessRecipe addIngredient(@NotNull ItemStack item, boolean skipCheckingName) {
++        return addIngredient(item.getAmount(), item, skipCheckingName);
+     }
+ 
+     @NotNull
+     public ShapelessRecipe addIngredient(int count, @NotNull ItemStack item) {
++        return addIngredient(count, item, false);
++    }
++
++    @NotNull
++    public ShapelessRecipe addIngredient(int count, @NotNull ItemStack item, boolean skipCheckingName) {
+         Validate.isTrue(ingredients.size() + count <= 9, "Shapeless recipes cannot have more than 9 ingredients");
+         while (count-- > 0) {
+-            ingredients.add(new RecipeChoice.ExactChoice(item));
++            ingredients.add(new RecipeChoice.ExactChoice(item, skipCheckingName));
+         }
+         return this;
+     }
