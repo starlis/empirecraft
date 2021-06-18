@@ -1,0 +1,69 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Mon, 31 Dec 2012 01:25:46 -0500
+Subject: [PATCH] Anvil Event
+
+Fire an event for anvil usage, remove cap from server, send level to client
+
+diff --git a/src/main/java/net/minecraft/world/inventory/AnvilMenu.java b/src/main/java/net/minecraft/world/inventory/AnvilMenu.java
+index 56d3ed1cdafd7904c35be5db568b9975a97418a7..28086c7f997972c5fe4c0c281f19e5b07c674741 100644
+--- a/src/main/java/net/minecraft/world/inventory/AnvilMenu.java
++++ b/src/main/java/net/minecraft/world/inventory/AnvilMenu.java
+@@ -2,6 +2,8 @@ package net.minecraft.world.inventory;
+ 
+ import java.util.Iterator;
+ import java.util.Map;
++
++import com.empireminecraft.customevents.AnvilEvent;
+ import net.minecraft.network.chat.Component;
+ import net.minecraft.network.chat.TextComponent;
+ import net.minecraft.tags.BlockTags;
+@@ -20,7 +22,9 @@ import org.apache.logging.log4j.LogManager;
+ import org.apache.logging.log4j.Logger;
+ 
+ // CraftBukkit start
++import org.bukkit.Bukkit;
+ import org.bukkit.craftbukkit.inventory.CraftInventoryView;
++import org.bukkit.craftbukkit.inventory.CraftItemStack;
+ // CraftBukkit end
+ 
+ public class AnvilMenu extends ItemCombinerMenu {
+@@ -279,6 +283,18 @@ public class AnvilMenu extends ItemCombinerMenu {
+             if (this.cost.get() >= this.maximumRepairCost && !this.player.getAbilities().instabuild) { // CraftBukkit
+                 itemstack1 = ItemStack.EMPTY;
+             }
++            // EMC start
++            final int origCost = this.cost.get();
++            AnvilEvent event = new AnvilEvent((org.bukkit.entity.Player) player.getBukkitEntity(), CraftItemStack.asBukkitCopy(itemstack), CraftItemStack.asBukkitCopy(itemstack2), CraftItemStack.asBukkitCopy(itemstack1), this.cost.get());
++            Bukkit.getPluginManager().callEvent(event);
++            if (event.isCancelled()) {
++                itemstack1 = ItemStack.EMPTY;
++            } else {
++                itemstack1 = CraftItemStack.asNMSCopy(event.getResult());
++                this.cost.set(event.getCost());
++                this.cost.forceUpdate = origCost != event.getCost();
++            }
++            // EMC end
+ 
+             if (!itemstack1.isEmpty()) {
+                 int k2 = itemstack1.getBaseRepairCost();
+diff --git a/src/main/java/net/minecraft/world/inventory/DataSlot.java b/src/main/java/net/minecraft/world/inventory/DataSlot.java
+index 6792bde386af8f1a6eae451cebcd0b32e83cd72b..0307db31f0e7e186ebda9d7aa8a572cc8fefe535 100644
+--- a/src/main/java/net/minecraft/world/inventory/DataSlot.java
++++ b/src/main/java/net/minecraft/world/inventory/DataSlot.java
+@@ -2,6 +2,7 @@ package net.minecraft.world.inventory;
+ 
+ public abstract class DataSlot {
+     private int prevValue;
++    public boolean forceUpdate = false; // EMC
+ 
+     public static DataSlot forContainer(ContainerData delegate, int index) {
+         return new DataSlot() {
+@@ -52,6 +53,7 @@ public abstract class DataSlot {
+     public abstract void set(int value);
+ 
+     public boolean checkAndClearUpdateFlag() {
++        if (this.forceUpdate) { return true; } // EMC
+         int i = this.get();
+         boolean bl = i != this.prevValue;
+         this.prevValue = i;

@@ -97,10 +97,10 @@ index 0000000000000000000000000000000000000000..29a3feea686c1a0cfa39fd36ba5115ff
 +}
 diff --git a/src/main/java/com/empireminecraft/api/meta/EAPI_Meta.java b/src/main/java/com/empireminecraft/api/meta/EAPI_Meta.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..5eac6d55681f88b90d453d9d32197fae6e92cae0
+index 0000000000000000000000000000000000000000..3bcede701f8ca65796b0b8e489912a0d48ea2cca
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/api/meta/EAPI_Meta.java
-@@ -0,0 +1,69 @@
+@@ -0,0 +1,50 @@
 +/*
 + * Copyright (c) 2016 Starlis LLC / Daniel Ennis (Aikar) - MIT License
 + *
@@ -127,13 +127,9 @@ index 0000000000000000000000000000000000000000..5eac6d55681f88b90d453d9d32197fae
 +package com.empireminecraft.api.meta;
 +
 +import com.empireminecraft.api.Vector3i;
-+import com.empireminecraft.api.meta.MetaKey.TempKey;
 +import org.bukkit.Chunk;
-+import org.bukkit.Location;
-+import org.bukkit.World;
 +import org.bukkit.block.Block;
 +import org.bukkit.block.BlockState;
-+import org.bukkit.entity.Entity;
 +import org.jetbrains.annotations.Contract;
 +import org.jetbrains.annotations.NotNull;
 +import org.jetbrains.annotations.Nullable;
@@ -142,29 +138,14 @@ index 0000000000000000000000000000000000000000..5eac6d55681f88b90d453d9d32197fae
 +
 +public interface EAPI_Meta {
 +    @Nullable
-+    PersistentMetaMap getTileEntityMetaMap(@NotNull BlockState tileEntity, boolean isWrite);
++    PersistentMetaMap getTileEntityMetaMap(@NotNull BlockState tileEntity);
 +
 +    @Nullable
 +    @Contract("_, true -> !null")
-+    PersistentMetaMap getBlockMetaMap(@NotNull Location loc, boolean isWrite);
++    PersistentMetaMap getBlockMetaMap(@NotNull Block block, boolean isWrite);
 +
 +    @Nullable
-+    @Contract("_, true -> !null")
-+    PersistentMetaMap getChunkMetaMap(@NotNull Chunk chunk, boolean isWrite);
-+
-+    @Nullable
-+    @Contract("_, true -> !null")
-+    TempMetaMap getChunkTempMetaMap(@NotNull Chunk chunk, boolean isWrite);
-+
-+    @Nullable
-+    Map<Vector3i,PersistentMetaMap> getChunkMetaData(@NotNull Chunk chunk);
-+
-+    @Nullable
-+    @Contract("_, true -> !null")
-+    PersistentMetaMap getEntityMetaMap(@NotNull Entity entity, boolean isWrite);
-+
-+    @NotNull
-+    PersistentMetaMap getWorldMetaMap(@NotNull World world);
++    Map<Vector3i,PersistentMetaMap> getBlockMetaData(@NotNull Chunk chunk);
 +
 +    @Nullable
 +    @Contract("_, true -> !null")
@@ -172,10 +153,10 @@ index 0000000000000000000000000000000000000000..5eac6d55681f88b90d453d9d32197fae
 +}
 diff --git a/src/main/java/com/empireminecraft/api/meta/Meta.java b/src/main/java/com/empireminecraft/api/meta/Meta.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..28976a889ed64d4892223d48774eb856621c1b3f
+index 0000000000000000000000000000000000000000..ddbddfdde0c7333ee9b3d864c0f932b260836f0b
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/api/meta/Meta.java
-@@ -0,0 +1,635 @@
+@@ -0,0 +1,679 @@
 +/*
 + * Copyright (c) 2016 Starlis LLC / Daniel Ennis (Aikar) - MIT License
 + *
@@ -274,7 +255,7 @@ index 0000000000000000000000000000000000000000..28976a889ed64d4892223d48774eb856
 +
 +    @NotNull
 +    public static PersistentMetaMap getWorldPersistentMetaMap(@NotNull World world) {
-+        return API.meta.getWorldMetaMap(world);
++        return world.getPersistentMeta();
 +    }
 +
 +    @Nullable
@@ -285,19 +266,17 @@ index 0000000000000000000000000000000000000000..28976a889ed64d4892223d48774eb856
 +    @Nullable
 +    @Contract("_, _, !null -> !null")
 +    public static <T> T getWorldMeta(@NotNull World world, @NotNull PersistentKey key, @Nullable T def) {
-+        final PersistentMetaMap worldMetaMap = getWorldPersistentMetaMap(world);
-+        T ret = !worldMetaMap.isEmpty() ? (T) worldMetaMap.get(key.key()) : null;
++        T ret = (T) world.getPersistentMeta().get(key.key());
 +        return ret != null ? ret : def;
 +    }
 +
 +    public static boolean hasWorldMeta(@NotNull World world, @NotNull PersistentKey key) {
-+        final PersistentMetaMap worldMetaMap = getWorldPersistentMetaMap(world);
-+        return !worldMetaMap.isEmpty() && worldMetaMap.containsKey(key.key());
++        return world.getPersistentMeta().containsKey(key.key());
 +    }
 +
 +    @Nullable
 +    public static <T> T setWorldMeta(@NotNull World world, @NotNull PersistentKey key, @Nullable Object val) {
-+        return setMetaMapValue(getWorldPersistentMetaMap(world), key, val);
++        return setMetaMapValue(world.getPersistentMeta(), key, val);
 +    }
 +
 +    @Nullable
@@ -331,10 +310,9 @@ index 0000000000000000000000000000000000000000..28976a889ed64d4892223d48774eb856
 +    //// PERSISTENT ENTITY META
 +    //////////////////////////////////////////////////
 +
-+    @Nullable
-+    @Contract("_, true -> !null")
-+    public static PersistentMetaMap getEntityPersistentMetaMap(@NotNull Entity entity, boolean isWrite) {
-+        return API.meta.getEntityMetaMap(entity, isWrite);
++    @NotNull
++    public static PersistentMetaMap getEntityPersistentMetaMap(@NotNull Entity entity) {
++        return entity.getPersistentMeta();
 +    }
 +
 +    @Nullable
@@ -345,25 +323,22 @@ index 0000000000000000000000000000000000000000..28976a889ed64d4892223d48774eb856
 +    @Nullable
 +    @Contract("_, _, !null -> !null")
 +    public static <T> T getEntityMeta(@NotNull Entity entity, @NotNull PersistentKey key, @Nullable T def) {
-+        final PersistentMetaMap entityMetaMap = getEntityPersistentMetaMap(entity, false);
-+        T ret = entityMetaMap != null && !entityMetaMap.isEmpty() ? (T) entityMetaMap.get(key.key()) : null;
++        T ret = (T) entity.getPersistentMeta().get(key.key());
 +        return ret != null ? ret : def;
 +    }
 +
 +    public static boolean hasEntityMeta(@NotNull Entity entity, @NotNull PersistentKey key) {
-+        final PersistentMetaMap entityMetaMap = getEntityPersistentMetaMap(entity, false);
-+        return entityMetaMap != null && !entityMetaMap.isEmpty() && entityMetaMap.containsKey(key.key());
++        return entity.getPersistentMeta().containsKey(key.key());
 +    }
 +
 +    @Nullable
 +    public static <T> T setEntityMeta(@NotNull Entity entity, @NotNull PersistentKey key, @Nullable Object val) {
-+        return setMetaMapValue(getEntityPersistentMetaMap(entity, true), key, val);
++        return setMetaMapValue(entity.getPersistentMeta(), key, val);
 +    }
 +
 +    @Nullable
 +    public static <T> T removeEntityMeta(@NotNull Entity entity, @NotNull PersistentKey key) {
-+        PersistentMetaMap metaMap = getEntityPersistentMetaMap(entity, false);
-+        return metaMap != null ? setMetaMapValue(metaMap, key, null) : null;
++        return setMetaMapValue(entity.getPersistentMeta(), key, null);
 +    }
 +
 +    public static double incrementEntityMeta(@NotNull Entity entity, @NotNull PersistentKey key, double val) {
@@ -392,26 +367,13 @@ index 0000000000000000000000000000000000000000..28976a889ed64d4892223d48774eb856
 +    //// PERSISTENT CHUNK META
 +    //////////////////////////////////////////////////
 +
-+    /**
-+     * Only provided for low level access as debug command
-+     * @param chunk
-+     * @return
-+     */
-+    @Deprecated
-+    @Nullable
-+    public static Map<Vector3i, PersistentMetaMap> getChunkMetaData(@NotNull Chunk chunk) {
-+        return API.meta.getChunkMetaData(chunk);
-+    }
-+
-+    @Nullable
-+    @Contract("_, true -> !null")
-+    public static PersistentMetaMap getChunkPersistentMetaMap(@NotNull Chunk chunk, boolean isWrite) {
-+        return API.meta.getChunkMetaMap(chunk, isWrite);
++    @NotNull
++    public static PersistentMetaMap getChunkPersistentMetaMap(@NotNull Chunk chunk) {
++        return chunk.getPersistentMeta();
 +    }
 +
 +    public static boolean hasChunkMeta(@NotNull Chunk chunk, @NotNull PersistentKey key) {
-+        final PersistentMetaMap chunkMetaMap = getChunkPersistentMetaMap(chunk, false);
-+        return chunkMetaMap != null && !chunkMetaMap.isEmpty() && chunkMetaMap.containsKey(key.key());
++        return chunk.getPersistentMeta().containsKey(key.key());
 +    }
 +
 +    @Nullable
@@ -422,20 +384,18 @@ index 0000000000000000000000000000000000000000..28976a889ed64d4892223d48774eb856
 +    @Nullable
 +    @Contract("_, _, !null -> !null")
 +    public static <T> T getChunkMeta(@NotNull Chunk chunk, @NotNull PersistentKey key, @Nullable T def) {
-+        final PersistentMetaMap chunkMetaMap = getChunkPersistentMetaMap(chunk, false);
-+        T ret = chunkMetaMap != null && !chunkMetaMap.isEmpty() ? (T) chunkMetaMap.get(key.key()) : null;
++        T ret = (T) chunk.getPersistentMeta().get(key.key());
 +        return ret != null ? ret : def;
 +    }
 +
 +    @Nullable
 +    public static <T> T setChunkMeta(@NotNull Chunk chunk, @NotNull PersistentKey key, @Nullable Object val) {
-+        return setMetaMapValue(getChunkPersistentMetaMap(chunk, true), key, val);
++        return setMetaMapValue(chunk.getPersistentMeta(), key, val);
 +    }
 +
 +    @Nullable
 +    public static <T> T removeChunkMeta(@NotNull Chunk chunk, @NotNull PersistentKey key) {
-+        PersistentMetaMap metaMap = getChunkPersistentMetaMap(chunk, false);
-+        return metaMap != null ? setMetaMapValue(metaMap, key, null) : null;
++        return setMetaMapValue(chunk.getPersistentMeta(), key, null);
 +    }
 +
 +    public static long incrementChunkMeta(@NotNull Chunk chunk, @NotNull PersistentKey key, long amount) {
@@ -462,58 +422,69 @@ index 0000000000000000000000000000000000000000..28976a889ed64d4892223d48774eb856
 +    //// PERSISTENT BLOCK META
 +    //////////////////////////////////////////////////
 +
++    /**
++     * Only provided for low level access as debug command
++     * @param chunk
++     * @return
++     */
++    @Deprecated
++    @Nullable
++    public static Map<Vector3i, PersistentMetaMap> getBlockMetaData(@NotNull Chunk chunk) {
++        return API.meta.getBlockMetaData(chunk);
++    }
++
 +    @Nullable
 +    @Contract("_, true -> !null")
-+    public static PersistentMetaMap getBlockPersistentMetaMap(@NotNull Location loc, boolean isWrite) {
-+        return API.meta.getBlockMetaMap(loc, isWrite);
++    public static PersistentMetaMap getBlockPersistentMetaMap(@NotNull Block block, boolean isWrite) {
++        return API.meta.getBlockMetaMap(block, isWrite);
 +    }
 +
-+    public static boolean hasBlockMeta(@NotNull Location loc, @NotNull PersistentKey key) {
-+        final PersistentMetaMap blockMetaMap = getBlockPersistentMetaMap(loc, false);
-+        return blockMetaMap != null && !blockMetaMap.isEmpty() && blockMetaMap.containsKey(key.key());
++    public static boolean hasBlockMeta(@NotNull Block block, @NotNull PersistentKey key) {
++        final PersistentMetaMap blockMetaMap = getBlockPersistentMetaMap(block, false);
++        return blockMetaMap != null && blockMetaMap.containsKey(key.key());
 +    }
 +
 +    @Nullable
-+    public static <T> T getBlockMeta(@NotNull Location loc, @NotNull PersistentKey key) {
-+        return getBlockMeta(loc, key, null);
++    public static <T> T getBlockMeta(@NotNull Block block, @NotNull PersistentKey key) {
++        return getBlockMeta(block, key, null);
 +    }
 +
 +    @Nullable
 +    @Contract("_, _, !null -> !null")
-+    public static <T> T getBlockMeta(@NotNull Location loc, @NotNull PersistentKey key, @Nullable T def) {
-+        final PersistentMetaMap blockMetaMap = getBlockPersistentMetaMap(loc, false);
-+        T ret = blockMetaMap != null && !blockMetaMap.isEmpty() ? (T) blockMetaMap.get(key.key()) : null;
++    public static <T> T getBlockMeta(@NotNull Block block, @NotNull PersistentKey key, @Nullable T def) {
++        final PersistentMetaMap blockMetaMap = getBlockPersistentMetaMap(block, false);
++        T ret = blockMetaMap != null ? (T) blockMetaMap.get(key.key()) : null;
 +        return ret != null ? ret : def;
 +    }
 +
 +    @Nullable
-+    public static <T> T setBlockMeta(@NotNull Location loc, @NotNull PersistentKey key, @Nullable Object val) {
-+        return setMetaMapValue(getBlockPersistentMetaMap(loc, true), key, val);
++    public static <T> T setBlockMeta(@NotNull Block block, @NotNull PersistentKey key, @Nullable Object val) {
++        return setMetaMapValue(getBlockPersistentMetaMap(block, true), key, val);
 +    }
 +
 +    @Nullable
-+    public static <T> T removeBlockMeta(@NotNull Location loc, @NotNull PersistentKey key) {
-+        PersistentMetaMap metaMap = getBlockPersistentMetaMap(loc, false);
++    public static <T> T removeBlockMeta(@NotNull Block block, @NotNull PersistentKey key) {
++        PersistentMetaMap metaMap = getBlockPersistentMetaMap(block, false);
 +        return metaMap != null ? setMetaMapValue(metaMap, key, null) : null;
 +    }
 +
-+    public static long incrementBlockMeta(@NotNull Location loc, @NotNull PersistentKey key, long amount) {
-+        return incrementBlockMeta(loc, key, amount, 0L);
++    public static long incrementBlockMeta(@NotNull Block block, @NotNull PersistentKey key, long amount) {
++        return incrementBlockMeta(block, key, amount, 0L);
 +    }
-+    public static long incrementBlockMeta(@NotNull Location loc, @NotNull PersistentKey key, long amount, long start) {
-+        long val = getBlockMeta(loc, key, start);
++    public static long incrementBlockMeta(@NotNull Block block, @NotNull PersistentKey key, long amount, long start) {
++        long val = getBlockMeta(block, key, start);
 +        val += amount;
-+        setBlockMeta(loc, key, val);
++        setBlockMeta(block, key, val);
 +        return val;
 +    }
 +
-+    public static double incrementBlockMeta(@NotNull Location loc, @NotNull PersistentKey key, double amount) {
-+        return incrementBlockMeta(loc, key, amount, 0D);
++    public static double incrementBlockMeta(@NotNull Block block, @NotNull PersistentKey key, double amount) {
++        return incrementBlockMeta(block, key, amount, 0D);
 +    }
-+    public static double incrementBlockMeta(@NotNull Location loc, @NotNull PersistentKey key, double amount, double start) {
-+        double val = getBlockMeta(loc, key, start);
++    public static double incrementBlockMeta(@NotNull Block block, @NotNull PersistentKey key, double amount, double start) {
++        double val = getBlockMeta(block, key, start);
 +        val += amount;
-+        setBlockMeta(loc, key, val);
++        setBlockMeta(block, key, val);
 +        return val;
 +    }
 +
@@ -522,13 +493,13 @@ index 0000000000000000000000000000000000000000..28976a889ed64d4892223d48774eb856
 +    //////////////////////////////////////////////////
 +
 +    @Nullable
-+    public static PersistentMetaMap getTileEntityPersistentMetaMap(@NotNull Location tileEntity, boolean isWrite) {
-+        return API.meta.getTileEntityMetaMap(tileEntity.getBlock().getState(), isWrite);
++    public static PersistentMetaMap getTileEntityPersistentMetaMap(@NotNull Location tileEntity) {
++        return getTileEntityPersistentMetaMap(tileEntity.getBlock().getState());
 +    }
 +
 +    @Nullable
-+    public static PersistentMetaMap getTileEntityPersistentMetaMap(@NotNull BlockState tileEntity, boolean isWrite) {
-+        return API.meta.getTileEntityMetaMap(tileEntity, isWrite);
++    public static PersistentMetaMap getTileEntityPersistentMetaMap(@NotNull BlockState tileEntity) {
++        return API.meta.getTileEntityMetaMap(tileEntity);
 +    }
 +
 +    public static boolean hasTileEntityMeta(@NotNull Location tileEntity, @NotNull PersistentKey key) {
@@ -536,8 +507,8 @@ index 0000000000000000000000000000000000000000..28976a889ed64d4892223d48774eb856
 +    }
 +
 +    public static boolean hasTileEntityMeta(@NotNull BlockState tileEntity, @NotNull PersistentKey key) {
-+        final PersistentMetaMap tileEntityMetaMap = getTileEntityPersistentMetaMap(tileEntity, false);
-+        return tileEntityMetaMap != null && !tileEntityMetaMap.isEmpty() && tileEntityMetaMap.containsKey(key.key());
++        final PersistentMetaMap tileEntityMetaMap = getTileEntityPersistentMetaMap(tileEntity);
++        return tileEntityMetaMap != null && tileEntityMetaMap.containsKey(key.key());
 +    }
 +
 +    @Nullable
@@ -557,8 +528,8 @@ index 0000000000000000000000000000000000000000..28976a889ed64d4892223d48774eb856
 +
 +    @Nullable
 +    public static <T> T getTileEntityMeta(@NotNull BlockState tileEntity, @NotNull PersistentKey key, @Nullable T def) {
-+        final PersistentMetaMap tileEntityMetaMap = getTileEntityPersistentMetaMap(tileEntity, false);
-+        T ret = tileEntityMetaMap != null && !tileEntityMetaMap.isEmpty() ? (T) tileEntityMetaMap.get(key.key()) : null;
++        final PersistentMetaMap tileEntityMetaMap = getTileEntityPersistentMetaMap(tileEntity);
++        T ret = tileEntityMetaMap != null ? (T) tileEntityMetaMap.get(key.key()) : null;
 +        return ret != null ? ret : def;
 +    }
 +
@@ -569,7 +540,7 @@ index 0000000000000000000000000000000000000000..28976a889ed64d4892223d48774eb856
 +
 +    @Nullable
 +    public static <T> T setTileEntityMeta(@NotNull BlockState tileEntity, @NotNull PersistentKey key, @Nullable Object val) {
-+        PersistentMetaMap metaMap = getTileEntityPersistentMetaMap(tileEntity, true);
++        PersistentMetaMap metaMap = getTileEntityPersistentMetaMap(tileEntity);
 +        return metaMap != null ? setMetaMapValue(metaMap, key, val) : null;
 +    }
 +
@@ -580,7 +551,7 @@ index 0000000000000000000000000000000000000000..28976a889ed64d4892223d48774eb856
 +
 +    @Nullable
 +    public static <T> T removeTileEntityMeta(@NotNull BlockState tileEntity, @NotNull PersistentKey key) {
-+        PersistentMetaMap metaMap = getTileEntityPersistentMetaMap(tileEntity, false);
++        PersistentMetaMap metaMap = getTileEntityPersistentMetaMap(tileEntity);
 +        return metaMap != null ? setMetaMapValue(metaMap, key, null) : null;
 +    }
 +
@@ -594,20 +565,17 @@ index 0000000000000000000000000000000000000000..28976a889ed64d4892223d48774eb856
 +    }
 +
 +    public static boolean hasEntityMeta(@NotNull Entity entity, @NotNull TempKey key) {
-+        TempMetaMap metaMap = getEntityTempMetaMap(entity);
-+        return metaMap.containsKey(key.key());
++        return entity.getTempMeta().containsKey(key.key());
 +    }
 +
 +    @Nullable
 +    public static <T> T setEntityMeta(@NotNull Entity entity, @NotNull TempKey key, @Nullable Object val) {
-+        TempMetaMap metaMap = getEntityTempMetaMap(entity);
-+        return (T) metaMap.put(key.key(), val);
++        return (T) entity.getTempMeta().put(key.key(), val);
 +    }
 +
 +    @Nullable
 +    public static <T> T removeEntityMeta(@NotNull Entity entity, @NotNull TempKey key) {
-+        TempMetaMap metaMap = getEntityTempMetaMap(entity);
-+        return (T) metaMap.remove(key.key());
++        return (T) entity.getTempMeta().remove(key.key());
 +    }
 +
 +    @Nullable
@@ -618,8 +586,7 @@ index 0000000000000000000000000000000000000000..28976a889ed64d4892223d48774eb856
 +    @Nullable
 +    @Contract("_, _, !null -> !null")
 +    public static <T> T getEntityMeta(@NotNull Entity entity, @NotNull TempKey key, @Nullable T def) {
-+        TempMetaMap metaMap = getEntityTempMetaMap(entity);
-+        T val = (T) metaMap.get(key.key());
++        T val = (T) entity.getTempMeta().get(key.key());
 +        return val != null ? val : def;
 +    }
 +
@@ -647,6 +614,11 @@ index 0000000000000000000000000000000000000000..28976a889ed64d4892223d48774eb856
 +    //// TEMP BLOCK META
 +    //////////////////////////////////////////////////
 +
++    @Nullable
++    public static Map<String,Object> getBlockTempMetaMap(@NotNull Block block) {
++        return API.meta.getBlockTempMeta(block, false);
++    }
++
 +    public static boolean hasBlockMeta(@NotNull Block block, @NotNull TempKey key) {
 +        Map<String, Object> blockMeta = API.meta.getBlockTempMeta(block, false);
 +        return blockMeta != null && blockMeta.containsKey(key.key());
@@ -660,8 +632,8 @@ index 0000000000000000000000000000000000000000..28976a889ed64d4892223d48774eb856
 +
 +    @Nullable
 +    public static <T> T removeBlockMeta(@NotNull Block block, @NotNull TempKey key) {
-+        Map<String, Object> blockMeta = API.meta.getBlockTempMeta(block, true);
-+        return (T) blockMeta.remove(key.key());
++        Map<String, Object> blockMeta = API.meta.getBlockTempMeta(block, false);
++        return blockMeta != null ? (T) blockMeta.remove(key.key()) : null;
 +    }
 +
 +    @Nullable
@@ -698,18 +670,74 @@ index 0000000000000000000000000000000000000000..28976a889ed64d4892223d48774eb856
 +    }
 +
 +    //////////////////////////////////////////////////
++    //// TEMP WORLD META
++    //////////////////////////////////////////////////
++
++    @NotNull
++    public static TempMetaMap getEntityTempMetaMap(@NotNull World world) {
++        return world.getTempMeta();
++    }
++
++    public static boolean hasWorldMeta(@NotNull World world, @NotNull TempKey key) {
++        final TempMetaMap chunkMetaMap = world.getTempMeta();
++        return !chunkMetaMap.isEmpty() && chunkMetaMap.containsKey(key);
++    }
++
++    @Nullable
++    public static <T> T getWorldMeta(@NotNull World world, @NotNull TempKey key) {
++        return getWorldMeta(world, key, null);
++    }
++
++    @Nullable
++    @Contract("_, _, !null -> !null")
++    public static <T> T getWorldMeta(@NotNull World world, @NotNull TempKey key, @Nullable T def) {
++        final TempMetaMap chunkMetaMap = world.getTempMeta();
++        T ret = !chunkMetaMap.isEmpty() ? (T) chunkMetaMap.get(key) : null;
++        return ret != null ? ret : def;
++    }
++
++    @Nullable
++    public static <T> T setWorldMeta(@NotNull World world, @NotNull TempKey key, @Nullable Object val) {
++        return setMetaMapValue(world.getTempMeta(), key, val);
++    }
++
++    @Nullable
++    public static <T> T removeWorldMeta(@NotNull World world, @NotNull TempKey key) {
++        return setMetaMapValue(world.getTempMeta(), key, null);
++    }
++
++    public static long incrementWorldMeta(@NotNull World world, @NotNull TempKey key, long amount) {
++        return incrementWorldMeta(world, key, amount, 0L);
++    }
++    public static long incrementWorldMeta(@NotNull World world, @NotNull TempKey key, long amount, long start) {
++        long val = getWorldMeta(world, key, start);
++        val += amount;
++        setWorldMeta(world, key, val);
++        return val;
++    }
++
++    public static double incrementWorldMeta(@NotNull World world, @NotNull TempKey key, double amount) {
++        return incrementWorldMeta(world, key, amount, 0D);
++    }
++    public static double incrementWorldMeta(@NotNull World world, @NotNull TempKey key, double amount, double start) {
++        double val = getWorldMeta(world, key, start);
++        val += amount;
++        setWorldMeta(world, key, val);
++        return val;
++    }
++
++    //////////////////////////////////////////////////
 +    //// TEMP CHUNK META
 +    //////////////////////////////////////////////////
 +
-+    @Nullable
-+    @Contract("_, true -> !null")
-+    public static TempMetaMap getChunkTempMetaMap(@NotNull Chunk chunk, boolean isWrite) {
-+        return API.meta.getChunkTempMetaMap(chunk, isWrite);
++    @NotNull
++    public static TempMetaMap getChunkTempMetaMap(@NotNull Chunk chunk) {
++        return chunk.getTempMeta();
 +    }
 +
 +    public static boolean hasChunkMeta(@NotNull Chunk chunk, @NotNull TempKey key) {
-+        final TempMetaMap chunkMetaMap = getChunkTempMetaMap(chunk, false);
-+        return chunkMetaMap != null && !chunkMetaMap.isEmpty() && chunkMetaMap.containsKey(key);
++        final TempMetaMap chunkMetaMap = chunk.getTempMeta();
++        return chunkMetaMap.containsKey(key);
 +    }
 +
 +    @Nullable
@@ -720,21 +748,18 @@ index 0000000000000000000000000000000000000000..28976a889ed64d4892223d48774eb856
 +    @Nullable
 +    @Contract("_, _, !null -> !null")
 +    public static <T> T getChunkMeta(@NotNull Chunk chunk, @NotNull TempKey key, @Nullable T def) {
-+        final TempMetaMap chunkMetaMap = getChunkTempMetaMap(chunk, false);
-+        T ret = chunkMetaMap != null && !chunkMetaMap.isEmpty() ? (T) chunkMetaMap.get(key) : null;
++        T ret = (T) chunk.getTempMeta().get(key);
 +        return ret != null ? ret : def;
 +    }
 +
 +    @Nullable
 +    public static <T> T setChunkMeta(@NotNull Chunk chunk, @NotNull TempKey key, @Nullable Object val) {
-+        TempMetaMap chunkMap = getChunkTempMetaMap(chunk, true);
-+        return setMetaMapValue(chunkMap, key, val);
++        return setMetaMapValue(chunk.getTempMeta(), key, val);
 +    }
 +
 +    @Nullable
 +    public static <T> T removeChunkMeta(@NotNull Chunk chunk, @NotNull TempKey key) {
-+        TempMetaMap chunkMap = getChunkTempMetaMap(chunk, false);
-+        return chunkMap != null ? setMetaMapValue(chunkMap, key, null): null;
++        return setMetaMapValue(chunk.getTempMeta(), key, null);
 +    }
 +
 +    public static long incrementChunkMeta(@NotNull Chunk chunk, @NotNull TempKey key, long amount) {
@@ -1414,18 +1439,57 @@ index 0000000000000000000000000000000000000000..3695dfc172c2802caf6d98a7007c64a7
 +    }
 +}
 diff --git a/src/main/java/org/bukkit/Chunk.java b/src/main/java/org/bukkit/Chunk.java
-index 98263d896f316983609432c45b85401a2692432d..2072312637a321ea2159e2c89e5c50a6505b52f0 100644
+index 98263d896f316983609432c45b85401a2692432d..182f81a0dd9c4d7327073071a165e8d1daee0917 100644
 --- a/src/main/java/org/bukkit/Chunk.java
 +++ b/src/main/java/org/bukkit/Chunk.java
-@@ -136,6 +136,8 @@ public interface Chunk extends PersistentDataHolder {
-     Collection<BlockState> getTileEntities(@NotNull Predicate<Block> blockPredicate, boolean useSnapshot);
-     // Paper end
+@@ -3,6 +3,8 @@ package org.bukkit;
+ import java.util.Collection;
+ import java.util.function.Predicate;
  
-+    @NotNull com.empireminecraft.api.meta.TempMetaMap getTempMeta(); // EMC
-+
++import com.empireminecraft.api.meta.PersistentMetaMap;
++import com.empireminecraft.api.meta.TempMetaMap;
+ import org.bukkit.block.Block;
+ import org.bukkit.block.BlockState;
+ import org.bukkit.block.data.BlockData;
+@@ -15,6 +17,12 @@ import org.jetbrains.annotations.NotNull;
+  * Represents a chunk of blocks
+  */
+ public interface Chunk extends PersistentDataHolder {
++    // EMC start
++    @NotNull
++    TempMetaMap getTempMeta();
++    @NotNull
++    PersistentMetaMap getPersistentMeta();
++    // EMC end
+ 
      /**
-      * Checks if the chunk is loaded.
-      *
+      * Gets the X-coordinate of this chunk
+diff --git a/src/main/java/org/bukkit/World.java b/src/main/java/org/bukkit/World.java
+index 8ae9198ba7fdb006dc420504a984627add20dbb5..5e1ae7c4167cc44dfdb4e86ebaebcc447e0820e0 100644
+--- a/src/main/java/org/bukkit/World.java
++++ b/src/main/java/org/bukkit/World.java
+@@ -2,6 +2,8 @@ package org.bukkit;
+ 
+ import java.io.File;
+ 
++import com.empireminecraft.api.meta.PersistentMetaMap;
++import com.empireminecraft.api.meta.TempMetaMap;
+ import org.bukkit.event.entity.CreatureSpawnEvent;
+ import org.bukkit.generator.ChunkGenerator;
+ 
+@@ -44,6 +46,12 @@ import org.jetbrains.annotations.Nullable;
+  * Represents a world, which may contain entities, chunks and blocks
+  */
+ public interface World extends PluginMessageRecipient, Metadatable, net.kyori.adventure.audience.ForwardingAudience, Keyed { // Paper
++    // EMC start
++    @NotNull
++    PersistentMetaMap getPersistentMeta();
++    @NotNull
++    TempMetaMap getTempMeta();
++    // EMC end
+ 
+     // Paper start
+     /**
 diff --git a/src/main/java/org/bukkit/block/BlockState.java b/src/main/java/org/bukkit/block/BlockState.java
 index 631cbf2be51040eee00aa39a39c5ec4003f91843..de0276394998a2d4e61305879febe05fad3aae91 100644
 --- a/src/main/java/org/bukkit/block/BlockState.java
@@ -1438,17 +1502,33 @@ index 631cbf2be51040eee00aa39a39c5ec4003f91843..de0276394998a2d4e61305879febe05f
 +    boolean isTileEntity(); // EMC
  }
 diff --git a/src/main/java/org/bukkit/entity/Entity.java b/src/main/java/org/bukkit/entity/Entity.java
-index 59012a790172b9899b93aef32668ad81fd123546..19b5bfa3afb3d7dc51965b1bf7163d1ebba66400 100644
+index 59012a790172b9899b93aef32668ad81fd123546..fcb451041ae95c71c69c5301d2a8f44ef927a613 100644
 --- a/src/main/java/org/bukkit/entity/Entity.java
 +++ b/src/main/java/org/bukkit/entity/Entity.java
-@@ -309,6 +309,7 @@ public interface Entity extends Metadatable, CommandSender, Nameable, Persistent
-     @NotNull
-     public Server getServer();
- 
-+    @NotNull com.empireminecraft.api.meta.TempMetaMap getTempMeta(); // EMC
+@@ -3,6 +3,9 @@ package org.bukkit.entity;
+ import java.util.List;
+ import java.util.Set;
+ import java.util.UUID;
++
++import com.empireminecraft.api.meta.PersistentMetaMap;
++import com.empireminecraft.api.meta.TempMetaMap;
+ import org.bukkit.Chunk; // Paper
+ import org.bukkit.EntityEffect;
+ import org.bukkit.Location;
+@@ -27,7 +30,12 @@ import org.jetbrains.annotations.Nullable;
+  * Represents a base entity in the world
+  */
+ public interface Entity extends Metadatable, CommandSender, Nameable, PersistentDataHolder, net.kyori.adventure.text.event.HoverEventSource<net.kyori.adventure.text.event.HoverEvent.ShowEntity> { // Paper
+-
++    // EMC start
++    @NotNull
++    PersistentMetaMap getPersistentMeta();
++    @NotNull
++    TempMetaMap getTempMeta();
++    // EMC end
+     boolean spawnAt(@NotNull Location loc); // EMC
+     boolean spawnAt(@NotNull Location loc, @NotNull org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason spawnReason); // EMC
      /**
-      * Returns true if the entity gets persisted.
-      * <p>
 diff --git a/src/main/java/org/bukkit/inventory/Inventory.java b/src/main/java/org/bukkit/inventory/Inventory.java
 index c64b6201a439e93b7612da2d68efc455bc125a9f..cb805275fface96519005b0f40d801ae08dacb70 100644
 --- a/src/main/java/org/bukkit/inventory/Inventory.java
