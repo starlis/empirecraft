@@ -1,0 +1,72 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Sat, 20 Jul 2013 22:40:56 -0400
+Subject: [PATCH] MonsterEggSpawn Event
+
+Get the itemstack used to spawn an entity
+
+diff --git a/src/main/java/net/minecraft/world/entity/EntityType.java b/src/main/java/net/minecraft/world/entity/EntityType.java
+index ac99265aacd4a28490705e3079ed04023fb1c54a..1cd9032cde2f4e8bb6be2330eb18a1b1dd7926d5 100644
+--- a/src/main/java/net/minecraft/world/entity/EntityType.java
++++ b/src/main/java/net/minecraft/world/entity/EntityType.java
+@@ -146,6 +146,7 @@ import net.minecraft.world.phys.shapes.Shapes;
+ import net.minecraft.world.phys.shapes.VoxelShape;
+ import org.apache.logging.log4j.LogManager;
+ import org.apache.logging.log4j.Logger;
++import org.bukkit.event.entity.CreatureSpawnEvent;
+ 
+ public class EntityType<T extends Entity> implements EntityTypeTest<Entity, T> {
+ 
+@@ -321,13 +322,18 @@ public class EntityType<T extends Entity> implements EntityTypeTest<Entity, T> {
+ 
+     @Nullable
+     public Entity spawn(ServerLevel world, @Nullable ItemStack stack, @Nullable Player player, BlockPos pos, MobSpawnType spawnReason, boolean alignPosition, boolean invertY) {
+-        return this.spawn(world, stack == null ? null : stack.getTag(), stack != null && stack.hasCustomHoverName() ? stack.getHoverName() : null, player, pos, spawnReason, alignPosition, invertY);
++        // EMC start - pass itemstack for monster eggs
++        return this.spawn(world, stack, stack == null ? null : stack.getTag(), stack != null && stack.hasCustomHoverName() ? stack.getHoverName() : null, player, pos, spawnReason, alignPosition, invertY);
+     }
+ 
+     @Nullable
+     public T spawn(ServerLevel world, @Nullable CompoundTag itemNbt, @Nullable Component name, @Nullable Player player, BlockPos pos, MobSpawnType spawnReason, boolean alignPosition, boolean invertY) {
++        return this.spawn(world, null, itemNbt, name, player, pos, spawnReason, alignPosition, invertY);
++    }
++    @Nullable
++    public T spawn(ServerLevel world, ItemStack itemStack, @Nullable CompoundTag itemNbt, @Nullable Component name, @Nullable Player player, BlockPos pos, MobSpawnType spawnReason, boolean alignPosition, boolean invertY) {
+         // CraftBukkit start
+-        return this.spawnCreature(world, itemNbt, name, player, pos, spawnReason, alignPosition, invertY, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.SPAWNER_EGG);
++        return this.spawnCreature(world, itemStack, itemNbt, name, player, pos, spawnReason, alignPosition, invertY, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.SPAWNER_EGG, null);
+     }
+ 
+     @Nullable
+@@ -338,6 +344,11 @@ public class EntityType<T extends Entity> implements EntityTypeTest<Entity, T> {
+     @Nullable
+     public T spawnCreature(ServerLevel worldserver, @Nullable CompoundTag nbttagcompound, @Nullable Component ichatbasecomponent, @Nullable Player entityhuman, BlockPos blockposition, MobSpawnType enummobspawn, boolean flag, boolean flag1, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason spawnReason, @Nullable java.util.function.Consumer<T> op) {
+         // Paper end
++        return this.spawnCreature(worldserver, null, nbttagcompound, ichatbasecomponent, entityhuman, blockposition, enummobspawn, flag, flag1, spawnReason, op);
++    }
++    @Nullable
++    public T spawnCreature(ServerLevel worldserver, @Nullable ItemStack itemstack, @Nullable CompoundTag nbttagcompound, @Nullable Component ichatbasecomponent, @Nullable Player entityhuman, BlockPos blockposition, MobSpawnType enummobspawn, boolean flag, boolean flag1, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason spawnReason, @Nullable java.util.function.Consumer<T> op) {
++        // EMC end - add itemstacks to methods
+         // Paper start - Call PreCreatureSpawnEvent
+         org.bukkit.entity.EntityType type = org.bukkit.entity.EntityType.fromName(EntityType.getKey(this).getPath());
+         if (type != null) {
+@@ -353,6 +364,19 @@ public class EntityType<T extends Entity> implements EntityTypeTest<Entity, T> {
+         }
+         // Paper end
+         T t0 = this.create(worldserver, nbttagcompound, ichatbasecomponent, entityhuman, blockposition, enummobspawn, flag, flag1);
++        // EMC start - if false the spawn was cancelled, add new event
++        if ((spawnReason == CreatureSpawnEvent.SpawnReason.SPAWNER_EGG || spawnReason == CreatureSpawnEvent.SpawnReason.DISPENSE_EGG) && itemstack != null && t0 != null) {
++            final com.empireminecraft.customevents.MonsterEggSpawnEvent event = new com.empireminecraft.customevents.MonsterEggSpawnEvent(entityhuman != null ? entityhuman.getBukkitEntity() : null, (org.bukkit.entity.LivingEntity) t0.getBukkitEntity(), org.bukkit.craftbukkit.inventory.CraftItemStack.asCraftMirror(itemstack));
++
++            if (!event.callEvent()) {
++                t0.discard();
++                return null;
++            }
++            if (event.getEntity().getEntityId() != t0.getId()) {
++                return (T) ((org.bukkit.craftbukkit.entity.CraftEntity) event.getEntity()).getHandle();
++            }
++        }
++        // EMC end
+         if (t0 != null && op != null) op.accept(t0); // Paper
+ 
+         if (t0 != null) {
