@@ -3,20 +3,17 @@ From: chickeneer <emcchickeneer@gmail.com>
 Date: Tue, 17 Mar 2020 18:59:20 -0500
 Subject: [PATCH] Properly remove empty entityTags from SpawnEggs
 
----
- .../inventory/CraftMetaSpawnEgg.java          | 23 ++++++++++++++++++-
- 1 file changed, 22 insertions(+), 1 deletion(-)
 
 diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaSpawnEgg.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaSpawnEgg.java
-index 8d5c939c34ddb73408eeb70c3e74f4c2256d23fe..66727d17d2587d43731374a88b609df39dc525db 100644
+index ab3fbe261544da47a81613f8251564ab2cd5c15e..2e8bab7e8f9f23162091276c403b846c211c0989 100644
 --- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaSpawnEgg.java
 +++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaSpawnEgg.java
 @@ -42,6 +42,18 @@ public class CraftMetaSpawnEgg extends CraftMetaItem implements SpawnEggMeta {
  
-         if (tag.hasKey(ENTITY_TAG.NBT)) {
-             entityTag = tag.getCompound(ENTITY_TAG.NBT);
+         if (tag.contains(ENTITY_TAG.NBT)) {
+             this.entityTag = tag.getCompound(ENTITY_TAG.NBT);
 +            // EMC start
-+            if (entityTag != null) {
++            if (this.entityTag != null && !this.entityTag.isEmpty()) {
 +                String entityType = entityTag.getString(ENTITY_ID.NBT);
 +                if (entityType != null) {
 +                    this.spawnedType = EntityType.fromName(entityType);
@@ -32,8 +29,8 @@ index 8d5c939c34ddb73408eeb70c3e74f4c2256d23fe..66727d17d2587d43731374a88b609df3
  
 @@ -85,7 +97,15 @@ public class CraftMetaSpawnEgg extends CraftMetaItem implements SpawnEggMeta {
              // See if we can read a converted ID tag
-             if (entityTag.hasKey(ENTITY_ID.NBT)) {
-                 this.spawnedType = EntityType.fromName(new MinecraftKey(entityTag.getString(ENTITY_ID.NBT)).getKey());
+             if (this.entityTag.contains(ENTITY_ID.NBT)) {
+                 this.spawnedType = EntityType.fromName(new ResourceLocation(this.entityTag.getString(ENTITY_ID.NBT)).getPath());
 +                // EMC start
 +                if (spawnedType != null) {
 +                    entityTag.remove(ENTITY_ID.NBT);
@@ -49,17 +46,17 @@ index 8d5c939c34ddb73408eeb70c3e74f4c2256d23fe..66727d17d2587d43731374a88b609df3
 @@ -231,7 +251,7 @@ public class CraftMetaSpawnEgg extends CraftMetaItem implements SpawnEggMeta {
              CraftMetaSpawnEgg that = (CraftMetaSpawnEgg) meta;
  
-             return hasSpawnedType() ? that.hasSpawnedType() && this.spawnedType.equals(that.spawnedType) : !that.hasSpawnedType()
--                    && entityTag != null ? that.entityTag != null && this.entityTag.equals(that.entityTag) : entityTag == null;
-+                    && (entityTag != null ? that.entityTag != null && this.entityTag.equals(that.entityTag) : that.entityTag == null); // EMC - fix logic
+             return this.hasSpawnedType() ? that.hasSpawnedType() && this.spawnedType.equals(that.spawnedType) : !that.hasSpawnedType()
+-                    && this.entityTag != null ? that.entityTag != null && this.entityTag.equals(that.entityTag) : this.entityTag == null;
++                    && (this.entityTag != null ? that.entityTag != null && this.entityTag.equals(that.entityTag) : that.entityTag == null); // EMC - fix logic
          }
          return true;
      }
 @@ -286,6 +306,7 @@ public class CraftMetaSpawnEgg extends CraftMetaItem implements SpawnEggMeta {
-             if (entityTag != null) {
+             if (this.entityTag != null) {
                  // Remove ID tag as it is now in the material
-                 entityTag.remove(ENTITY_ID.NBT);
-+                if (entityTag.isEmpty()) entityTag = null; // EMC
+                 this.entityTag.remove(ENTITY_ID.NBT);
++                if (entityTag.isEmpty()) { entityTag = null; } // EMC
              }
  
-             return CraftLegacy.fromLegacy(new MaterialData(Material.LEGACY_MONSTER_EGG, (byte) spawnedType.getTypeId()));
+             return CraftLegacy.fromLegacy(new MaterialData(Material.LEGACY_MONSTER_EGG, (byte) this.spawnedType.getTypeId()));
