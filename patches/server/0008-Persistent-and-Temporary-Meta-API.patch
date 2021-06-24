@@ -713,7 +713,7 @@ index 759a6228b0a2722c56365abd309ae568852d9cfd..5fe95ba53715e161d6a5285ff1d80cd0
  
      @Override
 diff --git a/src/main/java/net/minecraft/network/protocol/game/ClientboundLevelChunkPacket.java b/src/main/java/net/minecraft/network/protocol/game/ClientboundLevelChunkPacket.java
-index 7762d8ff94f856d613a6f50311006b698f2aa2b0..362e38b22d363d7a199884091b03b43b7171041b 100644
+index 60d72e488bc77cd913328be400ca374a873b4561..7e56a05bb96bfbe0520dde0a172e8c2eacb8ce83 100644
 --- a/src/main/java/net/minecraft/network/protocol/game/ClientboundLevelChunkPacket.java
 +++ b/src/main/java/net/minecraft/network/protocol/game/ClientboundLevelChunkPacket.java
 @@ -1,5 +1,6 @@
@@ -723,14 +723,14 @@ index 7762d8ff94f856d613a6f50311006b698f2aa2b0..362e38b22d363d7a199884091b03b43b
  import com.google.common.collect.Lists;
  import io.netty.buffer.ByteBuf;
  import io.netty.buffer.Unpooled;
-@@ -79,6 +80,7 @@ public class ClientboundLevelChunkPacket implements Packet<ClientGamePacketListe
+@@ -92,6 +93,7 @@ public class ClientboundLevelChunkPacket implements Packet<ClientGamePacketListe
              // Paper end
              CompoundTag compoundTag = blockEntity.getUpdateTag();
              if (blockEntity instanceof net.minecraft.world.level.block.entity.SkullBlockEntity) { net.minecraft.world.level.block.entity.SkullBlockEntity.sanitizeTileEntityUUID(compoundTag); } // Paper
 +            MetaApiAccessor.filterTileEntityMeta(compoundTag); // EMC
              this.blockEntitiesTags.add(compoundTag);
          }
-         chunk.level.chunkPacketBlockController.modifyBlocks(this, chunkPacketInfo); // Paper - Anti-Xray - Modify blocks
+ 
 diff --git a/src/main/java/net/minecraft/server/level/ChunkMap.java b/src/main/java/net/minecraft/server/level/ChunkMap.java
 index 7f7bc04a30a0422b2d589adb488082c0aa5326dc..d97819ca8b9a5cfac4e110367a17ff4f99a74a22 100644
 --- a/src/main/java/net/minecraft/server/level/ChunkMap.java
@@ -793,7 +793,7 @@ index 4fd030ef9537d9b31c6167d73349f4c4a6b33a15..979d553bff355c6319b47c158df1178d
              ListTag originTag = nbt.getList("Paper.Origin", 6);
              if (!originTag.isEmpty()) {
 diff --git a/src/main/java/net/minecraft/world/level/Level.java b/src/main/java/net/minecraft/world/level/Level.java
-index 4bf799db871243b07eea57ec7744cf6dc2628645..1fa02d74f26630000238dba61ccde6f09e3ef6bb 100644
+index 1c171599dbde44389013dc08ca8263742d58d721..81a4337020fb4b7463d586b385b5e40745e6d3d9 100644
 --- a/src/main/java/net/minecraft/world/level/Level.java
 +++ b/src/main/java/net/minecraft/world/level/Level.java
 @@ -4,6 +4,7 @@ import co.aikar.timings.Timing;
@@ -852,7 +852,7 @@ index c3a07ccccd5cc38552363c82398f432c8d624288..87f72d89498d897ae65d376e3807b553
              nbt.putInt("y", this.worldPosition.getY());
              nbt.putInt("z", this.worldPosition.getZ());
 diff --git a/src/main/java/net/minecraft/world/level/chunk/LevelChunk.java b/src/main/java/net/minecraft/world/level/chunk/LevelChunk.java
-index 2d19fddd20b62afc3152a74ffe14297be1c30f55..c461ceac8b96a67039f891f1e94b5d9cbc8adf4a 100644
+index cc02b577453fa251f0f1b508281ddea2513138a1..3d4d46747e56c9e51d6af179f40e8052e62f61b9 100644
 --- a/src/main/java/net/minecraft/world/level/chunk/LevelChunk.java
 +++ b/src/main/java/net/minecraft/world/level/chunk/LevelChunk.java
 @@ -1,5 +1,8 @@
@@ -878,7 +878,7 @@ index 2d19fddd20b62afc3152a74ffe14297be1c30f55..c461ceac8b96a67039f891f1e94b5d9c
      static final Logger LOGGER = LogManager.getLogger();
      private static final TickingBlockEntity NULL_TICKER = new TickingBlockEntity() {
 diff --git a/src/main/java/net/minecraft/world/level/chunk/ProtoChunk.java b/src/main/java/net/minecraft/world/level/chunk/ProtoChunk.java
-index f0c537e1d6b32ecde52b3d456f0f3889ff554824..adba178bccd00c9ccf06d9642243c975124ff272 100644
+index 78bd3274866fed3d627a3eda7b96b92716507d38..8a8939e38f660fe3da03f77894fcc2ce6a104c98 100644
 --- a/src/main/java/net/minecraft/world/level/chunk/ProtoChunk.java
 +++ b/src/main/java/net/minecraft/world/level/chunk/ProtoChunk.java
 @@ -20,6 +20,7 @@ import javax.annotation.Nullable;
@@ -892,7 +892,7 @@ index f0c537e1d6b32ecde52b3d456f0f3889ff554824..adba178bccd00c9ccf06d9642243c975
 @@ -64,6 +65,12 @@ public class ProtoChunk implements ChunkAccess {
      private final Map<GenerationStep.Carving, BitSet> carvingMasks = new Object2ObjectArrayMap<>();
      private volatile boolean isLightCorrect;
-     final net.minecraft.server.level.ServerLevel level; // Paper - Add level
+     final net.minecraft.world.level.Level level; // Paper - Add level
 +    // EMC start
 +    public @Nullable CompoundTag legacyChunkMeta;
 +    public @Nullable ListTag legacyChunkMetaList;
@@ -903,7 +903,7 @@ index f0c537e1d6b32ecde52b3d456f0f3889ff554824..adba178bccd00c9ccf06d9642243c975
      // Paper start - add level
      @Deprecated public ProtoChunk(ChunkPos pos, UpgradeData upgradeData, LevelHeightAccessor world) { this(pos, upgradeData, world, null); }
 diff --git a/src/main/java/net/minecraft/world/level/chunk/storage/ChunkSerializer.java b/src/main/java/net/minecraft/world/level/chunk/storage/ChunkSerializer.java
-index f4c8b6485bd36241e1f0413140f04d7398848063..c0e9ae27bdbee6c1ccbf92f240841f06af74502a 100644
+index 18432dc1e5067d65cda709b7b3bcc2dd37b77d02..e30814f76c56bfbd665c3dbf9e7b9f2afa6804ef 100644
 --- a/src/main/java/net/minecraft/world/level/chunk/storage/ChunkSerializer.java
 +++ b/src/main/java/net/minecraft/world/level/chunk/storage/ChunkSerializer.java
 @@ -2,6 +2,7 @@ package net.minecraft.world.level.chunk.storage;
@@ -987,7 +987,7 @@ index 4d0af984490b556a9911c3b8fdca1e168e6fe932..b3bfb7410bf6c26c2110c933c6ef01ae
      }
  
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftChunk.java b/src/main/java/org/bukkit/craftbukkit/CraftChunk.java
-index 91145e3dff181ab3a8da3fc30378e672fa58e713..4691915eda0f4057de5bcbf6c456ea18ee303082 100644
+index 08a5fabb1d13db26014bb5751aa271c0a0bdcb7a..e148561e1e6e0bb739267ce17028de6bb7281244 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftChunk.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftChunk.java
 @@ -1,5 +1,7 @@
