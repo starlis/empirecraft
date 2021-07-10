@@ -5,10 +5,10 @@ Subject: [PATCH] Entity AI API
 
 
 diff --git a/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java b/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
-index 137c424f84aa84b35a8dd6c9d88ad62d0a0cc9b0..c7ffdac08b4e85597f8cecfabea5256dc01b3056 100644
+index 137c424f84aa84b35a8dd6c9d88ad62d0a0cc9b0..db202cc63a14e1b951a933a7e521637e58786a6e 100644
 --- a/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
 +++ b/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
-@@ -23,10 +23,40 @@
+@@ -23,10 +23,45 @@
  
  package com.empireminecraft.api;
  
@@ -21,6 +21,7 @@ index 137c424f84aa84b35a8dd6c9d88ad62d0a0cc9b0..c7ffdac08b4e85597f8cecfabea5256d
 +import net.minecraft.world.entity.ai.goal.MeleeAttackGoal;
 +import net.minecraft.world.entity.ai.goal.RangedAttackGoal;
 +import net.minecraft.world.entity.ai.goal.RangedBowAttackGoal;
++import net.minecraft.world.entity.ai.goal.WrappedGoal;
 +import net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal;
 +import net.minecraft.world.entity.item.ItemEntity;
 +import net.minecraft.world.entity.player.Player;
@@ -44,12 +45,16 @@ index 137c424f84aa84b35a8dd6c9d88ad62d0a0cc9b0..c7ffdac08b4e85597f8cecfabea5256d
 +import org.bukkit.entity.Wolf;
  import org.jetbrains.annotations.NotNull;
  
++import java.util.HashSet;
++import java.util.Set;
++import java.util.regex.Pattern;
++
 +import static com.empireminecraft.api.EntityAIApi.ENTITY_AGGRESSIVE_RANGE_KEY;
 +
  public class CraftEAPI_Entity implements EAPI_Entity {
  
      @NotNull
-@@ -40,4 +70,211 @@ public class CraftEAPI_Entity implements EAPI_Entity {
+@@ -40,4 +75,226 @@ public class CraftEAPI_Entity implements EAPI_Entity {
      public void cancelTasks(@NotNull Entity entity) {
          ((CraftEntity) entity).getHandle().entityTasks.clear();
      }
@@ -132,11 +137,26 @@ index 137c424f84aa84b35a8dd6c9d88ad62d0a0cc9b0..c7ffdac08b4e85597f8cecfabea5256d
 +        }
 +    }
 +
++    private static final Pattern ENTITY_PACKAGE = Pattern.compile("net.minecraft.world.entity.");
 +    @Override
 +    public void removeGoalByName(@NotNull Mob mob, @NotNull String goalName) {
 +        net.minecraft.world.entity.Mob entity = (net.minecraft.world.entity.Mob) ((CraftEntity) mob).getHandle();
-+        String nms = entity.getClass().getPackage().getName() + ".";
-+        EntityAIApi.getGoalSets(entity).forEach(set -> set.removeIf(o -> o.getGoal().getClass().getName().replaceAll(nms, "").equalsIgnoreCase(goalName)));
++        for (Set<WrappedGoal> set : EntityAIApi.getGoalSets(entity)) {
++            set.removeIf(o -> ENTITY_PACKAGE.matcher(o.getGoal().getClass().getName()).replaceAll("")
++                                            .equalsIgnoreCase(goalName));
++        }
++    }
++    @NotNull
++    @Override
++    public Set<String> listGoalNames(@NotNull Mob mob) {
++        Set<String> goals = new HashSet<>();
++        net.minecraft.world.entity.Mob entity = (net.minecraft.world.entity.Mob) ((CraftEntity) mob).getHandle();
++        for (Set<WrappedGoal> set : EntityAIApi.getGoalSets(entity)) {
++            for (WrappedGoal wrappedGoal : set) {
++                goals.add(ENTITY_PACKAGE.matcher(wrappedGoal.getGoal().getClass().getName()).replaceAll(""));
++            }
++        }
++        return goals;
 +    }
 +
 +    @Override
