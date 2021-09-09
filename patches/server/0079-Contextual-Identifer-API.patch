@@ -1,0 +1,80 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Tue, 17 May 2016 19:46:42 -0400
+Subject: [PATCH] Contextual Identifer API
+
+Seems silly, but I want to have a common interface to represent an identity
+but not have risk of 2 objects equaling each other.
+
+Example: ChunkIdentifier and a ResidenceIdentifier are 2 ways to identify a context
+but can't ever equal each other.
+
+But we may want to store counting data by chunk, but also by Residence, and cache to the same cache map.
+
+Objects represented by an Identifier, should be able to use them as their equal/hashcodes.
+
+diff --git a/src/main/java/org/bukkit/craftbukkit/CraftChunk.java b/src/main/java/org/bukkit/craftbukkit/CraftChunk.java
+index 883300ba0cb9c081d4325997d6ad4cd57471d1f8..e8cb9950f5b86075e4cdfee4c925a5705deae89d 100644
+--- a/src/main/java/org/bukkit/craftbukkit/CraftChunk.java
++++ b/src/main/java/org/bukkit/craftbukkit/CraftChunk.java
+@@ -69,6 +69,7 @@ public class CraftChunk implements Chunk {
+         this.worldServer = (ServerLevel) this.getHandle().level;
+         this.x = this.getHandle().getPos().x;
+         this.z = this.getHandle().getPos().z;
++        this.chunkIdentifier = (chunk instanceof net.minecraft.world.level.chunk.EmptyLevelChunk) ? null : new ChunkIdentifier(this); // EMC
+     }
+ 
+     public CraftChunk(ServerLevel worldServer, int x, int z) {
+@@ -76,6 +77,7 @@ public class CraftChunk implements Chunk {
+         this.worldServer = worldServer;
+         this.x = x;
+         this.z = z;
++        this.chunkIdentifier = new ChunkIdentifier(this); // EMC
+     }
+ 
+     @Override
+@@ -377,4 +379,44 @@ public class CraftChunk implements Chunk {
+     static {
+         Arrays.fill(emptyLight, (byte) 0xFF);
+     }
++    // EMC start
++    private final ChunkIdentifier chunkIdentifier;
++    @NotNull
++    public com.empireminecraft.Identifier getIdentifier() {
++        return chunkIdentifier;
++    }
++
++    @Override
++    public int hashCode() {
++        return chunkIdentifier.hashCode();
++    }
++
++    @Override
++    public boolean equals(Object obj) {
++        return obj instanceof Chunk && chunkIdentifier.equals(((Chunk) obj).getIdentifier());
++    }
++
++    private static class ChunkIdentifier implements com.empireminecraft.Identifier {
++        private final World world;
++        private final int x, z;
++        private ChunkIdentifier(final Chunk chunk) {
++            this.world = chunk.getWorld();
++            this.x = chunk.getX();
++            this.z = chunk.getZ();
++        }
++        @Override
++        public boolean equals(Object o) {
++            if (this == o) { return true; }
++            if (o == null || getClass() != o.getClass()) { return false; }
++
++            final ChunkIdentifier that = (ChunkIdentifier) o;
++            return x == that.x && z == that.z && world.equals(that.world);
++
++        }
++        @Override
++        public int hashCode() {
++            return 73 * (73 * world.hashCode() + x) + z;
++        }
++    }
++    // EMC stop
+ }

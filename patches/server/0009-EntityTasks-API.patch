@@ -1,0 +1,167 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Tue, 11 Jun 2013 23:15:00 -0400
+Subject: [PATCH] EntityTasks API
+
+Allows scheduling repeating task timers on an entity level.
+Avoids Bukkit system so that tasks will simply maintain themselves on entity removal.
+
+diff --git a/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java b/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
+index e7bb9003da73c8200e1b0bb8d0fadb9009a9f253..137c424f84aa84b35a8dd6c9d88ad62d0a0cc9b0 100644
+--- a/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
++++ b/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
+@@ -23,5 +23,21 @@
+ 
+ package com.empireminecraft.api;
+ 
++import org.bukkit.craftbukkit.entity.CraftEntity;
++import org.bukkit.entity.Entity;
++import org.jetbrains.annotations.NotNull;
++
+ public class CraftEAPI_Entity implements EAPI_Entity {
++
++    @NotNull
++    public <T extends Entity> EntityTask<T> scheduleTask(@NotNull T entity, int interval, @NotNull EntityTask<T> task) {
++        final EntityTasksHandler.TaskList entityTasks = ((CraftEntity) entity).getHandle().entityTasks;
++        entityTasks.add(task);
++        task.init(entity, interval);
++        return task;
++    }
++
++    public void cancelTasks(@NotNull Entity entity) {
++        ((CraftEntity) entity).getHandle().entityTasks.clear();
++    }
+ }
+diff --git a/src/main/java/com/empireminecraft/api/EntityTasksHandler.java b/src/main/java/com/empireminecraft/api/EntityTasksHandler.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..61aa3d4e6ce8381610206fb53ba9fb0f09ca511e
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/api/EntityTasksHandler.java
+@@ -0,0 +1,58 @@
++package com.empireminecraft.api;
++
++import net.minecraft.server.MinecraftServer;
++import net.minecraft.server.level.ChunkHolder;
++import net.minecraft.server.level.ServerLevel;
++import net.minecraft.world.entity.Entity;
++import net.minecraft.world.level.chunk.LevelChunk;
++
++import java.util.ArrayList;
++import java.util.Collection;
++import java.util.Iterator;
++import java.util.List;
++
++public final class EntityTasksHandler {
++
++    private EntityTasksHandler() {}
++
++    public static void tickHandler(Entity entity) {
++        if (entity.entityTasks.isEmpty()) {
++            return;
++        }
++        List<EntityTask<?>> tasksToRun = new ArrayList<>();
++        final Iterator<EntityTask<?>> it = entity.entityTasks.iterator();
++        while (it.hasNext()) {
++            EntityTask<?> task = it.next();
++            if (!task.isValid()) {
++                it.remove();
++                continue;
++            }
++            if (task.isReady()) {
++                tasksToRun.add(task);
++            }
++        }
++
++        tasksToRun.forEach(EntityTask::tick);
++    }
++
++    public static void reload() {
++        for (ServerLevel level : MinecraftServer.getServer().getAllLevels()) {
++            clearTasks(level.getChunkSource().chunkMap.updatingChunks.getVisibleMap().values());
++            clearTasks(level.getChunkSource().chunkMap.updatingChunks.getUpdatingMap().values());
++        }
++    }
++
++    private static void clearTasks(Collection<ChunkHolder> chunkHolders) {
++        for (ChunkHolder chunkHolder : chunkHolders) {
++            LevelChunk chunk = chunkHolder.getTickingChunk();
++            if (chunk == null) {
++                continue;
++            }
++            for (Entity entity : chunk.entities) {
++                entity.entityTasks.clear();
++            }
++        }
++    }
++
++    public static class TaskList extends ArrayList<EntityTask<?>> {}
++}
+diff --git a/src/main/java/net/minecraft/server/level/ServerLevel.java b/src/main/java/net/minecraft/server/level/ServerLevel.java
+index cebaf0fb8187335ca303621a2cb412bb22584e23..cce6e2011c7bb3aed09e0230a6ff1df5c89fd5ec 100644
+--- a/src/main/java/net/minecraft/server/level/ServerLevel.java
++++ b/src/main/java/net/minecraft/server/level/ServerLevel.java
+@@ -1,5 +1,6 @@
+ package net.minecraft.server.level;
+ 
++import com.empireminecraft.api.EntityTasksHandler;
+ import com.google.common.annotations.VisibleForTesting;
+ import co.aikar.timings.TimingHistory; // Paper
+ import com.google.common.collect.Lists;
+@@ -1105,6 +1106,7 @@ public class ServerLevel extends Level implements WorldGenLevel {
+         ProfilerFiller gameprofilerfiller = this.getProfiler();
+ 
+         ++entity.tickCount;
++        EntityTasksHandler.tickHandler(entity); // EMC
+         this.getProfiler().push(() -> {
+             return Registry.ENTITY_TYPE.getKey(entity.getType()).toString();
+         });
+@@ -1143,6 +1145,7 @@ public class ServerLevel extends Level implements WorldGenLevel {
+                 // Paper end
+                 passenger.setOldPosAndRot();
+                 ++passenger.tickCount;
++                EntityTasksHandler.tickHandler(passenger); // EMC
+                 ProfilerFiller gameprofilerfiller = this.getProfiler();
+ 
+                 gameprofilerfiller.push(() -> {
+diff --git a/src/main/java/net/minecraft/world/entity/Entity.java b/src/main/java/net/minecraft/world/entity/Entity.java
+index 3b690f63e75471fd5533d26cb201df32da60abc9..474a7a42ca9846b2c495d29c28b7a2f3823e47cc 100644
+--- a/src/main/java/net/minecraft/world/entity/Entity.java
++++ b/src/main/java/net/minecraft/world/entity/Entity.java
+@@ -1,5 +1,6 @@
+ package net.minecraft.world.entity;
+ 
++import com.empireminecraft.api.EntityTasksHandler;
+ import com.empireminecraft.api.meta.MetaApiAccessor;
+ import com.empireminecraft.api.meta.PersistentMetaMap;
+ import com.empireminecraft.api.meta.TempMetaMap;
+@@ -156,6 +157,7 @@ public abstract class Entity implements Nameable, EntityAccess, CommandSource, n
+     // EMC start
+     public final PersistentMetaMap metaMap = new PersistentMetaMap(); // EMC
+     public final TempMetaMap tempMeta = new TempMetaMap();
++    public EntityTasksHandler.TaskList entityTasks = new EntityTasksHandler.TaskList(); // EMC
+     // EMC end
+     // CraftBukkit start
+     private static final int CURRENT_LEVEL = 2;
+diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
+index b4b4718edbf83967ece5b0d6dd27fa42426b7528..505c4c313a48e3c624c5eb429e105ffc8539c974 100644
+--- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
++++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
+@@ -1,5 +1,6 @@
+ package org.bukkit.craftbukkit;
+ 
++import com.empireminecraft.api.EntityTasksHandler;
+ import com.empireminecraft.api.meta.MetaApiAccessor;
+ import com.google.common.base.Charsets;
+ import com.google.common.base.Function;
+@@ -971,7 +972,10 @@ public final class CraftServer implements Server {
+             ));
+             if (console.isDebugging()) io.papermc.paper.util.TraceUtil.dumpTraceForThread(worker.getThread(), "still running"); // Paper
+         }
+-        MetaApiAccessor.reload(); // EMC
++        // EMC start
++        MetaApiAccessor.reload();
++        EntityTasksHandler.reload();
++        // EMC end
+         this.loadPlugins();
+         this.enablePlugins(PluginLoadOrder.STARTUP);
+         this.enablePlugins(PluginLoadOrder.POSTWORLD);
