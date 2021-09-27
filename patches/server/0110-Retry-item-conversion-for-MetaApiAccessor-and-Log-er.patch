@@ -1,24 +1,33 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: chickeneer <emcchickeneer@gmail.com>
 Date: Sun, 26 Sep 2021 11:59:40 -0500
-Subject: [PATCH] Log error of item conversion failure instead of throwing an
- exception
+Subject: [PATCH] Retry item conversion for MetaApiAccessor and Log errors of
+ failures
 
+Without catching the exception can cause chunks to not load and put the server in a bad state.
 
 diff --git a/src/main/java/com/empireminecraft/api/meta/MetaApiAccessor.java b/src/main/java/com/empireminecraft/api/meta/MetaApiAccessor.java
-index 4693bb22249bc5b91b387d9631f3df089f5b7e9c..c772022c9fdb033c3cba58b4f5234927bce53fa7 100644
+index 4693bb22249bc5b91b387d9631f3df089f5b7e9c..1302b05fa3aa6e0d24bd89c27942f0eabfcb0e94 100644
 --- a/src/main/java/com/empireminecraft/api/meta/MetaApiAccessor.java
 +++ b/src/main/java/com/empireminecraft/api/meta/MetaApiAccessor.java
-@@ -421,7 +421,12 @@ public final class MetaApiAccessor {
+@@ -421,7 +421,20 @@ public final class MetaApiAccessor {
                  cmp.remove(META_TYPE);
                  if (ITEM.equals(type)) {
                      int version = cmp.contains("DataVersion") ? cmp.getInt("DataVersion") : -1;
 -                    cmp = (CompoundTag) MinecraftServer.getServer().fixerUpper.update(References.ITEM_STACK, new Dynamic(NbtOps.INSTANCE, cmp), version, SharedConstants.getCurrentVersion().getWorldVersion()).getValue();
 +                    try {
 +                        cmp = (CompoundTag) MinecraftServer.getServer().fixerUpper.update(References.ITEM_STACK, new Dynamic(NbtOps.INSTANCE, cmp), version, SharedConstants.getCurrentVersion().getWorldVersion()).getValue();
-+                    } catch (IllegalArgumentException e) {
-+                        MinecraftServer.LOGGER.error("Error converting item: " + cmp, e);
-+                        return null;
++                    } catch (IllegalArgumentException e1) {
++                        if (version != -1) {
++                            MinecraftServer.LOGGER.error("Error converting item -1: " + cmp, e1);
++                            return null;
++                        }
++                        try {
++                            cmp = (CompoundTag) MinecraftServer.getServer().fixerUpper.update(References.ITEM_STACK, new Dynamic(NbtOps.INSTANCE, cmp), 705, SharedConstants.getCurrentVersion().getWorldVersion()).getValue();
++                        } catch (IllegalArgumentException e2) {
++                            MinecraftServer.LOGGER.error("Error converting item 705: " + cmp, e2);
++                            return null;
++                        }
 +                    }
                      return CraftItemStack.asCraftMirror(ItemStack.of(cmp));
                  } else if (META_MAP.equals(type)) {
