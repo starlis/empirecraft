@@ -5,7 +5,7 @@ Subject: [PATCH] Properly handle entityTags on SpawnEggs
 
 
 diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaSpawnEgg.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaSpawnEgg.java
-index 8077fab7cb85e8da027a08a72dfac4879b4daf43..57cc26716e02b1487b8ad2c687d9ec25562ab46d 100644
+index 8077fab7cb85e8da027a08a72dfac4879b4daf43..30dced283bc2c4251daff92f576b74e45e91e3d7 100644
 --- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaSpawnEgg.java
 +++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaSpawnEgg.java
 @@ -2,14 +2,20 @@ package org.bukkit.craftbukkit.inventory;
@@ -46,17 +46,22 @@ index 8077fab7cb85e8da027a08a72dfac4879b4daf43..57cc26716e02b1487b8ad2c687d9ec25
          }
      }
  
-@@ -77,7 +93,8 @@ public class CraftMetaSpawnEgg extends CraftMetaItem implements SpawnEggMeta {
+@@ -77,7 +93,13 @@ public class CraftMetaSpawnEgg extends CraftMetaItem implements SpawnEggMeta {
              }
  
              // Tag still has some other data, lets try our luck with a conversion
 -            if (!this.entityTag.isEmpty()) {
 +            if (this.spawnedType == null && this.entityTag.contains(ENTITY_ID.NBT) && !this.entityTag.isEmpty()) { // EMC - only try converting when there is an id and spawnedType is not found already
-+                entityTag = (CompoundTag) MinecraftServer.getServer().fixerUpper.update(References.ENTITY, new Dynamic(NbtOps.INSTANCE, entityTag), -1, CraftMagicNumbers.INSTANCE.getDataVersion()).getValue(); // EMC
++                // EMC start - try updating and catch update exceptions
++                try {
++                    entityTag = (CompoundTag) MinecraftServer.getServer().fixerUpper.update(References.ENTITY, new Dynamic(NbtOps.INSTANCE, entityTag), -1, CraftMagicNumbers.INSTANCE.getDataVersion()).getValue();
++                } catch (IllegalArgumentException ignored) {
++                }
++                // EMC end
                  // SPIGOT-4128: This is hopeless until we start versioning stacks. RIP data.
                  // entityTag = (NBTTagCompound) MinecraftServer.getServer().dataConverterManager.update(DataConverterTypes.ENTITY, new Dynamic(DynamicOpsNBT.a, entityTag), -1, CraftMagicNumbers.DATA_VERSION).getValue();
              }
-@@ -85,7 +102,15 @@ public class CraftMetaSpawnEgg extends CraftMetaItem implements SpawnEggMeta {
+@@ -85,7 +107,15 @@ public class CraftMetaSpawnEgg extends CraftMetaItem implements SpawnEggMeta {
              // See if we can read a converted ID tag
              if (this.entityTag.contains(ENTITY_ID.NBT)) {
                  this.spawnedType = EntityType.fromName(new ResourceLocation(this.entityTag.getString(ENTITY_ID.NBT)).getPath());
@@ -72,7 +77,7 @@ index 8077fab7cb85e8da027a08a72dfac4879b4daf43..57cc26716e02b1487b8ad2c687d9ec25
          }
      }
  
-@@ -232,7 +257,7 @@ public class CraftMetaSpawnEgg extends CraftMetaItem implements SpawnEggMeta {
+@@ -232,7 +262,7 @@ public class CraftMetaSpawnEgg extends CraftMetaItem implements SpawnEggMeta {
              CraftMetaSpawnEgg that = (CraftMetaSpawnEgg) meta;
  
              return this.hasSpawnedType() ? that.hasSpawnedType() && this.spawnedType.equals(that.spawnedType) : !that.hasSpawnedType()
@@ -81,7 +86,7 @@ index 8077fab7cb85e8da027a08a72dfac4879b4daf43..57cc26716e02b1487b8ad2c687d9ec25
          }
          return true;
      }
-@@ -287,6 +312,7 @@ public class CraftMetaSpawnEgg extends CraftMetaItem implements SpawnEggMeta {
+@@ -287,6 +317,7 @@ public class CraftMetaSpawnEgg extends CraftMetaItem implements SpawnEggMeta {
              if (this.entityTag != null) {
                  // Remove ID tag as it is now in the material
                  this.entityTag.remove(ENTITY_ID.NBT);
