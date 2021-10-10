@@ -6,12 +6,14 @@ Subject: [PATCH] Entity Serialization
 Allow serializing an Entity to raw NBT, and to get an Entity object without spawning it into the world.
 
 diff --git a/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java b/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
-index db202cc63a14e1b951a933a7e521637e58786a6e..bc632ce646303b25e9d243a69e2774bea67ec81d 100644
+index db202cc63a14e1b951a933a7e521637e58786a6e..fb1d8a13d4e63e7a96616801af8fe5b8502e434f 100644
 --- a/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
 +++ b/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
-@@ -25,8 +25,17 @@ package com.empireminecraft.api;
+@@ -24,9 +24,19 @@
+ package com.empireminecraft.api;
  
  import com.destroystokyo.paper.entity.RangedEntity;
++import com.empireminecraft.DataConverters;
  import com.empireminecraft.api.meta.Meta;
 +import com.empireminecraft.util.MCLog;
 +import com.google.common.collect.ImmutableList;
@@ -27,7 +29,7 @@ index db202cc63a14e1b951a933a7e521637e58786a6e..bc632ce646303b25e9d243a69e2774be
  import net.minecraft.world.entity.PathfinderMob;
  import net.minecraft.world.entity.ai.goal.Goal;
  import net.minecraft.world.entity.ai.goal.MeleeAttackGoal;
-@@ -36,6 +45,7 @@ import net.minecraft.world.entity.ai.goal.WrappedGoal;
+@@ -36,6 +46,7 @@ import net.minecraft.world.entity.ai.goal.WrappedGoal;
  import net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal;
  import net.minecraft.world.entity.item.ItemEntity;
  import net.minecraft.world.entity.player.Player;
@@ -35,7 +37,7 @@ index db202cc63a14e1b951a933a7e521637e58786a6e..bc632ce646303b25e9d243a69e2774be
  import org.bukkit.craftbukkit.CraftWorld;
  import org.bukkit.craftbukkit.entity.CraftBlaze;
  import org.bukkit.craftbukkit.entity.CraftCreature;
-@@ -45,6 +55,7 @@ import org.bukkit.craftbukkit.entity.CraftGhast;
+@@ -45,6 +56,7 @@ import org.bukkit.craftbukkit.entity.CraftGhast;
  import org.bukkit.craftbukkit.entity.CraftMob;
  import org.bukkit.craftbukkit.entity.CraftSpider;
  import org.bukkit.craftbukkit.entity.CraftWolf;
@@ -43,7 +45,7 @@ index db202cc63a14e1b951a933a7e521637e58786a6e..bc632ce646303b25e9d243a69e2774be
  import org.bukkit.entity.Blaze;
  import org.bukkit.entity.Creature;
  import org.bukkit.entity.EnderSignal;
-@@ -56,7 +67,10 @@ import org.bukkit.entity.Spider;
+@@ -56,7 +68,10 @@ import org.bukkit.entity.Spider;
  import org.bukkit.entity.Wolf;
  import org.jetbrains.annotations.NotNull;
  
@@ -55,7 +57,7 @@ index db202cc63a14e1b951a933a7e521637e58786a6e..bc632ce646303b25e9d243a69e2774be
  import java.util.Set;
  import java.util.regex.Pattern;
  
-@@ -178,7 +192,7 @@ public class CraftEAPI_Entity implements EAPI_Entity {
+@@ -178,7 +193,7 @@ public class CraftEAPI_Entity implements EAPI_Entity {
  
      @Override
      public void setEntitySize(@NotNull Entity entity, float width, float height) {
@@ -64,7 +66,7 @@ index db202cc63a14e1b951a933a7e521637e58786a6e..bc632ce646303b25e9d243a69e2774be
      }
  
      @Override
-@@ -297,4 +311,50 @@ public class CraftEAPI_Entity implements EAPI_Entity {
+@@ -297,4 +312,53 @@ public class CraftEAPI_Entity implements EAPI_Entity {
      public void setFireballCooldown(@NotNull Ghast ghast, int cooldown) {
          ((CraftGhast) ghast).getHandle().fireballCooldown = cooldown;
      }
@@ -91,8 +93,11 @@ index db202cc63a14e1b951a933a7e521637e58786a6e..bc632ce646303b25e9d243a69e2774be
 +        try {
 +            CompoundTag cmp = NbtIo.readCompressed(new DataInputStream(stream));
 +            int version = cmp.contains("DataVersion") ? cmp.getInt("DataVersion") : -1;
++            if (version == -1) {
++                cmp = DataConverters.convert(DataConverters.LegacyType.ENTITY, cmp, -1, DataConverters.LEGACY_VERSION);
++                version = DataConverters.LEGACY_VERSION;
++            }
 +            cmp = (CompoundTag) MinecraftServer.getServer().fixerUpper.update(References.ENTITY, new Dynamic(NbtOps.INSTANCE, cmp), version, CraftMagicNumbers.INSTANCE.getDataVersion()).getValue();
-+            //DataConverters.convert(DataConverters.LegacyType.ENTITY, cmp);
 +            net.minecraft.world.entity.Entity entity = EntityType.create(cmp, ((CraftWorld) world).getHandle()).orElse(null);
 +
 +            return entity != null ? entity.getBukkitEntity() : null;
