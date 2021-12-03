@@ -1,0 +1,57 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Thu, 14 Aug 2014 18:23:33 -0400
+Subject: [PATCH] Add Player.getFishingHook() API and kill hook after rod
+ damage event
+
+
+diff --git a/src/main/java/net/minecraft/world/entity/projectile/FishingHook.java b/src/main/java/net/minecraft/world/entity/projectile/FishingHook.java
+index 1037d0a0cdd4fd7aa99a958ee969759c5883fdc0..7a8136a71525891ca5aeb3a908c26bf1bd3036d4 100644
+--- a/src/main/java/net/minecraft/world/entity/projectile/FishingHook.java
++++ b/src/main/java/net/minecraft/world/entity/projectile/FishingHook.java
+@@ -557,8 +557,8 @@ public class FishingHook extends Projectile {
+             }
+             // CraftBukkit end
+ 
+-            this.discard();
+-            return i;
++            //this.discard(); // EMC - move to after damage event in EntityFishingRod
++            return i == 0 ? -1 : i; // EMC - use -1 to represent "0 but kill entity"
+         } else {
+             return 0;
+         }
+diff --git a/src/main/java/net/minecraft/world/item/FishingRodItem.java b/src/main/java/net/minecraft/world/item/FishingRodItem.java
+index 7a4ae2d69f530182f44a31eebd1c2e44ada5e44b..c573e757d9e7f57c0b3d52903130ec85b18de9c2 100644
+--- a/src/main/java/net/minecraft/world/item/FishingRodItem.java
++++ b/src/main/java/net/minecraft/world/item/FishingRodItem.java
+@@ -28,9 +28,10 @@ public class FishingRodItem extends Item implements Vanishable {
+         if (user.fishing != null) {
+             if (!world.isClientSide) {
+                 i = user.fishing.retrieve(itemstack);
+-                itemstack.hurtAndBreak(i, user, (entityhuman1) -> {
++                itemstack.hurtAndBreak(Math.max(0, i), user, (entityhuman1) -> { // EMC - Ignore -1 return using Math.max
+                     entityhuman1.broadcastBreakEvent(hand);
+                 });
++                if (i != 0) { user.fishing.discard(); } // EMC - removed EntityFishingHook, and 0 = cancelled
+             }
+ 
+             world.playSound((Player) null, user.getX(), user.getY(), user.getZ(), SoundEvents.FISHING_BOBBER_RETRIEVE, SoundSource.NEUTRAL, 1.0F, 0.4F / (world.getRandom().nextFloat() * 0.4F + 0.8F));
+diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
+index ad15c4c20ae9e1858a2b914b0a1aa91ec1d7a012..61254b1f1e576dfa4ec9a721b77993cd65a9cba7 100644
+--- a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
++++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
+@@ -2154,6 +2154,14 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+     }
+ 
+     // Paper start
++    @Override
++    public org.bukkit.entity.FishHook getFishingHook() {
++        if (getHandle().fishing == null) {
++            return null;
++        }
++        return (org.bukkit.entity.FishHook) getHandle().fishing.getBukkitEntity();
++    }
++
+     public void setAffectsSpawning(boolean affects) {
+         this.getHandle().affectsSpawning = affects;
+     }

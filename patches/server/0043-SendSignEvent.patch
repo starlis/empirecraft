@@ -1,0 +1,123 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Mon, 8 Jun 2015 23:55:20 -0400
+Subject: [PATCH] SendSignEvent
+
+
+diff --git a/src/main/java/com/empireminecraft/api/SendSignEventImpl.java b/src/main/java/com/empireminecraft/api/SendSignEventImpl.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..4538f2d2e46dcfb749d0078696c524764968492d
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/api/SendSignEventImpl.java
+@@ -0,0 +1,44 @@
++package com.empireminecraft.api;
++
++import com.empireminecraft.customevents.SendSignEvent;
++import net.minecraft.core.BlockPos;
++import net.minecraft.network.chat.Component;
++import net.minecraft.network.chat.TextComponent;
++import net.minecraft.world.level.Level;
++import org.bukkit.block.Block;
++import org.bukkit.craftbukkit.util.CraftChatMessage;
++import org.jetbrains.annotations.NotNull;
++
++public class SendSignEventImpl extends SendSignEvent {
++    public final Component[] lines;
++    private final String[] slines;
++    private final Block block;
++
++    public SendSignEventImpl(Level level, BlockPos position, Component[] lines) {
++        this.block = level.getWorld().getBlockAt(position.getX(), position.getY(), position.getZ());
++        this.lines = new Component[lines.length];
++        this.slines = new String[lines.length];
++        for (int i = 0; i < lines.length; i++) {
++            this.lines[i] = lines[i];
++            slines[i] = CraftChatMessage.fromComponent(lines[i]);
++        }
++    }
++
++    @NotNull
++    public Block getBlock() {
++        return block;
++    }
++
++    @NotNull
++    public String[] getLines() {
++        return slines;
++    }
++
++    public void setLine(int i, @NotNull String line) {
++        slines[i] = line;
++        lines[i] = new TextComponent("");
++        for (Component comp : CraftChatMessage.fromString(line)) {
++            lines[i].getSiblings().add(comp);
++        }
++    }
++}
+diff --git a/src/main/java/net/minecraft/world/level/block/entity/BlockEntity.java b/src/main/java/net/minecraft/world/level/block/entity/BlockEntity.java
+index 13bf47f3592d31932588825659457eca06def08b..8cdf4fca91e4e88590f4e74de08e0b9493eef4c4 100644
+--- a/src/main/java/net/minecraft/world/level/block/entity/BlockEntity.java
++++ b/src/main/java/net/minecraft/world/level/block/entity/BlockEntity.java
+@@ -122,7 +122,7 @@ public abstract class BlockEntity implements io.papermc.paper.util.KeyedObject {
+         CompoundTag nbttagcompound = new CompoundTag();
+ 
+         this.saveAdditional(nbttagcompound);
+-        // CraftBukkit start - store container
++        // CraftBukkit start - store container // EMC - copied to SignBlockEntity
+         if (this.persistentDataContainer != null && !this.persistentDataContainer.isEmpty()) {
+             nbttagcompound.put("PublicBukkitValues", this.persistentDataContainer.toTagCompound());
+         }
+diff --git a/src/main/java/net/minecraft/world/level/block/entity/SignBlockEntity.java b/src/main/java/net/minecraft/world/level/block/entity/SignBlockEntity.java
+index e4628336aacf6491bd580fa8e137e9cfdb6ab42b..f1d9f11ba4b687146b783e4c4838501019d56563 100644
+--- a/src/main/java/net/minecraft/world/level/block/entity/SignBlockEntity.java
++++ b/src/main/java/net/minecraft/world/level/block/entity/SignBlockEntity.java
+@@ -1,5 +1,6 @@
+ package net.minecraft.world.level.block.entity;
+ 
++import com.empireminecraft.api.SendSignEventImpl;
+ import com.mojang.brigadier.exceptions.CommandSyntaxException;
+ import java.util.UUID;
+ import java.util.function.Function;
+@@ -52,14 +53,18 @@ public class SignBlockEntity extends BlockEntity implements CommandSource { // C
+ 
+     @Override
+     protected void saveAdditional(CompoundTag nbt) {
+-        super.saveAdditional(nbt);
++        // EMC start
++         saveAdditional(nbt, this.messages, this.filteredMessages);
++    }
++    protected void saveAdditional(CompoundTag nbt, Component[] lines, Component[] filteredMessages) {
++        // EMC end
+ 
+         for (int i = 0; i < 4; ++i) {
+-            Component ichatbasecomponent = this.messages[i];
++            Component ichatbasecomponent = lines[i]; // EMC
+             String s = Component.Serializer.toJson(ichatbasecomponent);
+ 
+             nbt.putString(SignBlockEntity.RAW_TEXT_FIELD_NAMES[i], s);
+-            Component ichatbasecomponent1 = this.filteredMessages[i];
++            Component ichatbasecomponent1 = filteredMessages[i]; // EMC
+ 
+             if (!ichatbasecomponent1.equals(ichatbasecomponent)) {
+                 nbt.putString(SignBlockEntity.FILTERED_TEXT_FIELD_NAMES[i], Component.Serializer.toJson(ichatbasecomponent1));
+@@ -186,6 +191,20 @@ public class SignBlockEntity extends BlockEntity implements CommandSource { // C
+ 
+     @Override
+     public CompoundTag getUpdateTag() {
++        // EMC start
++        if (this.level != null) {
++            SendSignEventImpl event = new SendSignEventImpl(this.level, this.getBlockPos(), this.messages);
++            event.callEvent();
++            CompoundTag tag = new CompoundTag();
++            this.saveAdditional(tag, event.lines, event.lines);
++            // CraftBukkit start - store container // EMC - copied from BlockEntity
++            if (this.persistentDataContainer != null && !this.persistentDataContainer.isEmpty()) {
++                tag.put("PublicBukkitValues", this.persistentDataContainer.toTagCompound());
++            }
++            // CraftBukkit end
++            return tag;
++        }
++        // EMC end
+         return this.saveWithoutMetadata();
+     }
+ 

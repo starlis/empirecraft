@@ -1,0 +1,524 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Mon, 17 Feb 2014 00:05:26 -0500
+Subject: [PATCH] Chat API
+
+Initial for Fanciful Credits to http://forums.bukkit.org/threads/lib-fanciful-pleasant-chat-message-formatting.195148/
+But did a lot of bug fixing and improving upon it, and designing into the Empire API
+
+diff --git a/src/main/java/com/empireminecraft/api/CraftEmpireAPI.java b/src/main/java/com/empireminecraft/api/CraftEmpireAPI.java
+index f3c9419c8148e389f7d9f2e24a8664b1cb2bbfde..b794befb4e5cfe8055c1b5745e52a0f01fc573d1 100644
+--- a/src/main/java/com/empireminecraft/api/CraftEmpireAPI.java
++++ b/src/main/java/com/empireminecraft/api/CraftEmpireAPI.java
+@@ -23,6 +23,7 @@
+ 
+ package com.empireminecraft.api;
+ 
++import com.empireminecraft.api.chat.CraftEAPI_Chat;
+ import com.empireminecraft.api.meta.CraftEAPI_Meta;
+ 
+ public final class CraftEmpireAPI extends API {
+@@ -34,6 +35,7 @@ public final class CraftEmpireAPI extends API {
+         entity = new CraftEAPI_Entity();
+         misc = new CraftEAPI_Misc();
+         meta = new CraftEAPI_Meta();
++        chat = new CraftEAPI_Chat();
+     }
+ 
+ }
+diff --git a/src/main/java/com/empireminecraft/api/chat/CraftChatBuilder.java b/src/main/java/com/empireminecraft/api/chat/CraftChatBuilder.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..1fad88e89f9851963b24b134c13994d4e8bf8c00
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/api/chat/CraftChatBuilder.java
+@@ -0,0 +1,157 @@
++package com.empireminecraft.api.chat;
++
++import net.minecraft.ChatFormatting;
++import net.minecraft.network.chat.MutableComponent;
++import net.minecraft.network.chat.Style;
++import net.minecraft.network.chat.TextColor;
++import net.minecraft.network.chat.TextComponent;
++import org.bukkit.ChatColor;
++import org.jetbrains.annotations.NotNull;
++
++import java.util.ArrayList;
++import java.util.List;
++
++public class CraftChatBuilder implements ChatBuilder {
++    List<ChatPart> parts = new ArrayList<>();
++    boolean isDirty = true;
++
++    @Override
++    @NotNull
++    public ChatBuilder color(@NotNull String hex) {
++        TextColor color = TextColor.parseColor(hex);
++        if (color != null) {
++            latest().color(color);
++            isDirty = true;
++        }
++        return this;
++    }
++
++    @Override
++    @NotNull
++    public ChatBuilder color(@NotNull ChatColor color) {
++        return switch (color) {
++            case BLACK -> format(ChatFormatting.BLACK);
++            case DARK_BLUE -> format(ChatFormatting.DARK_BLUE);
++            case DARK_GREEN -> format(ChatFormatting.DARK_GREEN);
++            case DARK_AQUA -> format(ChatFormatting.DARK_AQUA);
++            case DARK_RED -> format(ChatFormatting.DARK_RED);
++            case DARK_PURPLE -> format(ChatFormatting.DARK_PURPLE);
++            case GOLD -> format(ChatFormatting.GOLD);
++            case GRAY -> format(ChatFormatting.GRAY);
++            case DARK_GRAY -> format(ChatFormatting.DARK_GRAY);
++            case BLUE -> format(ChatFormatting.BLUE);
++            case GREEN -> format(ChatFormatting.GREEN);
++            case AQUA -> format(ChatFormatting.AQUA);
++            case RED -> format(ChatFormatting.RED);
++            case LIGHT_PURPLE -> format(ChatFormatting.LIGHT_PURPLE);
++            case YELLOW -> format(ChatFormatting.YELLOW);
++            case WHITE -> format(ChatFormatting.WHITE);
++            case MAGIC -> format(ChatFormatting.OBFUSCATED);
++            case BOLD -> format(ChatFormatting.BOLD);
++            case STRIKETHROUGH -> format(ChatFormatting.STRIKETHROUGH);
++            case UNDERLINE -> format(ChatFormatting.UNDERLINE);
++            case ITALIC -> format(ChatFormatting.ITALIC);
++            case RESET -> reset();
++        };
++    }
++    @NotNull
++    private ChatBuilder format(@NotNull ChatFormatting color) {
++        latest().format(color);
++        isDirty = true;
++        return this;
++    }
++
++    @Override
++    @NotNull
++    public ChatBuilder obfuscated() {
++        latest().obfuscated();
++        isDirty = true;
++        return this;
++    }
++
++    @Override
++    @NotNull
++    public ChatBuilder bold() {
++        latest().bold();
++        isDirty = true;
++        return this;
++    }
++
++    @Override
++    @NotNull
++    public ChatBuilder strikethrough() {
++        latest().strikethrough();
++        isDirty = true;
++        return this;
++    }
++
++    @Override
++    @NotNull
++    public ChatBuilder underline() {
++        latest().underline();
++        isDirty = true;
++        return this;
++    }
++
++    @Override
++    @NotNull
++    public ChatBuilder italic() {
++        latest().italic();
++        isDirty = true;
++        return this;
++    }
++
++    @Override
++    @NotNull
++    public ChatBuilder reset() {
++        latest().reset();
++        isDirty = true;
++        return this;
++    }
++
++    @NotNull
++    protected CraftChatBuilder.ChatPart latest() {
++        return parts.get(parts.size() - 1);
++    }
++
++
++    private static class ChatPart {
++        MutableComponent component;
++
++        ChatPart(@NotNull String text) {
++            component = new TextComponent(text);
++        }
++
++        void format(@NotNull ChatFormatting format) {
++            component.withStyle(modifier -> modifier.withColor(format));
++        }
++
++        void color(@NotNull TextColor color) {
++            component.withStyle(modifier -> modifier.withColor(color));
++        }
++
++        void obfuscated() {
++            component.withStyle(modifier -> modifier.withObfuscated(true));
++        }
++
++        void bold() {
++            component.withStyle(modifier -> modifier.withBold(true));
++        }
++
++        void strikethrough() {
++            component.withStyle(modifier -> modifier.withStrikethrough(true));
++        }
++
++        void underline() {
++            component.withStyle(modifier -> modifier.withUnderlined(true));
++        }
++
++        void italic() {
++            component.withStyle(modifier -> modifier.withItalic(true));
++        }
++
++        void reset() {
++            component.withStyle(modifier -> modifier.applyTo(Style.EMPTY));
++        }
++    }
++}
+diff --git a/src/main/java/com/empireminecraft/api/chat/CraftEAPI_Chat.java b/src/main/java/com/empireminecraft/api/chat/CraftEAPI_Chat.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..c5451433651c8925b3b6afddaf47db08018a2d5a
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/api/chat/CraftEAPI_Chat.java
+@@ -0,0 +1,67 @@
++package com.empireminecraft.api.chat;
++
++import net.minecraft.Util;
++import net.minecraft.network.chat.ChatType;
++import net.minecraft.network.protocol.Packet;
++
++import net.minecraft.network.protocol.game.ClientboundChatPacket;
++import net.minecraft.network.protocol.game.ClientboundSetActionBarTextPacket;
++import net.minecraft.network.protocol.game.ClientboundSetSubtitleTextPacket;
++import net.minecraft.network.protocol.game.ClientboundSetTitleTextPacket;
++import net.minecraft.network.protocol.game.ClientboundSetTitlesAnimationPacket;
++import net.minecraft.server.network.ServerGamePacketListenerImpl;
++import org.bukkit.craftbukkit.entity.CraftPlayer;
++import org.bukkit.entity.Player;
++import org.jetbrains.annotations.NotNull;
++import org.jetbrains.annotations.Nullable;
++
++import java.util.UUID;
++
++public class CraftEAPI_Chat implements EAPI_Chat {
++
++    @Override
++    @NotNull
++    public FancifulChat createFancyChat() {
++        return new CraftFancifulChat();
++    }
++
++    @Override
++    public void sendTitleAnimations(@NotNull Player player, int fadeIn, int stay, int fadeOut) {
++        sendPacket(player, new ClientboundSetTitlesAnimationPacket(fadeIn, stay, fadeOut));
++    }
++
++    @Override
++    public void sendTitle(@NotNull Player player, @NotNull FancifulChat title) {
++        sendPacket(player, new ClientboundSetTitleTextPacket(((CraftFancifulChat) title).buildComponent()));
++    }
++
++    @Override
++    public void sendSubtitle(@NotNull Player player, @NotNull FancifulChat subtitle) {
++        sendPacket(player, new ClientboundSetSubtitleTextPacket(((CraftFancifulChat) subtitle).buildComponent()));
++    }
++
++    @Override
++    public void sendAction(@NotNull Player player, @NotNull FancifulChat message) {
++        sendPacket(player, new ClientboundSetActionBarTextPacket(((CraftFancifulChat) message).buildComponent()));
++    }
++
++    @Override
++    public void sendChat(@NotNull Player player, @NotNull FancifulChat message) {
++        sendChat(Util.NIL_UUID, player, message);
++    }
++
++    @Override
++    public void sendChat(@Nullable UUID sender, @NotNull Player player, @NotNull FancifulChat message) {
++        sendPacket(player, new ClientboundChatPacket(((CraftFancifulChat) message).buildComponent(), ChatType.CHAT, sender));
++    }
++
++    @Override
++    public void sendSystem(@NotNull Player player, @NotNull FancifulChat message) {
++        sendPacket(player, new ClientboundChatPacket(((CraftFancifulChat) message).buildComponent(), ChatType.SYSTEM, Util.NIL_UUID));
++    }
++
++    private static void sendPacket(Player player, Packet<?> packet) {
++        final ServerGamePacketListenerImpl conn = ((CraftPlayer) player).getHandle().connection;
++        conn.send(packet);
++    }
++}
+diff --git a/src/main/java/com/empireminecraft/api/chat/CraftFancifulChat.java b/src/main/java/com/empireminecraft/api/chat/CraftFancifulChat.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..39ae1c53f45dcd770075576e99aa0b542a0ff484
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/api/chat/CraftFancifulChat.java
+@@ -0,0 +1,241 @@
++package com.empireminecraft.api.chat;
++
++import com.empireminecraft.api.HiddenItemMeta;
++import net.minecraft.nbt.CompoundTag;
++import net.minecraft.network.chat.BaseComponent;
++import net.minecraft.network.chat.ClickEvent;
++import net.minecraft.network.chat.Component;
++import net.minecraft.network.chat.HoverEvent;
++import net.minecraft.network.chat.HoverEvent.Action;
++import net.minecraft.network.chat.HoverEvent.ItemStackInfo;
++import net.minecraft.network.chat.MutableComponent;
++import net.minecraft.network.chat.TextComponent;
++import org.bukkit.craftbukkit.entity.CraftEntity;
++import org.bukkit.craftbukkit.inventory.CraftItemStack;
++import org.bukkit.craftbukkit.util.CraftChatMessage;
++import org.bukkit.entity.Entity;
++import org.bukkit.inventory.ItemStack;
++import org.jetbrains.annotations.NotNull;
++
++import java.util.ArrayList;
++import java.util.List;
++import java.util.regex.Pattern;
++
++/**
++ * Credits to original version @
++ * http://forums.bukkit.org/threads/lib-fanciful-pleasant-chat-message-formatting.195148/
++ *
++ * Improved to use proper components to fix issues
++ *
++ */
++public class CraftFancifulChat implements FancifulChat {
++    final List<MessagePart> messageParts = new ArrayList<>();
++    TextComponent component;
++    boolean isDirty = true;
++
++    @Override
++    @NotNull
++    public FancifulChat then(@NotNull String text) {
++        messageParts.add(new MessagePart(text));
++        isDirty = true;
++        return this;
++    }
++
++    @Override
++    @NotNull
++    public FancifulChat then(@NotNull Object obj) {
++        return then(obj.toString());
++    }
++
++    @Override
++    @NotNull
++    public FancifulChat tooltip(@NotNull ItemStack item) {
++        latest().tooltip(item);
++        isDirty = true;
++        return this;
++    }
++
++    @Override
++    @NotNull
++    public FancifulChat tooltip(@NotNull String text) {
++        latest().tooltip(text);
++        isDirty = true;
++        return this;
++    }
++
++    @Override
++    @NotNull
++    public FancifulChat tooltip(@NotNull String[] lines) {
++        latest().tooltip(lines);
++        isDirty = true;
++        return this;
++    }
++
++
++    @Override
++    @NotNull
++    public FancifulChat tooltip(@NotNull Entity entity) {
++        latest().tooltip(entity);
++        isDirty = true;
++        return this;
++    }
++
++    @Override
++    @NotNull
++    public FancifulChat link(@NotNull String url) {
++        latest().link(url);
++        isDirty = true;
++        return this;
++    }
++
++    @Override
++    @NotNull
++    public FancifulChat insert(@NotNull String text) {
++        latest().insert(text);
++        isDirty = true;
++        return this;
++    }
++
++    @Override
++    @NotNull
++    public FancifulChat suggest(@NotNull String command) {
++        latest().suggest(command);
++        isDirty = true;
++        return this;
++    }
++
++    @Override
++    @NotNull
++    public FancifulChat command(@NotNull String command) {
++        latest().command(command);
++        isDirty = true;
++        return this;
++    }
++
++    @Override
++    @NotNull
++    public FancifulChat copy(@NotNull String text) {
++        latest().copy(text);
++        isDirty = true;
++        return this;
++    }
++
++    @Override
++    @NotNull
++    public FancifulChat page(@NotNull String number) {
++        latest().page(number);
++        isDirty = true;
++        return this;
++    }
++
++    @NotNull
++    protected TextComponent buildComponent() {
++        if (component != null && !isDirty) {
++            return component;
++        }
++        isDirty = false;
++        component = new TextComponent("");
++        for (MessagePart msg : messageParts) {
++            for (Component cmp : msg.getComponents()) {
++                component.append(cmp);
++            }
++        }
++        return component;
++    }
++    @NotNull
++    protected MessagePart latest() {
++        return messageParts.get(messageParts.size() - 1);
++    }
++
++
++    static final class MessagePart {
++        HoverEvent hoverable;
++        ClickEvent clickable;
++        String insertion;
++        final MutableComponent[] components;
++
++        MessagePart(@NotNull String text) {
++            Component[] compArray = CraftChatMessage.fromString(text, true);
++            components = new MutableComponent[compArray.length];
++            for (int i = 0; i < compArray.length; i++) {
++                components[i] = compArray[i].copy();
++            }
++        }
++
++        @NotNull
++        public Component[] getComponents() {
++            for (MutableComponent component : components) {
++                if (hoverable != null) {
++                    component.withStyle(modifier -> modifier.withHoverEvent(hoverable));
++                }
++                if (clickable != null) {
++                    component.withStyle(modifier -> modifier.withClickEvent(clickable));
++                }
++                if (insertion != null) {
++                    component.withStyle(modifier -> modifier.withInsertion(insertion));
++                }
++            }
++            return components;
++        }
++
++        public void tooltip(@NotNull ItemStack item) {
++            net.minecraft.world.item.ItemStack itemStack = CraftItemStack.asNMSCopy(item);
++            CompoundTag root = itemStack.save(new CompoundTag());
++            CompoundTag hover = root;
++            if (root.contains("tag")) {
++                hover = HiddenItemMeta.filterItemLore(root.getCompound("tag"), false);
++            }
++
++            hoverable = new HoverEvent(Action.SHOW_ITEM,
++                new ItemStackInfo(itemStack.getItem(), itemStack.getCount(), hover));
++        }
++
++        private static final Pattern NEW_LINE = Pattern.compile("\\n");
++        public void tooltip(@NotNull String text) {
++            this.tooltip(NEW_LINE.split(text));
++        }
++
++        public void tooltip(@NotNull String[] lines) {
++            BaseComponent hover = new TextComponent("");
++
++            for (int i = 0; i < lines.length; i++) {
++                if (i > 0) {
++                    hover.append(new TextComponent("\n"));
++                }
++                for (Component component : CraftChatMessage.fromString(lines[i])) {
++                    hover.append(component);
++                }
++            }
++
++            hoverable = new HoverEvent(Action.SHOW_TEXT, hover);
++        }
++
++        public void tooltip(@NotNull Entity entity) {
++            hoverable = ((CraftEntity) entity).getHandle().createHoverEvent();
++        }
++
++        public void link(@NotNull String url) {
++            clickable = new ClickEvent(ClickEvent.Action.OPEN_URL, url);
++        }
++
++        public void suggest(@NotNull String command) {
++            clickable = new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, command);
++        }
++
++        public void command(@NotNull String command) {
++            clickable = new ClickEvent(ClickEvent.Action.RUN_COMMAND, command);
++        }
++
++        public void copy(@NotNull String text) {
++            clickable = new ClickEvent(ClickEvent.Action.COPY_TO_CLIPBOARD, text);
++        }
++
++        public void page(@NotNull String number) {
++            clickable = new ClickEvent(ClickEvent.Action.CHANGE_PAGE, number);
++        }
++
++        public void insert(@NotNull String text) {
++            insertion = text;
++        }
++    }
++}
+diff --git a/src/main/java/net/minecraft/world/entity/Entity.java b/src/main/java/net/minecraft/world/entity/Entity.java
+index 656824a12243f77e1b004f448a4dca4a12382512..56b8501a621f2a174b9ca1bf04ee008578e87f40 100644
+--- a/src/main/java/net/minecraft/world/entity/Entity.java
++++ b/src/main/java/net/minecraft/world/entity/Entity.java
+@@ -3476,7 +3476,7 @@ public abstract class Entity implements Nameable, EntityAccess, CommandSource, i
+         return this.getDirection();
+     }
+ 
+-    protected HoverEvent createHoverEvent() {
++    public HoverEvent createHoverEvent() { // EMC - make public
+         return new HoverEvent(HoverEvent.Action.SHOW_ENTITY, new HoverEvent.EntityTooltipInfo(this.getType(), this.getUUID(), this.getName()));
+     }
+ 

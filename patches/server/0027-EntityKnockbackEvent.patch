@@ -1,0 +1,54 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Sun, 16 Mar 2014 20:44:46 -0400
+Subject: [PATCH] EntityKnockbackEvent
+
+Control knockback power of entity attacks
+
+diff --git a/src/main/java/net/minecraft/world/entity/Mob.java b/src/main/java/net/minecraft/world/entity/Mob.java
+index 89186a54dbb3d3322b8bdac5a90279d9f73198d9..9c057d52e4fa6a1ba12ea3291f9df20bd27d6d50 100644
+--- a/src/main/java/net/minecraft/world/entity/Mob.java
++++ b/src/main/java/net/minecraft/world/entity/Mob.java
+@@ -1565,7 +1565,7 @@ public abstract class Mob extends LivingEntity {
+ 
+         if (target instanceof LivingEntity) {
+             f += EnchantmentHelper.getDamageBonus(this.getMainHandItem(), ((LivingEntity) target).getMobType());
+-            f1 += (float) EnchantmentHelper.getKnockbackBonus(this);
++            f1 += (float) EnchantmentHelper.getKnockbackBonus(this, (LivingEntity) target); // EMC
+         }
+ 
+         int i = EnchantmentHelper.getFireAspect(this);
+diff --git a/src/main/java/net/minecraft/world/entity/player/Player.java b/src/main/java/net/minecraft/world/entity/player/Player.java
+index a404015ed46464bd60114e74fe3a1ec7e878fdce..ca1184b7d1fa31c028e4af0e515e83504bb71aa7 100644
+--- a/src/main/java/net/minecraft/world/entity/player/Player.java
++++ b/src/main/java/net/minecraft/world/entity/player/Player.java
+@@ -1214,7 +1214,7 @@ public abstract class Player extends LivingEntity {
+                     boolean flag = f2 > 0.9F;
+                     boolean flag1 = false;
+                     byte b0 = 0;
+-                    int i = b0 + EnchantmentHelper.getKnockbackBonus(this);
++                    int i = b0 + EnchantmentHelper.getKnockbackBonus(this, target instanceof LivingEntity ? (LivingEntity) target : null); // EMC
+ 
+                     if (this.isSprinting() && flag) {
+                         sendSoundEffect(this, this.getX(), this.getY(), this.getZ(), SoundEvents.PLAYER_ATTACK_KNOCKBACK, this.getSoundSource(), 1.0F, 1.0F); // Paper - send while respecting visibility
+diff --git a/src/main/java/net/minecraft/world/item/enchantment/EnchantmentHelper.java b/src/main/java/net/minecraft/world/item/enchantment/EnchantmentHelper.java
+index 7bc5aa35b52de0027cf58a6127a9903464ccaf47..5fc967e63f86d6de19d097bbfe25d1c7258b6073 100644
+--- a/src/main/java/net/minecraft/world/item/enchantment/EnchantmentHelper.java
++++ b/src/main/java/net/minecraft/world/item/enchantment/EnchantmentHelper.java
+@@ -207,7 +207,15 @@ public class EnchantmentHelper {
+     }
+ 
+     public static int getKnockbackBonus(LivingEntity entity) {
+-        return getEnchantmentLevel(Enchantments.KNOCKBACK, entity);
++        // EMC start - add target
++        return getKnockbackBonus(entity, null);
++    }
++    public static int getKnockbackBonus(LivingEntity entity, @Nullable LivingEntity target) {
++        int level = getEnchantmentLevel(Enchantments.KNOCKBACK, entity);
++        com.empireminecraft.customevents.EntityKnockbackEvent event = new com.empireminecraft.customevents.EntityKnockbackEvent((org.bukkit.entity.LivingEntity) entity.getBukkitEntity(), target != null ? (org.bukkit.entity.LivingEntity) target.getBukkitEntity() : null, level);
++        event.callEvent();
++        return event.getLevel();
++        // EMC end
+     }
+ 
+     public static int getFireAspect(LivingEntity entity) {

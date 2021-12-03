@@ -1,0 +1,38 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Fri, 8 May 2015 19:56:21 -0400
+Subject: [PATCH] ServerShutdownEvent and move disablePlugins
+
+
+diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
+index 59a5264f59ea3d28c9a34d73e203dcf8ad388fd2..4d4aba201c032284408d28b3c2686477e361755b 100644
+--- a/src/main/java/net/minecraft/server/MinecraftServer.java
++++ b/src/main/java/net/minecraft/server/MinecraftServer.java
+@@ -238,6 +238,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+     protected final Proxy proxy;
+     private boolean onlineMode;
+     private boolean preventProxyConnections;
++    public String shutdownReason = "Server Shutting Down"; // EMC
+     private boolean pvp;
+     private boolean allowFlight;
+     @Nullable
+@@ -1033,8 +1034,9 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+         MinecraftTimings.stopServer(); // Paper
+         // CraftBukkit start
+         if (this.server != null) {
+-            this.server.disablePlugins();
+-            this.server.waitForAsyncTasksShutdown(); // Paper
++            //this.server.disablePlugins(); // EMC - Moved below after everything has unloaded so plugins can get events
++            //this.server.waitForAsyncTasksShutdown(); // Paper // EMC - moved down
++            new com.empireminecraft.customevents.ServerShutdownEvent(shutdownReason).callEvent(); // EMC
+         }
+         // CraftBukkit end
+         if (this.getConnection() != null) {
+@@ -1074,6 +1076,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+                 }
+             }
+         }
++        if (server != null) { this.server.disablePlugins(); this.server.waitForAsyncTasksShutdown(); } // EMC
+ 
+         this.isSaving = false;
+         this.resources.close();

@@ -1,0 +1,52 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: chickeneer <emcchickeneer@gmail.com>
+Date: Sat, 16 Jan 2021 22:44:20 -0600
+Subject: [PATCH] Convert EntityTag attributes on creature spawn
+
+
+diff --git a/src/main/java/net/minecraft/world/entity/EntityType.java b/src/main/java/net/minecraft/world/entity/EntityType.java
+index dd27a3c50b98b870fc392eb02d08c37eedc77c91..2a197e573975a3d3ed5c76654717fa21f0821c0d 100644
+--- a/src/main/java/net/minecraft/world/entity/EntityType.java
++++ b/src/main/java/net/minecraft/world/entity/EntityType.java
+@@ -365,6 +365,7 @@ public class EntityType<T extends Entity> implements EntityTypeTest<Entity, T> {
+             }
+         }
+         // Paper end
++        convertNBT(nbttagcompound); // EMC
+         T t0 = this.create(worldserver, nbttagcompound, ichatbasecomponent, entityhuman, blockposition, enummobspawn, flag, flag1);
+         // EMC start - if false the spawn was cancelled, add new event
+         if ((spawnReason == CreatureSpawnEvent.SpawnReason.SPAWNER_EGG || spawnReason == CreatureSpawnEvent.SpawnReason.DISPENSE_EGG) && itemstack != null && t0 != null) {
+@@ -390,6 +391,33 @@ public class EntityType<T extends Entity> implements EntityTypeTest<Entity, T> {
+         return t0;
+     }
+ 
++    // EMC start
++    private static final java.util.Map<String, String> attributeConversion = new com.google.common.collect.ImmutableMap.Builder<String, String>()
++        .put("generic.maxHealth", "generic.max_health")
++        .put("horse.jumpStrength", "horse.jump_strength")
++        .put("generic.followRange", "generic.follow_range")
++        .put("generic.knockbackResistance", "generic.knockback_resistance")
++        .put("generic.movementSpeed", "generic.movement_speed")
++        .put("generic.flyingSpeed", "generic.flying_speed")
++        .put("generic.attackDamage", "generic.attack_damage")
++        .put("generic.attackKnockback", "generic.attack_knockback")
++        .put("generic.attackSpeed", "generic.attack_speed")
++        .put("generic.armorToughness", "generic.armor_toughness").build();
++    private static void convertNBT(@Nullable CompoundTag nbttagcompound) {
++        if (nbttagcompound != null && nbttagcompound.contains("EntityTag", 10)) {
++            CompoundTag entityTag = nbttagcompound.getCompound("EntityTag");
++            if (entityTag.contains("Attributes", 9)) {
++                ListTag nbttaglist = entityTag.getList("Attributes", 10);
++                for (int i = 0; i < nbttaglist.size(); i++) {
++                    String value = attributeConversion.get(nbttaglist.getCompound(i).getString("Name"));
++                    if (value != null) {
++                        nbttaglist.getCompound(i).putString("Name", value);
++                    }
++                }
++            }
++        }
++    }
++    // EMC end
+     @Nullable
+     public T create(ServerLevel world, @Nullable CompoundTag itemNbt, @Nullable Component name, @Nullable Player player, BlockPos pos, MobSpawnType spawnReason, boolean alignPosition, boolean invertY) {
+         T t0 = this.create(world);

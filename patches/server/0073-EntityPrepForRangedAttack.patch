@@ -1,0 +1,73 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Mon, 25 Jun 2018 22:55:42 -0400
+Subject: [PATCH] EntityPrepForRangedAttack
+
+
+diff --git a/src/main/java/net/minecraft/world/entity/ai/goal/RangedAttackGoal.java b/src/main/java/net/minecraft/world/entity/ai/goal/RangedAttackGoal.java
+index aa7a9ad1a01c7232024cdb182b02b1c0166df90a..75e1a96e537317ad35229da1733e530aacab34cd 100644
+--- a/src/main/java/net/minecraft/world/entity/ai/goal/RangedAttackGoal.java
++++ b/src/main/java/net/minecraft/world/entity/ai/goal/RangedAttackGoal.java
+@@ -2,6 +2,8 @@ package net.minecraft.world.entity.ai.goal;
+ 
+ import java.util.EnumSet;
+ import javax.annotation.Nullable;
++
++import com.destroystokyo.paper.event.entity.EntityPrepForRangedAttack;
+ import net.minecraft.util.Mth;
+ import net.minecraft.world.entity.LivingEntity;
+ import net.minecraft.world.entity.Mob;
+@@ -77,9 +79,17 @@ public class RangedAttackGoal extends Goal {
+             this.seeTime = 0;
+         }
+ 
+-        if (!(d > (double)this.attackRadiusSqr) && this.seeTime >= 5) {
++        // EMC start
++        boolean isInRange = d <= (double) this.attackRadiusSqr;
++        boolean readyforAttack = this.seeTime >= 5;
++        EntityPrepForRangedAttack event = new EntityPrepForRangedAttack((com.destroystokyo.paper.entity.RangedEntity) mob.getBukkitEntity(), this.target.getBukkitLivingEntity(), readyforAttack, !isInRange, this.seeTime);
++        if (!event.callEvent()) {
++            return;
++        }
++        if (event.shouldStop() && !event.shouldMoveNear()) {
+             this.mob.getNavigation().stop();
+-        } else {
++        } else if (event.shouldMoveNear()) {
++            // EMC end
+             this.mob.getNavigation().moveTo(this.target, this.speedModifier);
+         }
+ 
+diff --git a/src/main/java/net/minecraft/world/entity/ai/goal/RangedBowAttackGoal.java b/src/main/java/net/minecraft/world/entity/ai/goal/RangedBowAttackGoal.java
+index a480f922d3b698e9bf157aefa4fad6ab6910d720..390c9bacedd14a0b9313205c28896ae9e49f37a2 100644
+--- a/src/main/java/net/minecraft/world/entity/ai/goal/RangedBowAttackGoal.java
++++ b/src/main/java/net/minecraft/world/entity/ai/goal/RangedBowAttackGoal.java
+@@ -1,6 +1,8 @@
+ package net.minecraft.world.entity.ai.goal;
+ 
+ import java.util.EnumSet;
++
++import com.destroystokyo.paper.event.entity.EntityPrepForRangedAttack;
+ import net.minecraft.world.entity.LivingEntity;
+ import net.minecraft.world.entity.monster.Monster;
+ import net.minecraft.world.entity.monster.RangedAttackMob;
+@@ -82,10 +84,18 @@ public class RangedBowAttackGoal<T extends Monster & RangedAttackMob> extends Go
+                 --this.seeTime;
+             }
+ 
+-            if (!(d > (double)this.attackRadiusSqr) && this.seeTime >= 20) {
++            // EMC start
++            boolean isInRange = d <= (double) this.attackRadiusSqr;
++            boolean readyforAttack = this.seeTime >= 20;
++            EntityPrepForRangedAttack event = new EntityPrepForRangedAttack((com.destroystokyo.paper.entity.RangedEntity) mob.getBukkitEntity(), livingEntity.getBukkitLivingEntity(), readyforAttack, !isInRange, this.seeTime);
++            if (!event.callEvent()) {
++                return;
++            }
++            if (event.shouldStop() && !event.shouldMoveNear()) {
+                 this.mob.getNavigation().stop();
+                 ++this.strafingTime;
+-            } else {
++            } else if (event.shouldMoveNear()){
++                // EMC end
+                 this.mob.getNavigation().moveTo(livingEntity, this.speedModifier);
+                 this.strafingTime = -1;
+             }

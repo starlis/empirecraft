@@ -1,0 +1,45 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Wed, 6 May 2015 02:29:30 -0400
+Subject: [PATCH] Limit worlds structures can generate
+
+
+diff --git a/src/main/java/net/minecraft/server/level/ServerLevel.java b/src/main/java/net/minecraft/server/level/ServerLevel.java
+index 1ceb9d14437e4eaf1ea2f64e51c32b8d7681e361..9598790b87164141d578e95abb5ae073fb0d5590 100644
+--- a/src/main/java/net/minecraft/server/level/ServerLevel.java
++++ b/src/main/java/net/minecraft/server/level/ServerLevel.java
+@@ -1759,7 +1759,7 @@ public class ServerLevel extends Level implements WorldGenLevel {
+ 
+     @Nullable
+     public BlockPos findNearestMapFeature(StructureFeature<?> feature, BlockPos pos, int radius, boolean skipExistingChunks) {
+-        return !this.serverLevelData.worldGenSettings().generateFeatures() ? null : this.getChunkSource().getGenerator().findNearestMapFeature(this, feature, pos, radius, skipExistingChunks); // CraftBukkit
++        return !this.serverLevelData.worldGenSettings().generateFeatures() || "town".equals(getWorld().getName()) ? null : this.getChunkSource().getGenerator().findNearestMapFeature(this, feature, pos, radius, skipExistingChunks); // CraftBukkit
+     }
+ 
+     @Nullable
+diff --git a/src/main/java/net/minecraft/world/level/StructureFeatureManager.java b/src/main/java/net/minecraft/world/level/StructureFeatureManager.java
+index 4977b97677ab907590005c30402b7b8e8d9d8606..854d66576a0d63a45f1507100ee7bf66f6c316ca 100644
+--- a/src/main/java/net/minecraft/world/level/StructureFeatureManager.java
++++ b/src/main/java/net/minecraft/world/level/StructureFeatureManager.java
+@@ -75,7 +75,7 @@ public class StructureFeatureManager {
+     }
+ 
+     public boolean shouldGenerateFeatures() {
+-        return this.worldGenSettings.generateFeatures();
++        return this.worldGenSettings.generateFeatures() && !"town".equals(getWorld().getWorld().getName()); // EMC
+     }
+ 
+     public StructureStart<?> getStructureAt(BlockPos pos, StructureFeature<?> structure) {
+diff --git a/src/main/java/net/minecraft/world/level/chunk/ChunkStatus.java b/src/main/java/net/minecraft/world/level/chunk/ChunkStatus.java
+index 6c72854aa975800bd6160d104936a5ba978f4d67..98001baf4283dcb32cf864b3348cb1dced04ad1a 100644
+--- a/src/main/java/net/minecraft/world/level/chunk/ChunkStatus.java
++++ b/src/main/java/net/minecraft/world/level/chunk/ChunkStatus.java
+@@ -47,7 +47,7 @@ public class ChunkStatus {
+     });
+     public static final ChunkStatus STRUCTURE_STARTS = ChunkStatus.register("structure_starts", ChunkStatus.EMPTY, 0, ChunkStatus.PRE_FEATURES, ChunkStatus.ChunkType.PROTOCHUNK, (chunkstatus, executor, worldserver, chunkgenerator, definedstructuremanager, lightenginethreaded, function, list, ichunkaccess, flag) -> {
+         if (!ichunkaccess.getStatus().isOrAfter(chunkstatus)) {
+-            if (worldserver.serverLevelData.worldGenSettings().generateFeatures()) { // CraftBukkit
++            if (worldserver.serverLevelData.worldGenSettings().generateFeatures() && !"town".equals(worldserver.getWorld().getName())) { // CraftBukkit // EMC
+                 chunkgenerator.createStructures(worldserver.registryAccess(), worldserver.structureFeatureManager(), ichunkaccess, definedstructuremanager, worldserver.getSeed());
+             }
+ 
