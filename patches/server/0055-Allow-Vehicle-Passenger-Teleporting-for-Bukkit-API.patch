@@ -32,7 +32,7 @@ index b6a36ff23783609079c566cc342e61a67c35a43c..d4160164e895aa5a5fcb77864c4a4c1b
      public double xo;
      public double yo;
 diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java
-index e8f2048742ffc0d711843a4794ebd50930bcc395..cf7d2b11395a89688a9780bcdf0a1790bb346cb7 100644
+index e8f2048742ffc0d711843a4794ebd50930bcc395..319d36a9b57beabd60863762bcbea34dc7a5f3e3 100644
 --- a/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java
 +++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java
 @@ -5,6 +5,7 @@ import com.empireminecraft.api.meta.TempMetaMap;
@@ -43,7 +43,7 @@ index e8f2048742ffc0d711843a4794ebd50930bcc395..cf7d2b11395a89688a9780bcdf0a1790
  import com.google.common.collect.Lists;
  import java.util.List;
  import java.util.Set;
-@@ -567,23 +568,103 @@ public abstract class CraftEntity implements org.bukkit.entity.Entity {
+@@ -567,23 +568,104 @@ public abstract class CraftEntity implements org.bukkit.entity.Entity {
          return this.teleport(location, TeleportCause.PLUGIN);
      }
  
@@ -77,9 +77,8 @@ index e8f2048742ffc0d711843a4794ebd50930bcc395..cf7d2b11395a89688a9780bcdf0a1790
 +            if (this.storedRoot != null) {
 +                teleportingEntity = this;
 +                this.storedRoot.teleportAndReattachEntities(location);
-+                CraftEntity root = this.storedRoot;
++                this.storedRoot.reattachPassengers();
 +                this.storedRoot = null;
-+                root.reattachPassengers();
 +                teleportingEntity = null;
 +            }
 +            return;
@@ -97,15 +96,17 @@ index e8f2048742ffc0d711843a4794ebd50930bcc395..cf7d2b11395a89688a9780bcdf0a1790
 +                this.entity.moveTo(location.getX(), location.getY(), location.getZ(), location.getYaw(), location.getPitch());
 +                this.entity.setYHeadRot(location.getYaw());
 +            } else {
++                // This section has code from TeleportCommand class
 +                ServerLevel world = (ServerLevel) this.entity.level;
-+                Entity target = this.entity.getType().create(world);
++                Entity entity1 = this.entity;
++                Entity target = entity1.getType().create(world);
 +                if (target == null) {
 +                    return;
 +                }
-+                target.restoreFrom(this.entity);
++                target.restoreFrom(entity1);
 +                target.moveTo(location.getX(), location.getY(), location.getZ(), location.getYaw(), location.getPitch());
 +                target.setYHeadRot(location.getYaw());
-+                this.entity.setRemoved(Entity.RemovalReason.CHANGED_DIMENSION);
++                entity1.setRemoved(Entity.RemovalReason.CHANGED_DIMENSION);
 +                this.setHandle(target);
 +                world.addDuringTeleport(target);
 +            }
@@ -149,7 +150,7 @@ index e8f2048742ffc0d711843a4794ebd50930bcc395..cf7d2b11395a89688a9780bcdf0a1790
              return true;
          }
  
-@@ -592,6 +673,7 @@ public abstract class CraftEntity implements org.bukkit.entity.Entity {
+@@ -592,6 +674,7 @@ public abstract class CraftEntity implements org.bukkit.entity.Entity {
          // SPIGOT-619: Force sync head rotation also
          this.entity.setYHeadRot(location.getYaw());
  
@@ -158,7 +159,7 @@ index e8f2048742ffc0d711843a4794ebd50930bcc395..cf7d2b11395a89688a9780bcdf0a1790
      }
  
 diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
-index 543bce9070582e8dd28b90826a3612ffe020b6b7..59be36ab9ef916342bcbafd5699cd4ca2496f898 100644
+index 543bce9070582e8dd28b90826a3612ffe020b6b7..01c8b6cf2dfb93d21856587e275c7e2c45137d08 100644
 --- a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
 @@ -1023,7 +1023,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
@@ -170,14 +171,15 @@ index 543bce9070582e8dd28b90826a3612ffe020b6b7..59be36ab9ef916342bcbafd5699cd4ca
  
          // SPIGOT-5509: Wakeup, similar to riding
          if (this.isSleeping()) {
-@@ -1045,12 +1045,27 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+@@ -1043,14 +1043,28 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+             this.getHandle().closeContainer(org.bukkit.event.inventory.InventoryCloseEvent.Reason.TELEPORT); // Paper
+         }
  
++        this.detachEntities(); // EMC
          // Check if the fromWorld and toWorld are the same.
          if (fromWorld == toWorld) {
-+            this.detachEntities(); // EMC
              entity.connection.teleport(to);
          } else {
-+            this.detachEntities(); // EMC
              server.getHandle().respawn(entity, toWorld, true, to, !toWorld.paperConfig.disableTeleportationSuffocationCheck); // Paper
          }
 +        this.teleportAndReattachEntities(location); // EMC
