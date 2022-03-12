@@ -44,23 +44,32 @@ index fa8cbd5a38a3969ce9c8e0fc2cd36566ea252a2c..071082fb2012920859e1c4d04b792b83
 +    }
  }
 diff --git a/src/main/java/net/minecraft/world/entity/npc/VillagerTrades.java b/src/main/java/net/minecraft/world/entity/npc/VillagerTrades.java
-index 90d77153d818534b1cb53ce80ea5409a709a2384..395a1d5c210aee5e0b83f89a583cd0fa56186811 100644
+index 52382b5b8149351ecf981d5414a0a50025f181c7..050c90269377943095bbe0f30bef3e8e1560a031 100644
 --- a/src/main/java/net/minecraft/world/entity/npc/VillagerTrades.java
 +++ b/src/main/java/net/minecraft/world/entity/npc/VillagerTrades.java
-@@ -369,10 +369,10 @@ public class VillagerTrades {
+@@ -44,6 +44,7 @@ import net.minecraft.world.level.block.Blocks;
+ import net.minecraft.world.level.levelgen.feature.ConfiguredStructureFeature;
+ import net.minecraft.world.level.saveddata.maps.MapDecoration;
+ import net.minecraft.world.level.saveddata.maps.MapItemSavedData;
++import org.bukkit.map.MapCursor;
+ 
+ public class VillagerTrades {
+     private static final int DEFAULT_SUPPLY = 12;
+@@ -371,11 +372,11 @@ public class VillagerTrades {
          private final int villagerXp;
  
-         public TreasureMapForEmeralds(int price, StructureFeature<?> feature, MapDecoration.Type iconType, int maxUses, int experience) {
+         public TreasureMapForEmeralds(int price, TagKey<ConfiguredStructureFeature<?, ?>> structure, String nameKey, MapDecoration.Type iconType, int maxUses, int experience) {
 -            this.emeraldCost = price;
-+            this.emeraldCost = Math.min(64 , 35 + price); // EMC - boost cost due to modified behavior - each map is unique, when its not in vanilla
-             this.destination = feature;
++            this.emeraldCost = Math.min(64, 35 + price); // EMC - boost due to modified behavior - each map is unique, when its not in vanilla
+             this.destination = structure;
+             this.displayName = nameKey;
              this.destinationType = iconType;
 -            this.maxUses = maxUses;
 +            this.maxUses = 2; // EMC - max 2 purchase before lock
              this.villagerXp = experience;
          }
  
-@@ -384,12 +384,13 @@ public class VillagerTrades {
+@@ -387,12 +388,13 @@ public class VillagerTrades {
              } else {
                  ServerLevel serverLevel = (ServerLevel)entity.level;
                  if (!serverLevel.paperConfig.enableTreasureMaps) return null; // Paper
@@ -69,14 +78,14 @@ index 90d77153d818534b1cb53ce80ea5409a709a2384..395a1d5c210aee5e0b83f89a583cd0fa
 -                    ItemStack itemStack = MapItem.create(serverLevel, blockPos.getX(), blockPos.getZ(), (byte)2, true, true);
 -                    MapItem.renderBiomePreviewMap(serverLevel, itemStack);
 -                    MapItemSavedData.addTargetDecoration(itemStack, blockPos, "+", this.destinationType);
--                    itemStack.setHoverName(new TranslatableComponent("filled_map." + this.destination.getFeatureName().toLowerCase(Locale.ROOT)));
+-                    itemStack.setHoverName(new TranslatableComponent(this.displayName));
 +                // EMC start - refactor treasure maps to be pending - ABSOLUTELY DEPENDS ON PLUGIN CODE!!!!!!!!!!!
-+                //BlockPosition blockposition = worldserver.a(this.b, entity.getChunkCoordinates(), 100, !worldserver.paperConfig.treasureMapsAlreadyDiscovered); // Paper
-+                com.empireminecraft.customevents.CreatePendingTreasureMapEvent event = new com.empireminecraft.customevents.CreatePendingTreasureMapEvent(this.destination.getFeatureName(), destinationType.ordinal());
-+                event.callEvent();
-+                if (event.getItem() != null) {
-+                    ItemStack itemStack = org.bukkit.craftbukkit.inventory.CraftItemStack.asNMSCopy(event.getItem());
-+                    // EMC end
++                com.empireminecraft.customevents.CreatePendingTreasureMapEvent event = new com.empireminecraft.customevents.CreatePendingTreasureMapEvent(MapCursor.Type.byValue(destinationType.getIcon()), destinationType.ordinal());
++                //BlockPos blockPos = serverLevel.findNearestMapFeature(this.destination, entity.blockPosition(), 100, !serverLevel.paperConfig.treasureMapsAlreadyDiscovered); // Paper
++                    event.callEvent();
++                    if (event.getItem() != null) {
++                        ItemStack itemStack = org.bukkit.craftbukkit.inventory.CraftItemStack.asNMSCopy(event.getItem());
++                        // EMC end
                      return new MerchantOffer(new ItemStack(Items.EMERALD, this.emeraldCost), new ItemStack(Items.COMPASS), itemStack, this.maxUses, this.villagerXp, 0.2F);
                  } else {
                      return null;
