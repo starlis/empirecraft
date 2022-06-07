@@ -699,7 +699,7 @@ index 0000000000000000000000000000000000000000..ccf6b97a7509cca111239aadeec8bfcb
 +}
 \ No newline at end of file
 diff --git a/src/main/java/net/minecraft/network/protocol/game/ClientboundBlockEntityDataPacket.java b/src/main/java/net/minecraft/network/protocol/game/ClientboundBlockEntityDataPacket.java
-index 43220caaa331eade5b183f68f09d94542b4bc3db..e67364df74657342c59b16a394eecc7fb3903768 100644
+index 8c87020e422acfb6b862d9d77e74114770f1b342..61b8c1c0a9e754a5e707352ad1ee5655c65dda4e 100644
 --- a/src/main/java/net/minecraft/network/protocol/game/ClientboundBlockEntityDataPacket.java
 +++ b/src/main/java/net/minecraft/network/protocol/game/ClientboundBlockEntityDataPacket.java
 @@ -2,6 +2,7 @@ package net.minecraft.network.protocol.game;
@@ -727,7 +727,7 @@ index 43220caaa331eade5b183f68f09d94542b4bc3db..e67364df74657342c59b16a394eecc7f
  
      @Override
 diff --git a/src/main/java/net/minecraft/network/protocol/game/ClientboundLevelChunkPacketData.java b/src/main/java/net/minecraft/network/protocol/game/ClientboundLevelChunkPacketData.java
-index 0e75764c108c24b3e2c453f2b4f14e798add0eb4..26b99dd66bc666367383f463e71da3492825c992 100644
+index 07b64291c3b0390b746433dd42c32534a2b05018..0beb4525da4f9cf8f8ac518d710cda98b3f1d389 100644
 --- a/src/main/java/net/minecraft/network/protocol/game/ClientboundLevelChunkPacketData.java
 +++ b/src/main/java/net/minecraft/network/protocol/game/ClientboundLevelChunkPacketData.java
 @@ -1,5 +1,6 @@
@@ -743,8 +743,8 @@ index 0e75764c108c24b3e2c453f2b4f14e798add0eb4..26b99dd66bc666367383f463e71da349
              if (blockEntity instanceof net.minecraft.world.level.block.entity.SkullBlockEntity) { net.minecraft.world.level.block.entity.SkullBlockEntity.sanitizeTileEntityUUID(compoundTag); } // Paper
 +            MetaApiAccessor.filterTileEntityMeta(compoundTag); // EMC
              int i = SectionPos.sectionRelative(blockPos.getX()) << 4 | SectionPos.sectionRelative(blockPos.getZ());
+             blockEntity.sanitizeSentNbt(compoundTag); // Paper - Sanitize sent data
              return new ClientboundLevelChunkPacketData.BlockEntityInfo(i, blockPos.getY(), blockEntity.getType(), compoundTag.isEmpty() ? null : compoundTag);
-         }
 diff --git a/src/main/java/net/minecraft/server/level/ChunkMap.java b/src/main/java/net/minecraft/server/level/ChunkMap.java
 index 6ce27675103d4b691216c6b701b6ceb821af528f..6a1ac38dbbcd6e98fe9b1955777072397deb1999 100644
 --- a/src/main/java/net/minecraft/server/level/ChunkMap.java
@@ -766,7 +766,7 @@ index 6ce27675103d4b691216c6b701b6ceb821af528f..6a1ac38dbbcd6e98fe9b195577707239
                  }
  
 diff --git a/src/main/java/net/minecraft/world/entity/Entity.java b/src/main/java/net/minecraft/world/entity/Entity.java
-index 86a2eddf344503cbe75a5243a114f6fe1578185f..b63e4be51e1b0ad8f03472429e6f3fc93310c513 100644
+index dfd1f37757af1bd808cc2e2d8bf97123adf638bb..3669227ccd5c819bd9bb203a3830915fac3df472 100644
 --- a/src/main/java/net/minecraft/world/entity/Entity.java
 +++ b/src/main/java/net/minecraft/world/entity/Entity.java
 @@ -1,5 +1,8 @@
@@ -789,7 +789,7 @@ index 86a2eddf344503cbe75a5243a114f6fe1578185f..b63e4be51e1b0ad8f03472429e6f3fc9
      // CraftBukkit start
      private static final int CURRENT_LEVEL = 2;
      public boolean preserveMotion = true; // Paper - keep initial motion on first setPositionRotation
-@@ -2040,6 +2047,7 @@ public abstract class Entity implements Nameable, EntityAccess, CommandSource {
+@@ -2041,6 +2048,7 @@ public abstract class Entity implements Nameable, EntityAccess, CommandSource {
  
              // CraftBukkit start - Checking for NaN pitch/yaw and resetting to zero
              // TODO: make sure this is the best way to address this.
@@ -797,7 +797,7 @@ index 86a2eddf344503cbe75a5243a114f6fe1578185f..b63e4be51e1b0ad8f03472429e6f3fc9
              if (Float.isNaN(this.yRot)) {
                  this.yRot = 0;
              }
-@@ -2294,6 +2302,7 @@ public abstract class Entity implements Nameable, EntityAccess, CommandSource {
+@@ -2295,6 +2303,7 @@ public abstract class Entity implements Nameable, EntityAccess, CommandSource {
              }
              // CraftBukkit end
  
@@ -826,7 +826,7 @@ index fee8996f35b38fd79946cdfd677763e0201eb57d..039e3c9682a10c0df24bb08f58c241b4
                  // CraftBukkit start
                  if (!this.captureBlockStates) { // Don't notify clients or update physics while capturing blockstates
 diff --git a/src/main/java/net/minecraft/world/level/block/entity/BlockEntity.java b/src/main/java/net/minecraft/world/level/block/entity/BlockEntity.java
-index d62181bd8bccfcfdd7da8f635bdf7ebc36294705..36c8b7fb5d74b8df524aa902c60e6730947efc34 100644
+index b96d57b0bcf21508f8e03e96b7553eb486fdf212..076dc6653965b539e7df64d3c7fba2142458b55e 100644
 --- a/src/main/java/net/minecraft/world/level/block/entity/BlockEntity.java
 +++ b/src/main/java/net/minecraft/world/level/block/entity/BlockEntity.java
 @@ -2,6 +2,9 @@ package net.minecraft.world.level.block.entity;
@@ -864,7 +864,7 @@ index d62181bd8bccfcfdd7da8f635bdf7ebc36294705..36c8b7fb5d74b8df524aa902c60e6730
          nbt.putInt("y", this.worldPosition.getY());
          nbt.putInt("z", this.worldPosition.getZ());
 diff --git a/src/main/java/net/minecraft/world/level/chunk/LevelChunk.java b/src/main/java/net/minecraft/world/level/chunk/LevelChunk.java
-index c8fb4b2bc86c9aa2e7c2e9ee10208cf9598b39ef..0162f54f6a792528749db7c12252a82402a5c86b 100644
+index f667dafd44b6652788d3367cbbc76eef3bead23b..3bde01687c56c1dfd3c7e979a9b2bcb671b1d175 100644
 --- a/src/main/java/net/minecraft/world/level/chunk/LevelChunk.java
 +++ b/src/main/java/net/minecraft/world/level/chunk/LevelChunk.java
 @@ -1,5 +1,8 @@
@@ -1025,7 +1025,7 @@ index 403aba29347c779da75337531c3723632120e7c9..1d34b78364258d82eb466093b1fcd152
      private final ServerLevel worldServer;
      private final int x;
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-index 17100d01ecc38d1f477b35be7da1104c073f55d3..d28393497efeb0d3db01bbf09cc652a19f2ec9f2 100644
+index e3a64ce1e595bbfbb8e221760fc3ec39f33573f7..1b0ff213aa6153f04fd47bf5621c1951570fffc2 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 @@ -1,5 +1,6 @@
@@ -1044,7 +1044,7 @@ index 17100d01ecc38d1f477b35be7da1104c073f55d3..d28393497efeb0d3db01bbf09cc652a1
          this.enablePlugins(PluginLoadOrder.STARTUP);
          this.enablePlugins(PluginLoadOrder.POSTWORLD);
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
-index 48825eaba9677a8b1e4fff80738e17d08e3307f8..3d6d57855ab0cbfdd03b3c84b9ca79551012d2e8 100644
+index 43244a479a112786539a905a22cb12e3cf55b2dd..7073997bfff246535f43453989bb0f72713b9f40 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
 @@ -1,5 +1,7 @@
