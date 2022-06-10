@@ -118,27 +118,27 @@ index 0000000000000000000000000000000000000000..4fd2df47edee792327da7fbb434f184a
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/network/FriendlyByteBuf.java b/src/main/java/net/minecraft/network/FriendlyByteBuf.java
-index 896a4237f871d46cf39b0721e909c2cc3b5fc728..1316cf7bde0bab0a33967728c28e82a60c3ebf76 100644
+index 35377576ed182814051c11f902e02e8e921e84e3..dfa15754494f968a99a3196cfa7e8bd797384019 100644
 --- a/src/main/java/net/minecraft/network/FriendlyByteBuf.java
 +++ b/src/main/java/net/minecraft/network/FriendlyByteBuf.java
-@@ -500,6 +500,7 @@ public class FriendlyByteBuf extends ByteBuf {
+@@ -582,6 +582,7 @@ public class FriendlyByteBuf extends ByteBuf {
+                 // CraftItemStack.setItemMeta(stack, CraftItemStack.getItemMeta(stack)); // Paper - This is no longer with raw NBT being handled in metadata
                  // Spigot end
                  nbttagcompound = stack.getTag();
-                 // Paper start
 +                nbttagcompound = com.empireminecraft.api.HiddenItemMeta.filterItemLore(nbttagcompound, true); // EMC
-                 if (nbttagcompound != null && nbttagcompound.contains("SkullOwner", 10)) {
-                     CompoundTag owner = nbttagcompound.getCompound("SkullOwner");
-                     if (owner.hasUUID("Id")) {
-@@ -528,6 +529,7 @@ public class FriendlyByteBuf extends ByteBuf {
+             }
+ 
+             this.writeNbt(nbttagcompound);
+@@ -599,6 +600,7 @@ public class FriendlyByteBuf extends ByteBuf {
+             ItemStack itemstack = new ItemStack(item, b0);
+ 
+             itemstack.setTag(this.readNbt());
++            com.empireminecraft.api.HiddenItemMeta.restoreItemLore(itemstack.tag); // EMC - get around creative menu having ultimate control of the NBT...
              // CraftBukkit start
-             if (itemstack.getTag() != null) {
-                 // Paper start - Fix skulls of same owner - restore orig ID since we changed it on send to client
-+                com.empireminecraft.api.HiddenItemMeta.restoreItemLore(itemstack.tag); // EMC - get around creative menu having ultimate control of the NBT...
-                 if (itemstack.tag.contains("SkullOwnerOrig")) {
-                     CompoundTag owner = itemstack.tag.getCompound("SkullOwner");
-                     if (itemstack.tag.contains("SkullOwnerOrig")) {
+             if (false && itemstack.getTag() != null) { // Paper - This is no longer needed with raw NBT being handled in metadata
+                 CraftItemStack.setItemMeta(itemstack, CraftItemStack.getItemMeta(itemstack));
 diff --git a/src/main/java/net/minecraft/network/chat/HoverEvent.java b/src/main/java/net/minecraft/network/chat/HoverEvent.java
-index b31ff9d237f593e58b42b453632aa2c2af74f986..df7ddf3436da43ce40b05167f01712206be4aa6d 100644
+index 587db9a70f8f930412d34c4a412c19a30faa2a4e..6cc5f62926c3e7c162412e9629dae1d3bd93e07a 100644
 --- a/src/main/java/net/minecraft/network/chat/HoverEvent.java
 +++ b/src/main/java/net/minecraft/network/chat/HoverEvent.java
 @@ -246,7 +246,7 @@ public class HoverEvent {
@@ -151,22 +151,18 @@ index b31ff9d237f593e58b42b453632aa2c2af74f986..df7ddf3436da43ce40b05167f0171220
              this.count = count;
              this.tag = nbt;
 diff --git a/src/main/java/net/minecraft/world/item/ItemStack.java b/src/main/java/net/minecraft/world/item/ItemStack.java
-index 6837c965592d4584cfc958a1008b98791a0fc780..510a7aa81dbf3b89ad7217ed8fde34767779d44d 100644
+index 6b3cfc19c4fd1382ddf534265a1114995a4f6b55..3e6f49e00d44f81f9b5525ecdc72039aacede6ed 100644
 --- a/src/main/java/net/minecraft/world/item/ItemStack.java
 +++ b/src/main/java/net/minecraft/world/item/ItemStack.java
-@@ -32,10 +32,7 @@ import net.minecraft.core.BlockPos;
- import net.minecraft.core.Direction;
- import net.minecraft.core.Holder;
- import net.minecraft.core.Registry;
--import net.minecraft.nbt.CompoundTag;
--import net.minecraft.nbt.ListTag;
--import net.minecraft.nbt.NbtOps;
--import net.minecraft.nbt.Tag;
-+import net.minecraft.nbt.*;
+@@ -31,6 +31,7 @@ import net.minecraft.core.Registry;
+ import net.minecraft.nbt.CompoundTag;
+ import net.minecraft.nbt.ListTag;
+ import net.minecraft.nbt.NbtOps;
++import net.minecraft.nbt.StringTag;
+ import net.minecraft.nbt.Tag;
+ import net.minecraft.network.chat.CommonComponents;
  import net.minecraft.network.chat.Component;
- import net.minecraft.network.chat.ComponentUtils;
- import net.minecraft.network.chat.HoverEvent;
-@@ -1241,8 +1238,26 @@ public final class ItemStack {
+@@ -1237,8 +1238,26 @@ public final class ItemStack {
          MutableComponent ichatmutablecomponent1 = ComponentUtils.wrapInSquareBrackets(ichatmutablecomponent);
  
          if (!this.emptyCacheFlag) {

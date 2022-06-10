@@ -7,10 +7,10 @@ Secure BungeeCord with IP Whitelist for IP/UUID forwarding
 Allow online-mode to be set to true, and skip online-mode for bungee IP's
 
 diff --git a/src/main/java/net/minecraft/network/Connection.java b/src/main/java/net/minecraft/network/Connection.java
-index 9bbf990212ee55a267d0eb1e863618c50fa706da..ff82fb1a9077cac31dc9369f25e489152fb16512 100644
+index c1e8d8674738eebaaf7bd918eacb5227a1331b67..c3e51cd61cf151e68f7ee6055462d70cdb9f9397 100644
 --- a/src/main/java/net/minecraft/network/Connection.java
 +++ b/src/main/java/net/minecraft/network/Connection.java
-@@ -86,6 +86,7 @@ public class Connection extends SimpleChannelInboundHandler<Packet<?>> {
+@@ -85,6 +85,7 @@ public class Connection extends SimpleChannelInboundHandler<Packet<?>> {
      public com.mojang.authlib.properties.Property[] spoofedProfile;
      public boolean preparing = true;
      // Spigot End
@@ -19,10 +19,10 @@ index 9bbf990212ee55a267d0eb1e863618c50fa706da..ff82fb1a9077cac31dc9369f25e48915
      private Component disconnectedReason;
      private boolean encrypted;
 diff --git a/src/main/java/net/minecraft/server/network/ServerHandshakePacketListenerImpl.java b/src/main/java/net/minecraft/server/network/ServerHandshakePacketListenerImpl.java
-index e8a79277f3e57bc82d67ada6543c7f8665311bd3..f7b0f06691458033ec3d6e26a6a1a2fb68540052 100644
+index 08b21f5a7a07f44f8044f56991fb6723cd8f3eea..a17b4c4eff3d20ba8ee42eb92643a8b96b54bb8c 100644
 --- a/src/main/java/net/minecraft/server/network/ServerHandshakePacketListenerImpl.java
 +++ b/src/main/java/net/minecraft/server/network/ServerHandshakePacketListenerImpl.java
-@@ -92,7 +92,8 @@ public class ServerHandshakePacketListenerImpl implements ServerHandshakePacketL
+@@ -91,7 +91,8 @@ public class ServerHandshakePacketListenerImpl implements ServerHandshakePacketL
                  } else {
                      this.connection.setListener(new ServerLoginPacketListenerImpl(this.server, this.connection));
                  // Paper start - handshake event
@@ -32,7 +32,7 @@ index e8a79277f3e57bc82d67ada6543c7f8665311bd3..f7b0f06691458033ec3d6e26a6a1a2fb
                  boolean handledByEvent = false;
                  // Try and handle the handshake through the event
                  if (com.destroystokyo.paper.event.player.PlayerHandshakeEvent.getHandlerList().getRegisteredListeners().length != 0) { // Hello? Can you hear me?
-@@ -121,6 +122,7 @@ public class ServerHandshakePacketListenerImpl implements ServerHandshakePacketL
+@@ -120,6 +121,7 @@ public class ServerHandshakePacketListenerImpl implements ServerHandshakePacketL
                      if (!handledByEvent && proxyLogicEnabled) {
                          // Paper end
                      // if (org.spigotmc.SpigotConfig.bungee) { // Paper - comment out, we check above!
@@ -40,30 +40,30 @@ index e8a79277f3e57bc82d67ada6543c7f8665311bd3..f7b0f06691458033ec3d6e26a6a1a2fb
                          if ( ( split.length == 3 || split.length == 4 ) && ( ServerHandshakePacketListenerImpl.BYPASS_HOSTCHECK || ServerHandshakePacketListenerImpl.HOST_PATTERN.matcher( split[1] ).matches() ) ) { // Paper
                              // Paper start - Unix domain socket support
                              java.net.SocketAddress socketAddress = connection.getRemoteAddress();
-@@ -128,7 +130,7 @@ public class ServerHandshakePacketListenerImpl implements ServerHandshakePacketL
+@@ -127,7 +129,7 @@ public class ServerHandshakePacketListenerImpl implements ServerHandshakePacketL
                              connection.address = new java.net.InetSocketAddress(split[1], socketAddress instanceof java.net.InetSocketAddress ? ((java.net.InetSocketAddress) socketAddress).getPort() : 0);
                              // Paper end
                              connection.spoofedUUID = com.mojang.util.UUIDTypeAdapter.fromString( split[2] );
 -                        } else
 +                        } else if (false) // EMC
                          {
-                             TranslatableComponent chatmessage = new TranslatableComponent("If you wish to use IP forwarding, please enable it in your BungeeCord config as well!");
+                             Component chatmessage = Component.literal("If you wish to use IP forwarding, please enable it in your BungeeCord config as well!");
                              this.connection.send(new ClientboundLoginDisconnectPacket(chatmessage));
 diff --git a/src/main/java/net/minecraft/server/network/ServerLoginPacketListenerImpl.java b/src/main/java/net/minecraft/server/network/ServerLoginPacketListenerImpl.java
-index befcb501b4b1b6330bf3cd53e00e30b01efade6f..43cec06a5a71e48a9a2bc7b0cbb7d47113dac6b1 100644
+index 89f8690848db712f382d1a1e5b75053262d991ac..5327aa13db5b757b47812a51e2d94f2fc32347f7 100644
 --- a/src/main/java/net/minecraft/server/network/ServerLoginPacketListenerImpl.java
 +++ b/src/main/java/net/minecraft/server/network/ServerLoginPacketListenerImpl.java
-@@ -260,7 +260,7 @@ public class ServerLoginPacketListenerImpl implements ServerLoginPacketListener
-             }
-         }
-         // Paper end - validate usernames
--        if (this.server.usesAuthentication() && !this.connection.isMemoryConnection()) {
-+        if (!this.connection.isProxied && this.server.usesAuthentication() && !this.connection.isMemoryConnection()) { // EMC - add !isProxied
-             this.state = ServerLoginPacketListenerImpl.State.KEY;
-             this.connection.send(new ClientboundHelloPacket("", this.server.getKeyPair().getPublic().getEncoded(), this.nonce));
+@@ -313,7 +313,7 @@ public class ServerLoginPacketListenerImpl implements ServerLoginPacketListener
+             this.state = ServerLoginPacketListenerImpl.State.READY_TO_ACCEPT;
          } else {
+             this.gameProfile = new GameProfile((UUID) null, packet.name());
+-            if (this.server.usesAuthentication() && !this.connection.isMemoryConnection()) {
++            if (!this.connection.isProxied && this.server.usesAuthentication() && !this.connection.isMemoryConnection()) { // EMC - add !isProxied
+                 this.state = ServerLoginPacketListenerImpl.State.KEY;
+                 this.connection.send(new ClientboundHelloPacket("", this.server.getKeyPair().getPublic().getEncoded(), this.nonce));
+             } else {
 diff --git a/src/main/java/org/spigotmc/SpigotConfig.java b/src/main/java/org/spigotmc/SpigotConfig.java
-index d509187ca63963fdd7f1a44d89d2aa1a1b1ce3bd..caefe939973eaebad4ef336fca9bcf003c11ba9f 100644
+index 5d162f59fc5ef9adf7fa762b137bbcfca745d9c5..4bf6b5b79c81aead37aa8de14e87ba8fea805188 100644
 --- a/src/main/java/org/spigotmc/SpigotConfig.java
 +++ b/src/main/java/org/spigotmc/SpigotConfig.java
 @@ -233,6 +233,7 @@ public class SpigotConfig

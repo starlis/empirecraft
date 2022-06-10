@@ -5,7 +5,7 @@ Subject: [PATCH] Villager Treasure Map Events / Changes
 
 
 diff --git a/src/main/java/com/empireminecraft/api/CraftEAPI_Misc.java b/src/main/java/com/empireminecraft/api/CraftEAPI_Misc.java
-index fa8cbd5a38a3969ce9c8e0fc2cd36566ea252a2c..071082fb2012920859e1c4d04b792b830954088e 100644
+index fa8cbd5a38a3969ce9c8e0fc2cd36566ea252a2c..205a9b49ed02d21e3931fa586dce335a29f4858e 100644
 --- a/src/main/java/com/empireminecraft/api/CraftEAPI_Misc.java
 +++ b/src/main/java/com/empireminecraft/api/CraftEAPI_Misc.java
 @@ -23,5 +23,34 @@
@@ -13,7 +13,7 @@ index fa8cbd5a38a3969ce9c8e0fc2cd36566ea252a2c..071082fb2012920859e1c4d04b792b83
  package com.empireminecraft.api;
  
 +import net.minecraft.core.BlockPos;
-+import net.minecraft.network.chat.TranslatableComponent;
++import net.minecraft.network.chat.Component;
 +import net.minecraft.server.MCUtil;
 +import net.minecraft.server.level.ServerLevel;
 +import net.minecraft.world.item.ItemStack;
@@ -39,16 +39,16 @@ index fa8cbd5a38a3969ce9c8e0fc2cd36566ea252a2c..071082fb2012920859e1c4d04b792b83
 +        MapItem.renderBiomePreviewMap(level, itemstack);
 +
 +        MapItemSavedData.addTargetDecoration(itemstack, pos, "+", values[iconType]);
-+        itemstack.setHoverName(new TranslatableComponent("filled_map." + mapType.toLowerCase()));
++        itemstack.setHoverName(Component.translatable("filled_map." + mapType.toLowerCase()));
 +        return CraftItemStack.asCraftMirror(itemstack);
 +    }
  }
 diff --git a/src/main/java/net/minecraft/world/entity/npc/VillagerTrades.java b/src/main/java/net/minecraft/world/entity/npc/VillagerTrades.java
-index d595c82f850bb04657a86748d7e04695f934846f..a55f95557afa7af51e597e5faacf82886a03cc07 100644
+index 770a91fcc351a2d1de4762c0fd9bae2b49c363b5..2550b0296d3ed898e4540eb8c488b51e022d506a 100644
 --- a/src/main/java/net/minecraft/world/entity/npc/VillagerTrades.java
 +++ b/src/main/java/net/minecraft/world/entity/npc/VillagerTrades.java
 @@ -44,6 +44,7 @@ import net.minecraft.world.level.block.Blocks;
- import net.minecraft.world.level.levelgen.feature.ConfiguredStructureFeature;
+ import net.minecraft.world.level.levelgen.structure.Structure;
  import net.minecraft.world.level.saveddata.maps.MapDecoration;
  import net.minecraft.world.level.saveddata.maps.MapItemSavedData;
 +import org.bukkit.map.MapCursor;
@@ -58,7 +58,7 @@ index d595c82f850bb04657a86748d7e04695f934846f..a55f95557afa7af51e597e5faacf8288
 @@ -371,11 +372,11 @@ public class VillagerTrades {
          private final int villagerXp;
  
-         public TreasureMapForEmeralds(int price, TagKey<ConfiguredStructureFeature<?, ?>> structure, String nameKey, MapDecoration.Type iconType, int maxUses, int experience) {
+         public TreasureMapForEmeralds(int price, TagKey<Structure> structure, String nameKey, MapDecoration.Type iconType, int maxUses, int experience) {
 -            this.emeraldCost = price;
 +            this.emeraldCost = Math.min(64, 35 + price); // EMC - boost due to modified behavior - each map is unique, when its not in vanilla
              this.destination = structure;
@@ -72,20 +72,20 @@ index d595c82f850bb04657a86748d7e04695f934846f..a55f95557afa7af51e597e5faacf8288
 @@ -387,12 +388,13 @@ public class VillagerTrades {
              } else {
                  ServerLevel serverLevel = (ServerLevel)entity.level;
-                 if (!serverLevel.paperConfig.enableTreasureMaps) return null; // Paper
--                BlockPos blockPos = serverLevel.findNearestMapFeature(this.destination, entity.blockPosition(), 100, !serverLevel.paperConfig.treasureMapsAlreadyDiscoveredVillager); // Paper
+                 if (!serverLevel.paperConfig().environment.treasureMaps.enabled) return null; // Paper
+-                BlockPos blockPos = serverLevel.findNearestMapStructure(this.destination, entity.blockPosition(), 100, !serverLevel.paperConfig().environment.treasureMaps.findAlreadyDiscoveredVillager); // Paper
 -                if (blockPos != null) {
 -                    ItemStack itemStack = MapItem.create(serverLevel, blockPos.getX(), blockPos.getZ(), (byte)2, true, true);
 -                    MapItem.renderBiomePreviewMap(serverLevel, itemStack);
 -                    MapItemSavedData.addTargetDecoration(itemStack, blockPos, "+", this.destinationType);
--                    itemStack.setHoverName(new TranslatableComponent(this.displayName));
+-                    itemStack.setHoverName(Component.translatable(this.displayName));
 +                // EMC start - refactor treasure maps to be pending - ABSOLUTELY DEPENDS ON PLUGIN CODE!!!!!!!!!!!
-+				com.empireminecraft.customevents.CreatePendingTreasureMapEvent event = new com.empireminecraft.customevents.CreatePendingTreasureMapEvent(MapCursor.Type.byValue(destinationType.getIcon()), destinationType.ordinal());
-+                //BlockPos blockPos = serverLevel.findNearestMapFeature(this.destination, entity.blockPosition(), 100, !serverLevel.paperConfig.treasureMapsAlreadyDiscovered); // Paper
-+                    event.callEvent();
-+                    if (event.getItem() != null) {
-+                        ItemStack itemStack = org.bukkit.craftbukkit.inventory.CraftItemStack.asNMSCopy(event.getItem());
-+                        // EMC end
++                com.empireminecraft.customevents.CreatePendingTreasureMapEvent event = new com.empireminecraft.customevents.CreatePendingTreasureMapEvent(MapCursor.Type.byValue(destinationType.getIcon()), destinationType.ordinal());
++                //BlockPos blockPos = serverLevel.findNearestMapStructure(this.destination, entity.blockPosition(), 100, !serverLevel.paperConfig().environment.treasureMaps.findAlreadyDiscoveredVillager); // Paper
++                event.callEvent();
++                if (event.getItem() != null) {
++                    ItemStack itemStack = org.bukkit.craftbukkit.inventory.CraftItemStack.asNMSCopy(event.getItem());
++                    // EMC end
                      return new MerchantOffer(new ItemStack(Items.EMERALD, this.emeraldCost), new ItemStack(Items.COMPASS), itemStack, this.maxUses, this.villagerXp, 0.2F);
                  } else {
                      return null;

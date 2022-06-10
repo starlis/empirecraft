@@ -6,7 +6,7 @@ Subject: [PATCH] PlayerUseItem Event
 This lets us control when an item is consumed and change the item.
 
 diff --git a/src/main/java/net/minecraft/server/level/ServerPlayerGameMode.java b/src/main/java/net/minecraft/server/level/ServerPlayerGameMode.java
-index 415b6c2bbf11c5a2ac75d18f52b93f80b9e14fe4..6923958880ed6f75df33959e1cecd11d5cc5cb81 100644
+index 7572f6d03d315ab4639be211c5ffc7682b326362..1c142ef09aa32cf6a74c7b1f192175d7f4fbc6d6 100644
 --- a/src/main/java/net/minecraft/server/level/ServerPlayerGameMode.java
 +++ b/src/main/java/net/minecraft/server/level/ServerPlayerGameMode.java
 @@ -3,6 +3,8 @@ package net.minecraft.server.level;
@@ -18,7 +18,7 @@ index 415b6c2bbf11c5a2ac75d18f52b93f80b9e14fe4..6923958880ed6f75df33959e1cecd11d
  import net.minecraft.world.InteractionHand;
  import net.minecraft.world.InteractionResult;
  import net.minecraft.world.InteractionResultHolder;
-@@ -503,6 +505,15 @@ public class ServerPlayerGameMode {
+@@ -464,6 +466,15 @@ public class ServerPlayerGameMode {
      }
  
      public InteractionResult useItem(ServerPlayer player, Level world, ItemStack stack, InteractionHand hand) {
@@ -34,7 +34,7 @@ index 415b6c2bbf11c5a2ac75d18f52b93f80b9e14fe4..6923958880ed6f75df33959e1cecd11d
          if (this.gameModeForPlayer == GameType.SPECTATOR) {
              return InteractionResult.PASS;
          } else if (player.getCooldowns().isOnCooldown(stack.getItem())) {
-@@ -510,27 +521,55 @@ public class ServerPlayerGameMode {
+@@ -471,30 +482,60 @@ public class ServerPlayerGameMode {
          } else {
              int i = stack.getCount();
              int j = stack.getDamageValue();
@@ -64,9 +64,14 @@ index 415b6c2bbf11c5a2ac75d18f52b93f80b9e14fe4..6923958880ed6f75df33959e1cecd11d
 +                // if fail, abort - this is vanilla
                  return interactionresultwrapper.getResult();
              } else {
--                player.setItemInHand(hand, itemstack1);
+-                if (stack != itemstack1) {
+-                    player.setItemInHand(hand, itemstack1);
+-                }
++                //if (stack != itemstack1) { // Paper - move down
++                //    player.setItemInHand(hand, itemstack1);
++                //}
+ 
 -                if (this.isCreative()) {
-+                //player.setItemInHand(hand, itemstack1); // Paper - move down
 +                if (!event.shouldConsumeItem() || this.isCreative()) { // Paper - add shouldConsumeItem
                      itemstack1.setCount(i);
                      if (itemstack1.isDamageableItem() && itemstack1.getDamageValue() != j) {
@@ -83,7 +88,9 @@ index 415b6c2bbf11c5a2ac75d18f52b93f80b9e14fe4..6923958880ed6f75df33959e1cecd11d
 +                    itemstack1 = org.bukkit.craftbukkit.inventory.CraftItemStack.asNMSCopy(postUseItemEvent.getNewItem());
 +                    isSame = false;
 +                }
-+                player.setItemInHand(hand, itemstack1);
++                if (stack != itemstack1) {
++                    player.setItemInHand(hand, itemstack1);
++                }
 +                // Paper end
  
                  if (itemstack1.isEmpty()) {
@@ -96,7 +103,7 @@ index 415b6c2bbf11c5a2ac75d18f52b93f80b9e14fe4..6923958880ed6f75df33959e1cecd11d
                      player.inventoryMenu.sendAllDataToRemote();
                  }
  
-@@ -547,6 +586,7 @@ public class ServerPlayerGameMode {
+@@ -511,6 +552,7 @@ public class ServerPlayerGameMode {
      public ItemStack interactItemStack;
      public InteractionResult useItemOn(ServerPlayer player, Level world, ItemStack stack, InteractionHand hand, BlockHitResult hitResult) {
          BlockPos blockposition = hitResult.getBlockPos();
@@ -104,7 +111,7 @@ index 415b6c2bbf11c5a2ac75d18f52b93f80b9e14fe4..6923958880ed6f75df33959e1cecd11d
          BlockState iblockdata = world.getBlockState(blockposition);
          InteractionResult enuminteractionresult = InteractionResult.PASS;
          boolean cancelledBlock = false;
-@@ -613,17 +653,41 @@ public class ServerPlayerGameMode {
+@@ -577,17 +619,41 @@ public class ServerPlayerGameMode {
              }
  
              if (!stack.isEmpty() && enuminteractionresult != InteractionResult.SUCCESS && !this.interactResult) { // add !interactResult SPIGOT-764

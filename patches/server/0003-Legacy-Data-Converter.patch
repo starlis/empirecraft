@@ -6,10 +6,10 @@ Subject: [PATCH] Legacy Data Converter
 
 diff --git a/src/main/java/com/empireminecraft/DataConverters.java b/src/main/java/com/empireminecraft/DataConverters.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..213708387f29eb9f616597141af60296118c5f27
+index 0000000000000000000000000000000000000000..290ad8a691a8c07abbba0f90cdf08298d55e8337
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/DataConverters.java
-@@ -0,0 +1,2639 @@
+@@ -0,0 +1,2638 @@
 +package com.empireminecraft;
 +
 +import com.google.common.collect.Lists;
@@ -47,7 +47,6 @@ index 0000000000000000000000000000000000000000..213708387f29eb9f616597141af60296
 +import net.minecraft.nbt.NbtOps;
 +import net.minecraft.nbt.StringTag;
 +import net.minecraft.network.chat.Component;
-+import net.minecraft.network.chat.TextComponent;
 +import net.minecraft.resources.ResourceLocation;
 +import net.minecraft.util.GsonHelper;
 +import net.minecraft.util.StringUtil;
@@ -118,7 +117,7 @@ index 0000000000000000000000000000000000000000..213708387f29eb9f616597141af60296
 +
 +    // Called after fixers are built and ready for FIXING
 +    public DataFixer build(final Executor executor) {
-+        return this.fixer = new WrappedDataFixer(super.build(executor));
++        return this.fixer = new WrappedDataFixer(super.build());
 +    }
 +
 +    private class WrappedDataFixer implements DataFixer {
@@ -1769,12 +1768,12 @@ index 0000000000000000000000000000000000000000..213708387f29eb9f616597141af60296
 +
 +                        if (!"null".equals(s) && !StringUtil.isNullOrEmpty(s)) {
 +                            if ((s.charAt(0) != 34 || s.charAt(s.length() - 1) != 34) && (s.charAt(0) != 123 || s.charAt(s.length() - 1) != 125)) {
-+                                object = new TextComponent(s);
++                                object = Component.literal(s);
 +                            } else {
 +                                try {
 +                                    object = GsonHelper.fromJson(DataConverterSignText.a, s, Component.class, true);
 +                                    if (object == null) {
-+                                        object = new TextComponent("");
++                                        object = Component.literal("");
 +                                    }
 +                                } catch (JsonParseException ignored) {
 +                                }
@@ -1794,11 +1793,11 @@ index 0000000000000000000000000000000000000000..213708387f29eb9f616597141af60296
 +                                }
 +
 +                                if (object == null) {
-+                                    object = new TextComponent(s);
++                                    object = Component.literal(s);
 +                                }
 +                            }
 +                        } else {
-+                            object = new TextComponent("");
++                            object = Component.literal("");
 +                        }
 +
 +                        nbttaglist.set(i, StringTag.valueOf(Component.Serializer.toJson(object)));
@@ -2363,7 +2362,7 @@ index 0000000000000000000000000000000000000000..213708387f29eb9f616597141af60296
 +        public static final Gson a = new GsonBuilder().registerTypeAdapter(Component.class, new JsonDeserializer() {
 +            Component a(JsonElement jsonelement, Type type, JsonDeserializationContext jsondeserializationcontext) throws JsonParseException {
 +                if (jsonelement.isJsonPrimitive()) {
-+                    return new TextComponent(jsonelement.getAsString());
++                    return Component.literal(jsonelement.getAsString());
 +                } else if (jsonelement.isJsonArray()) {
 +                    JsonArray jsonarray = jsonelement.getAsJsonArray();
 +                    Component ichatbasecomponent = null;
@@ -2412,12 +2411,12 @@ index 0000000000000000000000000000000000000000..213708387f29eb9f616597141af60296
 +
 +            if (!"null".equals(s1) && !StringUtil.isNullOrEmpty(s1)) {
 +                if ((s1.charAt(0) != 34 || s1.charAt(s1.length() - 1) != 34) && (s1.charAt(0) != 123 || s1.charAt(s1.length() - 1) != 125)) {
-+                    object = new TextComponent(s1);
++                    object = Component.literal(s1);
 +                } else {
 +                    try {
 +                        object = GsonHelper.fromJson(DataConverterSignText.a, s1, Component.class, true);
 +                        if (object == null) {
-+                            object = new TextComponent("");
++                            object = Component.literal("");
 +                        }
 +                    } catch (JsonParseException ignored) {
 +                    }
@@ -2437,11 +2436,11 @@ index 0000000000000000000000000000000000000000..213708387f29eb9f616597141af60296
 +                    }
 +
 +                    if (object == null) {
-+                        object = new TextComponent(s1);
++                        object = Component.literal(s1);
 +                    }
 +                }
 +            } else {
-+                object = new TextComponent("");
++                object = Component.literal("");
 +            }
 +
 +            nbttagcompound.putString(s, Component.Serializer.toJson(object));
@@ -2649,8 +2648,21 @@ index 0000000000000000000000000000000000000000..213708387f29eb9f616597141af60296
 +        }
 +    }
 +}
+diff --git a/src/main/java/com/mojang/datafixers/DataFixerBuilder.java b/src/main/java/com/mojang/datafixers/DataFixerBuilder.java
+index 3d5e52d997a8e7d7f3b000e3737d30762aae2ca1..a699d4c4734dc3aa53dd763efcb70d299c55f9a9 100644
+--- a/src/main/java/com/mojang/datafixers/DataFixerBuilder.java
++++ b/src/main/java/com/mojang/datafixers/DataFixerBuilder.java
+@@ -99,7 +99,7 @@ public class DataFixerBuilder {
+         return fixerUpper;
+     }
+ 
+-    private DataFixerUpper build() {
++    public DataFixerUpper build() { // EMC - make public
+         return new DataFixerUpper(new Int2ObjectAVLTreeMap<>(schemas), new ArrayList<>(globalList), new IntAVLTreeSet(fixerVersions));
+     }
+ }
 diff --git a/src/main/java/net/minecraft/util/datafix/DataFixers.java b/src/main/java/net/minecraft/util/datafix/DataFixers.java
-index b08d32bc80b4a65ebb980366a3e717c3b0e1bdab..c417858f9791e2a0d9965320643daa1ad35e1f81 100644
+index 05946c6ab0bfb0a24d23fc336817f1ea0e19d115..7109016bf6b51deb88c69daff11dbcc11dfeac3d 100644
 --- a/src/main/java/net/minecraft/util/datafix/DataFixers.java
 +++ b/src/main/java/net/minecraft/util/datafix/DataFixers.java
 @@ -1,5 +1,6 @@
@@ -2659,13 +2671,13 @@ index b08d32bc80b4a65ebb980366a3e717c3b0e1bdab..c417858f9791e2a0d9965320643daa1a
 +import com.empireminecraft.DataConverters;
  import com.google.common.collect.ImmutableMap;
  import com.mojang.datafixers.DSL;
- import com.mojang.datafixers.DataFixer;
-@@ -83,7 +84,7 @@ public class DataFixers {
-     public DataFixers() {}
+ import com.mojang.datafixers.DSL.TypeReference;
+@@ -99,7 +100,7 @@ public class DataFixers {
+     }
  
-     private static DataFixer createFixerUpper() {
+     private static synchronized DataFixer createFixerUpper() {
 -        DataFixerBuilder datafixerbuilder = new DataFixerBuilder(SharedConstants.getCurrentVersion().getWorldVersion());
 +        DataConverters datafixerbuilder = new DataConverters(SharedConstants.getCurrentVersion().getWorldVersion()); // EMC
  
          DataFixers.addFixers(datafixerbuilder);
-         return datafixerbuilder.build(Util.bootstrapExecutor());
+         boolean flag;
