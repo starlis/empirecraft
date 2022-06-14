@@ -6,70 +6,64 @@ Subject: [PATCH] Better hopper events
 
 diff --git a/src/main/java/com/empireminecraft/api/HopperEvents.java b/src/main/java/com/empireminecraft/api/HopperEvents.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..e5243da93a2f07b14b78cc2d3103ba36802f2cbc
+index 0000000000000000000000000000000000000000..b5f09c53b182dd8d7a59dda9b0ebecc05a545f6c
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/api/HopperEvents.java
-@@ -0,0 +1,32 @@
+@@ -0,0 +1,22 @@
 +package com.empireminecraft.api;
 +
 +import com.empireminecraft.customevents.HopperDrainEvent;
 +import com.empireminecraft.customevents.HopperFillEvent;
-+import net.minecraft.core.BlockPos;
-+import net.minecraft.core.Direction;
 +import org.bukkit.Bukkit;
-+import org.bukkit.craftbukkit.CraftWorld;
 +import org.bukkit.inventory.Inventory;
 +
 +public final class HopperEvents {
 +    private HopperEvents() {
 +    }
 +
-+    public static boolean drain(CraftWorld world, Inventory inventory, double x, double y, double z) {
-+        HopperDrainEvent event = new HopperDrainEvent(world, inventory, x, y, z);
++    public static boolean drain(Inventory hopper, Inventory source) {
++        HopperDrainEvent event = new HopperDrainEvent(hopper, source);
 +        Bukkit.getPluginManager().callEvent(event);
 +        return event.isCancelled();
 +    }
-+    public static boolean fill(CraftWorld world, Inventory inventory, BlockPos position, Direction enumdirection)  {
-+        HopperFillEvent event = new HopperFillEvent(world, inventory,
-+            position.getX(),
-+            position.getY(),
-+            position.getZ(),
-+            enumdirection.getStepX(),
-+            enumdirection.getStepY(),
-+            enumdirection.getStepZ()
-+        );
++    public static boolean fill(Inventory hopper, Inventory target)  {
++        HopperFillEvent event = new HopperFillEvent(hopper, target);
 +        Bukkit.getPluginManager().callEvent(event);
 +        return event.isCancelled();
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/world/level/block/entity/HopperBlockEntity.java b/src/main/java/net/minecraft/world/level/block/entity/HopperBlockEntity.java
-index 8ab1d401ed55d4cce55704317cbffe53ebc9f119..ab2c468527ff25c2425cdf3c22f6df32eb1dbdab 100644
+index ccad692aba2ed77259f6814d88f01b91ed9d229b..30e34a44e378b7d4219ed238f3f72d54477c8437 100644
 --- a/src/main/java/net/minecraft/world/level/block/entity/HopperBlockEntity.java
 +++ b/src/main/java/net/minecraft/world/level/block/entity/HopperBlockEntity.java
-@@ -5,6 +5,8 @@ import java.util.List;
+@@ -5,6 +5,7 @@ import java.util.List;
  import java.util.function.BooleanSupplier;
  import java.util.stream.IntStream;
  import javax.annotation.Nullable;
 +
-+import com.empireminecraft.api.HopperEvents;
  import net.minecraft.core.BlockPos;
  import net.minecraft.core.Direction;
  import net.minecraft.core.NonNullList;
-@@ -349,6 +351,7 @@ public class HopperBlockEntity extends RandomizableContainerBlockEntity implemen
-         } else {
-             Direction enumdirection = ((Direction) iblockdata.getValue(HopperBlock.FACING)).getOpposite();
+@@ -351,6 +352,7 @@ public class HopperBlockEntity extends RandomizableContainerBlockEntity implemen
  
-+            if (com.empireminecraft.api.HopperEvents.fill(world.getWorld(), hopper.getOwner(false).getInventory(), hopper.worldPosition, enumdirection)) { return false; } // EMC
              if (HopperBlockEntity.isFullContainer(iinventory1, enumdirection)) {
                  return false;
++            } else if (com.empireminecraft.api.HopperEvents.fill(hopper.getOwner(false).getInventory(), iinventory1.getOwner().getInventory())) { return false; // EMC
              } else {
-@@ -453,8 +456,12 @@ public class HopperBlockEntity extends RandomizableContainerBlockEntity implemen
+                 return hopperPush(world, blockposition, iinventory1, enumdirection, hopper); /* // Paper - disable rest
+                 for (int i = 0; i < iinventory.getContainerSize(); ++i) {
+@@ -453,8 +455,17 @@ public class HopperBlockEntity extends RandomizableContainerBlockEntity implemen
              Direction enumdirection = Direction.DOWN;
  
              // Paper start - optimize hoppers and remove streams
 +            // EMC start
-+            if (HopperBlockEntity.isEmptyContainer(iinventory, enumdirection)) { return false; }
-+            if (HopperEvents.drain((world).getWorld(), new org.bukkit.craftbukkit.inventory.CraftInventory(hopper), hopper.getLocation().getX(), hopper.getLocation().getY(), hopper.getLocation().getZ())) { return false; }
++            if (HopperBlockEntity.isEmptyContainer(iinventory, enumdirection)) {
++                return false;
++            }
++            if (com.empireminecraft.api.HopperEvents.drain(new org.bukkit.craftbukkit.inventory.CraftInventory(hopper),
++                    new org.bukkit.craftbukkit.inventory.CraftInventory(iinventory))) {
++                return false;
++            }
              skipPullModeEventFire = skipHopperEvents;
 -            return !HopperBlockEntity.isEmptyContainer(iinventory, enumdirection) && anyMatch(iinventory, enumdirection, (item, i) -> {
 +            return anyMatch(iinventory, enumdirection, (item, i) -> {
