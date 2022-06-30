@@ -6,7 +6,7 @@ Subject: [PATCH] AdvancementBroadcastEvent
 Used to control who sees advancement messages
 
 diff --git a/src/main/java/net/minecraft/server/PlayerAdvancements.java b/src/main/java/net/minecraft/server/PlayerAdvancements.java
-index de0513b38e5fa0138f1cee6bb633561be12449fc..e8029a6eecf50f5876a7d5567e38f1af310a8a03 100644
+index de0513b38e5fa0138f1cee6bb633561be12449fc..c24bae1d22261dc47f00b709f014ba1def8a447d 100644
 --- a/src/main/java/net/minecraft/server/PlayerAdvancements.java
 +++ b/src/main/java/net/minecraft/server/PlayerAdvancements.java
 @@ -1,5 +1,6 @@
@@ -24,20 +24,26 @@ index de0513b38e5fa0138f1cee6bb633561be12449fc..e8029a6eecf50f5876a7d5567e38f1af
  import org.slf4j.Logger;
  
  public class PlayerAdvancements {
-@@ -299,8 +301,15 @@ public class PlayerAdvancements {
+@@ -298,8 +300,20 @@ public class PlayerAdvancements {
+                 // Paper end
                  advancement.getRewards().grant(this.player);
                  // Paper start - Add Adventure message to PlayerAdvancementDoneEvent
-                 if (message != null && this.player.level.getGameRules().getBoolean(GameRules.RULE_ANNOUNCE_ADVANCEMENTS)) {
+-                if (message != null && this.player.level.getGameRules().getBoolean(GameRules.RULE_ANNOUNCE_ADVANCEMENTS)) {
 -                    this.playerList.broadcastSystemMessage(io.papermc.paper.adventure.PaperAdventure.asVanilla(message), ChatType.SYSTEM);
-+                    // EMC start
-+                    //this.playerList.broadcastSystemMessage(io.papermc.paper.adventure.PaperAdventure.asVanilla(message), ChatType.SYSTEM);
-                     // Paper end
-+                    AdvancementBroadcastEvent broadcastEvent = new AdvancementBroadcastEvent(this.player.getBukkitEntity());
++                // EMC start
++                if (message != null) {// && this.player.level.getGameRules().getBoolean(GameRules.RULE_ANNOUNCE_ADVANCEMENTS)) {
++                    AdvancementBroadcastEvent broadcastEvent = new AdvancementBroadcastEvent(this.player.getBukkitEntity(), this.playerList.players.stream().map(ServerPlayer::getBukkitEntity).collect(Collectors.toSet()));
++                    if (!this.player.level.getGameRules().getBoolean(GameRules.RULE_ANNOUNCE_ADVANCEMENTS)) {
++                        broadcastEvent.setCancelled(true);
++                    }
 +                    broadcastEvent.callEvent();
-+                    for (Player player : broadcastEvent.getReceivers()) {
-+                        player.sendMessage(message);
++                    //this.playerList.broadcastSystemMessage(io.papermc.paper.adventure.PaperAdventure.asVanilla(message), ChatType.SYSTEM);
++                    if (!broadcastEvent.isCancelled()) {
++                        for (Player player : broadcastEvent.getReceivers()) {
++                            player.sendMessage(message);
++                        }
 +                    }
 +                    // EMC end
+                     // Paper end
                  }
              }
-         }
