@@ -4,53 +4,68 @@ Date: Thu, 29 Nov 2012 10:48:07 -0500
 Subject: [PATCH] SpawnerInitiateEvent
 
 
-diff --git a/src/main/java/net/minecraft/world/entity/player/Player.java b/src/main/java/net/minecraft/world/entity/player/Player.java
-index 9b131f0a827413e9f5d6d0f7491c5481576cb8b1..ba647fcb4de0ad10316dbea8354f4bf6a720045e 100644
---- a/src/main/java/net/minecraft/world/entity/player/Player.java
-+++ b/src/main/java/net/minecraft/world/entity/player/Player.java
-@@ -186,6 +186,7 @@ public abstract class Player extends LivingEntity {
-     public FishingHook fishing;
-     // Paper start
-     public boolean affectsSpawning = true;
-+    public static Predicate<Entity> affectsSpawningPredicate = (player) -> (player instanceof Player && ((Player) player).affectsSpawning);
-     // Paper end
- 
-     // CraftBukkit start
 diff --git a/src/main/java/net/minecraft/world/level/BaseSpawner.java b/src/main/java/net/minecraft/world/level/BaseSpawner.java
-index ee619590aa49323059947fbaee9e88d61df99789..3db83a98f87a84c4e69af145cf30d0b5fbc4458d 100644
+index 641709c3a2575dbe79165beff814cb77fa7dbdc1..0f8db54e7453c7d6777f1ff2e12700eb1a683e4d 100644
 --- a/src/main/java/net/minecraft/world/level/BaseSpawner.java
 +++ b/src/main/java/net/minecraft/world/level/BaseSpawner.java
-@@ -21,6 +21,7 @@ import net.minecraft.world.entity.Mob;
+@@ -1,6 +1,9 @@
+ package net.minecraft.world.level;
+ 
+ import com.mojang.logging.LogUtils;
++
++import java.util.ArrayList;
++import java.util.List;
+ import java.util.Optional;
+ import java.util.function.Function;
+ import javax.annotation.Nullable;
+@@ -12,10 +15,12 @@ import net.minecraft.nbt.ListTag;
+ import net.minecraft.nbt.NbtOps;
+ import net.minecraft.nbt.Tag;
+ import net.minecraft.server.level.ServerLevel;
++import net.minecraft.server.level.ServerPlayer;
+ import net.minecraft.util.RandomSource;
+ import net.minecraft.util.random.SimpleWeightedRandomList;
+ import net.minecraft.world.Difficulty;
+ import net.minecraft.world.entity.Entity;
++import net.minecraft.world.entity.EntitySelector;
+ import net.minecraft.world.entity.EntityType;
+ import net.minecraft.world.entity.Mob;
  import net.minecraft.world.entity.MobSpawnType;
- import net.minecraft.world.entity.SpawnGroupData;
+@@ -23,6 +28,7 @@ import net.minecraft.world.entity.SpawnGroupData;
  import net.minecraft.world.entity.SpawnPlacements;
-+import net.minecraft.world.entity.player.Player;
  import net.minecraft.world.level.gameevent.GameEvent;
  import net.minecraft.world.phys.AABB;
++import org.bukkit.entity.Player;
  import org.slf4j.Logger;
-@@ -52,7 +53,25 @@ public abstract class BaseSpawner {
+ 
+ public abstract class BaseSpawner {
+@@ -52,7 +58,29 @@ public abstract class BaseSpawner {
      }
  
      public boolean isNearPlayer(Level world, BlockPos pos) {
--        return world.isAffectsSpawningPlayerNearby((double) pos.getX() + 0.5D, (double) pos.getY() + 0.5D, (double) pos.getZ() + 0.5D, (double) this.requiredPlayerRange); // Paper
+-        return world.hasNearbyAlivePlayerThatAffectsSpawning((double) pos.getX() + 0.5D, (double) pos.getY() + 0.5D, (double) pos.getZ() + 0.5D, (double) this.requiredPlayerRange); // Paper - Affects Spawning API
 +        // Paper start - Add in SpawnerInitiateEvent
-+        //return world.isAffectsSpawningPlayerNearby((double) pos.getX() + 0.5D, (double) pos.getY() + 0.5D, (double) pos.getZ() + 0.5D, (double) this.requiredPlayerRange); // Paper
-+        final int x = pos.getX();
-+        final int y = pos.getY();
-+        final int z = pos.getZ();
++        //return world.hasNearbyAlivePlayerThatAffectsSpawning((double) pos.getX() + 0.5D, (double) pos.getY() + 0.5D, (double) pos.getZ() + 0.5D, (double) this.requiredPlayerRange); // Paper - Affects Spawning API
 +        Optional<net.minecraft.world.entity.EntityType<?>> type = net.minecraft.world.entity.EntityType.by(this.nextSpawnData.getEntityToSpawn());
 +        if (type.isEmpty()) {
 +            return false;
 +        }
-+        Player entity = world.getNearestPlayer((double) x + 0.5D, (double) y + 0.5D, (double) z + 0.5D, this.requiredPlayerRange, Player.affectsSpawningPredicate);
-+        if (entity == null) {
++        final int x = pos.getX();
++        final int y = pos.getY();
++        final int z = pos.getZ();
++        List<ServerPlayer> serverPlayers = world.getNearbyPlayers(null, (double) x + 0.5D, (double) y + 0.5D, (double) z + 0.5D, this.requiredPlayerRange, EntitySelector.PLAYER_AFFECTS_SPAWNING);
++        if (serverPlayers.isEmpty()) {
 +            return false;
++        }
++        List<Player> players = new ArrayList<>();
++        for (ServerPlayer player : serverPlayers) {
++            players.add(player.getBukkitEntity());
 +        }
 +        org.bukkit.Location loc = new org.bukkit.Location(world.getWorld(), x, y, z);
 +
 +        return new com.empireminecraft.customevents.SpawnerInitiateEvent(
-+            org.bukkit.entity.EntityType.fromName(net.minecraft.world.entity.EntityType.getKey(type.get()).getPath()),
-+            world.getWorld(), loc, entity.getBukkitEntity()).callEvent();
++                org.bukkit.entity.EntityType.fromName(net.minecraft.world.entity.EntityType.getKey(type.get()).getPath()),
++                world.getWorld(), loc, players).callEvent();
 +        // Paper end
      }
  
