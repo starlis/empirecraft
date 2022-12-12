@@ -7,7 +7,7 @@ Secure BungeeCord with IP Whitelist for IP/UUID forwarding
 Allow online-mode to be set to true, and skip online-mode for bungee IP's
 
 diff --git a/src/main/java/net/minecraft/network/Connection.java b/src/main/java/net/minecraft/network/Connection.java
-index 69b8d1276045cd6742770dcedd6246bb1713fd3b..a8d55dd979ba69256ec4ac2118c8355aa135b5ab 100644
+index 507e98438f6d13de1bcf063db673a8e483dbea47..b15f32da465e1a74e08b894c432bf5d3a72b2c03 100644
 --- a/src/main/java/net/minecraft/network/Connection.java
 +++ b/src/main/java/net/minecraft/network/Connection.java
 @@ -81,6 +81,7 @@ public class Connection extends SimpleChannelInboundHandler<Packet<?>> {
@@ -50,20 +50,20 @@ index e7ff7ad3bf4dd17fdd34202ec3aef8e9512bc36d..7df01257c8305b243bb4a1b1dd73a2e6
                              Component chatmessage = Component.literal("If you wish to use IP forwarding, please enable it in your BungeeCord config as well!");
                              this.connection.send(new ClientboundLoginDisconnectPacket(chatmessage));
 diff --git a/src/main/java/net/minecraft/server/network/ServerLoginPacketListenerImpl.java b/src/main/java/net/minecraft/server/network/ServerLoginPacketListenerImpl.java
-index fbd9807e3a9ad555999fa99e06211ecaf455a091..19ead42260c6f10323d03a259b9d2c4c493a6c08 100644
+index f3b340fc6be9878d677a76673450aac3e0b73d4b..a30aa6d722c66ab48761b1d3ea07d3f93c23dfdd 100644
 --- a/src/main/java/net/minecraft/server/network/ServerLoginPacketListenerImpl.java
 +++ b/src/main/java/net/minecraft/server/network/ServerLoginPacketListenerImpl.java
-@@ -286,7 +286,7 @@ public class ServerLoginPacketListenerImpl implements TickablePacketListener, Se
+@@ -253,7 +253,7 @@ public class ServerLoginPacketListenerImpl implements ServerLoginPacketListener,
              this.state = ServerLoginPacketListenerImpl.State.READY_TO_ACCEPT;
          } else {
              this.gameProfile = new GameProfile((UUID) null, packet.name());
 -            if (this.server.usesAuthentication() && !this.connection.isMemoryConnection()) {
 +            if (!this.connection.isProxied && this.server.usesAuthentication() && !this.connection.isMemoryConnection()) { // EMC - add !isProxied
                  this.state = ServerLoginPacketListenerImpl.State.KEY;
-                 this.connection.send(new ClientboundHelloPacket("", this.server.getKeyPair().getPublic().getEncoded(), this.nonce));
+                 this.connection.send(new ClientboundHelloPacket("", this.server.getKeyPair().getPublic().getEncoded(), this.challenge));
              } else {
 diff --git a/src/main/java/org/spigotmc/SpigotConfig.java b/src/main/java/org/spigotmc/SpigotConfig.java
-index 5d162f59fc5ef9adf7fa762b137bbcfca745d9c5..4bf6b5b79c81aead37aa8de14e87ba8fea805188 100644
+index 612c3169c3463d702b85975e1db79ae6e47d60d0..808ffe0e1c9270edf1b403290aaf719817af3452 100644
 --- a/src/main/java/org/spigotmc/SpigotConfig.java
 +++ b/src/main/java/org/spigotmc/SpigotConfig.java
 @@ -233,6 +233,7 @@ public class SpigotConfig

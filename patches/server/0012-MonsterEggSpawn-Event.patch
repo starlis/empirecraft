@@ -6,67 +6,47 @@ Subject: [PATCH] MonsterEggSpawn Event
 Get the itemstack used to spawn an entity
 
 diff --git a/src/main/java/net/minecraft/world/entity/EntityType.java b/src/main/java/net/minecraft/world/entity/EntityType.java
-index 12cf4d3dfbd2c4f4a1815f5e26e59ae8667f7b47..be09f93a7ed54451ebdf6dbf787bd91f0394178b 100644
+index e5cd4b7609243669c9d84ff8a4988c209e6101aa..5f50b9b7befd470b09fa8ba247864b8243dfa003 100644
 --- a/src/main/java/net/minecraft/world/entity/EntityType.java
 +++ b/src/main/java/net/minecraft/world/entity/EntityType.java
-@@ -151,6 +151,7 @@ import net.minecraft.world.phys.AABB;
- import net.minecraft.world.phys.shapes.Shapes;
- import net.minecraft.world.phys.shapes.VoxelShape;
- import org.slf4j.Logger;
-+import org.bukkit.event.entity.CreatureSpawnEvent;
- 
- public class EntityType<T extends Entity> implements EntityTypeTest<Entity, T> {
- 
-@@ -336,13 +337,18 @@ public class EntityType<T extends Entity> implements EntityTypeTest<Entity, T> {
+@@ -340,12 +340,27 @@ public class EntityType<T extends Entity> implements FeatureElement, EntityTypeT
  
      @Nullable
-     public Entity spawn(ServerLevel world, @Nullable ItemStack stack, @Nullable Player player, BlockPos pos, MobSpawnType spawnReason, boolean alignPosition, boolean invertY) {
--        return this.spawn(world, stack == null ? null : stack.getTag(), stack != null && stack.hasCustomHoverName() ? stack.getHoverName() : null, player, pos, spawnReason, alignPosition, invertY);
-+        // EMC start - pass itemstack for monster eggs
-+        return this.spawn(world, stack, stack == null ? null : stack.getTag(), stack != null && stack.hasCustomHoverName() ? stack.getHoverName() : null, player, pos, spawnReason, alignPosition, invertY);
-     }
- 
-     @Nullable
-     public T spawn(ServerLevel world, @Nullable CompoundTag itemNbt, @Nullable Component name, @Nullable Player player, BlockPos pos, MobSpawnType spawnReason, boolean alignPosition, boolean invertY) {
-+        return this.spawn(world, null, itemNbt, name, player, pos, spawnReason, alignPosition, invertY);
-+    }
-+    @Nullable
-+    public T spawn(ServerLevel world, ItemStack itemStack, @Nullable CompoundTag itemNbt, @Nullable Component name, @Nullable Player player, BlockPos pos, MobSpawnType spawnReason, boolean alignPosition, boolean invertY) {
+     public T spawn(ServerLevel world, @Nullable ItemStack stack, @Nullable Player player, BlockPos pos, MobSpawnType spawnReason, boolean alignPosition, boolean invertY) {
++        // EMC start - add new event
++        Consumer<T> consumer = null;
++        final com.empireminecraft.customevents.MonsterEggSpawnEvent event = new com.empireminecraft.customevents.MonsterEggSpawnEvent(player != null ? player.getBukkitEntity() : null, io.papermc.paper.util.MCUtil.toLocation(world, pos), org.bukkit.craftbukkit.inventory.CraftItemStack.asCraftMirror(stack), spawnReason == MobSpawnType.DISPENSER ? org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.DISPENSE_EGG : org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.SPAWNER_EGG);
++        if (!event.callEvent()) {
++            return null;
++        }
++        if (event.getAfterSpawn() != null) {
++            consumer = (entity) -> event.getAfterSpawn().accept(entity.getBukkitEntity());
++        }
          // CraftBukkit start
--        return this.spawn(world, itemNbt, name, player, pos, spawnReason, alignPosition, invertY, spawnReason == MobSpawnType.DISPENSER ? org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.DISPENSE_EGG : org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.SPAWNER_EGG); // Paper - use correct spawn reason for dispenser spawn eggs
-+        return this.spawnCreature(world, itemStack, itemNbt, name, player, pos, spawnReason, alignPosition, invertY, spawnReason == MobSpawnType.DISPENSER ? org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.DISPENSE_EGG : org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.SPAWNER_EGG, null); // Paper - use correct spawn reason for dispenser spawn eggs
+-        return this.spawn(world, stack, player, pos, spawnReason, alignPosition, invertY, spawnReason == MobSpawnType.DISPENSER ? org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.DISPENSE_EGG : org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.SPAWNER_EGG); // Paper - use correct spawn reason for dispenser spawn eggs
++        return this.spawn(world, stack, player, pos, spawnReason, alignPosition, invertY, spawnReason == MobSpawnType.DISPENSER ? org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.DISPENSE_EGG : org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.SPAWNER_EGG, consumer); // Paper - use correct spawn reason for dispenser spawn eggs
++        // EMC end
      }
  
      @Nullable
-@@ -353,6 +359,11 @@ public class EntityType<T extends Entity> implements EntityTypeTest<Entity, T> {
-     @Nullable
-     public T spawn(ServerLevel worldserver, @Nullable CompoundTag nbttagcompound, @Nullable Component ichatbasecomponent, @Nullable Player entityhuman, BlockPos blockposition, MobSpawnType enummobspawn, boolean flag, boolean flag1, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason spawnReason, @Nullable java.util.function.Consumer<T> op) {
-         // Paper end
-+        return this.spawnCreature(worldserver, null, nbttagcompound, ichatbasecomponent, entityhuman, blockposition, enummobspawn, flag, flag1, spawnReason, op);
+     public T spawn(ServerLevel worldserver, @Nullable ItemStack itemstack, @Nullable Player entityhuman, BlockPos blockposition, MobSpawnType enummobspawn, boolean flag, boolean flag1, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason spawnReason) {
++        return this.spawn(worldserver, itemstack, entityhuman, blockposition, enummobspawn, flag, flag1, spawnReason, null);
 +    }
 +    @Nullable
-+    public T spawnCreature(ServerLevel worldserver, @Nullable ItemStack itemstack, @Nullable CompoundTag nbttagcompound, @Nullable Component ichatbasecomponent, @Nullable Player entityhuman, BlockPos blockposition, MobSpawnType enummobspawn, boolean flag, boolean flag1, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason spawnReason, @Nullable java.util.function.Consumer<T> op) {
-+        // EMC end - add itemstacks to methods
-         // Paper start - Call PreCreatureSpawnEvent
-         org.bukkit.entity.EntityType type = org.bukkit.entity.EntityType.fromName(EntityType.getKey(this).getPath());
-         if (type != null) {
-@@ -368,6 +379,19 @@ public class EntityType<T extends Entity> implements EntityTypeTest<Entity, T> {
++    public T spawn(ServerLevel worldserver, @Nullable ItemStack itemstack, @Nullable Player entityhuman, BlockPos blockposition, MobSpawnType enummobspawn, boolean flag, boolean flag1, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason spawnReason, @Nullable Consumer<T> afterConsumer) {
++        // EMC end
+         // CraftBukkit end
+         CompoundTag nbttagcompound;
+         Consumer<T> consumer; // CraftBukkit - decompile error
+@@ -358,6 +373,11 @@ public class EntityType<T extends Entity> implements FeatureElement, EntityTypeT
+             };
+             nbttagcompound = null;
          }
-         // Paper end
-         T t0 = this.create(worldserver, nbttagcompound, ichatbasecomponent, entityhuman, blockposition, enummobspawn, flag, flag1);
-+        // EMC start - if false the spawn was cancelled, add new event
-+        if ((spawnReason == CreatureSpawnEvent.SpawnReason.SPAWNER_EGG || spawnReason == CreatureSpawnEvent.SpawnReason.DISPENSE_EGG) && itemstack != null && t0 != null) {
-+            final com.empireminecraft.customevents.MonsterEggSpawnEvent event = new com.empireminecraft.customevents.MonsterEggSpawnEvent(entityhuman != null ? entityhuman.getBukkitEntity() : null, (org.bukkit.entity.LivingEntity) t0.getBukkitEntity(), org.bukkit.craftbukkit.inventory.CraftItemStack.asCraftMirror(itemstack));
-+
-+            if (!event.callEvent()) {
-+                t0.discard();
-+                return null;
-+            }
-+            if (event.getEntity().getEntityId() != t0.getId()) {
-+                return (T) ((org.bukkit.craftbukkit.entity.CraftEntity) event.getEntity()).getHandle();
-+            }
++        // EMC start
++        if (afterConsumer != null) {
++            consumer = consumer.andThen(afterConsumer);
 +        }
 +        // EMC end
-         if (t0 != null && op != null) op.accept(t0); // Paper
  
-         if (t0 != null) {
+         return this.spawn(worldserver, nbttagcompound, consumer, blockposition, enummobspawn, flag, flag1, spawnReason); // CraftBukkit
+     }

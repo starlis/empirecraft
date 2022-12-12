@@ -62,7 +62,7 @@ index b794befb4e5cfe8055c1b5745e52a0f01fc573d1..33757baf4510ab54dd6d73d4dbd1d46e
  }
 diff --git a/src/main/java/com/empireminecraft/api/CraftFakePlayer.java b/src/main/java/com/empireminecraft/api/CraftFakePlayer.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..25f7506f7673eb336834323944474bcc66ad0d92
+index 0000000000000000000000000000000000000000..78fc4a24251f104b515bd9d61a91f73bcc3487b2
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/api/CraftFakePlayer.java
 @@ -0,0 +1,150 @@
@@ -72,14 +72,15 @@ index 0000000000000000000000000000000000000000..25f7506f7673eb336834323944474bcc
 +import com.empireminecraft.customevents.FakePlayerJoinEvent;
 +import com.empireminecraft.customevents.FakePlayerQuitEvent;
 +import net.kyori.adventure.text.Component;
-+import net.minecraft.network.protocol.game.ClientboundPlayerInfoPacket;
-+import net.minecraft.network.protocol.game.ClientboundPlayerInfoPacket.Action;
++import net.minecraft.network.protocol.game.ClientboundPlayerInfoRemovePacket;
++import net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket.Action;
++import net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket;
 +import net.minecraft.server.MinecraftServer;
 +import net.minecraft.server.level.ServerPlayer;
 +import org.bukkit.GameMode;
 +import org.jetbrains.annotations.NotNull;
-+import org.jetbrains.annotations.Nullable;
 +
++import java.util.List;
 +import java.util.UUID;
 +
 +public class CraftFakePlayer implements FakePlayer {
@@ -89,7 +90,6 @@ index 0000000000000000000000000000000000000000..25f7506f7673eb336834323944474bcc
 +    public int ping;
 +    public GameMode gameMode;
 +    public Component playerListName;
-+    public boolean sentListPacket;
 +
 +    public CraftFakePlayer(@NotNull PlayerProfile profile, int ping, @NotNull GameMode gameMode, @NotNull Component playerListName) throws IllegalArgumentException {
 +        this.profile = profile;
@@ -125,7 +125,7 @@ index 0000000000000000000000000000000000000000..25f7506f7673eb336834323944474bcc
 +        return gameMode;
 +    }
 +
-+    @Nullable
++    @NotNull
 +    @Override
 +    public UUID getUniqueId() {
 +        return uuid;
@@ -140,7 +140,7 @@ index 0000000000000000000000000000000000000000..25f7506f7673eb336834323944474bcc
 +        new FakePlayerJoinEvent(this).callEvent();
 +        CraftEmpireAPI.getServer().fakePlayerMap.put(uuid, this);
 +
-+        ClientboundPlayerInfoPacket packet = new ClientboundPlayerInfoPacket(Action.ADD_PLAYER, this);
++        var packet = new ClientboundPlayerInfoUpdatePacket(Action.ADD_PLAYER, this);
 +        for (ServerPlayer entityPlayer : MinecraftServer.getServer().getPlayerList().players) {
 +            if (entityPlayer.getBukkitEntity().canSee(this)) {
 +                entityPlayer.connection.send(packet);
@@ -158,7 +158,7 @@ index 0000000000000000000000000000000000000000..25f7506f7673eb336834323944474bcc
 +        CraftEmpireAPI.getServer().fakePlayerMap.remove(uuid);
 +
 +
-+        ClientboundPlayerInfoPacket packet = new ClientboundPlayerInfoPacket(Action.REMOVE_PLAYER, this);
++        var packet = new ClientboundPlayerInfoRemovePacket(List.of(this.getUniqueId()));
 +        for (ServerPlayer entityPlayer : MinecraftServer.getServer().getPlayerList().players) {
 +            if (entityPlayer.getBukkitEntity().canSee(this)) {
 +                entityPlayer.connection.send(packet);
@@ -201,7 +201,7 @@ index 0000000000000000000000000000000000000000..25f7506f7673eb336834323944474bcc
 +
 +    private void sendUpdatePackets(@NotNull Action action) {
 +        if (this.isJoined()) {
-+            ClientboundPlayerInfoPacket packet = new ClientboundPlayerInfoPacket(action, this);
++            var packet = new ClientboundPlayerInfoUpdatePacket(action, this);
 +            for (ServerPlayer entityPlayer : MinecraftServer.getServer().getPlayerList().players) {
 +                if (entityPlayer.getBukkitEntity().canSee(this)) {
 +                    entityPlayer.connection.send(packet);
@@ -216,50 +216,56 @@ index 0000000000000000000000000000000000000000..25f7506f7673eb336834323944474bcc
 +    }
 +
 +}
-diff --git a/src/main/java/net/minecraft/network/protocol/game/ClientboundPlayerInfoPacket.java b/src/main/java/net/minecraft/network/protocol/game/ClientboundPlayerInfoPacket.java
-index 46ae5d40c26264e6b0ca253afa65b7846e6e5e6d..baf99d402dbd34a3d828e06f1c4a373a3be1107f 100644
---- a/src/main/java/net/minecraft/network/protocol/game/ClientboundPlayerInfoPacket.java
-+++ b/src/main/java/net/minecraft/network/protocol/game/ClientboundPlayerInfoPacket.java
-@@ -1,11 +1,14 @@
+diff --git a/src/main/java/net/minecraft/network/protocol/game/ClientboundPlayerInfoUpdatePacket.java b/src/main/java/net/minecraft/network/protocol/game/ClientboundPlayerInfoUpdatePacket.java
+index 4cd1cce5641c6001b34b9da6aac779bf6e8480d1..23af5128c5b391c271f07fc8a7a2374ac216c4ac 100644
+--- a/src/main/java/net/minecraft/network/protocol/game/ClientboundPlayerInfoUpdatePacket.java
++++ b/src/main/java/net/minecraft/network/protocol/game/ClientboundPlayerInfoUpdatePacket.java
+@@ -1,12 +1,16 @@
  package net.minecraft.network.protocol.game;
  
 +import com.empireminecraft.api.FakePlayer;
  import com.google.common.base.MoreObjects;
- import com.google.common.collect.Lists;
++import com.google.common.collect.Lists;
  import com.mojang.authlib.GameProfile;
  import java.util.Collection;
+ import java.util.EnumSet;
  import java.util.List;
+ import java.util.UUID;
  import javax.annotation.Nullable;
 +
 +import io.papermc.paper.adventure.PaperAdventure;
+ import net.minecraft.Util;
  import net.minecraft.network.FriendlyByteBuf;
  import net.minecraft.network.chat.Component;
- import net.minecraft.network.protocol.Packet;
-@@ -17,6 +20,22 @@ public class ClientboundPlayerInfoPacket implements Packet<ClientGamePacketListe
-     private final ClientboundPlayerInfoPacket.Action action;
-     private final List<ClientboundPlayerInfoPacket.PlayerUpdate> entries;
+@@ -19,6 +23,26 @@ public class ClientboundPlayerInfoUpdatePacket implements Packet<ClientGamePacke
+     private final EnumSet<ClientboundPlayerInfoUpdatePacket.Action> actions;
+     private final List<ClientboundPlayerInfoUpdatePacket.Entry> entries;
  
 +    // EMC start
-+    public ClientboundPlayerInfoPacket(ClientboundPlayerInfoPacket.Action enumplayerinfoaction, FakePlayer... fakePlayers) {
-+        this.action = enumplayerinfoaction;
++    public ClientboundPlayerInfoUpdatePacket(ClientboundPlayerInfoUpdatePacket.Action action, FakePlayer... fakePlayers) {
++        this(EnumSet.of(action), fakePlayers);
++    }
++    public ClientboundPlayerInfoUpdatePacket(EnumSet<ClientboundPlayerInfoUpdatePacket.Action> actions, FakePlayer... fakePlayers) {
++        this.actions = actions;
 +        this.entries = Lists.newArrayListWithCapacity(fakePlayers.length);
 +        for (FakePlayer fakePlayer : fakePlayers) {
 +            if (fakePlayer.getUniqueId() != null) {
-+                this.entries.add(new ClientboundPlayerInfoPacket.PlayerUpdate(
-+                    com.destroystokyo.paper.profile.CraftPlayerProfile.asAuthlib(fakePlayer.getProfile()),
-+                    fakePlayer.getPing(),
-+                    GameType.byId(fakePlayer.getGameMode().getValue()),
-+                    PaperAdventure.asVanilla(fakePlayer.getPlayerListName()),
-+                        null));
++                EntryBuilder builder = new EntryBuilder(fakePlayer.getUniqueId());
++                builder.profile = com.destroystokyo.paper.profile.CraftPlayerProfile.asAuthlib(fakePlayer.getProfile());
++                builder.latency = fakePlayer.getPing();
++                builder.gameMode = GameType.byId(fakePlayer.getGameMode().getValue());
++                builder.displayName = PaperAdventure.asVanilla(fakePlayer.getPlayerListName());
++                //TODO: boolean listed, @Nullable RemoteChatSession.Data chatSession
++                this.entries.add(builder.build());
 +            }
 +        }
 +    }
 +    // EMC end
-     public ClientboundPlayerInfoPacket(ClientboundPlayerInfoPacket.Action action, ServerPlayer... players) {
-         this.action = action;
-         this.entries = Lists.newArrayListWithCapacity(players.length);
+     public ClientboundPlayerInfoUpdatePacket(EnumSet<ClientboundPlayerInfoUpdatePacket.Action> actions, Collection<ServerPlayer> players) {
+         this.actions = actions;
+         this.entries = players.stream().map(ClientboundPlayerInfoUpdatePacket.Entry::new).toList();
 diff --git a/src/main/java/net/minecraft/server/players/PlayerList.java b/src/main/java/net/minecraft/server/players/PlayerList.java
-index fd66ed3548515f01e7d2cac4464dd4e11d54ee77..791c19646116be416831ee798aa6e091ef8b81ec 100644
+index 762fb252dae66172fed34d4a1cf357130127212d..a0945992484f8ec9365590ac7e8075ba529a7d53 100644
 --- a/src/main/java/net/minecraft/server/players/PlayerList.java
 +++ b/src/main/java/net/minecraft/server/players/PlayerList.java
 @@ -1,6 +1,8 @@
@@ -271,22 +277,22 @@ index fd66ed3548515f01e7d2cac4464dd4e11d54ee77..791c19646116be416831ee798aa6e091
  import com.google.common.collect.Lists;
  import com.google.common.collect.Maps;
  import com.google.common.collect.Sets;
-@@ -384,6 +386,13 @@ public abstract class PlayerList {
+@@ -393,6 +395,13 @@ public abstract class PlayerList {
          }
          // CraftBukkit end
  
 +        // EMC start
 +        for (FakePlayer fakePlayer : CraftEmpireAPI.getServer().fakePlayerMap.values()) {
 +            if (player.getBukkitEntity().canSee(fakePlayer)) {
-+                player.connection.send(new ClientboundPlayerInfoPacket(ClientboundPlayerInfoPacket.Action.ADD_PLAYER, fakePlayer));
++                player.connection.send(new ClientboundPlayerInfoUpdatePacket(ClientboundPlayerInfoUpdatePacket.Action.ADD_PLAYER, fakePlayer));
 +            }
 +        }
 +        // EMC end
          // CraftBukkit start - sendAll above replaced with this loop
-         ClientboundPlayerInfoPacket packet = new ClientboundPlayerInfoPacket(ClientboundPlayerInfoPacket.Action.ADD_PLAYER, player);
+         ClientboundPlayerInfoUpdatePacket packet = ClientboundPlayerInfoUpdatePacket.createPlayerInitializing(List.of(player));
  
 diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
-index 7fda645571ac399cb22fa8f17d52c1dbbbc23467..5a71d5783662cb19d6585c3d310370d0e44c5609 100644
+index d54211a40f91c3544ed9345da33f4f6cabdd8b70..fa8eb945465e49284f5a7677ba0a978c9bf3c9e9 100644
 --- a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
 @@ -1,6 +1,8 @@
@@ -298,7 +304,7 @@ index 7fda645571ac399cb22fa8f17d52c1dbbbc23467..5a71d5783662cb19d6585c3d310370d0
  import com.google.common.base.Preconditions;
  import com.google.common.collect.ImmutableSet;
  import com.google.common.io.BaseEncoding;
-@@ -1904,6 +1906,73 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+@@ -1862,6 +1864,73 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
          return !this.hiddenEntities.containsKey(entity.getUniqueId());
      }
  
@@ -330,7 +336,7 @@ index 7fda645571ac399cb22fa8f17d52c1dbbbc23467..5a71d5783662cb19d6585c3d310370d0
 +        hiddenFakePlayers.put(fakeUUID, hidingPlugins);
 +
 +        if (CraftEmpireAPI.getServer().fakePlayerMap.containsKey(fakeUUID)) {
-+            getHandle().connection.send(new ClientboundPlayerInfoPacket(ClientboundPlayerInfoPacket.Action.REMOVE_PLAYER, fakePlayer));
++            getHandle().connection.send(new ClientboundPlayerInfoRemovePacket(List.of(fakePlayer.getUniqueId())));
 +        }
 +    }
 +    @Override
@@ -353,7 +359,7 @@ index 7fda645571ac399cb22fa8f17d52c1dbbbc23467..5a71d5783662cb19d6585c3d310370d0
 +        }
 +        hiddenFakePlayers.remove(fakeUUID);
 +        if (CraftEmpireAPI.getServer().fakePlayerMap.containsKey(fakeUUID)) {
-+            getHandle().connection.send(new ClientboundPlayerInfoPacket(ClientboundPlayerInfoPacket.Action.ADD_PLAYER, fakePlayer));
++            getHandle().connection.send(new ClientboundPlayerInfoUpdatePacket(ClientboundPlayerInfoUpdatePacket.Action.ADD_PLAYER, fakePlayer));
 +        }
 +    }
 +    @Override
