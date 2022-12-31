@@ -62,10 +62,10 @@ index b794befb4e5cfe8055c1b5745e52a0f01fc573d1..33757baf4510ab54dd6d73d4dbd1d46e
  }
 diff --git a/src/main/java/com/empireminecraft/api/CraftFakePlayer.java b/src/main/java/com/empireminecraft/api/CraftFakePlayer.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..78fc4a24251f104b515bd9d61a91f73bcc3487b2
+index 0000000000000000000000000000000000000000..f85ec2cae6c09116c08f987a7818e16268a952d3
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/api/CraftFakePlayer.java
-@@ -0,0 +1,150 @@
+@@ -0,0 +1,151 @@
 +package com.empireminecraft.api;
 +
 +import com.destroystokyo.paper.profile.PlayerProfile;
@@ -80,6 +80,7 @@ index 0000000000000000000000000000000000000000..78fc4a24251f104b515bd9d61a91f73b
 +import org.bukkit.GameMode;
 +import org.jetbrains.annotations.NotNull;
 +
++import java.util.EnumSet;
 +import java.util.List;
 +import java.util.UUID;
 +
@@ -140,7 +141,7 @@ index 0000000000000000000000000000000000000000..78fc4a24251f104b515bd9d61a91f73b
 +        new FakePlayerJoinEvent(this).callEvent();
 +        CraftEmpireAPI.getServer().fakePlayerMap.put(uuid, this);
 +
-+        var packet = new ClientboundPlayerInfoUpdatePacket(Action.ADD_PLAYER, this);
++        var packet = new ClientboundPlayerInfoUpdatePacket(EnumSet.of(ClientboundPlayerInfoUpdatePacket.Action.ADD_PLAYER, ClientboundPlayerInfoUpdatePacket.Action.UPDATE_GAME_MODE, ClientboundPlayerInfoUpdatePacket.Action.UPDATE_LISTED, ClientboundPlayerInfoUpdatePacket.Action.UPDATE_LATENCY, ClientboundPlayerInfoUpdatePacket.Action.UPDATE_DISPLAY_NAME), this);
 +        for (ServerPlayer entityPlayer : MinecraftServer.getServer().getPlayerList().players) {
 +            if (entityPlayer.getBukkitEntity().canSee(this)) {
 +                entityPlayer.connection.send(packet);
@@ -217,7 +218,7 @@ index 0000000000000000000000000000000000000000..78fc4a24251f104b515bd9d61a91f73b
 +
 +}
 diff --git a/src/main/java/net/minecraft/network/protocol/game/ClientboundPlayerInfoUpdatePacket.java b/src/main/java/net/minecraft/network/protocol/game/ClientboundPlayerInfoUpdatePacket.java
-index 4cd1cce5641c6001b34b9da6aac779bf6e8480d1..23af5128c5b391c271f07fc8a7a2374ac216c4ac 100644
+index 4cd1cce5641c6001b34b9da6aac779bf6e8480d1..57f2d06a77b327084202470f25201e29dbc6e2e2 100644
 --- a/src/main/java/net/minecraft/network/protocol/game/ClientboundPlayerInfoUpdatePacket.java
 +++ b/src/main/java/net/minecraft/network/protocol/game/ClientboundPlayerInfoUpdatePacket.java
 @@ -1,12 +1,16 @@
@@ -237,7 +238,7 @@ index 4cd1cce5641c6001b34b9da6aac779bf6e8480d1..23af5128c5b391c271f07fc8a7a2374a
  import net.minecraft.Util;
  import net.minecraft.network.FriendlyByteBuf;
  import net.minecraft.network.chat.Component;
-@@ -19,6 +23,26 @@ public class ClientboundPlayerInfoUpdatePacket implements Packet<ClientGamePacke
+@@ -19,6 +23,27 @@ public class ClientboundPlayerInfoUpdatePacket implements Packet<ClientGamePacke
      private final EnumSet<ClientboundPlayerInfoUpdatePacket.Action> actions;
      private final List<ClientboundPlayerInfoUpdatePacket.Entry> entries;
  
@@ -252,6 +253,7 @@ index 4cd1cce5641c6001b34b9da6aac779bf6e8480d1..23af5128c5b391c271f07fc8a7a2374a
 +            if (fakePlayer.getUniqueId() != null) {
 +                EntryBuilder builder = new EntryBuilder(fakePlayer.getUniqueId());
 +                builder.profile = com.destroystokyo.paper.profile.CraftPlayerProfile.asAuthlib(fakePlayer.getProfile());
++                builder.listed = true;
 +                builder.latency = fakePlayer.getPing();
 +                builder.gameMode = GameType.byId(fakePlayer.getGameMode().getValue());
 +                builder.displayName = PaperAdventure.asVanilla(fakePlayer.getPlayerListName());
@@ -265,7 +267,7 @@ index 4cd1cce5641c6001b34b9da6aac779bf6e8480d1..23af5128c5b391c271f07fc8a7a2374a
          this.actions = actions;
          this.entries = players.stream().map(ClientboundPlayerInfoUpdatePacket.Entry::new).toList();
 diff --git a/src/main/java/net/minecraft/server/players/PlayerList.java b/src/main/java/net/minecraft/server/players/PlayerList.java
-index c608fcbf2af06c435fb875d5035bd3043b00612e..440679ca49592191251237589539c2237c884f7b 100644
+index c608fcbf2af06c435fb875d5035bd3043b00612e..0b6be9ef00d426b6872364eac311dfa2ae2a0e69 100644
 --- a/src/main/java/net/minecraft/server/players/PlayerList.java
 +++ b/src/main/java/net/minecraft/server/players/PlayerList.java
 @@ -1,6 +1,8 @@
@@ -284,7 +286,7 @@ index c608fcbf2af06c435fb875d5035bd3043b00612e..440679ca49592191251237589539c223
 +        // EMC start
 +        for (FakePlayer fakePlayer : CraftEmpireAPI.getServer().fakePlayerMap.values()) {
 +            if (player.getBukkitEntity().canSee(fakePlayer)) {
-+                player.connection.send(new ClientboundPlayerInfoUpdatePacket(ClientboundPlayerInfoUpdatePacket.Action.ADD_PLAYER, fakePlayer));
++                player.connection.send(new ClientboundPlayerInfoUpdatePacket(EnumSet.of(ClientboundPlayerInfoUpdatePacket.Action.ADD_PLAYER, ClientboundPlayerInfoUpdatePacket.Action.INITIALIZE_CHAT, ClientboundPlayerInfoUpdatePacket.Action.UPDATE_GAME_MODE, ClientboundPlayerInfoUpdatePacket.Action.UPDATE_LISTED, ClientboundPlayerInfoUpdatePacket.Action.UPDATE_LATENCY, ClientboundPlayerInfoUpdatePacket.Action.UPDATE_DISPLAY_NAME), fakePlayer));
 +            }
 +        }
 +        // EMC end
@@ -292,7 +294,7 @@ index c608fcbf2af06c435fb875d5035bd3043b00612e..440679ca49592191251237589539c223
          ClientboundPlayerInfoUpdatePacket packet = ClientboundPlayerInfoUpdatePacket.createPlayerInitializing(List.of(player));
  
 diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
-index c6fa6c617e9123863fc066c30b6529d9b84ce41d..63b0f80d0dc19160f93efc1e92d55ffc737592b6 100644
+index c6fa6c617e9123863fc066c30b6529d9b84ce41d..9b1a6225170d3e90a8157055e586f581a0f2ef2a 100644
 --- a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
 @@ -1,6 +1,8 @@
@@ -304,7 +306,27 @@ index c6fa6c617e9123863fc066c30b6529d9b84ce41d..63b0f80d0dc19160f93efc1e92d55ffc
  import com.google.common.base.Preconditions;
  import com.google.common.collect.ImmutableSet;
  import com.google.common.io.BaseEncoding;
-@@ -1863,6 +1865,73 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+@@ -14,18 +16,7 @@ import java.io.IOException;
+ import java.lang.ref.WeakReference;
+ import java.net.InetSocketAddress;
+ import java.net.SocketAddress;
+-import java.util.ArrayList;
+-import java.util.Arrays;
+-import java.util.Collection;
+-import java.util.HashMap;
+-import java.util.HashSet;
+-import java.util.LinkedHashMap;
+-import java.util.List;
+-import java.util.Map;
+-import java.util.Optional;
+-import java.util.Set;
+-import java.util.UUID;
+-import java.util.WeakHashMap;
++import java.util.*;
+ import java.util.logging.Level;
+ import java.util.logging.Logger;
+ import javax.annotation.Nullable;
+@@ -1863,6 +1854,73 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
          return !this.hiddenEntities.containsKey(entity.getUniqueId());
      }
  
@@ -359,7 +381,7 @@ index c6fa6c617e9123863fc066c30b6529d9b84ce41d..63b0f80d0dc19160f93efc1e92d55ffc
 +        }
 +        hiddenFakePlayers.remove(fakeUUID);
 +        if (CraftEmpireAPI.getServer().fakePlayerMap.containsKey(fakeUUID)) {
-+            getHandle().connection.send(new ClientboundPlayerInfoUpdatePacket(ClientboundPlayerInfoUpdatePacket.Action.ADD_PLAYER, fakePlayer));
++            getHandle().connection.send(new ClientboundPlayerInfoUpdatePacket(EnumSet.of(ClientboundPlayerInfoUpdatePacket.Action.ADD_PLAYER, ClientboundPlayerInfoUpdatePacket.Action.INITIALIZE_CHAT, ClientboundPlayerInfoUpdatePacket.Action.UPDATE_GAME_MODE, ClientboundPlayerInfoUpdatePacket.Action.UPDATE_LISTED, ClientboundPlayerInfoUpdatePacket.Action.UPDATE_LATENCY, ClientboundPlayerInfoUpdatePacket.Action.UPDATE_DISPLAY_NAME), fakePlayer));
 +        }
 +    }
 +    @Override
