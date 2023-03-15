@@ -6,12 +6,12 @@ Subject: [PATCH] Improve Hopper Performance
 Only do an item "suck in" action once per second
 
 diff --git a/src/main/java/net/minecraft/world/entity/item/ItemEntity.java b/src/main/java/net/minecraft/world/entity/item/ItemEntity.java
-index 74bc21fda1fada6f840cd9b2d6b13d0cdad667c7..6cd62228cdf767ed3640c2e1a12f396f38579f42 100644
+index 5712bd591798fa911f90d0e14e4037d6d066ea51..a933726ea03de0ea2e45a28624bd37c8c0770714 100644
 --- a/src/main/java/net/minecraft/world/entity/item/ItemEntity.java
 +++ b/src/main/java/net/minecraft/world/entity/item/ItemEntity.java
-@@ -10,11 +10,13 @@ import net.minecraft.world.entity.Entity;
- import net.minecraft.world.entity.EntityType;
+@@ -15,11 +15,13 @@ import net.minecraft.world.entity.EntityType;
  import net.minecraft.world.entity.MoverType;
+ import net.minecraft.world.entity.TraceableEntity;
  import net.minecraft.world.entity.player.Player;
 +import net.minecraft.world.entity.vehicle.MinecartHopper;
  import net.minecraft.world.item.Item;
@@ -21,9 +21,9 @@ index 74bc21fda1fada6f840cd9b2d6b13d0cdad667c7..6cd62228cdf767ed3640c2e1a12f396f
  import net.minecraft.world.level.gameevent.GameEvent;
 +import net.minecraft.world.phys.AABB;
  import net.minecraft.world.phys.Vec3;
- import net.minecraft.Util;
  import net.minecraft.core.BlockPos;
-@@ -202,10 +204,23 @@ public class ItemEntity extends Entity {
+ import net.minecraft.nbt.CompoundTag;
+@@ -211,10 +213,23 @@ public class ItemEntity extends Entity implements TraceableEntity {
                  // CraftBukkit end
                  this.discard();
              }
@@ -47,7 +47,7 @@ index 74bc21fda1fada6f840cd9b2d6b13d0cdad667c7..6cd62228cdf767ed3640c2e1a12f396f
      // Spigot start - copied from above
      @Override
      public void inactiveTick() {
-@@ -226,6 +241,7 @@ public class ItemEntity extends Entity {
+@@ -235,6 +250,7 @@ public class ItemEntity extends Entity implements TraceableEntity {
              // CraftBukkit end
              this.discard();
          }
@@ -56,18 +56,18 @@ index 74bc21fda1fada6f840cd9b2d6b13d0cdad667c7..6cd62228cdf767ed3640c2e1a12f396f
      // Spigot end
  
 diff --git a/src/main/java/net/minecraft/world/entity/vehicle/MinecartHopper.java b/src/main/java/net/minecraft/world/entity/vehicle/MinecartHopper.java
-index 70f1916185b79bbb9f033f4ef8119d7b17a13ef8..5e637111bc53c50add0bf687ed81e1e7cccadb2d 100644
+index 1b8f22805af87dc08e0dea9fd93a5f93c0b05107..be1f57d17e4f47199e9219e1cdd04a954c8bfdc3 100644
 --- a/src/main/java/net/minecraft/world/entity/vehicle/MinecartHopper.java
 +++ b/src/main/java/net/minecraft/world/entity/vehicle/MinecartHopper.java
-@@ -22,6 +22,7 @@ public class MinecartHopper extends AbstractMinecartContainer implements Hopper
+@@ -17,6 +17,7 @@ import net.minecraft.world.level.block.state.BlockState;
+ 
+ public class MinecartHopper extends AbstractMinecartContainer implements Hopper {
      private boolean enabled = true;
-     public int cooldownTime = -1;
-     private final BlockPos lastPosition = BlockPos.ZERO;
 +    public int pickupImmunity = 0; // EMC
  
      public MinecartHopper(EntityType<? extends MinecartHopper> type, Level world) {
          super(type, world);
-@@ -158,5 +159,12 @@ public class MinecartHopper extends AbstractMinecartContainer implements Hopper
+@@ -131,5 +132,12 @@ public class MinecartHopper extends AbstractMinecartContainer implements Hopper
          this.activatedImmunityTick = Math.max(this.activatedImmunityTick, net.minecraft.server.MinecraftServer.currentTick + 20);
      }
      // Paper end
@@ -93,10 +93,10 @@ index a05acf709735b40ca86f978508c63a86065fd405..09eb05e260d14002881e525bc7a79dee
  
      double getLevelY();
 diff --git a/src/main/java/net/minecraft/world/level/block/entity/HopperBlockEntity.java b/src/main/java/net/minecraft/world/level/block/entity/HopperBlockEntity.java
-index 06d5c9287a0789dbec1762ebd6e99c25e3378626..bf6a25809191ac8da8a048032ac39d1433ab8676 100644
+index 727a66145277f92b4edf3993c6982aa9aa92cffb..58563c55c5fbf4facd1d11d0691e63d508fe6a94 100644
 --- a/src/main/java/net/minecraft/world/level/block/entity/HopperBlockEntity.java
 +++ b/src/main/java/net/minecraft/world/level/block/entity/HopperBlockEntity.java
-@@ -12,6 +12,7 @@ import net.minecraft.core.Direction;
+@@ -11,6 +11,7 @@ import net.minecraft.core.Direction;
  import net.minecraft.core.NonNullList;
  import net.minecraft.nbt.CompoundTag;
  import net.minecraft.network.chat.Component;
@@ -104,7 +104,15 @@ index 06d5c9287a0789dbec1762ebd6e99c25e3378626..bf6a25809191ac8da8a048032ac39d14
  import net.minecraft.world.CompoundContainer;
  import net.minecraft.world.Container;
  import net.minecraft.world.ContainerHelper;
-@@ -118,6 +119,21 @@ public class HopperBlockEntity extends RandomizableContainerBlockEntity implemen
+@@ -20,6 +21,7 @@ import net.minecraft.world.entity.Entity;
+ import net.minecraft.world.entity.EntitySelector;
+ import net.minecraft.world.entity.item.ItemEntity;
+ import net.minecraft.world.entity.player.Player;
++import net.minecraft.world.entity.vehicle.MinecartHopper;
+ import net.minecraft.world.inventory.AbstractContainerMenu;
+ import net.minecraft.world.inventory.HopperMenu;
+ import net.minecraft.world.item.ItemStack;
+@@ -119,6 +121,21 @@ public class HopperBlockEntity extends RandomizableContainerBlockEntity implemen
          return ContainerHelper.removeItem(this.getItems(), slot, amount);
      }
  
@@ -126,20 +134,20 @@ index 06d5c9287a0789dbec1762ebd6e99c25e3378626..bf6a25809191ac8da8a048032ac39d14
      @Override
      public void setItem(int slot, ItemStack stack) {
          this.unpackLootTable((Player) null);
-@@ -482,7 +498,7 @@ public class HopperBlockEntity extends RandomizableContainerBlockEntity implemen
-                 }
-                 // Paper end
+@@ -299,7 +316,7 @@ public class HopperBlockEntity extends RandomizableContainerBlockEntity implemen
+                 // EMC end
+                 return HopperBlockEntity.a(hopper, iinventory, i, enumdirection, world); // Spigot
              });
 -        } else {
 +        } else if (shouldSuckin(hopper)) { // EMC
              Iterator iterator = HopperBlockEntity.getItemsAtAndAbove(world, hopper).iterator();
  
              ItemEntity entityitem;
-@@ -497,6 +513,7 @@ public class HopperBlockEntity extends RandomizableContainerBlockEntity implemen
+@@ -314,6 +331,7 @@ public class HopperBlockEntity extends RandomizableContainerBlockEntity implemen
  
              return true;
          }
 +        return false; // EMC
      }
  
-     // Paper - method unused as logic is inlined above
+     private static boolean a(Hopper ihopper, Container iinventory, int i, Direction enumdirection, Level world) { // Spigot

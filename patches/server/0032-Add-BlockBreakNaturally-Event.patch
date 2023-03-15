@@ -6,22 +6,22 @@ Subject: [PATCH] Add BlockBreakNaturally Event
 To give reliable control over all blocks dropping to world to restore custom item meta
 
 diff --git a/src/main/java/net/minecraft/server/level/ServerLevel.java b/src/main/java/net/minecraft/server/level/ServerLevel.java
-index d8ad42b39897d42a395a347b69e03c2d61b7fbdb..19430975f69f2d7913613ee8b39b16ea6ca81277 100644
+index f69263af2cb682fac673a9444f4c9856490b9c15..6f0fe6edabd14788cdbf3f4af45ab5c29c33d92c 100644
 --- a/src/main/java/net/minecraft/server/level/ServerLevel.java
 +++ b/src/main/java/net/minecraft/server/level/ServerLevel.java
-@@ -1513,6 +1513,7 @@ public class ServerLevel extends Level implements WorldGenLevel {
+@@ -1512,6 +1512,7 @@ public class ServerLevel extends Level implements WorldGenLevel {
              if (entity instanceof net.minecraft.world.entity.item.ItemEntity itemEntity && itemEntity.getItem().isEmpty()) return false; // Paper - Prevent empty items from being added
              // Paper start - capture all item additions to the world
              if (captureDrops != null && entity instanceof net.minecraft.world.entity.item.ItemEntity) {
-+                ((net.minecraft.world.entity.item.ItemEntity) entity).droppedPosition = new BlockPos(entity.getX(), entity.getY(), entity.getZ()); // EMC
++                ((net.minecraft.world.entity.item.ItemEntity) entity).droppedPosition = new BlockPos(entity.getBlockX(), entity.getBlockY(), entity.getBlockZ()); // EMC
                  captureDrops.add((net.minecraft.world.entity.item.ItemEntity) entity);
                  return true;
              }
 diff --git a/src/main/java/net/minecraft/world/entity/item/ItemEntity.java b/src/main/java/net/minecraft/world/entity/item/ItemEntity.java
-index a36a4132003e4052e1d0abd13bee3034086418e5..74bc21fda1fada6f840cd9b2d6b13d0cdad667c7 100644
+index 5d373a11a35fc9bdf69f6b8bee6ac3f6b5ca7897..5712bd591798fa911f90d0e14e4037d6d066ea51 100644
 --- a/src/main/java/net/minecraft/world/entity/item/ItemEntity.java
 +++ b/src/main/java/net/minecraft/world/entity/item/ItemEntity.java
-@@ -44,6 +44,7 @@ public class ItemEntity extends Entity {
+@@ -45,6 +45,7 @@ public class ItemEntity extends Entity implements TraceableEntity {
      private static final int INFINITE_LIFETIME = -32768;
      public int age;
      public boolean canDespawn = true; // EMC
@@ -30,7 +30,7 @@ index a36a4132003e4052e1d0abd13bee3034086418e5..74bc21fda1fada6f840cd9b2d6b13d0c
      public int health;
      @Nullable
 diff --git a/src/main/java/net/minecraft/world/level/block/Block.java b/src/main/java/net/minecraft/world/level/block/Block.java
-index 7b71073027f4cf79736546500ededdfbb83d968e..0d3917680ac70716d8c1869c97b9275f1ce2c39b 100644
+index 4f91e4832a94c3facbc711fcae4cb5ad540a5ca0..ab628eaeb3579908d616fc3d225113cbe1e7c7e0 100644
 --- a/src/main/java/net/minecraft/world/level/block/Block.java
 +++ b/src/main/java/net/minecraft/world/level/block/Block.java
 @@ -5,6 +5,7 @@ import com.google.common.cache.CacheLoader;
@@ -41,19 +41,19 @@ index 7b71073027f4cf79736546500ededdfbb83d968e..0d3917680ac70716d8c1869c97b9275f
  import it.unimi.dsi.fastutil.objects.Object2ByteLinkedOpenHashMap;
  import java.util.Iterator;
  import java.util.List;
-@@ -369,7 +370,7 @@ public class Block extends BlockBehaviour implements ItemLike {
+@@ -367,7 +368,7 @@ public class Block extends BlockBehaviour implements ItemLike {
  
          Block.popResource(world, () -> {
-             return new ItemEntity(world, d0, d1, d2, stack);
+             return new ItemEntity(world, d1, d2, d3, stack);
 -        }, stack);
 +        }, stack, pos);
      }
  
      public static void popResourceFromFace(Level world, BlockPos pos, Direction direction, ItemStack stack) {
-@@ -389,18 +390,20 @@ public class Block extends BlockBehaviour implements ItemLike {
+@@ -385,18 +386,20 @@ public class Block extends BlockBehaviour implements ItemLike {
  
          Block.popResource(world, () -> {
-             return new ItemEntity(world, d0, d1, d2, stack, d3, d4, d5);
+             return new ItemEntity(world, d2, d3, d4, stack, d5, d6, d7);
 -        }, stack);
 +        }, stack, pos);
      }
@@ -74,7 +74,7 @@ index 7b71073027f4cf79736546500ededdfbb83d968e..0d3917680ac70716d8c1869c97b9275f
              }
              // CraftBukkit end
 diff --git a/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java b/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
-index e3ed76c4aaf978e0dab1fdbbfbd23edcfa26bf2f..79b16d872e84389c711880682286460dbe6d5f21 100644
+index 4f31f70dce901f9b368496f68ad489b26f6bb7ec..049010a4d9778c378b80489f170e1b0ef1e0c1e6 100644
 --- a/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
 +++ b/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
 @@ -12,6 +12,8 @@ import java.util.List;
@@ -86,7 +86,7 @@ index e3ed76c4aaf978e0dab1fdbbfbd23edcfa26bf2f..79b16d872e84389c711880682286460d
  import net.minecraft.core.BlockPos;
  import net.minecraft.core.Direction;
  import net.minecraft.network.protocol.game.ServerboundContainerClosePacket;
-@@ -410,6 +412,16 @@ public class CraftEventFactory {
+@@ -409,6 +411,16 @@ public class CraftEventFactory {
          Bukkit.getPluginManager().callEvent(event);
  
          if (!event.isCancelled()) {

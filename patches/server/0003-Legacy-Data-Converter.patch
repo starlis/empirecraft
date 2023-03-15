@@ -6,7 +6,7 @@ Subject: [PATCH] Legacy Data Converter
 
 diff --git a/src/main/java/com/empireminecraft/DataConverters.java b/src/main/java/com/empireminecraft/DataConverters.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..2f5020e9d6fee188e7b1bee4ddff92534822b903
+index 0000000000000000000000000000000000000000..03917a361db6ef690950bae998b3da028dd3f9ad
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/DataConverters.java
 @@ -0,0 +1,2636 @@
@@ -84,14 +84,14 @@ index 0000000000000000000000000000000000000000..2f5020e9d6fee188e7b1bee4ddff9253
 +    private static final Map<String, LegacyType> DFU_TO_LEGACY = new HashMap<>();
 +
 +    public enum LegacyType {
-+        LEVEL(DataFixTypes.LEVEL.getType()),
-+        PLAYER(DataFixTypes.PLAYER.getType()),
-+        CHUNK(DataFixTypes.CHUNK.getType()),
++        LEVEL(References.LEVEL),
++        PLAYER(References.PLAYER),
++        CHUNK(References.CHUNK),
 +        BLOCK_ENTITY(() -> "block_entity"),
 +        ENTITY(References.ENTITY),
 +        ITEM_INSTANCE(References.ITEM_STACK),
-+        OPTIONS(DataFixTypes.OPTIONS.getType()),
-+        STRUCTURE(DataFixTypes.STRUCTURE.getType());
++        OPTIONS(References.OPTIONS),
++        STRUCTURE(References.STRUCTURE);
 +
 +        private final TypeReference type;
 +
@@ -2647,18 +2647,18 @@ index 0000000000000000000000000000000000000000..2f5020e9d6fee188e7b1bee4ddff9253
 +    }
 +}
 diff --git a/src/main/java/com/mojang/datafixers/DataFixerBuilder.java b/src/main/java/com/mojang/datafixers/DataFixerBuilder.java
-index 3d5e52d997a8e7d7f3b000e3737d30762aae2ca1..4972c7df33944c28754fa0893c288d35ed73af93 100644
+index f6598fcf4ed1bd61e1c87cd7107869d49ffe4566..062f82ccfab177e9eb28e90444c46af96927e7af 100644
 --- a/src/main/java/com/mojang/datafixers/DataFixerBuilder.java
 +++ b/src/main/java/com/mojang/datafixers/DataFixerBuilder.java
-@@ -68,6 +68,7 @@ public class DataFixerBuilder {
+@@ -70,6 +70,7 @@ public class DataFixerBuilder {
      }
  
-     public DataFixer buildOptimized(final Executor executor) {
+     public DataFixer buildOptimized(final Set<DSL.TypeReference> requiredTypes, final Executor executor) {
 +        DataFixer fixerUpper = buildUnoptimized(); /* // EMC
          final DataFixerUpper fixerUpper = build();
  
          final Instant started = Instant.now();
-@@ -94,12 +95,12 @@ public class DataFixerBuilder {
+@@ -101,12 +102,12 @@ public class DataFixerBuilder {
  
          CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new)).thenAccept(ignored -> {
              LOGGER.info("{} Datafixer optimizations took {} milliseconds", futures.size(), Duration.between(started, Instant.now()).toMillis());
@@ -2674,7 +2674,7 @@ index 3d5e52d997a8e7d7f3b000e3737d30762aae2ca1..4972c7df33944c28754fa0893c288d35
      }
  }
 diff --git a/src/main/java/net/minecraft/util/datafix/DataFixers.java b/src/main/java/net/minecraft/util/datafix/DataFixers.java
-index 0f27c585217ad6a0e0534657f298254ff75a626c..f1fc7e41e072a8ec4fc912e96cbdf494dca284bf 100644
+index fbbc15884bedd1e2b2ad126674acaa2e7a935858..e82eb46414f87d516b240530c838836e4dd0c48a 100644
 --- a/src/main/java/net/minecraft/util/datafix/DataFixers.java
 +++ b/src/main/java/net/minecraft/util/datafix/DataFixers.java
 @@ -1,5 +1,6 @@
@@ -2682,23 +2682,18 @@ index 0f27c585217ad6a0e0534657f298254ff75a626c..f1fc7e41e072a8ec4fc912e96cbdf494
  
 +import com.empireminecraft.DataConverters;
  import com.google.common.collect.ImmutableMap;
+ import com.google.common.util.concurrent.ThreadFactoryBuilder;
  import com.mojang.datafixers.DSL;
- import com.mojang.datafixers.DSL.TypeReference;
-@@ -102,7 +103,7 @@ public class DataFixers {
+@@ -105,10 +106,10 @@ public class DataFixers {
      }
  
-     private static synchronized DataFixer createFixerUpper() {
--        DataFixerBuilder datafixerbuilder = new DataFixerBuilder(SharedConstants.getCurrentVersion().getWorldVersion());
-+        DataConverters datafixerbuilder = new DataConverters(SharedConstants.getCurrentVersion().getWorldVersion()); // EMC
+     private static synchronized DataFixer createFixerUpper(Set<TypeReference> requiredTypes) {
+-        DataFixerBuilder datafixerbuilder = new DataFixerBuilder(SharedConstants.getCurrentVersion().getDataVersion().getVersion());
++        DataConverters datafixerbuilder = new DataConverters(SharedConstants.getCurrentVersion().getDataVersion().getVersion()); // EMC
  
          DataFixers.addFixers(datafixerbuilder);
-         boolean flag;
-@@ -117,7 +118,7 @@ public class DataFixers {
-             default:
-                 throw new IllegalStateException("Already loaded");
-         }
--
-+        flag = false; // EMC - always unoptimized
-         boolean flag1 = flag;
- 
-         SharedConstants.DATAFIXER_OPTIMIZATION_OPTION = flag1 ? DataFixerOptimizationOption.INITIALIZED_OPTIMIZED : DataFixerOptimizationOption.INITIALIZED_UNOPTIMIZED;
+-        if (requiredTypes.isEmpty()) {
++        if (true || requiredTypes.isEmpty()) { // EMC - always unoptimized :(
+             return datafixerbuilder.buildUnoptimized();
+         } else {
+             ExecutorService executorservice = Executors.newSingleThreadExecutor((new ThreadFactoryBuilder()).setNameFormat("Datafixer Bootstrap").setDaemon(true).setPriority(1).build());

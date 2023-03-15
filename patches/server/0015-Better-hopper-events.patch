@@ -33,41 +33,53 @@ index 0000000000000000000000000000000000000000..b5f09c53b182dd8d7a59dda9b0ebecc0
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/world/level/block/entity/HopperBlockEntity.java b/src/main/java/net/minecraft/world/level/block/entity/HopperBlockEntity.java
-index d76603c4172aa10889949c6c2acff05fee02a13d..06d5c9287a0789dbec1762ebd6e99c25e3378626 100644
+index 789e5458f4a137694563a22612455506807de51b..727a66145277f92b4edf3993c6982aa9aa92cffb 100644
 --- a/src/main/java/net/minecraft/world/level/block/entity/HopperBlockEntity.java
 +++ b/src/main/java/net/minecraft/world/level/block/entity/HopperBlockEntity.java
-@@ -6,6 +6,7 @@ import java.util.function.BooleanSupplier;
- import java.util.stream.Collectors;
- import java.util.stream.IntStream;
- import javax.annotation.Nullable;
+@@ -193,6 +193,21 @@ public class HopperBlockEntity extends RandomizableContainerBlockEntity implemen
+         return false;
+     }
+ 
++    // EMC start
++    private static Inventory getInventory(final Container container) {
++        final Inventory sourceInventory;
++        if (container instanceof CompoundContainer compoundContainer) {
++            // Have to special-case large chests as they work oddly
++            sourceInventory = new org.bukkit.craftbukkit.inventory.CraftInventoryDoubleChest(compoundContainer);
++        } else if (container instanceof BlockEntity blockEntity) {
++            sourceInventory = blockEntity.getOwner(false).getInventory();
++        } else {
++            sourceInventory = container.getOwner().getInventory();
++        }
++        return sourceInventory;
++    }
++    // EMC end
 +
- import net.minecraft.core.BlockPos;
- import net.minecraft.core.Direction;
- import net.minecraft.core.NonNullList;
-@@ -357,6 +358,7 @@ public class HopperBlockEntity extends RandomizableContainerBlockEntity implemen
+     private static boolean ejectItems(Level world, BlockPos blockposition, BlockState iblockdata, Container iinventory, HopperBlockEntity hopper) { // CraftBukkit
+         Container iinventory1 = HopperBlockEntity.getAttachedContainer(world, blockposition, iblockdata);
+ 
+@@ -203,6 +218,7 @@ public class HopperBlockEntity extends RandomizableContainerBlockEntity implemen
  
              if (HopperBlockEntity.isFullContainer(iinventory1, enumdirection)) {
                  return false;
 +            } else if (com.empireminecraft.api.HopperEvents.fill(hopper.getOwner(false).getInventory(), getInventory(iinventory1))) { return false; // EMC
              } else {
-                 // Paper start - replace logic; MAKE SURE TO CHECK FOR DIFFS ON UPDATES
-                 return hopperPush(world, iinventory1, enumdirection, hopper);
-@@ -461,8 +463,17 @@ public class HopperBlockEntity extends RandomizableContainerBlockEntity implemen
+                 for (int i = 0; i < iinventory.getContainerSize(); ++i) {
+                     if (!iinventory.getItem(i).isEmpty()) {
+@@ -272,7 +288,15 @@ public class HopperBlockEntity extends RandomizableContainerBlockEntity implemen
+         if (iinventory != null) {
              Direction enumdirection = Direction.DOWN;
  
-             // Paper start - optimize hoppers and remove streams
+-            return HopperBlockEntity.isEmptyContainer(iinventory, enumdirection) ? false : HopperBlockEntity.getSlots(iinventory, enumdirection).anyMatch((i) -> {
 +            // EMC start
 +            if (HopperBlockEntity.isEmptyContainer(iinventory, enumdirection)) {
 +                return false;
 +            }
-+            if (com.empireminecraft.api.HopperEvents.drain(new org.bukkit.craftbukkit.inventory.CraftInventory(hopper),
-+                    getInventory(iinventory))) {
++            if (com.empireminecraft.api.HopperEvents.drain(new org.bukkit.craftbukkit.inventory.CraftInventory(hopper), getInventory(iinventory))) {
 +                return false;
 +            }
-             skipPullModeEventFire = skipHopperEvents;
--            return !HopperBlockEntity.isEmptyContainer(iinventory, enumdirection) && anyMatch(iinventory, enumdirection, (item, i) -> {
-+            return anyMatch(iinventory, enumdirection, (item, i) -> {
++            return /*HopperBlockEntity.isEmptyContainer(iinventory, enumdirection) ? false :*/ HopperBlockEntity.getSlots(iinventory, enumdirection).anyMatch((i) -> {
 +                // EMC end
-                 // Logic copied from below to avoid extra getItem calls
-                 if (!item.isEmpty() && canTakeItemFromContainer(iinventory, item, i, enumdirection)) {
-                     return hopperPull(world, hopper, iinventory, item, i);
+                 return HopperBlockEntity.a(hopper, iinventory, i, enumdirection, world); // Spigot
+             });
+         } else {

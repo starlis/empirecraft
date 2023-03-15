@@ -6,7 +6,7 @@ Subject: [PATCH] Implement BatMoveEvent
 Control where the bat goes
 
 diff --git a/src/main/java/net/minecraft/world/entity/Mob.java b/src/main/java/net/minecraft/world/entity/Mob.java
-index e2ba035a343ddd5a9fdae07e13e22db05d8bbe51..756be1cec19bfa40c1eb1adc24e33d86af5769e1 100644
+index 2ac7be1fe03c07c26d9417cae29963bf19dfb5e5..db2fd44599a940a163fd4ead9f3699d1fb79fd24 100644
 --- a/src/main/java/net/minecraft/world/entity/Mob.java
 +++ b/src/main/java/net/minecraft/world/entity/Mob.java
 @@ -46,6 +46,7 @@ import net.minecraft.world.entity.ai.goal.GoalSelector;
@@ -17,29 +17,29 @@ index e2ba035a343ddd5a9fdae07e13e22db05d8bbe51..756be1cec19bfa40c1eb1adc24e33d86
  import net.minecraft.world.entity.decoration.HangingEntity;
  import net.minecraft.world.entity.decoration.LeashFenceKnotEntity;
  import net.minecraft.world.entity.item.ItemEntity;
-@@ -227,7 +228,7 @@ public abstract class Mob extends LivingEntity {
-     // Paper end
- 
+@@ -234,7 +235,7 @@ public abstract class Mob extends LivingEntity implements Targeting {
      public MoveControl getMoveControl() {
--        if (this.isPassenger() && this.getVehicle() instanceof Mob) {
-+        if (this.isPassenger() && this.getVehicle() instanceof Mob && !(this instanceof Bat)) { // EMC
-             Mob entityinsentient = (Mob) this.getVehicle();
+         Entity entity = this.getControlledVehicle();
+ 
+-        if (entity instanceof Mob) {
++        if (entity instanceof Mob && !(this instanceof Bat)) {
+             Mob entityinsentient = (Mob) entity;
  
              return entityinsentient.getMoveControl();
 diff --git a/src/main/java/net/minecraft/world/entity/ambient/Bat.java b/src/main/java/net/minecraft/world/entity/ambient/Bat.java
-index 320c558bbe80d4bbc641e895ec43cfa2b45e8d70..23f608f38740c570f67305ebf8024ef999d2ced4 100644
+index f5efdf59617d43de18a2267351fa784c0be3ae83..844b26a0d234af96f81aef84ffa8f67c4506a8d9 100644
 --- a/src/main/java/net/minecraft/world/entity/ambient/Bat.java
 +++ b/src/main/java/net/minecraft/world/entity/ambient/Bat.java
 @@ -166,7 +166,7 @@ public class Bat extends AmbientCreature {
              }
  
              if (this.targetPosition == null || this.random.nextInt(30) == 0 || this.targetPosition.closerToCenterThan(this.position(), 2.0D)) {
--                this.targetPosition = new BlockPos(this.getX() + (double) this.random.nextInt(7) - (double) this.random.nextInt(7), this.getY() + (double) this.random.nextInt(6) - 2.0D, this.getZ() + (double) this.random.nextInt(7) - (double) this.random.nextInt(7));
+-                this.targetPosition = BlockPos.containing(this.getX() + (double) this.random.nextInt(7) - (double) this.random.nextInt(7), this.getY() + (double) this.random.nextInt(6) - 2.0D, this.getZ() + (double) this.random.nextInt(7) - (double) this.random.nextInt(7));
 +                this.targetPosition = getBatMoveTarget(this); // EMC
              }
  
              double d0 = (double) this.targetPosition.getX() + 0.5D - this.getX();
-@@ -268,4 +268,16 @@ public class Bat extends AmbientCreature {
+@@ -263,4 +263,16 @@ public class Bat extends AmbientCreature {
      protected float getStandingEyeHeight(Pose pose, EntityDimensions dimensions) {
          return dimensions.height / 2.0F;
      }
@@ -49,7 +49,7 @@ index 320c558bbe80d4bbc641e895ec43cfa2b45e8d70..23f608f38740c570f67305ebf8024ef9
 +        org.bukkit.Location loc = com.empireminecraft.customevents.BatMoveEvent.generateLoc(bukkitBat);
 +        com.empireminecraft.customevents.BatMoveEvent event = new com.empireminecraft.customevents.BatMoveEvent(bukkitBat, loc);
 +        if (!event.callEvent()) {
-+            return new BlockPos(bat.getX(), bat.getY(), bat.getZ());
++            return new BlockPos(bat.getBlockX(), bat.getBlockY(), bat.getBlockZ());
 +        }
 +        org.bukkit.Location target = event.getMoveTarget();
 +        return new BlockPos(target.getBlockX(), target.getBlockY(), target.getBlockZ());
