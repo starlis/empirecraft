@@ -48,3 +48,10 @@ The most common gradle commands needed to use this project are listed here.
 `./gradlew rebuildPatches`
 `./gradlew createReobfBundlerJar`
 `./gradlew publishToMavenLocal`
+
+### Common Gradle commands
+Deprecated patches scheduled for removal in a future unannounced update
+API-0002-ItemStack-isSimiliar-API-to-skip-durability-and-name.patch
+API-0026-Chat-API.patch
+API-0032-Add-ChatColor.getById.patch
+API-0042-SpawnEggMeta-setSpawnedEntity-API.patch
