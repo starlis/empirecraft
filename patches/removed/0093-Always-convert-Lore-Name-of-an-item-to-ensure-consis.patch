@@ -1,0 +1,101 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Mon, 21 Dec 2020 17:24:43 -0500
+Subject: [PATCH] Always convert Lore/Name of an item to ensure consistency
+
+Fixes item comparison checks where an old vs new is only different due
+to wrapper componenents.
+
+By always converting to legacy and back for display text, we ensure that
+an item json is consistent.
+
+because item display text cant have functional modifiers, this is safe.
+
+diff --git a/src/main/java/net/minecraft/world/item/ItemStack.java b/src/main/java/net/minecraft/world/item/ItemStack.java
+index 886e80a30bbc66c52c612714d08be78f5f72eb2a..c660b12e1731237d13b59dc9bb036c3b0357cf58 100644
+--- a/src/main/java/net/minecraft/world/item/ItemStack.java
++++ b/src/main/java/net/minecraft/world/item/ItemStack.java
+@@ -178,7 +178,7 @@ public final class ItemStack {
+         if (display != null) {
+             if (display.contains("Name", 8)) {
+                 String json = display.getString("Name");
+-                if (json != null && json.contains("\u00A7")) {
++                if (json != null) {// && json.contains("\u00A7")) { // Paper
+                     try {
+                         display.put("Name", convert(json));
+                     } catch (com.google.gson.JsonParseException jsonparseexception) {
+@@ -190,7 +190,7 @@ public final class ItemStack {
+                 ListTag list = display.getList("Lore", 8);
+                 for (int index = 0; index < list.size(); index++) {
+                     String json = list.getString(index);
+-                    if (json != null && json.contains("\u00A7")) { // Only try if it has legacy in the unparsed json
++                    if (json != null) {// && json.contains("\u00A7")) { // Only try if it has legacy in the unparsed json // Paper
+                         try {
+                             list.set(index, convert(json));
+                         } catch (com.google.gson.JsonParseException e) {
+@@ -207,6 +207,9 @@ public final class ItemStack {
+         if (component.getContents() instanceof net.minecraft.network.chat.contents.LiteralContents literalContents && literalContents.text().contains("\u00A7") && component.getSiblings().isEmpty()) {
+             // Only convert if the root component is a single comp with legacy in it, don't convert already normal components
+             component = org.bukkit.craftbukkit.util.CraftChatMessage.fromString(literalContents.text())[0];
++        } else {
++            // pass this to legacy format and back to strip invisible components and ensure consistent modifier format
++            component = org.bukkit.craftbukkit.util.CraftChatMessage.fromString(org.bukkit.craftbukkit.util.CraftChatMessage.fromComponent(component))[0];
+         }
+         return net.minecraft.nbt.StringTag.valueOf(org.bukkit.craftbukkit.util.CraftChatMessage.toJSON(component));
+     }
+diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java
+index 465bdf823facb036b15eb4a6dde22ecc09824e17..a69215acb5929da18b595ce5e265c6562ba9dfa0 100644
+--- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java
++++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java
+@@ -697,7 +697,7 @@ class CraftMetaItem implements ItemMeta, Damageable, Repairable, BlockDataMeta {
+     @Overridden
+     void applyToItem(CompoundTag itemTag) {
+         if (this.hasDisplayName()) {
+-            this.setDisplayTag(itemTag, NAME.NBT, StringTag.valueOf(displayName));
++            this.setDisplayTag(itemTag, NAME.NBT, StringTag.valueOf(CraftChatMessage.reencode(displayName))); // Paper
+         }
+         if (this.hasLocalizedName()) {
+             this.setDisplayTag(itemTag, LOCNAME.NBT, StringTag.valueOf(locName));
+@@ -789,7 +789,7 @@ class CraftMetaItem implements ItemMeta, Damageable, Repairable, BlockDataMeta {
+         ListTag tagList = new ListTag();
+         for (String value : list) {
+             // SPIGOT-5342 - horrible hack as 0 version does not go through the Mojang updater
+-            tagList.add(StringTag.valueOf(this.version <= 0 || this.version >= 1803 ? value : CraftChatMessage.fromJSONComponent(value))); // SPIGOT-4935
++            tagList.add(StringTag.valueOf(this.version <= 0 || this.version >= 1803 ? CraftChatMessage.reencode(value) : CraftChatMessage.fromJSONComponent(value))); // SPIGOT-4935 // Paper
+         }
+ 
+         return tagList;
+@@ -892,7 +892,7 @@ class CraftMetaItem implements ItemMeta, Damageable, Repairable, BlockDataMeta {
+     // Paper end
+     @Override
+     public final void setDisplayName(String name) {
+-        this.displayName = CraftChatMessage.fromStringOrNullToJSON(name);
++        this.displayName = CraftChatMessage.fromStringOrNullToJSON(CraftChatMessage.reencode(name)); // Paper
+     }
+ 
+     // Paper start
+@@ -1567,7 +1567,7 @@ class CraftMetaItem implements ItemMeta, Damageable, Repairable, BlockDataMeta {
+                 if (possiblyJsonInput) {
+                     addTo.add(CraftChatMessage.fromJSONOrStringToJSON(entry));
+                 } else {
+-                    addTo.add(CraftChatMessage.fromStringToJSON(entry));
++                    addTo.add(CraftChatMessage.fromStringToJSON(CraftChatMessage.reencode(entry)));
+                 }
+             }
+         }
+diff --git a/src/main/java/org/bukkit/craftbukkit/util/CraftChatMessage.java b/src/main/java/org/bukkit/craftbukkit/util/CraftChatMessage.java
+index 0f70be614f8f5350ad558d0ae645cdf0027e1e76..644daffd532be3965f5fc5c4792ed4c564fb3151 100644
+--- a/src/main/java/org/bukkit/craftbukkit/util/CraftChatMessage.java
++++ b/src/main/java/org/bukkit/craftbukkit/util/CraftChatMessage.java
+@@ -42,6 +42,11 @@ public final class CraftChatMessage {
+         return ChatColor.getByChar(format.code);
+     }
+ 
++    // Paper start
++    public static String reencode(String string) {
++        return CraftChatMessage.fromComponent(CraftChatMessage.fromString(string)[0]);
++    }
++    // Paper end
+     private static final class StringMessage {
+         private static final Pattern INCREMENTAL_PATTERN = Pattern.compile("(" + String.valueOf(org.bukkit.ChatColor.COLOR_CHAR) + "[0-9a-fk-orx])|((?:(?:https?):\\/\\/)?(?:[-\\w_\\.]{2,}\\.[a-z]{2,4}.*?(?=[\\.\\?!,;:]?(?:[" + String.valueOf(org.bukkit.ChatColor.COLOR_CHAR) + " \\n]|$))))|(\\n)", Pattern.CASE_INSENSITIVE);
+         // Separate pattern with no group 3, new lines are part of previous string
