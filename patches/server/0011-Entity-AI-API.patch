@@ -5,43 +5,31 @@ Subject: [PATCH] Entity AI API
 
 
 diff --git a/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java b/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
-index 616fe997d4a816e36dc272056bda55c9e67407e1..873e1ec56ddd90271ae65e6706c5e15f64c9e70f 100644
+index 616fe997d4a816e36dc272056bda55c9e67407e1..a85371d3384162f7e7cfff00e9acb1d5b327eb72 100644
 --- a/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
 +++ b/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
-@@ -23,10 +23,44 @@
+@@ -23,10 +23,32 @@
  
  package com.empireminecraft.api;
  
-+import com.destroystokyo.paper.entity.RangedEntity;
 +import com.empireminecraft.api.meta.Meta;
 +import net.minecraft.server.MinecraftServer;
 +import net.minecraft.world.entity.PathfinderMob;
 +import net.minecraft.world.entity.ai.goal.Goal;
 +import net.minecraft.world.entity.ai.goal.MeleeAttackGoal;
-+import net.minecraft.world.entity.ai.goal.RangedAttackGoal;
-+import net.minecraft.world.entity.ai.goal.RangedBowAttackGoal;
 +import net.minecraft.world.entity.ai.goal.WrappedGoal;
 +import net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal;
 +import net.minecraft.world.entity.item.ItemEntity;
 +import net.minecraft.world.entity.player.Player;
-+import org.bukkit.craftbukkit.CraftWorld;
-+import org.bukkit.craftbukkit.entity.CraftBlaze;
 +import org.bukkit.craftbukkit.entity.CraftCreature;
-+import org.bukkit.craftbukkit.entity.CraftEnderSignal;
  import org.bukkit.craftbukkit.entity.CraftEntity;
-+import org.bukkit.craftbukkit.entity.CraftGhast;
 +import org.bukkit.craftbukkit.entity.CraftMob;
 +import org.bukkit.craftbukkit.entity.CraftSpider;
-+import org.bukkit.craftbukkit.entity.CraftWolf;
-+import org.bukkit.entity.Blaze;
 +import org.bukkit.entity.Creature;
-+import org.bukkit.entity.EnderSignal;
  import org.bukkit.entity.Entity;
-+import org.bukkit.entity.Ghast;
 +import org.bukkit.entity.Item;
 +import org.bukkit.entity.Mob;
 +import org.bukkit.entity.Spider;
-+import org.bukkit.entity.Wolf;
  import org.jetbrains.annotations.NotNull;
  
 +import java.util.HashSet;
@@ -53,7 +41,7 @@ index 616fe997d4a816e36dc272056bda55c9e67407e1..873e1ec56ddd90271ae65e6706c5e15f
  public class CraftEAPI_Entity implements EAPI_Entity {
  
      @NotNull
-@@ -39,4 +73,226 @@ public class CraftEAPI_Entity implements EAPI_Entity {
+@@ -39,4 +61,116 @@ public class CraftEAPI_Entity implements EAPI_Entity {
      public void cancelTasks(@NotNull Entity entity) {
          ((CraftEntity) entity).getHandle().entityTasks.clear();
      }
@@ -169,120 +157,10 @@ index 616fe997d4a816e36dc272056bda55c9e67407e1..873e1ec56ddd90271ae65e6706c5e15f
 +        entity.targetRange = range;
 +    }
 +
-+    @Override
-+    public void setRangedAttackDistance(@NotNull RangedEntity ranged, float range) {
-+        setTargetRange(ranged, (double) range);
-+        net.minecraft.world.entity.Mob entity = (net.minecraft.world.entity.Mob) ((CraftEntity) ranged).getHandle();
-+        EntityAIApi.getGoalSets(entity).forEach(set -> set.forEach(o -> {
-+            Goal goal = o.getGoal();
-+            if (goal instanceof RangedAttackGoal) {
-+                ((RangedAttackGoal) goal).setAttackRadius(range);
-+            } else if (goal instanceof RangedBowAttackGoal) {
-+                ((RangedBowAttackGoal<?>) goal).setAttackRadius(range);
-+            }
-+        }));
-+    }
-+
-+    @Override
-+    public void setRangedAttackSpeed(@NotNull RangedEntity ranged, Integer min, Integer max) {
-+        if (min == null && max == null) {
-+            return;
-+        }
-+        net.minecraft.world.entity.Mob entity = (net.minecraft.world.entity.Mob) ((CraftEntity) ranged).getHandle();
-+        EntityAIApi.getGoalSets(entity).forEach(set -> set.forEach(o -> {
-+            Goal goal = o.getGoal();
-+            if (goal instanceof RangedAttackGoal) {
-+                if (min != null) {
-+                    ((RangedAttackGoal) goal).setMinInterval(min);
-+                }
-+                if (max != null) {
-+                    ((RangedAttackGoal) goal).setMaxInterval(max);
-+                }
-+            } else if (goal instanceof RangedBowAttackGoal) {
-+                int speed = min != null && max != null ? Math.min(min, max) : (min != null ? min : max);
-+                ((RangedBowAttackGoal<?>) goal).setMinAttackInterval(speed);
-+            }
-+        }));
-+    }
-+
-+    @Override
-+    public void setAlwaysAngry(@NotNull Wolf wolf, boolean alwaysAngry) {
-+        net.minecraft.world.entity.animal.Wolf entity = ((CraftWolf) wolf).getHandle();
-+        entity.alwaysAngry = alwaysAngry;
-+        if (alwaysAngry) {
-+            entity.startPersistentAngerTimer();
-+        }
-+    }
-+
-+    @Override
-+    public void respawnEntity(@NotNull Entity entity) {
-+        CraftEntity craft = (CraftEntity) entity;
-+        org.bukkit.Location location = entity.getLocation();
-+        net.minecraft.world.entity.Entity newHandle = craft.getHandle().teleportTo(((CraftWorld) entity.getWorld()).getHandle(),
-+                new net.minecraft.core.PositionImpl(location.getBlockX(), location.getBlockY(), location.getBlockZ()));
-+        if (newHandle != null) {
-+            craft.setHandle(newHandle);
-+        }
-+    }
-+
-+    @Override
-+    public void setEnderSignalExactTarget(@NotNull EnderSignal enderSignal, boolean exact) {
-+        ((CraftEnderSignal) enderSignal).getHandle().exactTarget = exact;
-+    }
-+
-+    @Override
-+    public void setEnderSignalSpeed(@NotNull EnderSignal enderSignal, double speed) {
-+        ((CraftEnderSignal) enderSignal).getHandle().speed = speed / 10000D;
-+    }
-+
-+    @Override
-+    public double getEnderSignalSpeed(@NotNull EnderSignal enderSignal) {
-+        return ((CraftEnderSignal) enderSignal).getHandle().speed * 10000D;
-+    }
-+
-+    @Override
-+    public void setEnderSignalLife(@NotNull EnderSignal enderSignal, int lifeTime) {
-+        ((CraftEnderSignal) enderSignal).getHandle().lifeTime = lifeTime;
-+    }
-+
-+    @Override
-+    public int getEnderSignalLife(@NotNull EnderSignal enderSignal) {
-+        return ((CraftEnderSignal) enderSignal).getHandle().lifeTime;
-+    }
-+
-+    @Override
-+    public void setFireballs(@NotNull Blaze blaze, int num) {
-+        ((CraftBlaze) blaze).getHandle().numFireballs = num;
-+    }
-+
-+    @Override
-+    public int getNumFireballs(@NotNull Blaze blaze) {
-+        return ((CraftBlaze) blaze).getHandle().numFireballs;
-+    }
-+
-+    @Override
-+    public int getTimeBetweenFireballs(@NotNull Blaze blaze) {
-+        return ((CraftBlaze) blaze).getHandle().timeBetweenFireballs;
-+    }
-+
-+    @Override
-+    public void setTimeBetweenFireballs(@NotNull Blaze blaze, int timeBetweenFireballs) {
-+        ((CraftBlaze) blaze).getHandle().timeBetweenFireballs = timeBetweenFireballs;
-+    }
-+
-+    @Override
-+    public int getFireballCooldown(@NotNull Ghast ghast) {
-+        return ((CraftGhast) ghast).getHandle().fireballCooldown;
-+    }
-+
-+    @Override
-+    public void setFireballCooldown(@NotNull Ghast ghast, int cooldown) {
-+        ((CraftGhast) ghast).getHandle().fireballCooldown = cooldown;
-+    }
  }
 diff --git a/src/main/java/com/empireminecraft/api/EntityAIApi.java b/src/main/java/com/empireminecraft/api/EntityAIApi.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..348996ff30eb45761872d62a00364d3ee3778803
+index 0000000000000000000000000000000000000000..92e0b6d7309134aae5c65c88aff88d8bf1030472
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/api/EntityAIApi.java
 @@ -0,0 +1,142 @@
@@ -378,7 +256,7 @@ index 0000000000000000000000000000000000000000..348996ff30eb45761872d62a00364d3e
 +        return null;
 +    }
 +
-+    static List<Set<WrappedGoal>> getGoalSets(net.minecraft.world.entity.Mob entity) {
++    public static List<Set<WrappedGoal>> getGoalSets(net.minecraft.world.entity.Mob entity) {
 +        List<Set<WrappedGoal>> check = new ArrayList<>();
 +        check.add(new HashSet<>(entity.goalSelector.lockedFlags.values()));
 +        check.add(new HashSet<>(entity.goalSelector.availableGoals));
@@ -450,7 +328,7 @@ index 3a27140eab81848980b7524518307e7fa08dcccb..4b0a0fb332b65cba6f8e77db89735d53
          }
  
 diff --git a/src/main/java/net/minecraft/world/entity/Entity.java b/src/main/java/net/minecraft/world/entity/Entity.java
-index 57595c8ea674967484c1aa11096878ee88d1518d..96ac40fff44fb3657a1518f2b3f92a5132f808b6 100644
+index 801307fab3d0caa50b216555ae58278c1fd9d42b..88a733ce734e927f5af68ed161d70ffa86b290cc 100644
 --- a/src/main/java/net/minecraft/world/entity/Entity.java
 +++ b/src/main/java/net/minecraft/world/entity/Entity.java
 @@ -337,6 +337,8 @@ public abstract class Entity implements Nameable, EntityAccess, CommandSource {
@@ -562,7 +440,7 @@ index 57595c8ea674967484c1aa11096878ee88d1518d..96ac40fff44fb3657a1518f2b3f92a51
  
      public boolean isInvulnerable() {
 diff --git a/src/main/java/net/minecraft/world/entity/LivingEntity.java b/src/main/java/net/minecraft/world/entity/LivingEntity.java
-index e9d3e34520b706627205e0d5b17b25e09f198e7e..364560e500129cea3f3f1126c02c6edbd9458915 100644
+index dcfb71b5a53df789e366fea2080921d677549a2e..8e5e1fec8946075acf37ffa518215cee9e2b0604 100644
 --- a/src/main/java/net/minecraft/world/entity/LivingEntity.java
 +++ b/src/main/java/net/minecraft/world/entity/LivingEntity.java
 @@ -334,7 +334,7 @@ public abstract class LivingEntity extends Entity implements Attackable {
