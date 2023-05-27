@@ -1,0 +1,42 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: chickeneer <emcchickeneer@gmail.com>
+Date: Mon, 13 Mar 2023 21:31:28 -0500
+Subject: [PATCH] Do not strip formatting from sign updates
+
+
+diff --git a/src/main/java/net/minecraft/server/network/ServerGamePacketListenerImpl.java b/src/main/java/net/minecraft/server/network/ServerGamePacketListenerImpl.java
+index 7496b912fe48f82d9c23e2dac3f0ba99acb6d7c6..33680a1d0e3304c569a6afe7a320f3d5ec75d056 100644
+--- a/src/main/java/net/minecraft/server/network/ServerGamePacketListenerImpl.java
++++ b/src/main/java/net/minecraft/server/network/ServerGamePacketListenerImpl.java
+@@ -29,6 +29,8 @@ import java.util.function.UnaryOperator;
+ import java.util.stream.Collectors;
+ import java.util.stream.Stream;
+ import javax.annotation.Nullable;
++
++import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
+ import net.minecraft.ChatFormatting;
+ import net.minecraft.CrashReport;
+ import net.minecraft.CrashReportCategory;
+@@ -3426,7 +3428,7 @@ public class ServerGamePacketListenerImpl implements ServerPlayerConnection, Tic
+                 }
+             }
+         }
+-        List<String> list = (List) Stream.of(lines).map(ChatFormatting::stripFormatting).collect(Collectors.toList());
++        List<String> list = (List) Stream.of(lines)/*.map(ChatFormatting::stripFormatting)*/.collect(Collectors.toList()); // EMC - do not remove formatting
+         // Paper end
+ 
+         this.filterTextPacket(list).thenAcceptAsync((list1) -> {
+@@ -3466,11 +3468,10 @@ public class ServerGamePacketListenerImpl implements ServerPlayerConnection, Tic
+ 
+             for (int i = 0; i < signText.size(); ++i) {
+                 FilteredText filteredtext = (FilteredText) signText.get(i);
+-
+                 if (this.player.isTextFilteringEnabled()) {
+-                    lines.add(net.kyori.adventure.text.Component.text(SharedConstants.filterText(filteredtext.filteredOrEmpty()))); // Paper - adventure
++                    lines.add(LegacyComponentSerializer.legacySection().deserialize(filteredtext.filteredOrEmpty())); // Paper - adventure // EMC - deserialize legacySection input
+                 } else {
+-                    lines.add(net.kyori.adventure.text.Component.text(SharedConstants.filterText(filteredtext.raw()))); // Paper - adventure
++                    lines.add(LegacyComponentSerializer.legacySection().deserialize(filteredtext.raw())); // Paper - adventure // EMC - deserialize legacySection input
+                 }
+             }
+             SignChangeEvent event = new SignChangeEvent((org.bukkit.craftbukkit.block.CraftBlock) player.getWorld().getBlockAt(x, y, z), this.player.getBukkitEntity(), lines);
