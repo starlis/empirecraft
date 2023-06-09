@@ -4,6 +4,51 @@ Date: Sat, 1 Apr 2023 12:16:04 -0500
 Subject: [PATCH] Blaze-API
 
 
+diff --git a/src/main/java/net/minecraft/world/entity/monster/Blaze.java b/src/main/java/net/minecraft/world/entity/monster/Blaze.java
+index 17aa7676ab624440651850bbe5689f8a6c9dbeed..aa5bb7571746ee7ecdaf45dad381c7c2ffa37423 100644
+--- a/src/main/java/net/minecraft/world/entity/monster/Blaze.java
++++ b/src/main/java/net/minecraft/world/entity/monster/Blaze.java
+@@ -30,6 +30,10 @@ public class Blaze extends Monster {
+     private int nextHeightOffsetChangeTick;
+     private static final EntityDataAccessor<Byte> DATA_FLAGS_ID = SynchedEntityData.defineId(Blaze.class, EntityDataSerializers.BYTE);
+ 
++    // EMC start
++    public int numFireballs = 4;
++    public int timeBetweenFireballs = 6;
++    // EMC end
+     public Blaze(EntityType<? extends Blaze> type, Level world) {
+         super(type, world);
+         this.setPathfindingMalus(BlockPathTypes.WATER, -1.0F);
+@@ -142,7 +146,7 @@ public class Blaze extends Monster {
+         this.entityData.set(DATA_FLAGS_ID, b);
+     }
+ 
+-    static class BlazeAttackGoal extends Goal {
++    public static class BlazeAttackGoal extends Goal { // EMC - make public
+         private final Blaze blaze;
+         private int attackStep;
+         private int attackTime;
+@@ -208,8 +212,8 @@ public class Blaze extends Monster {
+                         if (this.attackStep == 1) {
+                             this.attackTime = 60;
+                             this.blaze.setCharged(true);
+-                        } else if (this.attackStep <= 4) {
+-                            this.attackTime = 6;
++                        } else if (this.attackStep <= this.blaze.numFireballs) { // EMC
++                            this.attackTime = this.blaze.timeBetweenFireballs; // EMC
+                         } else {
+                             this.attackTime = 100;
+                             this.attackStep = 0;
+@@ -225,7 +229,9 @@ public class Blaze extends Monster {
+                             for(int i = 0; i < 1; ++i) {
+                                 SmallFireball smallFireball = new SmallFireball(this.blaze.level(), this.blaze, this.blaze.getRandom().triangle(e, 2.297D * h), f, this.blaze.getRandom().triangle(g, 2.297D * h));
+                                 smallFireball.setPos(smallFireball.getX(), this.blaze.getY(0.5D) + 0.5D, smallFireball.getZ());
++                                if (new com.empireminecraft.customevents.BlazeLaunchFireballEvent((org.bukkit.entity.Blaze) this.blaze.getBukkitEntity(), (org.bukkit.entity.SmallFireball) smallFireball.getBukkitEntity()).callEvent()) { // EMC
+                                 this.blaze.level().addFreshEntity(smallFireball);
++                                } else { smallFireball.kill(); }// EMC
+                             }
+                         }
+                     }
 diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftBlaze.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftBlaze.java
 index 84cd915955188492696e5948fbb1c4eca0cca039..8a28ef7ab039f86da343f644d3677ff9d89ea7e5 100644
 --- a/src/main/java/org/bukkit/craftbukkit/entity/CraftBlaze.java

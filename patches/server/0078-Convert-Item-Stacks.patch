@@ -1,0 +1,139 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Sat, 30 Mar 2019 00:45:12 -0400
+Subject: [PATCH] Convert Item Stacks
+
+
+diff --git a/src/main/java/net/minecraft/world/item/ItemStack.java b/src/main/java/net/minecraft/world/item/ItemStack.java
+index 29dafde278d9155e8aff97a77f922946f22ad669..52be580a1db211293a5cdeaa53b1e1f5f71a0504 100644
+--- a/src/main/java/net/minecraft/world/item/ItemStack.java
++++ b/src/main/java/net/minecraft/world/item/ItemStack.java
+@@ -242,6 +242,7 @@ public final class ItemStack {
+         this.item = null;
+     }
+ 
++    private static final boolean DEBUG_CONVERSIONS = Boolean.getBoolean("debug.conversions"); // Paper
+     // Called to run this stack through the data converter to handle older storage methods and serialized items
+     public void convertStack(int version) {
+         if (0 < version && version < CraftMagicNumbers.INSTANCE.getDataVersion()) {
+diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftItemFactory.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftItemFactory.java
+index 337516fa474eb27596920665a638931c89257a9a..c2bf021ea8e0d9c1bc3e78dc91fda00bb2f0fcbb 100644
+--- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftItemFactory.java
++++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftItemFactory.java
+@@ -12,9 +12,11 @@ import org.bukkit.Color;
+ import org.bukkit.Material;
+ import org.bukkit.configuration.serialization.ConfigurationSerialization;
+ import org.bukkit.craftbukkit.util.CraftLegacy;
++import org.bukkit.craftbukkit.util.CraftMagicNumbers;
+ import org.bukkit.inventory.ItemFactory;
+ import org.bukkit.inventory.ItemStack;
+ import org.bukkit.inventory.meta.ItemMeta;
++import org.jetbrains.annotations.NotNull;
+ 
+ public final class CraftItemFactory implements ItemFactory {
+     static final Color DEFAULT_LEATHER_COLOR = Color.fromRGB(0xA06540);
+@@ -472,9 +474,25 @@ public final class CraftItemFactory implements ItemFactory {
+     }
+ 
+     // Paper start
++    @NotNull
++    public ItemStack _asServerItemStack(@NotNull ItemStack item) {
++        if (item instanceof CraftItemStack) {
++            return item;
++        } else {
++            CraftItemStack newStack = CraftItemStack.asCraftMirror(CraftItemStack.asNMSCopy(item));
++            newStack.setDataVersion(item.getDataVersion());
++            return newStack;
++        }
++    }
+     @Override
+     public ItemStack ensureServerConversions(ItemStack item) {
+-        return CraftItemStack.asCraftMirror(CraftItemStack.asNMSCopy(item));
++        CraftItemStack newItem = (CraftItemStack) _asServerItemStack(item);
++        net.minecraft.world.item.ItemStack handle = newItem.handle;
++        if (handle != null && handle.getTag() != null) {
++            handle.convertStack(item.getDataVersion());
++        }
++        newItem.setDataVersion(CraftMagicNumbers.INSTANCE.getDataVersion());
++        return newItem;
+     }
+ 
+     @Override
+diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftItemStack.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftItemStack.java
+index 24fac69bc63f949001252811f792b21955a13e9d..3e6b7bf01c535f45e374afc4c7adeb229b54a3e5 100644
+--- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftItemStack.java
++++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftItemStack.java
+@@ -39,7 +39,12 @@ public final class CraftItemStack extends ItemStack {
+ 
+         net.minecraft.world.item.ItemStack stack = new net.minecraft.world.item.ItemStack(item, original.getAmount());
+         if (original.hasItemMeta()) {
+-            CraftItemStack.setItemMeta(stack, original.getItemMeta());
++            // Paper start
++            ItemMeta itemMeta = original.getItemMeta();
++            itemMeta.setVersion(original.getDataVersion());
++            CraftItemStack.setItemMeta(stack, itemMeta);
++            stack.convertStack(original.getDataVersion());
++            // Paper end
+         }
+         return stack;
+     }
+@@ -276,7 +281,11 @@ public final class CraftItemStack extends ItemStack {
+ 
+     @Override
+     public ItemMeta getItemMeta() {
+-        return CraftItemStack.getItemMeta(this.handle);
++        // Paper start
++        ItemMeta itemMeta = CraftItemStack.getItemMeta(handle);
++        ((CraftMetaItem) itemMeta).setVersion(this.getDataVersion());
++        return itemMeta;
++        // Paper end
+     }
+     // Paper start
+     public static void applyMetaToItem(net.minecraft.world.item.ItemStack itemStack, ItemMeta meta) {
+@@ -627,7 +636,7 @@ public final class CraftItemStack extends ItemStack {
+         item.setTag(tag);
+ 
+         ((CraftMetaItem) itemMeta).applyToItem(tag);
+-        item.convertStack(((CraftMetaItem) itemMeta).getVersion());
++        //item.convertStack(((CraftMetaItem) itemMeta).getVersion()); // Paper
+         // SpigotCraft#463 this is required now by the Vanilla client, so mimic ItemStack constructor in ensuring it
+         if (item.getItem() != null && item.getItem().canBeDepleted()) {
+             item.setDamageValue(item.getDamageValue());
+diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java
+index 68f0b617cdf021522ba15920897d167ce639e82f..b06bfd47b56671efd19811b607f6dd58b1344fb3 100644
+--- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java
++++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java
+@@ -319,6 +319,7 @@ class CraftMetaItem implements ItemMeta, Damageable, Repairable, BlockDataMeta {
+             return;
+         }
+ 
++        this.version = meta.version; // Paper - set before all the code below that might use it...
+         this.displayName = meta.displayName;
+         this.locName = meta.locName;
+ 
+@@ -358,19 +359,22 @@ class CraftMetaItem implements ItemMeta, Damageable, Repairable, BlockDataMeta {
+             this.deserializeInternal(this.internalTag, meta);
+         }
+ 
+-        this.version = meta.version;
++        //this.version = meta.version; // Paper - move up
+     }
+ 
+     CraftMetaItem(CompoundTag tag) {
++        boolean isLegacy = version <= 1343; // Paper
+         if (tag.contains(DISPLAY.NBT)) {
+             CompoundTag display = tag.getCompound(DISPLAY.NBT);
+ 
+             if (display.contains(NAME.NBT)) {
+-                this.displayName = limit( display.getString(NAME.NBT), io.papermc.paper.configuration.GlobalConfiguration.get().itemValidation.displayName ); // Spigot // Paper - make configurable
++                if (isLegacy) this.displayName = CraftChatMessage.fromStringOrNullToJSON(limit( display.getString(NAME.NBT), io.papermc.paper.configuration.GlobalConfiguration.get().itemValidation.displayName )); // Paper - add isLegacy
++                else this.displayName = limit( display.getString(NAME.NBT), io.papermc.paper.configuration.GlobalConfiguration.get().itemValidation.displayName ); // Spigot // Paper - make configurable // Paper - add isLegacy
+             }
+ 
+             if (display.contains(LOCNAME.NBT)) {
+-                this.locName = limit( display.getString(LOCNAME.NBT), 8192 ); // Spigot
++                if (isLegacy) { this.locName = CraftChatMessage.fromStringOrNullToJSON(limit( display.getString(LOCNAME.NBT), 8192 )); } // Paper - add isLegacy
++                else this.locName = limit( display.getString(LOCNAME.NBT), 8192 ); // Spigot // Paper - make configurable // Paper - add isLegacy
+             }
+ 
+             if (display.contains(LORE.NBT)) {

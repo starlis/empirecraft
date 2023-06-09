@@ -4,8 +4,62 @@ Date: Sat, 1 Apr 2023 12:15:47 -0500
 Subject: [PATCH] EnderSignal-API
 
 
+diff --git a/src/main/java/net/minecraft/world/entity/projectile/EyeOfEnder.java b/src/main/java/net/minecraft/world/entity/projectile/EyeOfEnder.java
+index e48706e2fefc39fcce3c65f629153fdcd677044c..c0991474e696546c0c7c02a3d51fc57f31040c87 100644
+--- a/src/main/java/net/minecraft/world/entity/projectile/EyeOfEnder.java
++++ b/src/main/java/net/minecraft/world/entity/projectile/EyeOfEnder.java
+@@ -24,6 +24,11 @@ public class EyeOfEnder extends Entity implements ItemSupplier {
+     public double tz;
+     public int life;
+     public boolean surviveAfterDeath;
++    // EMC start
++    public int lifeTime = 80;
++    public double speed = 0.0025D;
++    public boolean exactTarget = false;
++    // EMC end
+ 
+     public EyeOfEnder(EntityType<? extends EyeOfEnder> type, Level world) {
+         super(type, world);
+@@ -82,6 +87,7 @@ public class EyeOfEnder extends Entity implements ItemSupplier {
+         double d3 = d1 - this.getZ();
+         double d4 = Math.sqrt(d2 * d2 + d3 * d3);
+ 
++        if (exactTarget) d4 = 0; // EMC
+         if (d4 > 12.0D) {
+             this.tx = this.getX() + d2 / d4 * 12.0D;
+             this.tz = this.getZ() + d3 / d4 * 12.0D;
+@@ -118,6 +124,7 @@ public class EyeOfEnder extends Entity implements ItemSupplier {
+         Vec3 vec3d = this.getDeltaMovement();
+         double d0 = this.getX() + vec3d.x;
+         double d1 = this.getY() + vec3d.y;
++        double distY = this.ty - d1; // EMC
+         double d2 = this.getZ() + vec3d.z;
+         double d3 = vec3d.horizontalDistance();
+ 
+@@ -126,9 +133,9 @@ public class EyeOfEnder extends Entity implements ItemSupplier {
+         if (!this.level().isClientSide) {
+             double d4 = this.tx - d0;
+             double d5 = this.tz - d2;
+-            float f = (float) Math.sqrt(d4 * d4 + d5 * d5);
++            float f = (float) Math.sqrt(d4 * d4 + d5 * d5 + (exactTarget ? distY * distY : 0)); // EMC
+             float f1 = (float) Mth.atan2(d5, d4);
+-            double d6 = Mth.lerp(0.0025D, d3, (double) f);
++            double d6 = Mth.lerp(speed, d3, f); // EMC
+             double d7 = vec3d.y;
+ 
+             if (f < 1.0F) {
+@@ -155,7 +162,8 @@ public class EyeOfEnder extends Entity implements ItemSupplier {
+         if (!this.level().isClientSide) {
+             this.setPos(d0, d1, d2);
+             ++this.life;
+-            if (this.life > 80 && !this.level().isClientSide) {
++            if (this.life > this.lifeTime && !this.level().isClientSide) { // EMC - add lifeTime
++                if (!(new com.empireminecraft.customevents.EnderSignalArriveEvent((org.bukkit.entity.EnderSignal) this.getBukkitEntity()).callEvent())) {return;} // EMC
+                 this.playSound(SoundEvents.ENDER_EYE_DEATH, 1.0F, 1.0F);
+                 this.discard();
+                 if (this.surviveAfterDeath) {
 diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftEnderSignal.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftEnderSignal.java
-index cd0692963a80c098c93afdaf040e76c18ddcb101..a532da9433fcb27054df43acf642e73f311643ee 100644
+index ad165bc85ce29894e55d4e036121d99e5763b4fe..3b1cbfb6102b20121660d1085dab8db182f4d198 100644
 --- a/src/main/java/org/bukkit/craftbukkit/entity/CraftEnderSignal.java
 +++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftEnderSignal.java
 @@ -79,4 +79,30 @@ public class CraftEnderSignal extends CraftEntity implements EnderSignal {

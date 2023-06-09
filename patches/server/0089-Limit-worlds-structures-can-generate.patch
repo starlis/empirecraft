@@ -1,0 +1,44 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Wed, 6 May 2015 02:29:30 -0400
+Subject: [PATCH] Limit worlds structures can generate
+
+
+diff --git a/src/main/java/net/minecraft/server/level/ServerLevel.java b/src/main/java/net/minecraft/server/level/ServerLevel.java
+index 0fcc76927a80de0cc3aa9f83a1c1a33f6abfbd90..14002d99910bd3d18b575df3a35c4a6d94480b78 100644
+--- a/src/main/java/net/minecraft/server/level/ServerLevel.java
++++ b/src/main/java/net/minecraft/server/level/ServerLevel.java
+@@ -2039,6 +2039,7 @@ public class ServerLevel extends Level implements WorldGenLevel {
+         if (!this.serverLevelData.worldGenOptions().generateStructures()) { // CraftBukkit
+             return null;
+         } else {
++            if ("town".equals(getWorld().getName())) { return null; } // EMC
+             Optional<HolderSet.Named<Structure>> optional = this.registryAccess().registryOrThrow(Registries.STRUCTURE).getTag(structureTag);
+ 
+             if (optional.isEmpty()) {
+diff --git a/src/main/java/net/minecraft/world/level/StructureManager.java b/src/main/java/net/minecraft/world/level/StructureManager.java
+index 09c85ed428b8eaf51f8b3c6e45cce925f05ab354..003a4ac24b6aec1a37b876918b5c29561dfb7b17 100644
+--- a/src/main/java/net/minecraft/world/level/StructureManager.java
++++ b/src/main/java/net/minecraft/world/level/StructureManager.java
+@@ -94,7 +94,7 @@ public class StructureManager {
+     }
+ 
+     public boolean shouldGenerateStructures() {
+-        return this.worldOptions.generateStructures();
++        return this.worldOptions.generateStructures() && !"town".equals(this.level.getMinecraftWorld().getWorld().getName()); // EMC
+     }
+ 
+     public StructureStart getStructureAt(BlockPos pos, Structure structure) {
+diff --git a/src/main/java/net/minecraft/world/level/chunk/ChunkStatus.java b/src/main/java/net/minecraft/world/level/chunk/ChunkStatus.java
+index ec55711e912fe6cb8f797c0b21bcef273966a47a..d9acb9fb4cf1ed0d4ecd5da3bb65802a0e1a5b9e 100644
+--- a/src/main/java/net/minecraft/world/level/chunk/ChunkStatus.java
++++ b/src/main/java/net/minecraft/world/level/chunk/ChunkStatus.java
+@@ -63,7 +63,7 @@ public class ChunkStatus {
+     public static final ChunkStatus EMPTY = ChunkStatus.registerSimple("empty", (ChunkStatus) null, -1, ChunkStatus.PRE_FEATURES, ChunkStatus.ChunkType.PROTOCHUNK, (chunkstatus, worldserver, chunkgenerator, list, ichunkaccess) -> {
+     });
+     public static final ChunkStatus STRUCTURE_STARTS = ChunkStatus.register("structure_starts", ChunkStatus.EMPTY, 0, false, ChunkStatus.PRE_FEATURES, ChunkStatus.ChunkType.PROTOCHUNK, (chunkstatus, executor, worldserver, chunkgenerator, structuretemplatemanager, lightenginethreaded, function, list, ichunkaccess) -> {
+-        if (worldserver.serverLevelData.worldGenOptions().generateStructures()) { // CraftBukkit
++        if (worldserver.serverLevelData.worldGenOptions().generateStructures() && !"town".equals(worldserver.getWorld().getName())) { // CraftBukkit // EMC
+             chunkgenerator.createStructures(worldserver.registryAccess(), worldserver.getChunkSource().getGeneratorState(), worldserver.structureManager(), ichunkaccess, structuretemplatemanager);
+         }
+ 

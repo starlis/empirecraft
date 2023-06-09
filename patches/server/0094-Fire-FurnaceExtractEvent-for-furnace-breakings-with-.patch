@@ -1,0 +1,40 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: chickeneer <emcchickeneer@gmail.com>
+Date: Wed, 2 Jun 2021 09:16:37 -0500
+Subject: [PATCH] Fire FurnaceExtractEvent for furnace breakings with null
+ players
+
+temp
+
+diff --git a/src/main/java/net/minecraft/world/level/block/entity/AbstractFurnaceBlockEntity.java b/src/main/java/net/minecraft/world/level/block/entity/AbstractFurnaceBlockEntity.java
+index 448fa4f4f200430d6ce3051763c7ceb697696146..4e71ee6796438f36708277c83d5a1ced898f218f 100644
+--- a/src/main/java/net/minecraft/world/level/block/entity/AbstractFurnaceBlockEntity.java
++++ b/src/main/java/net/minecraft/world/level/block/entity/AbstractFurnaceBlockEntity.java
+@@ -644,14 +644,14 @@ public abstract class AbstractFurnaceBlockEntity extends BaseContainerBlockEntit
+             worldserver.getRecipeManager().byKey((ResourceLocation) entry.getKey()).ifPresent((irecipe) -> {
+                 if (!(irecipe instanceof AbstractCookingRecipe)) return; // Paper - don't process non-cooking recipes
+                 list.add(irecipe);
+-                AbstractFurnaceBlockEntity.createExperience(worldserver, vec3d, entry.getIntValue(), ((AbstractCookingRecipe) irecipe).getExperience(), blockposition, entityplayer, itemstack, amount); // CraftBukkit
++                AbstractFurnaceBlockEntity.createExperience(worldserver, vec3d, entry.getIntValue(), ((AbstractCookingRecipe) irecipe).getExperience(), blockposition, entityplayer, itemstack, amount, irecipe.getResultItem(RegistryAccess.EMPTY)); // CraftBukkit // EMC - add result item
+             });
+         }
+ 
+         return list;
+     }
+ 
+-    private static void createExperience(ServerLevel worldserver, Vec3 vec3d, int i, float f, BlockPos blockposition, net.minecraft.world.entity.player.Player entityhuman, ItemStack itemstack, int amount) { // CraftBukkit
++    private static void createExperience(ServerLevel worldserver, Vec3 vec3d, int i, float f, BlockPos blockposition, net.minecraft.world.entity.player.Player entityhuman, ItemStack itemstack, int amount, ItemStack result) { // CraftBukkit // EMC - add result item
+         int j = Mth.floor((float) i * f);
+         float f1 = Mth.frac((float) i * f);
+ 
+@@ -661,8 +661,8 @@ public abstract class AbstractFurnaceBlockEntity extends BaseContainerBlockEntit
+ 
+         // CraftBukkit start - fire FurnaceExtractEvent / BlockExpEvent
+         BlockExpEvent event;
+-        if (amount != 0) {
+-            event = new FurnaceExtractEvent((Player) entityhuman.getBukkitEntity(), CraftBlock.at(worldserver, blockposition), org.bukkit.craftbukkit.util.CraftMagicNumbers.getMaterial(itemstack.getItem()), amount, j);
++        if (true || amount != 0) { // EMC
++            event = new FurnaceExtractEvent(entityhuman == null ? null : (Player) entityhuman.getBukkitEntity(), CraftBlock.at(worldserver, blockposition), itemstack == null ? null : org.bukkit.craftbukkit.util.CraftMagicNumbers.getMaterial(itemstack.getItem()), amount, j, org.bukkit.craftbukkit.util.CraftMagicNumbers.getMaterial(result.getItem()), i); // EMC - add == null for entityhuman and itemstack and add resultType/resultAmount
+         } else {
+             event = new BlockExpEvent(CraftBlock.at(worldserver, blockposition), j);
+         }
