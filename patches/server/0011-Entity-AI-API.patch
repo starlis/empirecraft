@@ -5,7 +5,7 @@ Subject: [PATCH] Entity AI API
 
 
 diff --git a/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java b/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
-index 616fe997d4a816e36dc272056bda55c9e67407e1..a85371d3384162f7e7cfff00e9acb1d5b327eb72 100644
+index 616fe997d4a816e36dc272056bda55c9e67407e1..d1f1532cb676e796519873c0cf7f708d1f351dd0 100644
 --- a/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
 +++ b/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
 @@ -23,10 +23,32 @@
@@ -41,7 +41,7 @@ index 616fe997d4a816e36dc272056bda55c9e67407e1..a85371d3384162f7e7cfff00e9acb1d5
  public class CraftEAPI_Entity implements EAPI_Entity {
  
      @NotNull
-@@ -39,4 +61,116 @@ public class CraftEAPI_Entity implements EAPI_Entity {
+@@ -39,4 +61,111 @@ public class CraftEAPI_Entity implements EAPI_Entity {
      public void cancelTasks(@NotNull Entity entity) {
          ((CraftEntity) entity).getHandle().entityTasks.clear();
      }
@@ -82,11 +82,6 @@ index 616fe997d4a816e36dc272056bda55c9e67407e1..a85371d3384162f7e7cfff00e9acb1d5
 +            setTargetRange(creature, (double) range);
 +            handle.markedAggressive = true;
 +        }
-+    }
-+
-+    @Override
-+    public void makeAggressiveDuringDay(@NotNull Spider spider, boolean attack) {
-+        ((CraftSpider) spider).getHandle().attackDuringDay = attack;
 +    }
 +
 +    @Override
@@ -555,38 +550,6 @@ index 744b8246a79e0119734c44ce485536ddac8b190c..16beb7e49f36e72589b3a4c1d99a0d5c
          if (!this.shouldPanic()) {
              return false;
          } else {
-diff --git a/src/main/java/net/minecraft/world/entity/ai/goal/RangedAttackGoal.java b/src/main/java/net/minecraft/world/entity/ai/goal/RangedAttackGoal.java
-index 104c7e912842f8a7e746168585e36fe6e3e6dc52..a376f12c88d422f89699ae05f281a3d43b946e70 100644
---- a/src/main/java/net/minecraft/world/entity/ai/goal/RangedAttackGoal.java
-+++ b/src/main/java/net/minecraft/world/entity/ai/goal/RangedAttackGoal.java
-@@ -15,10 +15,10 @@ public class RangedAttackGoal extends Goal {
-     private int attackTime = -1;
-     private final double speedModifier;
-     private int seeTime;
--    private final int attackIntervalMin;
--    private final int attackIntervalMax;
--    private final float attackRadius;
--    private final float attackRadiusSqr;
-+    private int attackIntervalMin; public void setMinInterval(int time) { this.attackIntervalMin = time; } // EMC - make non-final
-+    private int attackIntervalMax; public void setMaxInterval(int time) { this.attackIntervalMax = time; } // EMC - make non-final
-+    private float attackRadius; public void setAttackRadius(float radius) { this.attackRadius = radius; this.attackRadiusSqr = radius * radius; }// EMC - make non-final
-+    private float attackRadiusSqr; // EMC - make non-final
- 
-     public RangedAttackGoal(RangedAttackMob mob, double mobSpeed, int intervalTicks, float maxShootRange) {
-         this(mob, mobSpeed, intervalTicks, intervalTicks, maxShootRange);
-diff --git a/src/main/java/net/minecraft/world/entity/ai/goal/RangedBowAttackGoal.java b/src/main/java/net/minecraft/world/entity/ai/goal/RangedBowAttackGoal.java
-index 87fb10096fc9dade33c663234b1cecc34d3d77bb..67d8a62eef6bf4c8369ffd834ebfdadbe521d6a3 100644
---- a/src/main/java/net/minecraft/world/entity/ai/goal/RangedBowAttackGoal.java
-+++ b/src/main/java/net/minecraft/world/entity/ai/goal/RangedBowAttackGoal.java
-@@ -14,7 +14,7 @@ public class RangedBowAttackGoal<T extends Monster & RangedAttackMob> extends Go
-     private final T mob;
-     private final double speedModifier;
-     private int attackIntervalMin;
--    private final float attackRadiusSqr;
-+    private float attackRadiusSqr; public void setAttackRadius(float radius) { this.attackRadiusSqr = radius * radius; } // EMC - make non-final
-     private int attackTime = -1;
-     private int seeTime;
-     private boolean strafingClockwise;
 diff --git a/src/main/java/net/minecraft/world/entity/ai/goal/target/TargetGoal.java b/src/main/java/net/minecraft/world/entity/ai/goal/target/TargetGoal.java
 index c9e6c2d0976bde92a94ae912e488ec30f250df55..dee8137a31d508545948f7ac31c33d2a9c5ae8b9 100644
 --- a/src/main/java/net/minecraft/world/entity/ai/goal/target/TargetGoal.java
@@ -620,46 +583,6 @@ index 3d41dbe0285f8fec8adae1e93010cf464df9b08c..0cfe11e5bf34d5281e3280eef3f5f616
                  // CraftBukkit start - fire ItemDespawnEvent
                  if (org.bukkit.craftbukkit.event.CraftEventFactory.callItemDespawnEvent(this).isCancelled()) {
                      this.age = 0;
-diff --git a/src/main/java/net/minecraft/world/entity/monster/Spider.java b/src/main/java/net/minecraft/world/entity/monster/Spider.java
-index 05432184077752b1d0cb764a5e39ed875748b2d6..0351ce8e1f5fb17d14e74662b40b219ba24b98f7 100644
---- a/src/main/java/net/minecraft/world/entity/monster/Spider.java
-+++ b/src/main/java/net/minecraft/world/entity/monster/Spider.java
-@@ -192,6 +192,7 @@ public class Spider extends Monster {
-         return 0.65F;
-     }
- 
-+    public boolean attackDuringDay = false; // EMC
-     private static class SpiderAttackGoal extends MeleeAttackGoal {
- 
-         public SpiderAttackGoal(Spider spider) {
-@@ -206,6 +207,7 @@ public class Spider extends Monster {
-         @Override
-         public boolean canContinueToUse() {
-             float f = this.mob.getLightLevelDependentMagicValue();
-+            if (((Spider) this.mob).attackDuringDay) { f = 0.0F; } // EMC
- 
-             if (f >= 0.5F && this.mob.getRandom().nextInt(100) == 0) {
-                 this.mob.setTarget((LivingEntity) null);
-@@ -230,6 +232,7 @@ public class Spider extends Monster {
-         @Override
-         public boolean canUse() {
-             float f = this.mob.getLightLevelDependentMagicValue();
-+            if (((Spider) this.mob).attackDuringDay) { f = 0.0F; } // EMC
- 
-             return f >= 0.5F ? false : super.canUse();
-         }
-diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftEnderSignal.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftEnderSignal.java
-index e3688e941d9b63b5319faf9370b8f75e0e5828ae..ad165bc85ce29894e55d4e036121d99e5763b4fe 100644
---- a/src/main/java/org/bukkit/craftbukkit/entity/CraftEnderSignal.java
-+++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftEnderSignal.java
-@@ -10,6 +10,7 @@ import org.bukkit.craftbukkit.util.CraftLocation;
- import org.bukkit.entity.EnderSignal;
- import org.bukkit.entity.EntityType;
- import org.bukkit.inventory.ItemStack;
-+import org.jetbrains.annotations.NotNull;
- 
- public class CraftEnderSignal extends CraftEntity implements EnderSignal {
-     public CraftEnderSignal(CraftServer server, EyeOfEnder entity) {
 diff --git a/src/main/java/org/spigotmc/ActivationRange.java b/src/main/java/org/spigotmc/ActivationRange.java
 index eda7f0bb42f7269676d5d2193e1155912ede9920..70b88390f4c23d83441271281b8a2742983fb233 100644
 --- a/src/main/java/org/spigotmc/ActivationRange.java
