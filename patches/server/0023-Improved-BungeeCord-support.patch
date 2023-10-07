@@ -7,19 +7,19 @@ Secure BungeeCord with IP Whitelist for IP/UUID forwarding
 Allow online-mode to be set to true, and skip online-mode for bungee IP's
 
 diff --git a/src/main/java/net/minecraft/network/Connection.java b/src/main/java/net/minecraft/network/Connection.java
-index cf20f0983fc25b26cf92b9d3a28746b1909fc56b..a6a7c2bc4aeb6b52f2bb107b187c54837580b9ce 100644
+index c0ea20dcee8bb293df96bc6ee019e50ad6b383fd..e8271b458040f13907df64510c94bba20bc1aa56 100644
 --- a/src/main/java/net/minecraft/network/Connection.java
 +++ b/src/main/java/net/minecraft/network/Connection.java
-@@ -81,6 +81,7 @@ public class Connection extends SimpleChannelInboundHandler<Packet<?>> {
-     public com.mojang.authlib.properties.Property[] spoofedProfile;
-     public boolean preparing = true;
+@@ -94,6 +94,7 @@ public class Connection extends SimpleChannelInboundHandler<Packet<?>> {
      // Spigot End
+     @Nullable
+     private volatile PacketListener disconnectListener;
 +    public boolean isProxied = false; // EMC
-     private PacketListener packetListener;
-     private Component disconnectedReason;
-     private boolean encrypted;
+     @Nullable
+     private volatile PacketListener packetListener;
+     @Nullable
 diff --git a/src/main/java/net/minecraft/server/network/ServerHandshakePacketListenerImpl.java b/src/main/java/net/minecraft/server/network/ServerHandshakePacketListenerImpl.java
-index 63cf71940f6480c593a43bd39900c50676367404..41251a692dcb8c7dff6ad66cbd9bbe0d06be3b11 100644
+index 73f12e176acc0a035d3283cf5ecebcb1b8b06b73..32d5e56da624f2699db962a79d23eb90862aae91 100644
 --- a/src/main/java/net/minecraft/server/network/ServerHandshakePacketListenerImpl.java
 +++ b/src/main/java/net/minecraft/server/network/ServerHandshakePacketListenerImpl.java
 @@ -93,7 +93,8 @@ public class ServerHandshakePacketListenerImpl implements ServerHandshakePacketL
@@ -32,7 +32,7 @@ index 63cf71940f6480c593a43bd39900c50676367404..41251a692dcb8c7dff6ad66cbd9bbe0d
                  boolean handledByEvent = false;
                  // Try and handle the handshake through the event
                  if (com.destroystokyo.paper.event.player.PlayerHandshakeEvent.getHandlerList().getRegisteredListeners().length != 0) { // Hello? Can you hear me?
-@@ -122,6 +123,7 @@ public class ServerHandshakePacketListenerImpl implements ServerHandshakePacketL
+@@ -130,6 +131,7 @@ public class ServerHandshakePacketListenerImpl implements ServerHandshakePacketL
                      if (!handledByEvent && proxyLogicEnabled) {
                          // Paper end
                      // if (org.spigotmc.SpigotConfig.bungee) { // Paper - comment out, we check above!
@@ -40,23 +40,23 @@ index 63cf71940f6480c593a43bd39900c50676367404..41251a692dcb8c7dff6ad66cbd9bbe0d
                          if ( ( split.length == 3 || split.length == 4 ) && ( ServerHandshakePacketListenerImpl.BYPASS_HOSTCHECK || ServerHandshakePacketListenerImpl.HOST_PATTERN.matcher( split[1] ).matches() ) ) { // Paper
                              // Paper start - Unix domain socket support
                              java.net.SocketAddress socketAddress = connection.getRemoteAddress();
-@@ -129,7 +131,7 @@ public class ServerHandshakePacketListenerImpl implements ServerHandshakePacketL
+@@ -137,7 +139,7 @@ public class ServerHandshakePacketListenerImpl implements ServerHandshakePacketL
                              connection.address = new java.net.InetSocketAddress(split[1], socketAddress instanceof java.net.InetSocketAddress ? ((java.net.InetSocketAddress) socketAddress).getPort() : 0);
                              // Paper end
-                             connection.spoofedUUID = com.mojang.util.UUIDTypeAdapter.fromString( split[2] );
+                             connection.spoofedUUID = com.mojang.util.UndashedUuid.fromStringLenient( split[2] );
 -                        } else
 +                        } else if (false) // EMC
                          {
                              Component chatmessage = Component.literal("If you wish to use IP forwarding, please enable it in your BungeeCord config as well!");
                              this.connection.send(new ClientboundLoginDisconnectPacket(chatmessage));
 diff --git a/src/main/java/net/minecraft/server/network/ServerLoginPacketListenerImpl.java b/src/main/java/net/minecraft/server/network/ServerLoginPacketListenerImpl.java
-index 2ff578e4a953ffcf5176815ba8e3f06f73499989..9ac6317fdfcfca8d3a5ec3b58a2e347943978be7 100644
+index ff2dd53e9e943aa929188fd9d4c35498b78c497a..a35c46a1e4d0c30d7c148e9657ab91c7789a9124 100644
 --- a/src/main/java/net/minecraft/server/network/ServerLoginPacketListenerImpl.java
 +++ b/src/main/java/net/minecraft/server/network/ServerLoginPacketListenerImpl.java
-@@ -253,7 +253,7 @@ public class ServerLoginPacketListenerImpl implements ServerLoginPacketListener,
-             this.state = ServerLoginPacketListenerImpl.State.READY_TO_ACCEPT;
+@@ -173,7 +173,7 @@ public class ServerLoginPacketListenerImpl implements ServerLoginPacketListener,
+         if (gameprofile != null && this.requestedUsername.equalsIgnoreCase(gameprofile.getName())) {
+             this.startClientVerification(gameprofile);
          } else {
-             this.gameProfile = new GameProfile((UUID) null, packet.name());
 -            if (this.server.usesAuthentication() && !this.connection.isMemoryConnection()) {
 +            if (!this.connection.isProxied && this.server.usesAuthentication() && !this.connection.isMemoryConnection()) { // EMC - add !isProxied
                  this.state = ServerLoginPacketListenerImpl.State.KEY;

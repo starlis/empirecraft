@@ -5,7 +5,7 @@ Subject: [PATCH] SpawnerInitiateEvent
 
 
 diff --git a/src/main/java/net/minecraft/world/level/BaseSpawner.java b/src/main/java/net/minecraft/world/level/BaseSpawner.java
-index af799b61cec48ca290ed66cb47cfc0b244ac41a7..c64e1395de7d5bd2b3972fa479222435bcd31ee2 100644
+index 633500aefd515df5dadda3802b94079f75a03fa0..da7202439372a4ffa97e6f20b6d2d556068e3c18 100644
 --- a/src/main/java/net/minecraft/world/level/BaseSpawner.java
 +++ b/src/main/java/net/minecraft/world/level/BaseSpawner.java
 @@ -1,6 +1,9 @@
@@ -40,13 +40,11 @@ index af799b61cec48ca290ed66cb47cfc0b244ac41a7..c64e1395de7d5bd2b3972fa479222435
  import org.slf4j.Logger;
  
  public abstract class BaseSpawner {
-@@ -55,7 +61,32 @@ public abstract class BaseSpawner {
+@@ -55,6 +61,25 @@ public abstract class BaseSpawner {
      }
  
      public boolean isNearPlayer(Level world, BlockPos pos) {
--        return world.hasNearbyAlivePlayerThatAffectsSpawning((double) pos.getX() + 0.5D, (double) pos.getY() + 0.5D, (double) pos.getZ() + 0.5D, (double) this.requiredPlayerRange); // Paper - Affects Spawning API
-+        // Paper start - Add in SpawnerInitiateEvent
-+        //return world.hasNearbyAlivePlayerThatAffectsSpawning((double) pos.getX() + 0.5D, (double) pos.getY() + 0.5D, (double) pos.getZ() + 0.5D, (double) this.requiredPlayerRange); // Paper - Affects Spawning API
++        // EMC start - Add in SpawnerInitiateEvent
 +        if (this.nextSpawnData == null) {
 +            return false;
 +        }
@@ -57,20 +55,14 @@ index af799b61cec48ca290ed66cb47cfc0b244ac41a7..c64e1395de7d5bd2b3972fa479222435
 +        final int x = pos.getX();
 +        final int y = pos.getY();
 +        final int z = pos.getZ();
-+        List<ServerPlayer> serverPlayers = world.getNearbyPlayers(null, (double) x + 0.5D, (double) y + 0.5D, (double) z + 0.5D, this.requiredPlayerRange, EntitySelector.PLAYER_AFFECTS_SPAWNING);
-+        if (serverPlayers.isEmpty()) {
-+            return false;
-+        }
-+        List<Player> players = new ArrayList<>();
-+        for (ServerPlayer player : serverPlayers) {
-+            players.add(player.getBukkitEntity());
-+        }
 +        org.bukkit.Location loc = new org.bukkit.Location(world.getWorld(), x, y, z);
 +
-+        return new com.empireminecraft.customevents.SpawnerInitiateEvent(
++        if (!(new com.empireminecraft.customevents.SpawnerInitiateEvent(
 +                org.bukkit.entity.EntityType.fromName(net.minecraft.world.entity.EntityType.getKey(type.get()).getPath()),
-+                world.getWorld(), loc, players).callEvent();
-+        // Paper end
++                world.getWorld(), loc).callEvent())) {
++            return false;
++        }
++        // EMC end
+         return world.hasNearbyAlivePlayerThatAffectsSpawning((double) pos.getX() + 0.5D, (double) pos.getY() + 0.5D, (double) pos.getZ() + 0.5D, (double) this.requiredPlayerRange); // Paper - Affects Spawning API
      }
  
-     public void clientTick(Level world, BlockPos pos) {
