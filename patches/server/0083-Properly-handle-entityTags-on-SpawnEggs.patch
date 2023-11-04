@@ -5,7 +5,7 @@ Subject: [PATCH] Properly handle entityTags on SpawnEggs
 
 
 diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaSpawnEgg.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaSpawnEgg.java
-index 9d967e5231bf78af1fe0418660a35734502f6a57..c9b393c92009fd740ff42e8d27703a60c08a0c55 100644
+index 0d1aa0c9079179a520cf29b6b09fff0ad6ace734..0dcb28b2bcacc612db3f8bb3adf92151c65b1d48 100644
 --- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaSpawnEgg.java
 +++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaSpawnEgg.java
 @@ -4,12 +4,17 @@ import com.google.common.collect.ImmutableMap.Builder;
@@ -28,13 +28,13 @@ index 9d967e5231bf78af1fe0418660a35734502f6a57..c9b393c92009fd740ff42e8d27703a60
  import org.bukkit.material.MaterialData;
 @@ -121,6 +126,16 @@ public class CraftMetaSpawnEgg extends CraftMetaItem implements SpawnEggMeta {
  
-         if (tag.contains(ENTITY_TAG.NBT)) {
-             this.entityTag = tag.getCompound(ENTITY_TAG.NBT).copy();
+         if (tag.contains(CraftMetaSpawnEgg.ENTITY_TAG.NBT)) {
+             this.entityTag = tag.getCompound(CraftMetaSpawnEgg.ENTITY_TAG.NBT).copy();
 +            // EMC start
 +            if (!this.entityTag.isEmpty()) {
-+                String entityType = entityTag.getString(ENTITY_ID.NBT);
++                String entityType = entityTag.getString(CraftMetaSpawnEgg.ENTITY_ID.NBT);
 +                this.spawnedType = EntityType.fromName(entityType);
-+                entityTag.remove(ENTITY_ID.NBT);
++                entityTag.remove(CraftMetaSpawnEgg.ENTITY_ID.NBT);
 +                if (entityTag != null && entityTag.isEmpty()) {
 +                    entityTag = null;
 +                }
@@ -48,7 +48,7 @@ index 9d967e5231bf78af1fe0418660a35734502f6a57..c9b393c92009fd740ff42e8d27703a60
  
              // Tag still has some other data, lets try our luck with a conversion
 -            if (!this.entityTag.isEmpty()) {
-+            if (this.spawnedType == null && this.entityTag.contains(ENTITY_ID.NBT) && !this.entityTag.isEmpty()) { // EMC - only try converting when there is an id and spawnedType is not found already
++            if (this.spawnedType == null && this.entityTag.contains(CraftMetaSpawnEgg.ENTITY_ID.NBT) && !this.entityTag.isEmpty()) { // EMC - only try converting when there is an id and spawnedType is not found already
 +                // EMC start - try updating and catch update exceptions
 +                try {
 +                    entityTag = (CompoundTag) MinecraftServer.getServer().fixerUpper.update(References.ENTITY, new Dynamic(NbtOps.INSTANCE, entityTag), -1, CraftMagicNumbers.INSTANCE.getDataVersion()).getValue();
@@ -60,11 +60,11 @@ index 9d967e5231bf78af1fe0418660a35734502f6a57..c9b393c92009fd740ff42e8d27703a60
              }
 @@ -164,7 +185,15 @@ public class CraftMetaSpawnEgg extends CraftMetaItem implements SpawnEggMeta {
              // See if we can read a converted ID tag
-             if (this.entityTag.contains(ENTITY_ID.NBT)) {
-                 this.spawnedType = EntityType.fromName(new ResourceLocation(this.entityTag.getString(ENTITY_ID.NBT)).getPath());
+             if (this.entityTag.contains(CraftMetaSpawnEgg.ENTITY_ID.NBT)) {
+                 this.spawnedType = EntityType.fromName(new ResourceLocation(this.entityTag.getString(CraftMetaSpawnEgg.ENTITY_ID.NBT)).getPath());
 +                // EMC start
 +                if (spawnedType != null) {
-+                    entityTag.remove(ENTITY_ID.NBT);
++                    entityTag.remove(CraftMetaSpawnEgg.ENTITY_ID.NBT);
 +                }
 +            }
 +            if (entityTag.isEmpty()) {
@@ -86,7 +86,7 @@ index 9d967e5231bf78af1fe0418660a35734502f6a57..c9b393c92009fd740ff42e8d27703a60
 @@ -324,6 +353,7 @@ public class CraftMetaSpawnEgg extends CraftMetaItem implements SpawnEggMeta {
              if (this.entityTag != null) {
                  // Remove ID tag as it is now in the material
-                 this.entityTag.remove(ENTITY_ID.NBT);
+                 this.entityTag.remove(CraftMetaSpawnEgg.ENTITY_ID.NBT);
 +                if (entityTag.isEmpty()) { entityTag = null; } // EMC
              }
  
