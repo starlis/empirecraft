@@ -6,4 +6,4 @@ pluginManagement {
 }
 
 rootProject.name = "EmpireCraft"
-include("EmpireCraft-API", "EmpireCraft-Server")
+include("EmpireCraft-API", "EmpireCraft-Server", "paper-api-generator")

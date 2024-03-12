@@ -6,33 +6,41 @@ Subject: [PATCH] Add Player.getFishingHook() API and kill hook after rod
 
 
 diff --git a/src/main/java/net/minecraft/world/entity/projectile/FishingHook.java b/src/main/java/net/minecraft/world/entity/projectile/FishingHook.java
-index a2093158e57d5f43c4afa66386481b82b3c4c3c4..d39e8c6e696a72e79ea79be285be29ce02806980 100644
+index 91497f5e6c07fcf1b05eca6846c51e1a15ed3bc0..af0ef1e3eb368a79a33859693684025ab2e40c48 100644
 --- a/src/main/java/net/minecraft/world/entity/projectile/FishingHook.java
 +++ b/src/main/java/net/minecraft/world/entity/projectile/FishingHook.java
-@@ -572,8 +572,8 @@ public class FishingHook extends Projectile {
+@@ -573,8 +573,8 @@ public class FishingHook extends Projectile {
              }
              // CraftBukkit end
  
--            this.discard();
+-            this.discard(EntityRemoveEvent.Cause.DESPAWN); // CraftBukkit - add Bukkit remove cause
 -            return i;
-+            //this.discard(); // EMC - move to after damage event in EntityFishingRod
++            // this.discard(EntityRemoveEvent.Cause.DESPAWN); // CraftBukkit - add Bukkit remove cause // EMC - move to after damage event in FishingRodItem
 +            return i == 0 ? -1 : i; // EMC - use -1 to represent "0 but kill entity"
          } else {
              return 0;
          }
 diff --git a/src/main/java/net/minecraft/world/item/FishingRodItem.java b/src/main/java/net/minecraft/world/item/FishingRodItem.java
-index ad326a68e87ae571a7eb7b6804bf67ecec64211f..ec4c97ae1faae74e56bd9b516c1bae09a7bea648 100644
+index 95144f0ea5e99285c0a82b9d2e60766b785a236d..0a803770b7a2bcebd0fe569084f25dadd67ecb56 100644
 --- a/src/main/java/net/minecraft/world/item/FishingRodItem.java
 +++ b/src/main/java/net/minecraft/world/item/FishingRodItem.java
-@@ -30,9 +30,10 @@ public class FishingRodItem extends Item implements Vanishable {
+@@ -12,6 +12,7 @@ import net.minecraft.world.level.Level;
+ import net.minecraft.world.level.gameevent.GameEvent;
+ 
+ // CraftBukkit start
++import org.bukkit.event.entity.EntityRemoveEvent;
+ import org.bukkit.event.player.PlayerFishEvent;
+ import org.bukkit.craftbukkit.CraftEquipmentSlot;
+ // CraftBukkit end
+@@ -30,9 +31,10 @@ public class FishingRodItem extends Item implements Vanishable {
          if (user.fishing != null) {
              if (!world.isClientSide) {
-                 i = user.fishing.retrieve(hand, itemstack); // Paper - add hand parameter
+                 i = user.fishing.retrieve(hand, itemstack); // Paper - Add hand parameter to PlayerFishEvent
 -                itemstack.hurtAndBreak(i, user, (entityhuman1) -> {
 +                itemstack.hurtAndBreak(Math.max(0, i), user, (entityhuman1) -> { // EMC - Ignore -1 return using Math.max
                      entityhuman1.broadcastBreakEvent(hand);
                  });
-+                if (i != 0) { user.fishing.discard(); } // EMC - removed EntityFishingHook, and 0 = cancelled
++                if (i != 0) { user.fishing.discard(EntityRemoveEvent.Cause.DESPAWN); } // EMC - removed FishingHook, and 0 = cancelled
              }
  
              world.playSound((Player) null, user.getX(), user.getY(), user.getZ(), SoundEvents.FISHING_BOBBER_RETRIEVE, SoundSource.NEUTRAL, 1.0F, 0.4F / (world.getRandom().nextFloat() * 0.4F + 0.8F));
