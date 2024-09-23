@@ -1,0 +1,52 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Fri, 6 Dec 2013 20:54:23 -0500
+Subject: [PATCH] AdvancementBroadcastEvent
+
+Used to control who sees advancement messages
+
+diff --git a/src/main/java/net/minecraft/server/PlayerAdvancements.java b/src/main/java/net/minecraft/server/PlayerAdvancements.java
+index 862a4bf003b7f810fb57dbcd150a1417c902b633..40af82e984b6c9adf2c990e85afaa0e211b53b01 100644
+--- a/src/main/java/net/minecraft/server/PlayerAdvancements.java
++++ b/src/main/java/net/minecraft/server/PlayerAdvancements.java
+@@ -1,5 +1,6 @@
+ package net.minecraft.server;
+ 
++import com.empireminecraft.customevents.AdvancementBroadcastEvent;
+ import com.google.gson.Gson;
+ import com.google.gson.GsonBuilder;
+ import com.google.gson.JsonElement;
+@@ -25,6 +26,7 @@ import java.util.Map;
+ import java.util.Map.Entry;
+ import java.util.Set;
+ import java.util.function.BiConsumer;
++import java.util.stream.Collectors;
+ import javax.annotation.Nullable;
+ import net.minecraft.FileUtil;
+ import net.minecraft.advancements.Advancement;
+@@ -45,6 +47,7 @@ import net.minecraft.server.level.ServerPlayer;
+ import net.minecraft.server.players.PlayerList;
+ import net.minecraft.util.datafix.DataFixTypes;
+ import net.minecraft.world.level.GameRules;
++import org.bukkit.entity.Player;
+ import org.slf4j.Logger;
+ 
+ public class PlayerAdvancements {
+@@ -249,7 +252,16 @@ public class PlayerAdvancements {
+                 advancement.value().display().ifPresent((advancementdisplay) -> {
+                     // Paper start - Add Adventure message to PlayerAdvancementDoneEvent
+                     if (event.message() != null && this.player.level().getGameRules().getBoolean(GameRules.RULE_ANNOUNCE_ADVANCEMENTS)) {
+-                        this.playerList.broadcastSystemMessage(io.papermc.paper.adventure.PaperAdventure.asVanilla(event.message()), false);
++                        // EMC start
++                        AdvancementBroadcastEvent broadcastEvent = new AdvancementBroadcastEvent(this.player.getBukkitEntity(), this.playerList.players.stream().map(ServerPlayer::getBukkitEntity).collect(Collectors.toSet()));
++                        broadcastEvent.callEvent();
++                        if (!broadcastEvent.isCancelled()) {
++                            for (Player player : broadcastEvent.getReceivers()) {
++                                player.sendMessage(event.message());
++                            }
++                        }
++                        //this.playerList.broadcastSystemMessage(io.papermc.paper.adventure.PaperAdventure.asVanilla(event.message()), false);
++                        // EMC end
+                         // Paper end
+                     }
+ 

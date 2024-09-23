@@ -1,0 +1,92 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Fri, 29 Mar 2019 21:45:09 -0400
+Subject: [PATCH] amend ensureServerConversions
+
+pending paper merge, store data version on stacks
+
+diff --git a/src/main/java/org/bukkit/inventory/ItemFactory.java b/src/main/java/org/bukkit/inventory/ItemFactory.java
+index bd0e55562f1cabef3078573182e0cf9fbc844585..818da1eaaee094f9952ff8a8adba22d450e71c8c 100644
+--- a/src/main/java/org/bukkit/inventory/ItemFactory.java
++++ b/src/main/java/org/bukkit/inventory/ItemFactory.java
+@@ -246,6 +246,17 @@ public interface ItemFactory {
+     String getI18NDisplayName(@Nullable ItemStack item);
+     // Paper end - add getI18NDisplayName
+ 
++    // EMC start
++    /**
++     * Ensure that this stack is represented by an Internal Item Stack
++     * @param item The stack to ensure is internal
++     * @return A CraftItemStack backed ItemStack with an internal representation
++     * @deprecated Don't use this
++     */
++    @Deprecated
++    @NotNull
++    ItemStack _asServerItemStack(@NotNull ItemStack item);
++    // EMC end
+     // Paper start - ensure server conversions API
+     /**
+      * Minecraft's updates are converting simple item stacks into more complex NBT oriented Item Stacks.
+diff --git a/src/main/java/org/bukkit/inventory/ItemStack.java b/src/main/java/org/bukkit/inventory/ItemStack.java
+index 121865ebc3d68f0f0140dfbbcdd0ba929c548d46..a2bca9a02cf7c1814e238fc5778f92c09b46e663 100644
+--- a/src/main/java/org/bukkit/inventory/ItemStack.java
++++ b/src/main/java/org/bukkit/inventory/ItemStack.java
+@@ -31,7 +31,30 @@ import org.jetbrains.annotations.Nullable;
+ public class ItemStack implements Cloneable, ConfigurationSerializable, Translatable, net.kyori.adventure.text.event.HoverEventSource<net.kyori.adventure.text.event.HoverEvent.ShowItem>, net.kyori.adventure.translation.Translatable, io.papermc.paper.persistence.PersistentDataViewHolder { // Paper
+     private ItemStack craftDelegate; // Paper - always delegate to server-backed stack
+     private MaterialData data = null;
++    private Integer dataVersion = null;
+ 
++    /**
++     * Gets the DataVersion of this item stack, usually always the current version.
++     * If you do not know your data version from pre 1.13.2, you may call .setDataVersion(-1)
++     * and call {@link #ensureServerConversions()}.
++     * @return The Data Version of this itemstack.
++     */
++    public int getDataVersion() {
++        return dataVersion != null ? dataVersion : Bukkit.getUnsafe().getDataVersion();
++    }
++
++    /**
++     * Sets the DataVersion of this item stack, in preparation for calling {@link #ensureServerConversions()}
++     * You should not use this method unless you are converting known legacy data.
++     * @param dataVersion The data version. Use -1 for pre 1.13.2 data. Any stack created post 1.13.2 needs to know its data version
++     * @return previous data version
++     */
++
++    public int setDataVersion(int dataVersion) {
++        int previousDataVersion = this.getDataVersion();
++        this.dataVersion = dataVersion;
++        return previousDataVersion;
++    }
+     // Paper start - add static factory methods
+     /**
+      * Creates an itemstack with the specified item type and a count of 1.
+@@ -496,7 +519,7 @@ public class ItemStack implements Cloneable, ConfigurationSerializable, Translat
+     public Map<String, Object> serialize() {
+         Map<String, Object> result = new LinkedHashMap<String, Object>();
+ 
+-        result.put("v", Bukkit.getUnsafe().getDataVersion()); // Include version to indicate we are using modern material names (or LEGACY prefix)
++        result.put("v", this.getDataVersion()); // Paper
+         result.put("type", getType().name());
+ 
+         if (getAmount() != 1) {
+@@ -548,6 +571,7 @@ public class ItemStack implements Cloneable, ConfigurationSerializable, Translat
+         }
+ 
+         ItemStack result = new ItemStack(type, amount, damage);
++        result.dataVersion = version; // Paper
+ 
+         if (args.containsKey("enchantments")) { // Backward compatiblity, @deprecated
+             Object raw = args.get("enchantments");
+@@ -716,8 +740,9 @@ public class ItemStack implements Cloneable, ConfigurationSerializable, Translat
+      *
+      * Use this method to ensure any desired data conversions are processed.
+      * The input itemstack will not be the same as the returned itemstack.
++     * Runs all Minecraft Data Fixer updates on this ItemStack that are needed.
+      *
+-     * @return A potentially Data Converted ItemStack
++     * @return A new stack with Data Converted ItemStack
+      */
+     @NotNull
+     public ItemStack ensureServerConversions() {

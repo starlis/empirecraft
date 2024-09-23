@@ -1,0 +1,50 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Sat, 15 Jun 2013 23:19:03 -0400
+Subject: [PATCH] ItemStack isSimiliar API to skip name checks
+
+Skip Item Name is useful if you want to treat a renamed item the same as an unrenamed item, when lore is involved
+
+For example, lore can be used to identify a custom item, but then if a player renames it, the isSimilar breaks.
+
+This new boolean allows you to verify if the item is the same ignoring the name field by temporarily nulling it during the check.
+
+diff --git a/src/main/java/org/bukkit/inventory/ItemStack.java b/src/main/java/org/bukkit/inventory/ItemStack.java
+index 7f63a3a37eb06049bd5de10466c6dd96cb5dd4ee..c2fefa9891bca313de3c40eaf687008d10f961d9 100644
+--- a/src/main/java/org/bukkit/inventory/ItemStack.java
++++ b/src/main/java/org/bukkit/inventory/ItemStack.java
+@@ -17,6 +17,7 @@ import org.bukkit.enchantments.Enchantment;
+ import org.bukkit.inventory.meta.Damageable;
+ import org.bukkit.inventory.meta.ItemMeta;
+ import org.bukkit.material.MaterialData;
++import org.jetbrains.annotations.Contract;
+ import org.jetbrains.annotations.NotNull;
+ import org.jetbrains.annotations.Nullable;
+ 
+@@ -333,8 +334,25 @@ public class ItemStack implements Cloneable, ConfigurationSerializable, Translat
+      * @param stack the item stack to compare to
+      * @return true if the two stacks are equal, ignoring the amount
+      */
++    // EMC start - add API to skip checking durability and item name
++    @Contract("null -> false")
+     public boolean isSimilar(@Nullable ItemStack stack) {
+-        return this.craftDelegate.isSimilar(stack); // Paper - delegate
++        return isSimilar(stack, false);
++    }
++
++    /**
++     * This method is the same as equals, but does not consider stack size
++     * (amount).
++     *
++     * @param stack the item stack to compare to
++     * @param skipCheckingName Ignore differences in display name
++     * @return true if the two stacks are equal, ignoring the amount, and optionally durability/name
++     */
++    @Contract("null,_ -> false")
++    //@Deprecated
++    public boolean isSimilar(@Nullable ItemStack stack, boolean skipCheckingName) {
++        return this.craftDelegate.isSimilar(stack, skipCheckingName); // Paper - delegate
++        // EMC end
+     }
+ 
+     @NotNull

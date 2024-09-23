@@ -1,0 +1,119 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Tue, 11 Jun 2013 23:15:00 -0400
+Subject: [PATCH] EntityTasks API
+
+Allows scheduling repeating task timers on an entity level.
+Avoids Bukkit system so that tasks will simply maintain themselves on entity removal.
+
+diff --git a/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java b/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
+index e7bb9003da73c8200e1b0bb8d0fadb9009a9f253..616fe997d4a816e36dc272056bda55c9e67407e1 100644
+--- a/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
++++ b/src/main/java/com/empireminecraft/api/CraftEAPI_Entity.java
+@@ -23,5 +23,20 @@
+ 
+ package com.empireminecraft.api;
+ 
++import org.bukkit.craftbukkit.entity.CraftEntity;
++import org.bukkit.entity.Entity;
++import org.jetbrains.annotations.NotNull;
++
+ public class CraftEAPI_Entity implements EAPI_Entity {
++
++    @NotNull
++    public <T extends Entity> EntityTask<T> scheduleTask(@NotNull T entity, int interval, @NotNull EntityTask<T> task) {
++        ((CraftEntity) entity).getHandle().entityTasks.add(task);
++        task.init(entity, interval);
++        return task;
++    }
++
++    public void cancelTasks(@NotNull Entity entity) {
++        ((CraftEntity) entity).getHandle().entityTasks.clear();
++    }
+ }
+diff --git a/src/main/java/com/empireminecraft/api/EntityTasksHandler.java b/src/main/java/com/empireminecraft/api/EntityTasksHandler.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..445af66c6a9219536b9330446393ef756523b0c7
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/api/EntityTasksHandler.java
+@@ -0,0 +1,34 @@
++package com.empireminecraft.api;
++
++import net.minecraft.world.entity.Entity;
++
++import java.util.ArrayList;
++import java.util.Iterator;
++import java.util.List;
++
++public final class EntityTasksHandler {
++
++    private EntityTasksHandler() {}
++
++    public static void tickHandler(Entity entity) {
++        if (entity.entityTasks.isEmpty()) {
++            return;
++        }
++        List<EntityTask<?>> tasksToRun = new ArrayList<>();
++        final Iterator<EntityTask<?>> it = entity.entityTasks.iterator();
++        while (it.hasNext()) {
++            EntityTask<?> task = it.next();
++            if (!task.isValid()) {
++                it.remove();
++                continue;
++            }
++            if (task.isReady()) {
++                tasksToRun.add(task);
++            }
++        }
++
++        tasksToRun.forEach(EntityTask::tick);
++    }
++
++    public static class TaskList extends ArrayList<EntityTask<?>> {}
++}
+diff --git a/src/main/java/net/minecraft/server/level/ServerLevel.java b/src/main/java/net/minecraft/server/level/ServerLevel.java
+index c96f3dcd365bc140b1f4680ef6bd770c80f8eda1..5bd06fd5515dc7b85255db677259793199a31155 100644
+--- a/src/main/java/net/minecraft/server/level/ServerLevel.java
++++ b/src/main/java/net/minecraft/server/level/ServerLevel.java
+@@ -1,5 +1,6 @@
+ package net.minecraft.server.level;
+ 
++import com.empireminecraft.api.EntityTasksHandler;
+ import com.google.common.annotations.VisibleForTesting;
+ import co.aikar.timings.TimingHistory; // Paper
+ import com.google.common.collect.Lists;
+@@ -1239,6 +1240,7 @@ public class ServerLevel extends Level implements WorldGenLevel, ca.spottedleaf.
+         ProfilerFiller gameprofilerfiller = this.getProfiler();
+ 
+         ++entity.tickCount;
++        EntityTasksHandler.tickHandler(entity); // EMC
+         this.getProfiler().push(() -> {
+             return BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString();
+         });
+@@ -1277,6 +1279,7 @@ public class ServerLevel extends Level implements WorldGenLevel, ca.spottedleaf.
+                 // Paper end
+                 passenger.setOldPosAndRot();
+                 ++passenger.tickCount;
++                EntityTasksHandler.tickHandler(passenger); // EMC
+                 ProfilerFiller gameprofilerfiller = this.getProfiler();
+ 
+                 gameprofilerfiller.push(() -> {
+diff --git a/src/main/java/net/minecraft/world/entity/Entity.java b/src/main/java/net/minecraft/world/entity/Entity.java
+index 542c85663643d1465afa67c199a30b286edbf2e4..f2e329790c9a3db686ba037db8c1761d2123f5fc 100644
+--- a/src/main/java/net/minecraft/world/entity/Entity.java
++++ b/src/main/java/net/minecraft/world/entity/Entity.java
+@@ -1,5 +1,6 @@
+ package net.minecraft.world.entity;
+ 
++import com.empireminecraft.api.EntityTasksHandler;
+ import com.google.common.collect.ImmutableList;
+ import com.google.common.collect.ImmutableList.Builder;
+ import com.google.common.collect.Lists;
+@@ -275,6 +276,7 @@ public abstract class Entity implements SyncedDataHolder, Nameable, EntityAccess
+     }
+     // Paper end
+     public final Map<NamespacedKey, Object> tempMeta = Maps.newHashMap(); // EMC
++    public EntityTasksHandler.TaskList entityTasks = new EntityTasksHandler.TaskList(); // EMC
+ 
+     @Override
+     public CommandSender getBukkitSender(CommandSourceStack wrapper) {

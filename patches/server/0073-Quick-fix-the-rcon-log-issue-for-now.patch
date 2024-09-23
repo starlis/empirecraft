@@ -1,0 +1,48 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Sat, 19 Dec 2020 03:59:09 -0500
+Subject: [PATCH] Quick fix the rcon log issue for now
+
+
+diff --git a/src/main/java/net/minecraft/server/Main.java b/src/main/java/net/minecraft/server/Main.java
+index 78954efb1ba61a4fd5b3d28e3e0360cb5705d10e..ffbc947db5fa6c8762de81334212bffe095a31b1 100644
+--- a/src/main/java/net/minecraft/server/Main.java
++++ b/src/main/java/net/minecraft/server/Main.java
+@@ -131,6 +131,7 @@ public class Main {
+             RegionFileVersion.configure(dedicatedserversettings.getProperties().regionFileComression);
+             Path path2 = Paths.get("eula.txt");
+             Eula eula = new Eula(path2);
++            PaperLogFilters.configureFilter(); // Paper
+             // Paper start - load config files early for access below if needed
+             org.bukkit.configuration.file.YamlConfiguration bukkitConfiguration = io.papermc.paper.configuration.PaperConfigurations.loadLegacyConfigFile((File) optionset.valueOf("bukkit-settings"));
+             org.bukkit.configuration.file.YamlConfiguration spigotConfiguration = io.papermc.paper.configuration.PaperConfigurations.loadLegacyConfigFile((File) optionset.valueOf("spigot-settings"));
+diff --git a/src/main/java/net/minecraft/server/PaperLogFilters.java b/src/main/java/net/minecraft/server/PaperLogFilters.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..cd518c157d25c7b268b04d0a25c073eaf2c2792b
+--- /dev/null
++++ b/src/main/java/net/minecraft/server/PaperLogFilters.java
+@@ -0,0 +1,24 @@
++package net.minecraft.server;
++
++import org.apache.logging.log4j.LogManager;
++import org.apache.logging.log4j.core.LogEvent;
++import org.apache.logging.log4j.core.filter.AbstractFilter;
++
++public final class PaperLogFilters {
++    private PaperLogFilters() {
++    }
++
++    public static void configureFilter() {
++        final org.apache.logging.log4j.core.Logger logger = ((org.apache.logging.log4j.core.Logger) LogManager.getRootLogger());
++        logger.addFilter(new AbstractFilter() {
++
++            @Override
++            public Result filter(LogEvent logEvent) {
++                String msg = logEvent.getMessage().getFormattedMessage();
++                boolean match = msg.contains("RCON Client");
++                return match ? Result.DENY : Result.ACCEPT;
++            }
++        });
++
++    }
++}

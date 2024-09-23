@@ -1,0 +1,511 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: chickeneer <emcchickeneer@gmail.com>
+Date: Wed, 11 Sep 2024 21:34:46 -0500
+Subject: [PATCH] Add a data converter to migrate from Empirecraft metadata
+
+
+diff --git a/src/main/java/ca/spottedleaf/dataconverter/minecraft/MCVersionRegistry.java b/src/main/java/ca/spottedleaf/dataconverter/minecraft/MCVersionRegistry.java
+index 69b5f9fe20c09ac0e72205ba8e4475c2dfea8313..123c65871e1b42eaf2f8e65a3635f1ff945b732d 100644
+--- a/src/main/java/ca/spottedleaf/dataconverter/minecraft/MCVersionRegistry.java
++++ b/src/main/java/ca/spottedleaf/dataconverter/minecraft/MCVersionRegistry.java
+@@ -239,7 +239,8 @@ public final class MCVersionRegistry {
+                 3833,
+                 3939,
+                 3943,
+-                3945
++                3945,
++                3952 // EMC
+                 // All up to 1.21
+         };
+         Arrays.sort(converterVersions);
+diff --git a/src/main/java/ca/spottedleaf/dataconverter/minecraft/datatypes/MCTypeRegistry.java b/src/main/java/ca/spottedleaf/dataconverter/minecraft/datatypes/MCTypeRegistry.java
+index f4d7700ab53753dd5ac3222fbfd7bdd11b48197c..8fff64a10f5837729c43205275ddd423e8f2e64e 100644
+--- a/src/main/java/ca/spottedleaf/dataconverter/minecraft/datatypes/MCTypeRegistry.java
++++ b/src/main/java/ca/spottedleaf/dataconverter/minecraft/datatypes/MCTypeRegistry.java
+@@ -1,6 +1,7 @@
+ package ca.spottedleaf.dataconverter.minecraft.datatypes;
+ 
+ import ca.spottedleaf.dataconverter.minecraft.versions.*;
++import com.empireminecraft.util.EmpireMetadataConverter;
+ import com.mojang.logging.LogUtils;
+ import org.slf4j.Logger;
+ 
+@@ -297,6 +298,7 @@ public final class MCTypeRegistry {
+         V3939.register();
+         V3943.register();
+         V3945.register();
++        EmpireMetadataConverter.register();
+     }
+ 
+     private MCTypeRegistry() {}
+diff --git a/src/main/java/com/empireminecraft/util/EmpireMetadataConverter.java b/src/main/java/com/empireminecraft/util/EmpireMetadataConverter.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..41b972fcffa51156cd64c19301e9f1cb243571f9
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/util/EmpireMetadataConverter.java
+@@ -0,0 +1,465 @@
++/*
++ * Copyright (c) 2024. Starlis LLC / dba Empire Minecraft
++ *
++ * This source code is proprietary software and must not be redistributed without Starlis LLC's approval
++ */
++
++package com.empireminecraft.util;
++
++import ca.spottedleaf.dataconverter.converters.DataConverter;
++import ca.spottedleaf.dataconverter.minecraft.MCVersions;
++import ca.spottedleaf.dataconverter.minecraft.datatypes.MCTypeRegistry;
++import ca.spottedleaf.dataconverter.types.ListType;
++import ca.spottedleaf.dataconverter.types.MapType;
++import ca.spottedleaf.dataconverter.types.ObjectType;
++import ca.spottedleaf.dataconverter.types.nbt.NBTMapType;
++import com.google.gson.JsonParseException;
++import net.minecraft.network.chat.Component;
++import org.bukkit.craftbukkit.CraftRegistry;
++import org.bukkit.util.BlockVector;
++import org.jetbrains.annotations.NotNull;
++import org.jetbrains.annotations.Nullable;
++
++import java.io.IOException;
++import java.util.HashMap;
++import java.util.HashSet;
++import java.util.Map;
++import java.util.Set;
++import java.util.regex.Pattern;
++
++public final class EmpireMetadataConverter {
++
++    private static final int VERSION = MCVersions.V_1_21_RC1;
++
++    private static final String META_MAP = "MetaMap";
++    private static final String META_TYPE = "MetaType";
++    private static final String ITEM = "Item";
++    private static final String ENTITY_META = "_EntityMeta";
++    private static final String TILEENTITY_META = "_TileEntityMeta";
++    private static final String WORLD_META = "_WorldMeta";
++    private static final String CHUNK_META = "_ChunkMetaNew";
++    private static final String BLOCK_META_LIST = "_BlockMetaList";
++    private static final String LEGACY_CHUNK_META_LIST = "_ChunkMetaList";
++    private static final String BLOCK_POS = "_BlockPos";
++    private static final String LEGACY_CHUNK_META = "_ChunkMeta";
++
++    private static final String CHUNK_PDC_KEY = "ChunkBukkitValues";
++    private static final String CHUNK_BLOCK_MAP_KEY = "empire:block_meta";
++    private static final String LEVEL_DATA_KEY = "Data";
++    private static final String LEVEL_PDC_KEY = "BukkitValues";
++    private static final String ENTITY_PDC_KEY = "BukkitValues";
++    private static final String TILEENTITY_PDC_KEY = "PublicBukkitValues";
++    private static final String ITEM_PDC_KEY = "PublicBukkitValues";
++
++    public static void register() {
++
++        MCTypeRegistry.CHUNK.addStructureConverter(new DataConverter<>(VERSION) {
++            @Override
++            public MapType<String> convert(MapType<String> data, long sourceVersion, long toVersion) {
++                MapType<String> legacyChunkMap = data.getMap(LEGACY_CHUNK_META);
++                if (legacyChunkMap != null) {
++                    data.remove(LEGACY_CHUNK_META);
++
++                    MapType<String> chunkMap = data.getOrCreateMap(CHUNK_PDC_KEY);
++                    MapType<String> newBlockMap = data.getTypeUtil().createEmptyMap();
++                    for (String key : legacyChunkMap.keys()) {
++                        BlockVector vector = deserializeOldLoc(key);
++                        if (vector != null) {
++                            MapType<String> e = legacyChunkMap.getMap(key);
++                            if (vector.getBlockX() == 0 && vector.getBlockY() == -1 && vector.getBlockZ() == 0) {
++                                normalizeMap(chunkMap, e);
++                            } else {
++                                MapType<String> newMap = data.getTypeUtil().createEmptyMap();
++                                normalizeMap(newMap, e);
++                                if (!newMap.isEmpty()) {
++                                    newBlockMap.setMap(vectorToKey(vector), newMap);
++                                }
++                            }
++                        }
++                    }
++                    if (!newBlockMap.isEmpty()) {
++                        chunkMap.setMap(CHUNK_BLOCK_MAP_KEY, newBlockMap);
++                    }
++                    data.setMap(CHUNK_PDC_KEY, chunkMap);
++                    return null;
++                }
++
++                ListType legacyChunkList = data.getList(LEGACY_CHUNK_META_LIST, ObjectType.MAP);
++                if (legacyChunkList != null) {
++                    data.remove(LEGACY_CHUNK_META_LIST);
++
++                    MapType<String> chunkMap = data.getOrCreateMap(CHUNK_PDC_KEY);
++                    MapType<String> newBlockMap = data.getTypeUtil().createEmptyMap();
++                    final int size = legacyChunkList.size();
++                    for (int i = 0; i < size; i++) {
++                        MapType<String> e = legacyChunkList.getMap(i);
++                        MapType<String> blockPos = e.getMap(BLOCK_POS);
++                        if (blockPos != null) {
++                            e.remove(BLOCK_POS);
++                            BlockVector vector = getBlockPosFromMap(blockPos);
++                            if (vector != null) {
++                                if (vector.getBlockX() == 0 && vector.getBlockY() == -1 && vector.getBlockZ() == 0) {
++                                    normalizeMap(chunkMap, e);
++                                } else {
++                                    MapType<String> newMap = data.getTypeUtil().createEmptyMap();
++                                    normalizeMap(newMap, e);
++                                    if (!newMap.isEmpty()) {
++                                        newBlockMap.setMap(vectorToKey(vector), newMap);
++                                    }
++                                }
++                            }
++                        }
++                    }
++                    if (!newBlockMap.isEmpty()) {
++                        chunkMap.setMap(CHUNK_BLOCK_MAP_KEY, newBlockMap);
++                    }
++
++                    data.setMap(CHUNK_PDC_KEY, chunkMap);
++                    return null;
++                }
++
++                MapType<String> map = data.getMap(CHUNK_META);
++                if (map != null) {
++                    data.remove(CHUNK_META);
++                    MapType<String> chunkMap = data.getOrCreateMap(CHUNK_PDC_KEY);
++                    normalizeMap(chunkMap, map);
++                    data.setMap(CHUNK_PDC_KEY, chunkMap);
++                }
++                ListType blockMetaList = data.getList(BLOCK_META_LIST, ObjectType.MAP);
++                if (blockMetaList != null) {
++                    data.remove(BLOCK_META_LIST);
++
++                    MapType<String> newBlockMap = data.getTypeUtil().createEmptyMap();
++                    int size = blockMetaList.size();
++                    for (int i = 0; i < size; i++) {
++                        MapType<String> e = blockMetaList.getMap(i);
++                        MapType<String> blockPos = e.getMap(BLOCK_POS);
++                        if (blockPos != null) {
++                            e.remove(BLOCK_POS);
++                            BlockVector vector = getBlockPosFromMap(blockPos);
++                            if (vector != null) {
++                                MapType<String> newMap = data.getTypeUtil().createEmptyMap();
++                                normalizeMap(newMap, e);
++                                if (!newMap.isEmpty()) {
++                                    newBlockMap.setMap(vectorToKey(vector), newMap);
++                                }
++                            }
++                        }
++                    }
++                    if (!newBlockMap.isEmpty()) {
++                        MapType<String> chunkMap = data.getOrCreateMap(CHUNK_PDC_KEY);
++                        chunkMap.setMap(CHUNK_BLOCK_MAP_KEY, newBlockMap);
++                        data.setMap(CHUNK_PDC_KEY, chunkMap);
++                    }
++                }
++                return null;
++            }
++        });
++
++        MCTypeRegistry.LEVEL.addStructureConverter(new DataConverter<>(VERSION) {
++            @Override
++            public MapType<String> convert(MapType<String> data, long sourceVersion, long toVersion) {
++                MapType<String> dataMap = data.getMap(LEVEL_DATA_KEY);
++                if (dataMap == null) {
++                    return null;
++                }
++
++                MapType<String> oldMap = dataMap.getMap(WORLD_META);
++                if (oldMap == null) {
++                    return null;
++                }
++
++                dataMap.remove(WORLD_META);
++
++                MapType<String> map = dataMap.getOrCreateMap(LEVEL_PDC_KEY);
++                normalizeMap(map, oldMap);
++                dataMap.setMap(LEVEL_PDC_KEY, map);
++                data.setMap(LEVEL_DATA_KEY, dataMap);
++                return null;
++            }
++        });
++
++        MCTypeRegistry.TILE_ENTITY.addStructureConverter(new DataConverter<>(VERSION) {
++            @Override
++            public MapType<String> convert(MapType<String> data, long sourceVersion, long toVersion) {
++                MapType<String> tileMap = data.getMap(TILEENTITY_META);
++                if (tileMap == null) {
++                    return null;
++                }
++
++                data.remove(TILEENTITY_META);
++
++                MapType<String> map = data.getOrCreateMap(TILEENTITY_PDC_KEY);
++                normalizeMap(map, tileMap);
++
++                data.setMap(TILEENTITY_PDC_KEY, map);
++                return null;
++            }
++        });
++
++        MCTypeRegistry.ENTITY.addStructureConverter(new DataConverter<>(VERSION) {
++            @Override
++            public MapType<String> convert(MapType<String> data, long sourceVersion, long toVersion) {
++                MapType<String> entityMap = data.getMap(ENTITY_META);
++                if (entityMap == null) {
++                    return null;
++                }
++
++                data.remove(ENTITY_META);
++
++                MapType<String> map = data.getOrCreateMap(ENTITY_PDC_KEY);
++                normalizeMap(map, entityMap);
++
++                data.setMap(ENTITY_PDC_KEY, map);
++                return null;
++            }
++        });
++
++        MCTypeRegistry.PLAYER.addStructureConverter(new DataConverter<>(VERSION) {
++            @Override
++            public MapType<String> convert(MapType<String> data, long sourceVersion, long toVersion) {
++                MapType<String> entityMap = data.getMap(ENTITY_META);
++                if (entityMap == null) {
++                    return null;
++                }
++
++                data.remove(ENTITY_META);
++
++                MapType<String> map = data.getOrCreateMap(ENTITY_PDC_KEY);
++                normalizeMap(map, entityMap);
++
++                data.setMap(ENTITY_PDC_KEY, map);
++                return null;
++            }
++        });
++
++        MCTypeRegistry.ITEM_STACK.addStructureConverter(new DataConverter<>(VERSION) {
++            @Override
++            public MapType<String> convert(MapType<String> data, long sourceVersion, long toVersion) {
++                final MapType<String> components = data.getMap("components");
++                if (components == null) {
++                    return null;
++                }
++
++                final ListType lore = components.getList("minecraft:lore", ObjectType.STRING);
++                if (lore == null) {
++                    return null;
++                }
++
++                int lastLine = 0;
++                boolean hasSpecial = false;
++                boolean hasShiny = false;
++                for (int i = 0; i < lore.size(); i++) {
++                    String line = getString(lore.getString(i));
++                    if (!line.isEmpty()) {
++                        if ("&&::SHINY".equals(line)) {
++                            hasShiny = true;
++                            hasSpecial = true;
++                            break;
++                        } else if ("&&::META".equals(line)) {
++                            hasSpecial = true;
++                            break;
++                        } else {
++                            lastLine = i + 1;
++                        }
++                    }
++                }
++                Map<String, String> meta = new HashMap<>();
++                if (hasSpecial) {
++                    for (int i = 31; i + 1 < lore.size(); i += 2) {
++                        String key = getString(lore.getString(i));
++                        String val = getString(lore.getString(i + 1));
++                        meta.put(key, val);
++                    }
++
++                    ListType newlore = data.getTypeUtil().createEmptyList();
++                    for (int x = 0; x < lastLine; x++) {
++                        newlore.addString(lore.getString(x));
++                    }
++                    components.setList("minecraft:lore", newlore);
++
++                    if (hasShiny && !components.hasKey("minecraft:enchantments")) {
++                        components.setBoolean("minecraft:enchantment_glint_override", true);
++                    }
++
++                    MapType<String> customData = components.getOrCreateMap("minecraft:custom_data");
++                    MapType<String> bukkitValues = customData.getOrCreateMap(ITEM_PDC_KEY);
++
++                    meta.forEach((key, value) -> bukkitValues.setString("empire:" + normalizeKey(key), value));
++
++                    customData.setMap(ITEM_PDC_KEY, bukkitValues);
++                    components.setMap("minecraft:custom_data", customData);
++                    data.setMap("components", components);
++                }
++
++                return null;
++            }
++        });
++
++    }
++
++    static @NotNull String vectorToKey(@NotNull BlockVector vector) {
++        vector = normalizeVector(vector);
++        return "empire:pos_" + vector.getBlockX() + "_" + vector.getBlockY() + "_" + vector.getBlockZ();
++    }
++
++    static @NotNull BlockVector normalizeVector(@NotNull BlockVector vector) {
++        int x = vector.getBlockX();
++        int y = vector.getBlockY();
++        int z = vector.getBlockZ();
++        return new BlockVector(((x >> 4) << 4) - x, y, ((z >> 4) << 4) - z);
++    }
++
++    static @NotNull MapType<String> normalizeMap(@NotNull MapType<String> map, @NotNull MapType<String> oldMap) {
++        String type = oldMap.getString(META_TYPE, null);
++        oldMap.remove(META_TYPE);
++
++        if (META_MAP.equals(type)) {
++            for (String key : new HashSet<>(oldMap.keys())) {
++                if (shouldSkipKey(key)) {
++                    continue;
++                }
++
++                Object value = oldMap.getGeneric(key);
++                if (value instanceof MapType) {
++                    MapType<String> m = (MapType<String>) value;
++                    String t = m.getString(META_TYPE, null);
++                    if (ITEM.equals(t)) {
++                        m.remove(META_TYPE);
++                        int dataVersion = m.getInt("DataVersion", -1);
++                        if (dataVersion == -1) {
++                            m.setInt("DataVersion", -1);
++                        }
++                        NBTMapType nbtMap;
++                        if (m instanceof NBTMapType) {
++                            nbtMap = (NBTMapType) m;
++                        } else {
++                            nbtMap = new NBTMapType();
++                            for (String k : m.keys()) {
++                                nbtMap.setGeneric(k, m.getGeneric(k));
++                            }
++                        }
++                        java.io.ByteArrayOutputStream outputStream = new java.io.ByteArrayOutputStream();
++                        try {
++                            net.minecraft.nbt.NbtIo.writeCompressed(
++                                nbtMap.getTag(),
++                                outputStream
++                            );
++                        } catch (IOException ex) {
++                            throw new RuntimeException(ex);
++                        }
++                        value = outputStream.toByteArray();
++                    } else {
++                        MapType<String> newMap = oldMap.getTypeUtil().createEmptyMap();
++                        value = normalizeMap(newMap, (MapType<String>) value);
++                    }
++                } else if (value instanceof ListType list) {
++                    if (list.size() > 0) {
++                        ListType newList = list.getTypeUtil().createEmptyList();
++                        for (int i = 0; i < list.size(); i++) {
++                            Object obj = list.getGeneric(0);
++                            if (obj instanceof MapType) {
++                                MapType<String> newMap = oldMap.getTypeUtil().createEmptyMap();
++                                obj = normalizeMap(newMap, (MapType<String>) obj);
++                            }
++                            newList.addGeneric(obj);
++                        }
++                        value = newList;
++                    }
++                }
++                String newKey = "empire:" + normalizeKey(key);
++                map.setGeneric(newKey, value);
++            }
++        }
++        return map;
++    }
++
++    static boolean shouldSkipKey(@NotNull String key) {
++        if (SKIP_KEYS.contains(key)) {
++            return true;
++        }
++        for (String k : SKIP_STARTS_WITH) {
++            if (key.startsWith(k)) {
++                return true;
++            }
++        }
++        return false;
++    }
++
++    private static final Set<String> SKIP_STARTS_WITH = Set.of("survivalRespawn_");
++
++    private static final Set<String> SKIP_KEYS = Set.of(
++        "groupLogoutMembers",
++        "homeResidence",
++        "__regInfo",
++        "engagedAge",
++        "entityAttackers",
++        "playerCombatActivity",
++        "ipReplenishMap"
++    );
++
++    static @NotNull String getString(@NotNull String text) {
++        if (text.startsWith("{") && text.endsWith("}")) {
++            Component component = null;
++            try {
++                component = Component.Serializer.fromJson(text, CraftRegistry.getMinecraftRegistry());
++            } catch (JsonParseException ignored) {
++            }
++            text = component != null ? component.getString() : text;
++        }
++        if (text.startsWith("\"") && text.endsWith("\"") && text.length() > 1) {
++            text = text.substring(1, text.length() - 1);
++        }
++        return text;
++    }
++
++    static @NotNull String normalizeKey(@NotNull String input) {
++        StringBuilder sb = new StringBuilder(input.length() + 4);
++        boolean lastUnderscore = false;
++        char[] charArray = input.toCharArray();
++        for (int i = 0; i < charArray.length; i++) {
++            char c = charArray[i];
++            if (Character.isUpperCase(c)) {
++                if (i != 0 && !lastUnderscore) {
++                    sb.append('_');
++                }
++                sb.append(Character.toLowerCase(c));
++                lastUnderscore = false;
++            } else if ('-' == c || '.' == c || '/' == c || Character.isLowerCase(c) || Character.isDigit(c)) {
++                sb.append(c);
++                lastUnderscore = false;
++            } else {
++                sb.append('_');
++                lastUnderscore = true;
++            }
++        }
++
++        return sb.toString();
++    }
++
++    private static final Pattern COLON_SPLIT = Pattern.compile(":");
++
++    static @Nullable BlockVector deserializeOldLoc(@NotNull String loc) {
++        String[] args = COLON_SPLIT.split(loc, 3);
++        if (args.length == 3) {
++            try {
++                int x = (int) Math.floor(Float.parseFloat(args[0]));
++                int y = (int) Math.floor(Float.parseFloat(args[1]));
++                int z = (int) Math.floor(Float.parseFloat(args[2]));
++                return new BlockVector(x, y, z);
++            } catch (NumberFormatException ignored) {
++            }
++        }
++        return null;
++    }
++
++    static @Nullable BlockVector getBlockPosFromMap(@NotNull MapType<String> pos) {
++        if (!pos.hasKey("x") || !pos.hasKey("x") || !pos.hasKey("x")) {
++            return null;
++        }
++        return new BlockVector(pos.getInt("x"), pos.getInt("y"), pos.getInt("z"));
++    }
++
++    private EmpireMetadataConverter() {
++    }
++}

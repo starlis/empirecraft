@@ -1,0 +1,72 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: chickeneer <emcchickeneer@gmail.com>
+Date: Sat, 1 Apr 2023 12:16:04 -0500
+Subject: [PATCH] Blaze-API
+
+
+diff --git a/src/main/java/net/minecraft/world/entity/monster/Blaze.java b/src/main/java/net/minecraft/world/entity/monster/Blaze.java
+index fc5eb680a8b1ff027c631176407d5c03a48528fd..7e11964bfde033f36b538f9b27a1390a663bf70b 100644
+--- a/src/main/java/net/minecraft/world/entity/monster/Blaze.java
++++ b/src/main/java/net/minecraft/world/entity/monster/Blaze.java
+@@ -30,6 +30,10 @@ public class Blaze extends Monster {
+     private int nextHeightOffsetChangeTick;
+     private static final EntityDataAccessor<Byte> DATA_FLAGS_ID = SynchedEntityData.defineId(Blaze.class, EntityDataSerializers.BYTE);
+ 
++    // EMC start
++    public int numFireballs = 4;
++    public int timeBetweenFireballs = 6;
++    // EMC end
+     public Blaze(EntityType<? extends Blaze> type, Level world) {
+         super(type, world);
+         this.setPathfindingMalus(PathType.WATER, -1.0F);
+@@ -218,8 +222,8 @@ public class Blaze extends Monster {
+                         if (this.attackStep == 1) {
+                             this.attackTime = 60;
+                             this.blaze.setCharged(true);
+-                        } else if (this.attackStep <= 4) {
+-                            this.attackTime = 6;
++                        } else if (this.attackStep <= this.blaze.numFireballs) { // EMC
++                            this.attackTime = this.blaze.timeBetweenFireballs; // EMC
+                         } else {
+                             this.attackTime = 100;
+                             this.attackStep = 0;
+@@ -236,7 +240,9 @@ public class Blaze extends Monster {
+                                 Vec3 vec3 = new Vec3(this.blaze.getRandom().triangle(e, 2.297 * h), f, this.blaze.getRandom().triangle(g, 2.297 * h));
+                                 SmallFireball smallFireball = new SmallFireball(this.blaze.level(), this.blaze, vec3.normalize());
+                                 smallFireball.setPos(smallFireball.getX(), this.blaze.getY(0.5) + 0.5, smallFireball.getZ());
++                                if (new com.empireminecraft.customevents.BlazeLaunchFireballEvent((org.bukkit.entity.Blaze) this.blaze.getBukkitEntity(), (org.bukkit.entity.SmallFireball) smallFireball.getBukkitEntity()).callEvent()) { // EMC
+                                 this.blaze.level().addFreshEntity(smallFireball);
++                                } else { smallFireball.kill(); } // EMC
+                             }
+                         }
+                     }
+diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftBlaze.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftBlaze.java
+index a4c9c73691300880777483b0beb17e1bd6779d06..ff93f26790d1e52e5c0296fe5205e363c53f1541 100644
+--- a/src/main/java/org/bukkit/craftbukkit/entity/CraftBlaze.java
++++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftBlaze.java
+@@ -17,4 +17,25 @@ public class CraftBlaze extends CraftMonster implements Blaze {
+     public String toString() {
+         return "CraftBlaze";
+     }
++    // EMC start
++    @Override
++    public void setFireballs(int num) {
++        getHandle().numFireballs = num;
++    }
++
++    @Override
++    public int getNumFireballs() {
++        return getHandle().numFireballs;
++    }
++
++    @Override
++    public int getTimeBetweenFireballs() {
++        return getHandle().timeBetweenFireballs;
++    }
++
++    @Override
++    public void setTimeBetweenFireballs(int timeBetweenFireballs) {
++        getHandle().timeBetweenFireballs = timeBetweenFireballs;
++    }
++    // EMC end
+ }

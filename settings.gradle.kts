@@ -1,9 +1,53 @@
+import java.util.Locale
+
 pluginManagement {
     repositories {
         gradlePluginPortal()
-		maven("https://papermc.io/repo/repository/maven-public/")
+        maven("https://repo.papermc.io/repository/maven-public/")
     }
 }
 
-rootProject.name = "EmpireCraft"
-include("EmpireCraft-API", "EmpireCraft-Server", "paper-api-generator")
+plugins {
+    id("org.gradle.toolchains.foojay-resolver-convention") version "0.8.0"
+}
+
+if (!file(".git").exists()) {
+    val errorText = """
+        
+        =====================[ ERROR ]=====================
+         The EmpireCraft project directory is not a properly cloned Git repository.
+         
+         In order to build EmpireCraft from source you must clone
+         the EmpireCraft repository using Git, not download a code
+         zip from GitHub.
+         
+		 https://github.com/starlis/empirecraft/
+        ===================================================
+    """.trimIndent()
+    error(errorText)
+}
+
+rootProject.name = "empirecraft"
+for (name in listOf("EmpireCraft-API", "EmpireCraft-Server", "paper-api-generator")) {
+    val projName = name.lowercase(Locale.ENGLISH)
+    include(projName)
+    findProject(":$projName")!!.projectDir = file(name)
+}
+
+optionalInclude("test-plugin")
+
+fun optionalInclude(name: String, op: (ProjectDescriptor.() -> Unit)? = null) {
+    val settingsFile = file("$name.settings.gradle.kts")
+    if (settingsFile.exists()) {
+        apply(from = settingsFile)
+        findProject(":$name")?.let { op?.invoke(it) }
+    } else {
+        settingsFile.writeText(
+            """
+            // Uncomment to enable the '$name' project
+            // include(":$name")
+
+            """.trimIndent()
+        )
+    }
+}

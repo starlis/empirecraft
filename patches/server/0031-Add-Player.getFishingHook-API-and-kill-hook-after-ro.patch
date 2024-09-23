@@ -1,0 +1,44 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Thu, 14 Aug 2014 18:23:33 -0400
+Subject: [PATCH] Add Player.getFishingHook() API and kill hook after rod
+ damage event
+
+
+diff --git a/src/main/java/net/minecraft/world/entity/projectile/FishingHook.java b/src/main/java/net/minecraft/world/entity/projectile/FishingHook.java
+index 1223c5d23d0ea6aed068bdf0f5725e2ad49fc82c..66997f67dfe6e42294b10caef391a4eeba1af228 100644
+--- a/src/main/java/net/minecraft/world/entity/projectile/FishingHook.java
++++ b/src/main/java/net/minecraft/world/entity/projectile/FishingHook.java
+@@ -591,8 +591,8 @@ public class FishingHook extends Projectile {
+             }
+             // CraftBukkit end
+ 
+-            this.discard(EntityRemoveEvent.Cause.DESPAWN); // CraftBukkit - add Bukkit remove cause
+-            return i;
++            // this.discard(EntityRemoveEvent.Cause.DESPAWN); // CraftBukkit - add Bukkit remove cause // EMC - move to after damage event in FishingRodItem
++            return i == 0 ? -1 : i; // EMC - use -1 to represent "0 but kill entity"
+         } else {
+             return 0;
+         }
+diff --git a/src/main/java/net/minecraft/world/item/FishingRodItem.java b/src/main/java/net/minecraft/world/item/FishingRodItem.java
+index efb21967fdd2c3b4cb35db6faf213d55da5fc30e..2a7119f4b4341517d9d1502f768d82c565c0243f 100644
+--- a/src/main/java/net/minecraft/world/item/FishingRodItem.java
++++ b/src/main/java/net/minecraft/world/item/FishingRodItem.java
+@@ -14,6 +14,7 @@ import net.minecraft.world.level.Level;
+ import net.minecraft.world.level.gameevent.GameEvent;
+ 
+ // CraftBukkit start
++import org.bukkit.event.entity.EntityRemoveEvent;
+ import org.bukkit.event.player.PlayerFishEvent;
+ import org.bukkit.craftbukkit.CraftEquipmentSlot;
+ // CraftBukkit end
+@@ -32,7 +33,8 @@ public class FishingRodItem extends Item {
+             if (!world.isClientSide) {
+                 int i = user.fishing.retrieve(hand, itemstack); // Paper - Add hand parameter to PlayerFishEvent
+ 
+-                itemstack.hurtAndBreak(i, user, LivingEntity.getSlotForHand(hand));
++                itemstack.hurtAndBreak(Math.max(0, i), user, LivingEntity.getSlotForHand(hand)); // EMC - Ignore -1 return using Math.max
++                if (i != 0) { user.fishing.discard(EntityRemoveEvent.Cause.DESPAWN); } // EMC - removed FishingHook, and 0 = cancelled
+             }
+ 
+             world.playSound((Player) null, user.getX(), user.getY(), user.getZ(), SoundEvents.FISHING_BOBBER_RETRIEVE, SoundSource.NEUTRAL, 1.0F, 0.4F / (world.getRandom().nextFloat() * 0.4F + 0.8F));

@@ -1,0 +1,260 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Mon, 4 Mar 2013 23:35:02 -0500
+Subject: [PATCH] Temporary Meta API
+
+
+diff --git a/src/main/java/net/minecraft/world/entity/Entity.java b/src/main/java/net/minecraft/world/entity/Entity.java
+index bc45c74987974b4828201e06fc8b1f3fbc0af8b4..542c85663643d1465afa67c199a30b286edbf2e4 100644
+--- a/src/main/java/net/minecraft/world/entity/Entity.java
++++ b/src/main/java/net/minecraft/world/entity/Entity.java
+@@ -3,6 +3,7 @@ package net.minecraft.world.entity;
+ import com.google.common.collect.ImmutableList;
+ import com.google.common.collect.ImmutableList.Builder;
+ import com.google.common.collect.Lists;
++import com.google.common.collect.Maps;
+ import com.google.common.collect.Sets;
+ import com.google.common.collect.UnmodifiableIterator;
+ import com.mojang.logging.LogUtils;
+@@ -18,6 +19,7 @@ import java.util.HashSet;
+ import java.util.Iterator;
+ import java.util.List;
+ import java.util.Locale;
++import java.util.Map;
+ import java.util.Objects;
+ import java.util.Optional;
+ import java.util.Set;
+@@ -131,6 +133,7 @@ import net.minecraft.world.phys.shapes.VoxelShape;
+ import net.minecraft.world.scores.PlayerTeam;
+ import net.minecraft.world.scores.ScoreHolder;
+ import net.minecraft.world.scores.Team;
++import org.bukkit.NamespacedKey;
+ import org.slf4j.Logger;
+ import org.bukkit.Bukkit;
+ import org.bukkit.Location;
+@@ -271,6 +274,7 @@ public abstract class Entity implements SyncedDataHolder, Nameable, EntityAccess
+         return this.bukkitEntity;
+     }
+     // Paper end
++    public final Map<NamespacedKey, Object> tempMeta = Maps.newHashMap(); // EMC
+ 
+     @Override
+     public CommandSender getBukkitSender(CommandSourceStack wrapper) {
+diff --git a/src/main/java/net/minecraft/world/level/chunk/ChunkAccess.java b/src/main/java/net/minecraft/world/level/chunk/ChunkAccess.java
+index 75c8125e20b70433fe9d143a3193d821043327c3..a9588dac8574c2d24d4f7ef6bb40f51bcc30c0e1 100644
+--- a/src/main/java/net/minecraft/world/level/chunk/ChunkAccess.java
++++ b/src/main/java/net/minecraft/world/level/chunk/ChunkAccess.java
+@@ -55,6 +55,7 @@ import net.minecraft.world.level.lighting.ChunkSkyLightSources;
+ import net.minecraft.world.level.material.Fluid;
+ import net.minecraft.world.ticks.SerializableTickContainer;
+ import net.minecraft.world.ticks.TickContainerAccess;
++import org.bukkit.NamespacedKey;
+ import org.slf4j.Logger;
+ 
+ public abstract class ChunkAccess implements BlockGetter, BiomeManager.NoiseBiomeSource, LightChunk, StructureAccess, ca.spottedleaf.moonrise.patches.starlight.chunk.StarlightChunk { // Paper - rewrite chunk system
+@@ -84,6 +85,7 @@ public abstract class ChunkAccess implements BlockGetter, BiomeManager.NoiseBiom
+     public final Map<BlockPos, BlockEntity> blockEntities = new Object2ObjectOpenHashMap();
+     protected final LevelHeightAccessor levelHeightAccessor;
+     protected final LevelChunkSection[] sections;
++    public final Map<NamespacedKey, Object> tempMeta = Maps.newHashMap(); // EMC
+ 
+     // CraftBukkit start - SPIGOT-6814: move to IChunkAccess to account for 1.17 to 1.18 chunk upgrading.
+     private static final org.bukkit.craftbukkit.persistence.CraftPersistentDataTypeRegistry DATA_TYPE_REGISTRY = new org.bukkit.craftbukkit.persistence.CraftPersistentDataTypeRegistry();
+diff --git a/src/main/java/net/minecraft/world/level/storage/PrimaryLevelData.java b/src/main/java/net/minecraft/world/level/storage/PrimaryLevelData.java
+index efd0bcfebb3b4f63018d4e20a6a89f79192898d1..9ad7370bfd43227cf029b8fd5a2b572daff5e778 100644
+--- a/src/main/java/net/minecraft/world/level/storage/PrimaryLevelData.java
++++ b/src/main/java/net/minecraft/world/level/storage/PrimaryLevelData.java
+@@ -1,6 +1,7 @@
+ package net.minecraft.world.level.storage;
+ 
+ import com.google.common.collect.ImmutableSet;
++import com.google.common.collect.Maps;
+ import com.google.common.collect.Sets;
+ import com.mojang.logging.LogUtils;
+ import com.mojang.serialization.Codec;
+@@ -10,6 +11,7 @@ import com.mojang.serialization.DynamicOps;
+ import com.mojang.serialization.Lifecycle;
+ import com.mojang.serialization.OptionalDynamic;
+ import java.util.HashSet;
++import java.util.Map;
+ import java.util.Objects;
+ import java.util.Set;
+ import java.util.UUID;
+@@ -38,6 +40,7 @@ import net.minecraft.world.level.dimension.end.EndDragonFight;
+ import net.minecraft.world.level.levelgen.WorldOptions;
+ import net.minecraft.world.level.timers.TimerCallbacks;
+ import net.minecraft.world.level.timers.TimerQueue;
++import org.bukkit.NamespacedKey;
+ import org.slf4j.Logger;
+ import net.minecraft.core.registries.Registries;
+ import net.minecraft.nbt.CompoundTag;
+@@ -104,6 +107,7 @@ public class PrimaryLevelData implements ServerLevelData, WorldData {
+         this.pdc = null;
+     }
+     // CraftBukkit end
++    public final Map<NamespacedKey, Object> tempMeta = Maps.newHashMap(); // EMC
+ 
+     private PrimaryLevelData(@Nullable CompoundTag playerData, boolean modded, BlockPos spawnPos, float spawnAngle, long time, long timeOfDay, int version, int clearWeatherTime, int rainTime, boolean raining, int thunderTime, boolean thundering, boolean initialized, boolean difficultyLocked, WorldBorder.Settings worldBorder, int wanderingTraderSpawnDelay, int wanderingTraderSpawnChance, @Nullable UUID wanderingTraderId, Set<String> serverBrands, Set<String> removedFeatures, TimerQueue<MinecraftServer> scheduledEvents, @Nullable CompoundTag customBossEvents, EndDragonFight.Data dragonFight, LevelSettings levelInfo, WorldOptions generatorOptions, PrimaryLevelData.SpecialWorldProperty specialProperty, Lifecycle lifecycle) {
+         this.wasModded = modded;
+diff --git a/src/main/java/org/bukkit/craftbukkit/CraftChunk.java b/src/main/java/org/bukkit/craftbukkit/CraftChunk.java
+index 45e262308aebafa377a2353661acdd122933b99e..438a2c78d2944c31c1cdded57595b343a350cf20 100644
+--- a/src/main/java/org/bukkit/craftbukkit/CraftChunk.java
++++ b/src/main/java/org/bukkit/craftbukkit/CraftChunk.java
+@@ -8,6 +8,7 @@ import java.util.Collection;
+ import java.util.Objects;
+ import java.util.concurrent.locks.LockSupport;
+ import java.util.function.BooleanSupplier;
++import java.util.Map;
+ import java.util.function.Predicate;
+ import net.minecraft.core.BlockPos;
+ import net.minecraft.core.Holder;
+@@ -37,6 +38,7 @@ import net.minecraft.world.level.levelgen.WorldgenRandom;
+ import net.minecraft.world.level.lighting.LevelLightEngine;
+ import org.bukkit.Chunk;
+ import org.bukkit.ChunkSnapshot;
++import org.bukkit.NamespacedKey;
+ import org.bukkit.World;
+ import org.bukkit.block.Biome;
+ import org.bukkit.block.Block;
+@@ -51,8 +53,10 @@ import org.bukkit.generator.structure.GeneratedStructure;
+ import org.bukkit.generator.structure.Structure;
+ import org.bukkit.persistence.PersistentDataContainer;
+ import org.bukkit.plugin.Plugin;
++import org.jetbrains.annotations.NotNull;
+ 
+ public class CraftChunk implements Chunk {
++
+     private final ServerLevel worldServer;
+     private final int x;
+     private final int z;
+@@ -97,6 +101,11 @@ public class CraftChunk implements Chunk {
+ 
+         return chunkAccess;
+     }
++    // EMC start
++    public @NotNull Map<NamespacedKey, Object> getTemporaryMeta() {
++        return getHandle(ChunkStatus.FULL).tempMeta;
++    }
++    // EMC end
+ 
+     @Override
+     public int getX() {
+diff --git a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
+index cd3381d8225e0322b3e285b3c4aa0a1265a91cc0..8ba9edca0c037fa1f7ceeaefc7c721ef6d41d231 100644
+--- a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
++++ b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
+@@ -255,6 +255,11 @@ public class CraftWorld extends CraftRegionAccessor implements World {
+         ).isValid();
+     }
+     // Paper end
++    // EMC start
++    public @NotNull Map<NamespacedKey, Object> getTemporaryMeta() {
++        return getHandle().serverLevelData.tempMeta;
++    }
++    // EMC end
+ 
+     private static final Random rand = new Random();
+ 
+diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java
+index cd789c235acf740ec29c30b180e7fbe1a140caa9..2c70c64e8fc5bb47ea12cf432202cdac0b8d0d73 100644
+--- a/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java
++++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java
+@@ -6,6 +6,7 @@ import com.google.common.base.Predicates;
+ import com.google.common.collect.ImmutableSet;
+ import com.google.common.collect.Lists;
+ import java.util.List;
++import java.util.Map;
+ import java.util.Set;
+ import java.util.UUID;
+ import net.minecraft.nbt.CompoundTag;
+@@ -19,11 +20,13 @@ import net.minecraft.world.entity.Entity;
+ import net.minecraft.world.entity.boss.EnderDragonPart;
+ import net.minecraft.world.entity.boss.enderdragon.EnderDragon;
+ import net.minecraft.world.entity.projectile.AbstractArrow;
++import net.minecraft.world.level.chunk.status.ChunkStatus;
+ import net.minecraft.world.level.portal.DimensionTransition;
+ import net.minecraft.world.phys.AABB;
+ import net.minecraft.world.phys.Vec3;
+ import org.bukkit.EntityEffect;
+ import org.bukkit.Location;
++import org.bukkit.NamespacedKey;
+ import org.bukkit.Server;
+ import org.bukkit.Sound;
+ import org.bukkit.World;
+@@ -57,6 +60,7 @@ import org.bukkit.plugin.Plugin;
+ import org.bukkit.util.BoundingBox;
+ import org.bukkit.util.NumberConversions;
+ import org.bukkit.util.Vector;
++import org.jetbrains.annotations.NotNull;
+ 
+ import net.md_5.bungee.api.chat.BaseComponent; // Spigot
+ 
+@@ -173,6 +177,11 @@ public abstract class CraftEntity implements org.bukkit.entity.Entity {
+         return false;
+     }
+     // Paper end
++    // EMC start
++    public @NotNull Map<NamespacedKey, Object> getTemporaryMeta() {
++        return getHandle().tempMeta;
++    }
++    // EMC end
+ 
+     @Override
+     public double getHeight() {
+diff --git a/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java b/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
+index 4632eb883e9f5efde520ee543bcad25827c0da2c..6b26f2912526f4749a52655a7ad48b2d2658a73d 100644
+--- a/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
++++ b/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
+@@ -1645,6 +1645,11 @@ public class CraftEventFactory {
+         InventoryCloseEvent event = new InventoryCloseEvent(human.containerMenu.getBukkitView(), reason); // Paper
+         human.level().getCraftServer().getPluginManager().callEvent(event);
+         human.containerMenu.transferTo(human.inventoryMenu, human.getBukkitEntity());
++        // EMC start
++        if (event.getInventory().getViewers().isEmpty()) {
++            org.bukkit.craftbukkit.inventory.CraftInventory.meta.remove(((org.bukkit.craftbukkit.inventory.CraftInventory) event.getInventory()).getInventory());
++        }
++        // EMC end
+     }
+ 
+     public static ItemStack handleEditBookEvent(ServerPlayer player, int itemInHandIndex, ItemStack itemInHand, ItemStack newBookItem) {
+diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftInventory.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftInventory.java
+index af1ae3dacb628da23f7d2988c6e76d3fb2d64103..d2351d60759e022caace2ec6c25f637a3c9631c1 100644
+--- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftInventory.java
++++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftInventory.java
+@@ -4,6 +4,8 @@ import com.google.common.base.Preconditions;
+ import java.util.HashMap;
+ import java.util.List;
+ import java.util.ListIterator;
++import java.util.Map;
++
+ import net.minecraft.world.Container;
+ import net.minecraft.world.inventory.CraftingContainer;
+ import net.minecraft.world.inventory.MerchantContainer;
+@@ -24,12 +26,14 @@ import net.minecraft.world.level.block.entity.ShulkerBoxBlockEntity;
+ import net.minecraft.world.level.block.entity.SmokerBlockEntity;
+ import org.bukkit.Location;
+ import org.bukkit.Material;
++import org.bukkit.NamespacedKey;
+ import org.bukkit.craftbukkit.util.CraftLegacy;
+ import org.bukkit.entity.HumanEntity;
+ import org.bukkit.event.inventory.InventoryType;
+ import org.bukkit.inventory.Inventory;
+ import org.bukkit.inventory.InventoryHolder;
+ import org.bukkit.inventory.ItemStack;
++import org.jetbrains.annotations.NotNull;
+ 
+ public class CraftInventory implements Inventory {
+     protected final Container inventory;
+@@ -459,6 +463,12 @@ public class CraftInventory implements Inventory {
+         return count;
+     }
+     // Paper end
++    // EMC start
++    public static final java.util.WeakHashMap<Container, Map<NamespacedKey, Object>> meta = new java.util.WeakHashMap<>(64);
++    public @NotNull Map<NamespacedKey, Object> getTemporaryMeta() {
++        return meta.computeIfAbsent(inventory, k -> new HashMap<>());
++    }
++    // EMC end
+ 
+     @Override
+     public ListIterator<ItemStack> iterator() {
