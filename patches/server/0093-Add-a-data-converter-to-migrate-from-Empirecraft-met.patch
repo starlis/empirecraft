@@ -40,10 +40,10 @@ index f4d7700ab53753dd5ac3222fbfd7bdd11b48197c..8fff64a10f5837729c43205275ddd423
      private MCTypeRegistry() {}
 diff --git a/src/main/java/com/empireminecraft/util/EmpireMetadataConverter.java b/src/main/java/com/empireminecraft/util/EmpireMetadataConverter.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..41b972fcffa51156cd64c19301e9f1cb243571f9
+index 0000000000000000000000000000000000000000..f7a0cdbac989de2e4572c8aa697b5c46aa4e5e8f
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/util/EmpireMetadataConverter.java
-@@ -0,0 +1,465 @@
+@@ -0,0 +1,459 @@
 +/*
 + * Copyright (c) 2024. Starlis LLC / dba Empire Minecraft
 + *
@@ -205,22 +205,16 @@ index 0000000000000000000000000000000000000000..41b972fcffa51156cd64c19301e9f1cb
 +        MCTypeRegistry.LEVEL.addStructureConverter(new DataConverter<>(VERSION) {
 +            @Override
 +            public MapType<String> convert(MapType<String> data, long sourceVersion, long toVersion) {
-+                MapType<String> dataMap = data.getMap(LEVEL_DATA_KEY);
-+                if (dataMap == null) {
-+                    return null;
-+                }
-+
-+                MapType<String> oldMap = dataMap.getMap(WORLD_META);
++                MapType<String> oldMap = data.getMap(WORLD_META);
 +                if (oldMap == null) {
 +                    return null;
 +                }
 +
-+                dataMap.remove(WORLD_META);
++                data.remove(WORLD_META);
 +
-+                MapType<String> map = dataMap.getOrCreateMap(LEVEL_PDC_KEY);
++                MapType<String> map = data.getOrCreateMap(LEVEL_PDC_KEY);
 +                normalizeMap(map, oldMap);
-+                dataMap.setMap(LEVEL_PDC_KEY, map);
-+                data.setMap(LEVEL_DATA_KEY, dataMap);
++                data.setMap(LEVEL_PDC_KEY, map);
 +                return null;
 +            }
 +        });
@@ -509,3 +503,35 @@ index 0000000000000000000000000000000000000000..41b972fcffa51156cd64c19301e9f1cb
 +    private EmpireMetadataConverter() {
 +    }
 +}
+diff --git a/src/main/java/net/minecraft/world/level/storage/LevelStorageSource.java b/src/main/java/net/minecraft/world/level/storage/LevelStorageSource.java
+index 85ba843ce7e1f62971e736fa2cc028c47b274ce4..4a4ea9f24f4b9529920ece8598bbcafc74463f55 100644
+--- a/src/main/java/net/minecraft/world/level/storage/LevelStorageSource.java
++++ b/src/main/java/net/minecraft/world/level/storage/LevelStorageSource.java
+@@ -1,5 +1,9 @@
+ package net.minecraft.world.level.storage;
+ 
++import ca.spottedleaf.dataconverter.minecraft.MCDataConverter;
++import ca.spottedleaf.dataconverter.minecraft.datatypes.MCDataType;
++import ca.spottedleaf.dataconverter.minecraft.datatypes.MCTypeRegistry;
++import com.empireminecraft.util.MCLog;
+ import com.google.common.collect.Maps;
+ import com.mojang.datafixers.DataFixer;
+ import com.mojang.logging.LogUtils;
+@@ -278,7 +282,7 @@ public class LevelStorageSource {
+         CompoundTag nbttagcompound = LevelStorageSource.readLevelDataTagRaw(path);
+         CompoundTag nbttagcompound1 = nbttagcompound.getCompound("Data");
+         int i = NbtUtils.getDataVersion(nbttagcompound1, -1); final int version = i; // Paper - obfuscation helpers
+-        Dynamic<?> dynamic = DataFixTypes.LEVEL.updateToCurrentVersion(dataFixer, new Dynamic(NbtOps.INSTANCE, nbttagcompound1), i);
++        Dynamic<?> dynamic = new Dynamic(NbtOps.INSTANCE, MCDataConverter.convertTag(MCTypeRegistry.LEVEL, nbttagcompound1, i, net.minecraft.SharedConstants.getCurrentVersion().getDataVersion().getVersion())); // EMC
+ 
+         // Paper start - replace data conversion system
+         dynamic = dynamic.update("Player", (dynamic1) -> {
+@@ -318,7 +322,7 @@ public class LevelStorageSource {
+                     CompoundTag nbttagcompound = (CompoundTag) nbtbase;
+                     CompoundTag nbttagcompound1 = nbttagcompound.getCompound("Data");
+                     int i = NbtUtils.getDataVersion(nbttagcompound1, -1);
+-                    Dynamic<?> dynamic = DataFixTypes.LEVEL.updateToCurrentVersion(this.fixerUpper, new Dynamic(NbtOps.INSTANCE, nbttagcompound1), i);
++                    Dynamic<?> dynamic = new Dynamic(NbtOps.INSTANCE, MCDataConverter.convertTag(MCTypeRegistry.LEVEL, nbttagcompound1, i, net.minecraft.SharedConstants.getCurrentVersion().getDataVersion().getVersion())); // EMC
+ 
+                     return this.makeLevelSummary(dynamic, save, locked);
+                 }
