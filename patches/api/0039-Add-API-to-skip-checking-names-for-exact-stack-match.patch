@@ -5,7 +5,7 @@ Subject: [PATCH] Add API to skip checking names for exact stack matches
 
 
 diff --git a/src/main/java/org/bukkit/inventory/RecipeChoice.java b/src/main/java/org/bukkit/inventory/RecipeChoice.java
-index f1aa67997f904953742e8895e49341c2f73d44a2..78d75fc7ec76ee61514aa30d80371d0fd9c7ffc7 100644
+index f1aa67997f904953742e8895e49341c2f73d44a2..d2a3352875e6ae4ad26acea52628c342aab4efda 100644
 --- a/src/main/java/org/bukkit/inventory/RecipeChoice.java
 +++ b/src/main/java/org/bukkit/inventory/RecipeChoice.java
 @@ -7,6 +7,8 @@ import java.util.Collections;
@@ -51,15 +51,34 @@ index f1aa67997f904953742e8895e49341c2f73d44a2..78d75fc7ec76ee61514aa30d80371d0f
          }
  
          @NotNull
-@@ -242,7 +253,7 @@ public interface RecipeChoice extends Predicate<ItemStack>, Cloneable {
+@@ -242,13 +253,26 @@ public interface RecipeChoice extends Predicate<ItemStack>, Cloneable {
          @Override
          public boolean test(@NotNull ItemStack t) {
              for (ItemStack match : choices) {
 -                if (t.isSimilar(match)) {
-+                if (t.isSimilar(match, skipCheckingName)) {
++                if (isSimilar(t, match, skipCheckingName)) {
                      return true;
                  }
              }
+ 
+             return false;
+         }
++        // EMC start
++        private static boolean isSimilar(ItemStack item, ItemStack other, boolean skipCheckingName) {
++            if (skipCheckingName) {
++                ItemStack clone = other.clone();
++                org.bukkit.inventory.meta.ItemMeta itemMeta = clone.getItemMeta();
++                itemMeta.displayName(item.getItemMeta().displayName());
++                clone.setItemMeta(itemMeta);
++                return item.isSimilar(clone);
++            } else {
++                return item.isSimilar(other);
++            }
++        }
++        // EMC end
+ 
+         @Override
+         public int hashCode() {
 diff --git a/src/main/java/org/bukkit/inventory/ShapedRecipe.java b/src/main/java/org/bukkit/inventory/ShapedRecipe.java
 index c0105d716985acef497d60b5c631a56b4ca5847b..76bbfeb04bc2d78af9971ae19df9df0fb8afde84 100644
 --- a/src/main/java/org/bukkit/inventory/ShapedRecipe.java

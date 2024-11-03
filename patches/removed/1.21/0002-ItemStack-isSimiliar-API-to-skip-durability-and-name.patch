@@ -1,0 +1,111 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Sat, 15 Jun 2013 23:19:03 -0400
+Subject: [PATCH] ItemStack isSimiliar API to skip durability and name checks
+
+Skip Durability is useful if you simply want to see if an item type is the same for weapons
+Skip Item Name is useful if you want to treat a renamed item the same as an unrenamed item, when lore is involved
+
+For example, lore can be used to identify a custom item, but then if a player renames it, the isSimilar breaks.
+
+This new boolean allows you to verify if the item is the same ignoring the name field by temporarily nulling it during the check.
+
+diff --git a/src/main/java/org/bukkit/inventory/ItemStack.java b/src/main/java/org/bukkit/inventory/ItemStack.java
+index 6e84d407b0ad54098583a36b05ff3c4151055a14..8406237f8e15c075bf166a2ebfcf703cc5b14116 100644
+--- a/src/main/java/org/bukkit/inventory/ItemStack.java
++++ b/src/main/java/org/bukkit/inventory/ItemStack.java
+@@ -15,6 +15,7 @@ import org.bukkit.enchantments.Enchantment;
+ import org.bukkit.inventory.meta.Damageable;
+ import org.bukkit.inventory.meta.ItemMeta;
+ import org.bukkit.material.MaterialData;
++import org.jetbrains.annotations.Contract;
+ import org.jetbrains.annotations.NotNull;
+ import org.jetbrains.annotations.Nullable;
+ 
+@@ -314,8 +315,41 @@ public class ItemStack implements Cloneable, ConfigurationSerializable, Translat
+      * @param stack the item stack to compare to
+      * @return true if the two stacks are equal, ignoring the amount
+      */
++    // Paper start - add API to skip checking durability and item name
+     @Utility
++    @Contract("null -> false")
+     public boolean isSimilar(@Nullable ItemStack stack) {
++        return isSimilar(stack, false);
++    }
++
++    /**
++     * This method is the same as equals, but does not consider stack size
++     * (amount).
++     *
++     * @param stack the item stack to compare to
++     * @param skipDur Ignore differences in durability
++     * @return true if the two stacks are equal, ignoring the amount, and optionally durability
++     */
++    @Utility
++    @Contract("null,_ -> false")
++    @Deprecated
++    public boolean isSimilar(@Nullable ItemStack stack, boolean skipDur) {
++        return isSimilar(stack, skipDur, false);
++    }
++
++    /**
++     * This method is the same as equals, but does not consider stack size
++     * (amount).
++     *
++     * @param stack the item stack to compare to
++     * @param skipDur Ignore differences in durability
++     * @param skipCheckingName Ignore differences in display name
++     * @return true if the two stacks are equal, ignoring the amount, and optionally durability/name
++     */
++    @Utility
++    @Contract("null,_,_ -> false")
++    @Deprecated
++    public boolean isSimilar(@Nullable ItemStack stack, boolean skipDur, boolean skipCheckingName) {
+         if (stack == null) {
+             return false;
+         }
+@@ -323,7 +357,43 @@ public class ItemStack implements Cloneable, ConfigurationSerializable, Translat
+             return true;
+         }
+         Material comparisonType = (this.getType().isLegacy()) ? Bukkit.getUnsafe().fromLegacy(this.getData(), true) : this.getType(); // This may be called from legacy item stacks, try to get the right material // Paper - use getType() instead of type field
+-        return comparisonType == stack.getType() && /* getDurability() == stack.getDurability() && */hasItemMeta() == stack.hasItemMeta() && (hasItemMeta() ? Bukkit.getItemFactory().equals(getItemMeta(), stack.getItemMeta()) : true); // Paper - remove redundant item durability check
++        //return comparisonType == stack.getType() && /* getDurability() == stack.getDurability() && */hasItemMeta() == stack.hasItemMeta() && (hasItemMeta() ? Bukkit.getItemFactory().equals(getItemMeta(), stack.getItemMeta()) : true); // Paper - remove redundant item durability check
++        if (comparisonType != stack.getType() || (!skipDur && getDurability() != stack.getDurability())) {
++            return false;
++        }
++        final boolean hasMeta1 = hasItemMeta();
++        final boolean hasMeta2 = stack.hasItemMeta();
++        if (!hasMeta1 && !hasMeta2) {
++            return true;
++        }
++
++        final ItemMeta meta1 = hasMeta1 ? getItemMeta() : null;
++        final ItemMeta meta2 = hasMeta2 ? stack.getItemMeta() : null;
++
++        final String prevName1 = meta1 != null ? meta1.getDisplayName() : null;
++        final String prevName2 = meta2 != null ? meta2.getDisplayName() : null;
++        if (skipCheckingName) {
++            if (meta1 != null) {
++                meta1.setDisplayName(null);
++            }
++            if (meta2 != null) {
++                meta2.setDisplayName(null);
++            }
++        }
++
++        try {
++            return Bukkit.getItemFactory().equals(meta1, meta2);
++        } finally {
++            if (skipCheckingName) {
++                if (meta1 != null) {
++                    meta1.setDisplayName(prevName1);
++                }
++                if (meta2 != null) {
++                    meta2.setDisplayName(prevName2);
++                }
++            }
++        }
++        // Paper end
+     }
+ 
+     @NotNull
