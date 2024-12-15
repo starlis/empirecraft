@@ -1,0 +1,42 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: chickeneer <emcchickeneer@gmail.com>
+Date: Sat, 14 Dec 2024 20:55:20 -0600
+Subject: [PATCH] Patch the count of shulkerBox getting lost in serialization
+
+
+diff --git a/src/main/java/net/minecraft/world/level/block/entity/ShulkerBoxBlockEntity.java b/src/main/java/net/minecraft/world/level/block/entity/ShulkerBoxBlockEntity.java
+index 0d68db20f5fbe5e834f12c1e8fd429099a44e4b6..b7a4205599aead897355962d65b8be57a283d571 100644
+--- a/src/main/java/net/minecraft/world/level/block/entity/ShulkerBoxBlockEntity.java
++++ b/src/main/java/net/minecraft/world/level/block/entity/ShulkerBoxBlockEntity.java
+@@ -10,6 +10,7 @@ import net.minecraft.core.Holder;
+ import net.minecraft.core.HolderLookup;
+ import net.minecraft.core.NonNullList;
+ import net.minecraft.nbt.CompoundTag;
++import net.minecraft.nbt.ListTag;
+ import net.minecraft.network.chat.Component;
+ import net.minecraft.sounds.SoundEvents;
+ import net.minecraft.sounds.SoundSource;
+@@ -255,6 +256,23 @@ public class ShulkerBoxBlockEntity extends RandomizableContainerBlockEntity impl
+     public void loadFromTag(CompoundTag nbt, HolderLookup.Provider registries) {
+         this.itemStacks = NonNullList.withSize(this.getContainerSize(), ItemStack.EMPTY);
+         if (!this.tryLoadLootTable(nbt) && nbt.contains("Items", 9)) {
++            // EMC start
++            boolean changed = false;
++            ListTag listTag = nbt.getList("Items", 10);
++            for (int i = 0; i < listTag.size(); i++) {
++                CompoundTag compoundTag = listTag.getCompound(i);
++                if (compoundTag.contains("Count", 99)) {
++                    byte count = compoundTag.getByte("Count");
++                    compoundTag.remove("Count");
++                    compoundTag.putByte("count", count);
++                    listTag.set(i, compoundTag);
++                    changed = true;
++                }
++            }
++            if (changed) {
++                nbt.put("Items", listTag);
++            }
++            // EMC end
+             ContainerHelper.loadAllItems(nbt, this.itemStacks, registries);
+         }
+ 
