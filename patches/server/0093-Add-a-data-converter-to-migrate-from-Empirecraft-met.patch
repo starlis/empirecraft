@@ -40,10 +40,10 @@ index f4d7700ab53753dd5ac3222fbfd7bdd11b48197c..8fff64a10f5837729c43205275ddd423
      private MCTypeRegistry() {}
 diff --git a/src/main/java/com/empireminecraft/util/EmpireMetadataConverter.java b/src/main/java/com/empireminecraft/util/EmpireMetadataConverter.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..f7a0cdbac989de2e4572c8aa697b5c46aa4e5e8f
+index 0000000000000000000000000000000000000000..4d395919853e5a22a82917cfac7a0d81c625bb16
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/util/EmpireMetadataConverter.java
-@@ -0,0 +1,459 @@
+@@ -0,0 +1,446 @@
 +/*
 + * Copyright (c) 2024. Starlis LLC / dba Empire Minecraft
 + *
@@ -90,7 +90,6 @@ index 0000000000000000000000000000000000000000..f7a0cdbac989de2e4572c8aa697b5c46
 +    private static final String LEGACY_CHUNK_META = "_ChunkMeta";
 +
 +    private static final String CHUNK_PDC_KEY = "ChunkBukkitValues";
-+    private static final String CHUNK_BLOCK_MAP_KEY = "empire:block_meta";
 +    private static final String LEVEL_DATA_KEY = "Data";
 +    private static final String LEVEL_PDC_KEY = "BukkitValues";
 +    private static final String ENTITY_PDC_KEY = "BukkitValues";
@@ -107,7 +106,6 @@ index 0000000000000000000000000000000000000000..f7a0cdbac989de2e4572c8aa697b5c46
 +                    data.remove(LEGACY_CHUNK_META);
 +
 +                    MapType<String> chunkMap = data.getOrCreateMap(CHUNK_PDC_KEY);
-+                    MapType<String> newBlockMap = data.getTypeUtil().createEmptyMap();
 +                    for (String key : legacyChunkMap.keys()) {
 +                        BlockVector vector = deserializeOldLoc(key);
 +                        if (vector != null) {
@@ -118,13 +116,10 @@ index 0000000000000000000000000000000000000000..f7a0cdbac989de2e4572c8aa697b5c46
 +                                MapType<String> newMap = data.getTypeUtil().createEmptyMap();
 +                                normalizeMap(newMap, e);
 +                                if (!newMap.isEmpty()) {
-+                                    newBlockMap.setMap(vectorToKey(vector), newMap);
++                                    chunkMap.setMap(vectorToKey(vector), newMap);
 +                                }
 +                            }
 +                        }
-+                    }
-+                    if (!newBlockMap.isEmpty()) {
-+                        chunkMap.setMap(CHUNK_BLOCK_MAP_KEY, newBlockMap);
 +                    }
 +                    data.setMap(CHUNK_PDC_KEY, chunkMap);
 +                    return null;
@@ -135,7 +130,6 @@ index 0000000000000000000000000000000000000000..f7a0cdbac989de2e4572c8aa697b5c46
 +                    data.remove(LEGACY_CHUNK_META_LIST);
 +
 +                    MapType<String> chunkMap = data.getOrCreateMap(CHUNK_PDC_KEY);
-+                    MapType<String> newBlockMap = data.getTypeUtil().createEmptyMap();
 +                    final int size = legacyChunkList.size();
 +                    for (int i = 0; i < size; i++) {
 +                        MapType<String> e = legacyChunkList.getMap(i);
@@ -150,14 +144,11 @@ index 0000000000000000000000000000000000000000..f7a0cdbac989de2e4572c8aa697b5c46
 +                                    MapType<String> newMap = data.getTypeUtil().createEmptyMap();
 +                                    normalizeMap(newMap, e);
 +                                    if (!newMap.isEmpty()) {
-+                                        newBlockMap.setMap(vectorToKey(vector), newMap);
++                                        chunkMap.setMap(vectorToKey(vector), newMap);
 +                                    }
 +                                }
 +                            }
 +                        }
-+                    }
-+                    if (!newBlockMap.isEmpty()) {
-+                        chunkMap.setMap(CHUNK_BLOCK_MAP_KEY, newBlockMap);
 +                    }
 +
 +                    data.setMap(CHUNK_PDC_KEY, chunkMap);
@@ -175,7 +166,7 @@ index 0000000000000000000000000000000000000000..f7a0cdbac989de2e4572c8aa697b5c46
 +                if (blockMetaList != null) {
 +                    data.remove(BLOCK_META_LIST);
 +
-+                    MapType<String> newBlockMap = data.getTypeUtil().createEmptyMap();
++                    MapType<String> chunkMap = data.getOrCreateMap(CHUNK_PDC_KEY);
 +                    int size = blockMetaList.size();
 +                    for (int i = 0; i < size; i++) {
 +                        MapType<String> e = blockMetaList.getMap(i);
@@ -187,16 +178,12 @@ index 0000000000000000000000000000000000000000..f7a0cdbac989de2e4572c8aa697b5c46
 +                                MapType<String> newMap = data.getTypeUtil().createEmptyMap();
 +                                normalizeMap(newMap, e);
 +                                if (!newMap.isEmpty()) {
-+                                    newBlockMap.setMap(vectorToKey(vector), newMap);
++                                    chunkMap.setMap(vectorToKey(vector), newMap);
 +                                }
 +                            }
 +                        }
 +                    }
-+                    if (!newBlockMap.isEmpty()) {
-+                        MapType<String> chunkMap = data.getOrCreateMap(CHUNK_PDC_KEY);
-+                        chunkMap.setMap(CHUNK_BLOCK_MAP_KEY, newBlockMap);
-+                        data.setMap(CHUNK_PDC_KEY, chunkMap);
-+                    }
++                    data.setMap(CHUNK_PDC_KEY, chunkMap);
 +                }
 +                return null;
 +            }
@@ -340,7 +327,7 @@ index 0000000000000000000000000000000000000000..f7a0cdbac989de2e4572c8aa697b5c46
 +
 +    static @NotNull String vectorToKey(@NotNull BlockVector vector) {
 +        vector = normalizeVector(vector);
-+        return "empire:pos_" + vector.getBlockX() + "_" + vector.getBlockY() + "_" + vector.getBlockZ();
++        return "empire:block_meta_pos_" + vector.getBlockX() + "_" + vector.getBlockY() + "_" + vector.getBlockZ();
 +    }
 +
 +    static @NotNull BlockVector normalizeVector(@NotNull BlockVector vector) {
