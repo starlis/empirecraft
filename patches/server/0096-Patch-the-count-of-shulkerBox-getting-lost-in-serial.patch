@@ -5,10 +5,23 @@ Subject: [PATCH] Patch the count of shulkerBox getting lost in serialization
 
 
 diff --git a/src/main/java/net/minecraft/world/level/block/entity/ShulkerBoxBlockEntity.java b/src/main/java/net/minecraft/world/level/block/entity/ShulkerBoxBlockEntity.java
-index 0d68db20f5fbe5e834f12c1e8fd429099a44e4b6..b7a4205599aead897355962d65b8be57a283d571 100644
+index 0d68db20f5fbe5e834f12c1e8fd429099a44e4b6..3d7927c40389aa44d882a4dc66059f16307ea6f8 100644
 --- a/src/main/java/net/minecraft/world/level/block/entity/ShulkerBoxBlockEntity.java
 +++ b/src/main/java/net/minecraft/world/level/block/entity/ShulkerBoxBlockEntity.java
-@@ -10,6 +10,7 @@ import net.minecraft.core.Holder;
+@@ -1,15 +1,20 @@
+ package net.minecraft.world.level.block.entity;
+ 
++import java.util.HashMap;
+ import java.util.Iterator;
+ import java.util.List;
++import java.util.Map;
+ import java.util.stream.IntStream;
+ import javax.annotation.Nullable;
++
++import com.google.gson.JsonParseException;
+ import net.minecraft.core.BlockPos;
+ import net.minecraft.core.Direction;
+ import net.minecraft.core.Holder;
  import net.minecraft.core.HolderLookup;
  import net.minecraft.core.NonNullList;
  import net.minecraft.nbt.CompoundTag;
@@ -16,20 +29,238 @@ index 0d68db20f5fbe5e834f12c1e8fd429099a44e4b6..b7a4205599aead897355962d65b8be57
  import net.minecraft.network.chat.Component;
  import net.minecraft.sounds.SoundEvents;
  import net.minecraft.sounds.SoundSource;
-@@ -255,6 +256,23 @@ public class ShulkerBoxBlockEntity extends RandomizableContainerBlockEntity impl
+@@ -34,8 +39,10 @@ import net.minecraft.world.level.material.PushReaction;
+ import net.minecraft.world.phys.AABB;
+ import net.minecraft.world.phys.Vec3;
+ // CraftBukkit start
++import org.bukkit.craftbukkit.CraftRegistry;
+ import org.bukkit.craftbukkit.entity.CraftHumanEntity;
+ import org.bukkit.entity.HumanEntity;
++import org.jetbrains.annotations.NotNull;
+ // CraftBukkit end
+ 
+ public class ShulkerBoxBlockEntity extends RandomizableContainerBlockEntity implements WorldlyContainer {
+@@ -254,12 +261,274 @@ public class ShulkerBoxBlockEntity extends RandomizableContainerBlockEntity impl
+ 
      public void loadFromTag(CompoundTag nbt, HolderLookup.Provider registries) {
          this.itemStacks = NonNullList.withSize(this.getContainerSize(), ItemStack.EMPTY);
-         if (!this.tryLoadLootTable(nbt) && nbt.contains("Items", 9)) {
+-        if (!this.tryLoadLootTable(nbt) && nbt.contains("Items", 9)) {
++        if (!this.tryLoadLootTable(nbt) && nbt.contains("Items", CompoundTag.TAG_LIST)) {
 +            // EMC start
 +            boolean changed = false;
-+            ListTag listTag = nbt.getList("Items", 10);
++            ListTag listTag = nbt.getList("Items", CompoundTag.TAG_COMPOUND);
 +            for (int i = 0; i < listTag.size(); i++) {
-+                CompoundTag compoundTag = listTag.getCompound(i);
-+                if (compoundTag.contains("Count", 99)) {
-+                    byte count = compoundTag.getByte("Count");
-+                    compoundTag.remove("Count");
-+                    compoundTag.putByte("count", count);
-+                    listTag.set(i, compoundTag);
++                CompoundTag baseItemTag = listTag.getCompound(i);
++                if (baseItemTag.contains("Count", CompoundTag.TAG_ANY_NUMERIC)) {
++                    byte count = baseItemTag.getByte("Count");
++                    baseItemTag.remove("Count");
++                    baseItemTag.putByte("count", count);
++                    listTag.set(i, baseItemTag);
++                    changed = true;
++                }
++                CompoundTag newComponentsTag;
++                if (baseItemTag.contains("components")) {
++                    newComponentsTag = baseItemTag.getCompound("components");
++                } else {
++                    newComponentsTag = new CompoundTag();
++                }
++                if (baseItemTag.contains("tag")) {
++                    CompoundTag tagTag = baseItemTag.getCompound("tag");
++                    if (tagTag.contains("display")) {
++                        CompoundTag displayTag = tagTag.getCompound("display");
++                        if (displayTag.contains("Name", CompoundTag.TAG_STRING)) {
++                            newComponentsTag.putString("minecraft:custom_name", displayTag.getString("Name"));
++                            displayTag.remove("Name");
++                        }
++                        if (displayTag.contains("Lore", CompoundTag.TAG_LIST)) {
++                            ListTag loreList = displayTag.getList("Lore", CompoundTag.TAG_STRING);
++                            displayTag.remove("Lore");
++
++                            int lastLine = 0;
++                            boolean hasSpecial = false;
++                            boolean hasShiny = false;
++                            for (int idx = 0; idx < loreList.size(); idx++) {
++                                String line = getString(loreList.getString(idx));
++                                if (!line.isEmpty()) {
++                                    if ("&&::SHINY".equals(line)) {
++                                        hasShiny = true;
++                                        hasSpecial = true;
++                                        break;
++                                    } else if ("&&::META".equals(line)) {
++                                        hasSpecial = true;
++                                        break;
++                                    } else {
++                                        lastLine = idx + 1;
++                                    }
++                                }
++                            }
++                            Map<String, String> meta = new HashMap<>();
++                            if (!hasSpecial) {
++                                newComponentsTag.put("minecraft:lore", loreList);
++                            } else {
++                                for (int idx = 31; idx + 1 < loreList.size(); idx += 2) {
++                                    String key = getString(loreList.getString(idx));
++                                    String val = getString(loreList.getString(idx + 1));
++                                    meta.put(key, val);
++                                }
++
++                                ListTag newLore = new ListTag();
++                                for (int x = 0; x < lastLine; x++) {
++                                    newLore.add(loreList.get(x));
++                                }
++                                newComponentsTag.put("minecraft:lore", newLore);
++
++                                if (hasShiny) {
++                                    newComponentsTag.putBoolean("minecraft:enchantment_glint_override", true);
++                                }
++
++                                CompoundTag customDataTag;
++                                if (newComponentsTag.contains("minecraft:custom_data")) {
++                                    customDataTag = newComponentsTag.getCompound("minecraft:custom_data");
++                                } else {
++                                    customDataTag = new CompoundTag();
++                                }
++                                CompoundTag bukkitValuesTag;
++                                if (customDataTag.contains("PublicBukkitValues")) {
++                                    bukkitValuesTag = customDataTag.getCompound("PublicBukkitValues");
++                                } else {
++                                    bukkitValuesTag = new CompoundTag();
++                                }
++                                meta.forEach((key, value) -> bukkitValuesTag.putString("empire:" + normalizeKey(key), value));
++
++                                customDataTag.put("PublicBukkitValues", bukkitValuesTag);
++                                newComponentsTag.put("minecraft:custom_data", customDataTag);
++                            }
++                        }
++                        if (displayTag.isEmpty()) {
++                            tagTag.remove("display");
++                        } else {
++                            tagTag.put("display", displayTag);
++                        }
++                    }
++                    if (tagTag.contains("Enchantments", CompoundTag.TAG_LIST)) {
++                        ListTag enchantmentsList = tagTag.getList("Enchantments", CompoundTag.TAG_COMPOUND);
++                        tagTag.remove("Enchantments");
++
++                        CompoundTag newEnchantments;
++                        if (newComponentsTag.contains("minecraft:enchantments")) {
++                            newEnchantments = newComponentsTag.getCompound("minecraft:enchantments");
++                        } else {
++                            newEnchantments = new CompoundTag();
++                        }
++                        CompoundTag newLevels;
++                        if (newComponentsTag.contains("levels")) {
++                            newLevels = newEnchantments.getCompound("levels");
++                        } else {
++                            newLevels = new CompoundTag();
++                        }
++                        for (int idx = 0; idx < enchantmentsList.size(); idx++) {
++                            CompoundTag oldEnchantment = enchantmentsList.getCompound(idx);
++                            if (oldEnchantment.contains("id", CompoundTag.TAG_STRING) && oldEnchantment.contains("lvl", CompoundTag.TAG_SHORT)) {
++                                String id = oldEnchantment.getString("id");
++                                short lvl = oldEnchantment.getShort("lvl");
++                                newLevels.putInt(id, lvl);
++                            }
++                        }
++                        newEnchantments.put("levels", newLevels);
++                        newComponentsTag.put("minecraft:enchantments", newEnchantments);
++                    }
++                    if (tagTag.contains("SkullOwner")) {
++                        CompoundTag skullTag = tagTag.getCompound("SkullOwner");
++                        CompoundTag newProfileTag;
++                        if (newComponentsTag.contains("minecraft:profile")) {
++                            newProfileTag = newComponentsTag.getCompound("minecraft:profile");
++                        } else {
++                            newProfileTag = new CompoundTag();
++                        }
++                        if (skullTag.contains("Name", CompoundTag.TAG_STRING)) {
++                            String name = skullTag.getString("Name");
++                            newProfileTag.putString("name", name);
++                            skullTag.remove("Name");
++                        }
++                        if (skullTag.contains("Id", CompoundTag.TAG_INT_ARRAY)) {
++                            int[] id = skullTag.getIntArray("Id");
++                            newProfileTag.putIntArray("id", id);
++                            skullTag.remove("Id");
++                        }
++                        if (skullTag.contains("Properties")) {
++                            CompoundTag properties = skullTag.getCompound("Properties");
++                            ListTag newPropertiesTag;
++                            if (newComponentsTag.contains("properties", CompoundTag.TAG_LIST)) {
++                                newPropertiesTag = newComponentsTag.getList("properties", CompoundTag.TAG_COMPOUND);
++                            } else {
++                                newPropertiesTag = new ListTag();
++                            }
++                            if (properties.contains("textures", CompoundTag.TAG_LIST)) {
++                                ListTag textures = properties.getList("textures", CompoundTag.TAG_COMPOUND);
++                                if (!textures.isEmpty()) {
++                                    CompoundTag first = textures.getCompound(0);
++                                    if (first.contains("Value", CompoundTag.TAG_STRING)) {
++                                        String textureValue = first.getString("Value");
++                                        CompoundTag tag = new CompoundTag();
++                                        tag.putString("name", "textures");
++                                        tag.putString("value", textureValue);
++                                        newPropertiesTag.add(tag);
++                                    }
++                                }
++                            }
++                            newProfileTag.put("properties", newPropertiesTag);
++                        }
++
++                        if (skullTag.isEmpty()) {
++                            baseItemTag.remove("SkullOwner");
++                        } else {
++                            baseItemTag.put("SkullOwner", skullTag);
++                        }
++                        newComponentsTag.put("minecraft:profile", newProfileTag);
++                    }
++                    if (tagTag.contains("AttributeModifiers", CompoundTag.TAG_LIST)) {
++                        ListTag attributeModifiersList = tagTag.getList("AttributeModifiers", CompoundTag.TAG_COMPOUND);
++                        tagTag.remove("AttributeModifiers");
++
++                        CompoundTag newAttributeModifiers;
++                        if (newComponentsTag.contains("minecraft:attribute_modifiers")) {
++                            newAttributeModifiers = newComponentsTag.getCompound("minecraft:attribute_modifiers");
++                        } else {
++                            newAttributeModifiers = new CompoundTag();
++                        }
++                        ListTag newModifiersList;
++                        if (newAttributeModifiers.contains("modifiers")) {
++                            newModifiersList = newAttributeModifiers.getList("modifiers", CompoundTag.TAG_COMPOUND);
++                        } else {
++                            newModifiersList = new ListTag();
++                        }
++                        for (int idx = 0; idx < attributeModifiersList.size(); idx++) {
++                            CompoundTag oldAttribute = attributeModifiersList.getCompound(idx);
++                            CompoundTag newAttribute = new CompoundTag();
++                            if (oldAttribute.contains("Amount", CompoundTag.TAG_DOUBLE)) {
++                                newAttribute.putDouble("amount", oldAttribute.getDouble("Amount"));
++                            }
++                            if (oldAttribute.contains("AttributeName", CompoundTag.TAG_STRING)) {
++                                newAttribute.putString("id", oldAttribute.getString("AttributeName"));
++                                newAttribute.putString("type", oldAttribute.getString("AttributeName"));
++                            }
++                            if (oldAttribute.contains("Slot", CompoundTag.TAG_STRING)) {
++                                newAttribute.putString("slot", oldAttribute.getString("Slot"));
++                            }
++                            if (oldAttribute.contains("Operation", CompoundTag.TAG_INT)) {
++                                int operation = oldAttribute.getInt("Operation");
++                                String operationType = operation == 0 ? "add_value" : operation == 1 ? "add_multiplied_base" : "add_multiplied_total";
++                                newAttribute.putString("operation", operationType);
++                            }
++                            newModifiersList.add(newAttribute);
++                        }
++                        newAttributeModifiers.put("modifiers", newModifiersList);
++                        newComponentsTag.put("minecraft:attribute_modifiers", newAttributeModifiers);
++                    }
++
++                    if (tagTag.isEmpty()) {
++                        baseItemTag.remove("tag");
++                    } else {
++                        baseItemTag.put("tag", tagTag);
++                    }
++                    baseItemTag.put("components", newComponentsTag);
++                    listTag.set(i, baseItemTag);
 +                    changed = true;
 +                }
 +            }
@@ -40,3 +271,48 @@ index 0d68db20f5fbe5e834f12c1e8fd429099a44e4b6..b7a4205599aead897355962d65b8be57
              ContainerHelper.loadAllItems(nbt, this.itemStacks, registries);
          }
  
+     }
+ 
++    // EMC start
++    static @NotNull String getString(@NotNull String text) {
++        if (text.startsWith("{") && text.endsWith("}")) {
++            Component component = null;
++            try {
++                component = Component.Serializer.fromJson(text, CraftRegistry.getMinecraftRegistry());
++            } catch (JsonParseException ignored) {
++            }
++            text = component != null ? component.getString() : text;
++        }
++        if (text.startsWith("\"") && text.endsWith("\"") && text.length() > 1) {
++            text = text.substring(1, text.length() - 1);
++        }
++        return text;
++    }
++    static @NotNull String normalizeKey(@NotNull String input) {
++        StringBuilder sb = new StringBuilder(input.length() + 4);
++        boolean lastUnderscore = false;
++        char[] charArray = input.toCharArray();
++        for (int i = 0; i < charArray.length; i++) {
++            char c = charArray[i];
++            if (Character.isUpperCase(c)) {
++                if (i != 0 && !lastUnderscore) {
++                    sb.append('_');
++                }
++                sb.append(Character.toLowerCase(c));
++                lastUnderscore = false;
++            } else if ('-' == c || '.' == c || '/' == c || Character.isLowerCase(c) || Character.isDigit(c)) {
++                sb.append(c);
++                lastUnderscore = false;
++            } else {
++                sb.append('_');
++                lastUnderscore = true;
++            }
++        }
++
++        return sb.toString();
++    }
++    // EMC end
++
+     @Override
+     protected NonNullList<ItemStack> getItems() {
+         return this.itemStacks;
