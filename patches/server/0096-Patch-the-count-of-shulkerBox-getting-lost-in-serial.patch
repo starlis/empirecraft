@@ -5,19 +5,17 @@ Subject: [PATCH] Patch the count of shulkerBox getting lost in serialization
 
 
 diff --git a/src/main/java/net/minecraft/world/level/block/entity/ShulkerBoxBlockEntity.java b/src/main/java/net/minecraft/world/level/block/entity/ShulkerBoxBlockEntity.java
-index 0d68db20f5fbe5e834f12c1e8fd429099a44e4b6..3d7927c40389aa44d882a4dc66059f16307ea6f8 100644
+index 0d68db20f5fbe5e834f12c1e8fd429099a44e4b6..15816d62405a7f94c47d6b897b5814994cd2654d 100644
 --- a/src/main/java/net/minecraft/world/level/block/entity/ShulkerBoxBlockEntity.java
 +++ b/src/main/java/net/minecraft/world/level/block/entity/ShulkerBoxBlockEntity.java
-@@ -1,15 +1,20 @@
+@@ -1,15 +1,14 @@
  package net.minecraft.world.level.block.entity;
  
-+import java.util.HashMap;
- import java.util.Iterator;
- import java.util.List;
-+import java.util.Map;
- import java.util.stream.IntStream;
- import javax.annotation.Nullable;
-+
+-import java.util.Iterator;
+-import java.util.List;
+-import java.util.stream.IntStream;
+-import javax.annotation.Nullable;
++import com.google.common.collect.ImmutableMap;
 +import com.google.gson.JsonParseException;
  import net.minecraft.core.BlockPos;
  import net.minecraft.core.Direction;
@@ -29,18 +27,27 @@ index 0d68db20f5fbe5e834f12c1e8fd429099a44e4b6..3d7927c40389aa44d882a4dc66059f16
  import net.minecraft.network.chat.Component;
  import net.minecraft.sounds.SoundEvents;
  import net.minecraft.sounds.SoundSource;
-@@ -34,8 +39,10 @@ import net.minecraft.world.level.material.PushReaction;
+@@ -33,9 +32,18 @@ import net.minecraft.world.level.gameevent.GameEvent;
+ import net.minecraft.world.level.material.PushReaction;
  import net.minecraft.world.phys.AABB;
  import net.minecraft.world.phys.Vec3;
- // CraftBukkit start
+-// CraftBukkit start
 +import org.bukkit.craftbukkit.CraftRegistry;
  import org.bukkit.craftbukkit.entity.CraftHumanEntity;
  import org.bukkit.entity.HumanEntity;
 +import org.jetbrains.annotations.NotNull;
++
++import javax.annotation.Nullable;
++import java.util.HashMap;
++import java.util.Iterator;
++import java.util.List;
++import java.util.Map;
++import java.util.UUID;
++import java.util.stream.IntStream;
  // CraftBukkit end
  
  public class ShulkerBoxBlockEntity extends RandomizableContainerBlockEntity implements WorldlyContainer {
-@@ -254,12 +261,274 @@ public class ShulkerBoxBlockEntity extends RandomizableContainerBlockEntity impl
+@@ -254,12 +262,550 @@ public class ShulkerBoxBlockEntity extends RandomizableContainerBlockEntity impl
  
      public void loadFromTag(CompoundTag nbt, HolderLookup.Provider registries) {
          this.itemStacks = NonNullList.withSize(this.getContainerSize(), ItemStack.EMPTY);
@@ -66,11 +73,37 @@ index 0d68db20f5fbe5e834f12c1e8fd429099a44e4b6..3d7927c40389aa44d882a4dc66059f16
 +                }
 +                if (baseItemTag.contains("tag")) {
 +                    CompoundTag tagTag = baseItemTag.getCompound("tag");
++                    int flags = 0;
++                    if (tagTag.contains("HideFlags")) {
++                        flags = tagTag.getInt("HideFlags");
++                        // not bothering handling all hideflags...
++                        if ((flags & (1 << 5)) != 0) {
++                            newComponentsTag.put("minecraft:hide_additional_tooltip", new CompoundTag());
++                        }
++                    }
++                    if (tagTag.contains("Damage")) {
++                        int damage = tagTag.getInt("Damage");
++                        tagTag.remove("Damage");
++                        newComponentsTag.putInt("minecraft:damage", damage);
++                    }
++                    if (tagTag.contains("RepairCost")) {
++                        int damage = tagTag.getInt("RepairCost");
++                        tagTag.remove("RepairCost");
++                        newComponentsTag.putInt("minecraft:repair_cost", damage);
++                    }
 +                    if (tagTag.contains("display")) {
 +                        CompoundTag displayTag = tagTag.getCompound("display");
-+                        if (displayTag.contains("Name", CompoundTag.TAG_STRING)) {
-+                            newComponentsTag.putString("minecraft:custom_name", displayTag.getString("Name"));
++                        if (displayTag.contains("Name")) {
++                            String name = displayTag.getString("Name");
 +                            displayTag.remove("Name");
++                            newComponentsTag.putString("minecraft:custom_name", name);
++                        }
++                        if (displayTag.contains("color")) {
++                            int color = displayTag.getInt("color");
++                            displayTag.remove("color");
++                            CompoundTag newColorTag = new CompoundTag();
++                            newColorTag.putInt("rgb", color);
++                            newComponentsTag.put("minecraft:dyed_color", newColorTag);
 +                        }
 +                        if (displayTag.contains("Lore", CompoundTag.TAG_LIST)) {
 +                            ListTag loreList = displayTag.getList("Lore", CompoundTag.TAG_STRING);
@@ -132,6 +165,7 @@ index 0d68db20f5fbe5e834f12c1e8fd429099a44e4b6..3d7927c40389aa44d882a4dc66059f16
 +                                newComponentsTag.put("minecraft:custom_data", customDataTag);
 +                            }
 +                        }
++
 +                        if (displayTag.isEmpty()) {
 +                            tagTag.remove("display");
 +                        } else {
@@ -163,7 +197,88 @@ index 0d68db20f5fbe5e834f12c1e8fd429099a44e4b6..3d7927c40389aa44d882a4dc66059f16
 +                            }
 +                        }
 +                        newEnchantments.put("levels", newLevels);
++                        if ((flags & (1 << 0)) != 0) {
++                            newEnchantments.putBoolean("show_in_tooltip", false);
++                        }
 +                        newComponentsTag.put("minecraft:enchantments", newEnchantments);
++                    } else {
++                        if ((flags & (1 << 0)) != 0) {
++                            CompoundTag enchants = new CompoundTag();
++                            enchants.putBoolean("show_in_tooltip", false);
++                            enchants.put("levels", new CompoundTag());
++                            newComponentsTag.put("minecraft:enchantments", enchants);
++                        }
++
++                    }
++                    if (tagTag.contains("Explosion")) {
++                        CompoundTag explosionTag = tagTag.getCompound("Explosion");
++                        tagTag.remove("Explosion");
++                        CompoundTag newExplosionTag = new CompoundTag();
++                        byte type = 0;
++                        if (explosionTag.contains("Type")) {
++                            type = explosionTag.getByte("Type");
++                        }
++                        newExplosionTag.putString("shape", convertFireworkExplosionType(type));
++                        if (explosionTag.contains("Colors")) {
++                            newExplosionTag.putIntArray("colors", explosionTag.getIntArray("Colors"));
++                        }
++                        if (explosionTag.contains("FadeColors")) {
++                            newExplosionTag.putIntArray("fade_colors", explosionTag.getIntArray("FadeColors"));
++                        }
++                        if (explosionTag.contains("Trail")) {
++                            newExplosionTag.putByte("has_trail", explosionTag.getByte("Trail"));
++                        }
++                        if (explosionTag.contains("Flicker")) {
++                            newExplosionTag.putByte("has_twinkle", explosionTag.getByte("Flicker"));
++                        }
++                        newComponentsTag.put("minecraft:firework_explosion", newExplosionTag);
++                    }
++                    if (tagTag.contains("Fireworks")) {
++                        CompoundTag fireworks = tagTag.getCompound("Fireworks");
++                        tagTag.remove("Fireworks");
++                        CompoundTag newFireworksTag = new CompoundTag();
++                        byte flight = 1;
++                        if (fireworks.contains("Flight")) {
++                            flight = fireworks.getByte("Flight");
++                            fireworks.remove("Flight");
++                        }
++                        newFireworksTag.putByte("flight_duration", flight);
++                        if (fireworks.contains("Explosions")) {
++                            ListTag explosions = fireworks.getList("Explosions", CompoundTag.TAG_COMPOUND);
++                            fireworks.remove("Explosions");
++                            ListTag newExplosionsTag = new ListTag();
++                            for (int e = 0; e < explosions.size(); e++) {
++                                CompoundTag explosion = explosions.getCompound(e);
++                                CompoundTag newExplosion = new CompoundTag();
++                                byte type = 0;
++                                if (explosion.contains("Type")) {
++                                    type = explosion.getByte("Type");
++                                }
++                                newExplosion.putString("shape", convertFireworkExplosionType(type));
++                                if (explosion.contains("Colors")) {
++                                    newExplosion.putIntArray("colors", explosion.getIntArray("Colors"));
++                                }
++                                if (explosion.contains("FadeColors")) {
++                                    newExplosion.putIntArray("fade_colors", explosion.getIntArray("FadeColors"));
++                                }
++                                if (explosion.contains("Trail")) {
++                                    newExplosion.putByte("has_trail", explosion.getByte("Trail"));
++                                }
++                                if (explosion.contains("Flicker")) {
++                                    newExplosion.putByte("has_twinkle", explosion.getByte("Flicker"));
++                                }
++                                newExplosionsTag.add(newExplosion);
++                            }
++                            newFireworksTag.put("explosions", newExplosionsTag);
++                        }
++                        newComponentsTag.put("minecraft:fireworks", newFireworksTag);
++                    }
++                    if (tagTag.contains("Potion")) {
++                        String potion = tagTag.getString("Potion");
++                        tagTag.remove("Potion");
++                        CompoundTag newPotionTag = new CompoundTag();
++                        newPotionTag.putString("potion", potion);
++                        newComponentsTag.put("minecraft:potion_contents", newPotionTag);
 +                    }
 +                    if (tagTag.contains("SkullOwner")) {
 +                        CompoundTag skullTag = tagTag.getCompound("SkullOwner");
@@ -191,14 +306,15 @@ index 0d68db20f5fbe5e834f12c1e8fd429099a44e4b6..3d7927c40389aa44d882a4dc66059f16
 +                            } else {
 +                                newPropertiesTag = new ListTag();
 +                            }
-+                            if (properties.contains("textures", CompoundTag.TAG_LIST)) {
-+                                ListTag textures = properties.getList("textures", CompoundTag.TAG_COMPOUND);
-+                                if (!textures.isEmpty()) {
-+                                    CompoundTag first = textures.getCompound(0);
-+                                    if (first.contains("Value", CompoundTag.TAG_STRING)) {
-+                                        String textureValue = first.getString("Value");
++                            java.util.Set<String> propertiesKeys = properties.getAllKeys();
++                            for (String propertyKey : propertiesKeys) {
++                                ListTag textures = properties.getList(propertyKey, CompoundTag.TAG_COMPOUND);
++                                for (int t = 0; t < textures.size(); t++) {
++                                    CompoundTag texturesCompound = textures.getCompound(t);
++                                    if (texturesCompound.contains("Value", CompoundTag.TAG_STRING)) {
++                                        String textureValue = texturesCompound.getString("Value");
 +                                        CompoundTag tag = new CompoundTag();
-+                                        tag.putString("name", "textures");
++                                        tag.putString("name", propertyKey);
 +                                        tag.putString("value", textureValue);
 +                                        newPropertiesTag.add(tag);
 +                                    }
@@ -208,11 +324,16 @@ index 0d68db20f5fbe5e834f12c1e8fd429099a44e4b6..3d7927c40389aa44d882a4dc66059f16
 +                        }
 +
 +                        if (skullTag.isEmpty()) {
-+                            baseItemTag.remove("SkullOwner");
++                            tagTag.remove("SkullOwner");
 +                        } else {
-+                            baseItemTag.put("SkullOwner", skullTag);
++                            tagTag.put("SkullOwner", skullTag);
 +                        }
 +                        newComponentsTag.put("minecraft:profile", newProfileTag);
++                    }
++                    if (tagTag.contains("Trim")) {
++                        CompoundTag trimTag = tagTag.getCompound("Trim");
++                        tagTag.remove("Trim");
++                        newComponentsTag.put("minecraft:trim", trimTag);
 +                    }
 +                    if (tagTag.contains("AttributeModifiers", CompoundTag.TAG_LIST)) {
 +                        ListTag attributeModifiersList = tagTag.getList("AttributeModifiers", CompoundTag.TAG_COMPOUND);
@@ -251,9 +372,55 @@ index 0d68db20f5fbe5e834f12c1e8fd429099a44e4b6..3d7927c40389aa44d882a4dc66059f16
 +                            newModifiersList.add(newAttribute);
 +                        }
 +                        newAttributeModifiers.put("modifiers", newModifiersList);
++                        if ((flags & (1 << 1)) != 0) {
++                            newAttributeModifiers.putBoolean("show_in_tooltip", false);
++                        }
 +                        newComponentsTag.put("minecraft:attribute_modifiers", newAttributeModifiers);
 +                    }
-+
++                    if (tagTag.contains("BlockEntityTag")) {
++                        CompoundTag blockEntityTag = tagTag.getCompound("BlockEntityTag");
++                        tagTag.remove("BlockEntityTag");
++                        if (blockEntityTag.contains("sherds")) {
++                            ListTag sherdsList = blockEntityTag.getList("sherds", CompoundTag.TAG_STRING);
++                            blockEntityTag.remove("sherds");
++                            newComponentsTag.put("minecraft:pot_decorations", sherdsList);
++                        }
++                        if (blockEntityTag.contains("Patterns")) {
++                            ListTag patternList = blockEntityTag.getList("Patterns", CompoundTag.TAG_COMPOUND);
++                            blockEntityTag.remove("Patterns");
++                            ListTag newPatterns = new ListTag();
++                            for (int p = 0; p < patternList.size(); p++) {
++                                CompoundTag pattern = patternList.getCompound(p);
++                                CompoundTag newPattern = convertBannerPattern(pattern);
++                                newPatterns.add(newPattern);
++                            }
++                            newComponentsTag.put("minecraft:banner_patterns", newPatterns);
++                        }
++                        if (blockEntityTag.isEmpty()) {
++                            tagTag.remove("BlockEntityTag");
++                        } else {
++                            tagTag.put("BlockEntityTag", blockEntityTag);
++                        }
++                    }
++                    if (tagTag.contains("BucketVariantTag") || tagTag.contains("Health")) {
++                        CompoundTag newBucketEntityData = new CompoundTag();
++                        if (tagTag.contains("BucketVariantTag")) {
++                            int variant = tagTag.getInt("BucketVariantTag");
++                            tagTag.remove("BucketVariantTag");
++                            newBucketEntityData.putInt("BucketVariantTag", variant);
++                        }
++                        if (tagTag.contains("Health")) {
++                            float health = tagTag.getFloat("Health");
++                            tagTag.remove("Health");
++                            newBucketEntityData.putFloat("Health", health);
++                        }
++                        newComponentsTag.put("minecraft:bucket_entity_data", newBucketEntityData);
++                    }
++                    if (tagTag.contains("instrument")) {
++                        String instrument = tagTag.getString("instrument");
++                        tagTag.remove("instrument");
++                        newComponentsTag.putString("minecraft:instrument", instrument);
++                    }
 +                    if (tagTag.isEmpty()) {
 +                        baseItemTag.remove("tag");
 +                    } else {
@@ -308,8 +475,124 @@ index 0d68db20f5fbe5e834f12c1e8fd429099a44e4b6..3d7927c40389aa44d882a4dc66059f16
 +                lastUnderscore = true;
 +            }
 +        }
-+
 +        return sb.toString();
++    }
++    private static final Map<UUID, String> ATTRIBUTE_UUID_TO_ID = new HashMap<>(
++        ImmutableMap.<UUID, String>builder()
++                    .put(UUID.fromString("736565d2-e1a7-403d-a3f8-1aeb3e302542"), "minecraft:creative_mode_block_range")
++                    .put(UUID.fromString("98491ef6-97b1-4584-ae82-71a8cc85cf73"), "minecraft:creative_mode_entity_range")
++                    .put(UUID.fromString("91AEAA56-376B-4498-935B-2F7F68070635"), "minecraft:effect.speed")
++                    .put(UUID.fromString("7107DE5E-7CE8-4030-940E-514C1F160890"), "minecraft:effect.slowness")
++                    .put(UUID.fromString("AF8B6E3F-3328-4C0A-AA36-5BA2BB9DBEF3"), "minecraft:effect.haste")
++                    .put(UUID.fromString("55FCED67-E92A-486E-9800-B47F202C4386"), "minecraft:effect.mining_fatigue")
++                    .put(UUID.fromString("648D7064-6A60-4F59-8ABE-C2C23A6DD7A9"), "minecraft:effect.strength")
++                    .put(UUID.fromString("C0105BF3-AEF8-46B0-9EBC-92943757CCBE"), "minecraft:effect.jump_boost")
++                    .put(UUID.fromString("22653B89-116E-49DC-9B6B-9971489B5BE5"), "minecraft:effect.weakness")
++                    .put(UUID.fromString("5D6F0BA2-1186-46AC-B896-C61C5CEE99CC"), "minecraft:effect.health_boost")
++                    .put(UUID.fromString("EAE29CF0-701E-4ED6-883A-96F798F3DAB5"), "minecraft:effect.absorption")
++                    .put(UUID.fromString("03C3C89D-7037-4B42-869F-B146BCB64D2E"), "minecraft:effect.luck")
++                    .put(UUID.fromString("CC5AF142-2BD2-4215-B636-2605AED11727"), "minecraft:effect.unluck")
++                    .put(UUID.fromString("6555be74-63b3-41f1-a245-77833b3c2562"), "minecraft:evil")
++                    .put(UUID.fromString("1eaf83ff-7207-4596-b37a-d7a07b3ec4ce"), "minecraft:powder_snow")
++                    .put(UUID.fromString("662A6B8D-DA3E-4C1C-8813-96EA6097278D"), "minecraft:sprinting")
++                    .put(UUID.fromString("020E0DFB-87AE-4653-9556-831010E291A0"), "minecraft:attacking")
++                    .put(UUID.fromString("766bfa64-11f3-11ea-8d71-362b9e155667"), "minecraft:baby")
++                    .put(UUID.fromString("7E0292F2-9434-48D5-A29F-9583AF7DF27F"), "minecraft:covered")
++                    .put(UUID.fromString("9e362924-01de-4ddd-a2b2-d0f7a405a174"), "minecraft:suffocating")
++                    .put(UUID.fromString("5CD17E52-A79A-43D3-A529-90FDE04B181E"), "minecraft:drinking")
++                    .put(UUID.fromString("B9766B59-9566-4402-BC1F-2EE2A276D836"), "minecraft:baby")
++                    .put(UUID.fromString("49455A49-7EC5-45BA-B886-3B90B23A1718"), "minecraft:attacking")
++                    .put(UUID.fromString("845DB27C-C624-495F-8C9F-6020A9A58B6B"), "minecraft:armor.boots")
++                    .put(UUID.fromString("D8499B04-0E66-4726-AB29-64469D734E0D"), "minecraft:armor.leggings")
++                    .put(UUID.fromString("9F3D476D-C118-4544-8365-64846904B48E"), "minecraft:armor.chestplate")
++                    .put(UUID.fromString("2AD3F246-FEE1-4E67-B886-69FD380BB150"), "minecraft:armor.helmet")
++                    .put(UUID.fromString("C1C72771-8B8E-BA4A-ACE0-81A93C8928B2"), "minecraft:armor.body")
++                    .put(UUID.fromString("b572ecd2-ac0c-4071-abde-9594af072a37"), "minecraft:enchantment.fire_protection")
++                    .put(UUID.fromString("40a9968f-5c66-4e2f-b7f4-2ec2f4b3e450"), "minecraft:enchantment.blast_protection")
++                    .put(UUID.fromString("07a65791-f64d-4e79-86c7-f83932f007ec"), "minecraft:enchantment.respiration")
++                    .put(UUID.fromString("60b1b7db-fffd-4ad0-817c-d6c6a93d8a45"), "minecraft:enchantment.aqua_affinity")
++                    .put(UUID.fromString("11dc269a-4476-46c0-aff3-9e17d7eb6801"), "minecraft:enchantment.depth_strider")
++                    .put(UUID.fromString("87f46a96-686f-4796-b035-22e16ee9e038"), "minecraft:enchantment.soul_speed")
++                    .put(UUID.fromString("b9716dbd-50df-4080-850e-70347d24e687"), "minecraft:enchantment.soul_speed")
++                    .put(UUID.fromString("92437d00-c3a7-4f2e-8f6c-1f21585d5dd0"), "minecraft:enchantment.swift_sneak")
++                    .put(UUID.fromString("5d3d087b-debe-4037-b53e-d84f3ff51f17"), "minecraft:enchantment.sweeping_edge")
++                    .put(UUID.fromString("3ceb37c0-db62-46b5-bd02-785457b01d96"), "minecraft:enchantment.efficiency")
++                    .put(UUID.fromString("CB3F55D3-645C-4F38-A497-9C13A33DB5CF"), "minecraft:base_attack_damage")
++                    .put(UUID.fromString("FA233E1C-4180-4865-B01B-BCCE9785ACA3"), "minecraft:base_attack_speed")
++                    .build()
++    );
++
++    private static String convertFireworkExplosionType(int oldType) {
++        final String newType;
++        return switch (oldType) {
++            case 1 -> "large_ball";
++            case 2 -> "star";
++            case 3 -> "creeper";
++            case 4 -> "burst";
++            default -> "small_ball";
++        };
++    }
++    private static final Map<String, String> PATTERN_UPDATE = new HashMap<>();
++    static {
++        PATTERN_UPDATE.put("b", "minecraft:base");
++        PATTERN_UPDATE.put("bl", "minecraft:square_bottom_left");
++        PATTERN_UPDATE.put("br", "minecraft:square_bottom_right");
++        PATTERN_UPDATE.put("tl", "minecraft:square_top_left");
++        PATTERN_UPDATE.put("tr", "minecraft:square_top_right");
++        PATTERN_UPDATE.put("bs", "minecraft:stripe_bottom");
++        PATTERN_UPDATE.put("ts", "minecraft:stripe_top");
++        PATTERN_UPDATE.put("ls", "minecraft:stripe_left");
++        PATTERN_UPDATE.put("rs", "minecraft:stripe_right");
++        PATTERN_UPDATE.put("cs", "minecraft:stripe_center");
++        PATTERN_UPDATE.put("ms", "minecraft:stripe_middle");
++        PATTERN_UPDATE.put("drs", "minecraft:stripe_downright");
++        PATTERN_UPDATE.put("dls", "minecraft:stripe_downleft");
++        PATTERN_UPDATE.put("ss", "minecraft:small_stripes");
++        PATTERN_UPDATE.put("cr", "minecraft:cross");
++        PATTERN_UPDATE.put("sc", "minecraft:straight_cross");
++        PATTERN_UPDATE.put("bt", "minecraft:triangle_bottom");
++        PATTERN_UPDATE.put("tt", "minecraft:triangle_top");
++        PATTERN_UPDATE.put("bts", "minecraft:triangles_bottom");
++        PATTERN_UPDATE.put("tts", "minecraft:triangles_top");
++        PATTERN_UPDATE.put("ld", "minecraft:diagonal_left");
++        PATTERN_UPDATE.put("rd", "minecraft:diagonal_up_right");
++        PATTERN_UPDATE.put("lud", "minecraft:diagonal_up_left");
++        PATTERN_UPDATE.put("rud", "minecraft:diagonal_right");
++        PATTERN_UPDATE.put("mc", "minecraft:circle");
++        PATTERN_UPDATE.put("mr", "minecraft:rhombus");
++        PATTERN_UPDATE.put("vh", "minecraft:half_vertical");
++        PATTERN_UPDATE.put("hh", "minecraft:half_horizontal");
++        PATTERN_UPDATE.put("vhr", "minecraft:half_vertical_right");
++        PATTERN_UPDATE.put("hhb", "minecraft:half_horizontal_bottom");
++        PATTERN_UPDATE.put("bo", "minecraft:border");
++        PATTERN_UPDATE.put("cbo", "minecraft:curly_border");
++        PATTERN_UPDATE.put("gra", "minecraft:gradient");
++        PATTERN_UPDATE.put("gru", "minecraft:gradient_up");
++        PATTERN_UPDATE.put("bri", "minecraft:bricks");
++        PATTERN_UPDATE.put("glb", "minecraft:globe");
++        PATTERN_UPDATE.put("cre", "minecraft:creeper");
++        PATTERN_UPDATE.put("sku", "minecraft:skull");
++        PATTERN_UPDATE.put("flo", "minecraft:flower");
++        PATTERN_UPDATE.put("moj", "minecraft:mojang");
++        PATTERN_UPDATE.put("pig", "minecraft:piglin");
++    }
++    private static CompoundTag convertBannerPattern(CompoundTag oldTag) {
++        CompoundTag newTag = new CompoundTag();
++        int oldColor = 0;
++        if (oldTag.contains("Color")) {
++            oldColor = oldTag.getInt("Color");
++        }
++        newTag.putString("color", ca.spottedleaf.dataconverter.minecraft.versions.V3818.getBannerColour(oldColor));
++
++        String oldPattern = "";
++        if (oldTag.contains("Pattern")) {
++            oldPattern = oldTag.getString("Pattern");
++        }
++        String newPattern = PATTERN_UPDATE.get(oldPattern);
++        if (newPattern != null) {
++            newTag.putString("pattern", newPattern);
++        }
++        return newTag;
 +    }
 +    // EMC end
 +
