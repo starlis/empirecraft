@@ -1,0 +1,56 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: chickeneer <emcchickeneer@gmail.com>
+Date: Sun, 29 Dec 2024 22:15:58 -0600
+Subject: [PATCH] Fix deserializing of certain skull meta
+
+Serialization doesn't get the datafixers which turns these keys
+lowercase...
+
+diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaSkull.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaSkull.java
+index 5a4e5b8736ad2e2084e757e9d2034044e177d8f0..e7ea9bda578ce1b4351f3919b830191f2d79d741 100644
+--- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaSkull.java
++++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaSkull.java
+@@ -9,6 +9,7 @@ import net.minecraft.Util;
+ import net.minecraft.core.component.DataComponentPatch;
+ import net.minecraft.core.component.DataComponents;
+ import net.minecraft.nbt.CompoundTag;
++import net.minecraft.nbt.ListTag;
+ import net.minecraft.nbt.NbtOps;
+ import net.minecraft.resources.ResourceLocation;
+ import net.minecraft.world.item.component.ResolvableProfile;
+@@ -86,6 +87,35 @@ class CraftMetaSkull extends CraftMetaItem implements SkullMeta {
+                 UUID uuid = UUID.fromString(skullTag.getString("Id"));
+                 skullTag.putUUID("Id", uuid);
+             }
++            // EMC start
++            if (skullTag.contains("Id")) {
++                skullTag.putUUID("id", skullTag.getUUID("Id"));
++                skullTag.remove("Id");
++            }
++            if (skullTag.contains("Name")) {
++                skullTag.putString("name", skullTag.getString("Name"));
++                skullTag.remove("Name");
++            }
++            if (skullTag.contains("Properties")) {
++                CompoundTag properties = skullTag.getCompound("Properties");
++                skullTag.remove("Properties");
++                ListTag newProperties = new ListTag();
++                for (String propertyKey : properties.getAllKeys()) {
++                    ListTag propertiesList = properties.getList(propertyKey, CompoundTag.TAG_COMPOUND);
++                    for (int i = 0; i < propertiesList.size(); i++) {
++                        CompoundTag texturesCompound = propertiesList.getCompound(i);
++                        if (texturesCompound.contains("Value", CompoundTag.TAG_STRING)) {
++                            String property = texturesCompound.getString("Value");
++                            CompoundTag t = new CompoundTag();
++                            t.putString("name", propertyKey);
++                            t.putString("value", property);
++                            newProperties.add(t);
++                        }
++                    }
++                }
++                skullTag.put("properties", newProperties);
++            }
++            // EMC end
+ 
+             ResolvableProfile.CODEC.parse(NbtOps.INSTANCE, skullTag).result().ifPresent(this::setProfile);
+         }
