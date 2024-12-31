@@ -1,0 +1,104 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: chickeneer <emcchickeneer@gmail.com>
+Date: Tue, 31 Dec 2024 08:16:50 -0600
+Subject: [PATCH] Fix issues with deserializing attributes
+
+
+diff --git a/src/main/java/org/bukkit/craftbukkit/attribute/CraftAttribute.java b/src/main/java/org/bukkit/craftbukkit/attribute/CraftAttribute.java
+index 10e4318782107644f67818109784fff60d017e0a..2e05a59fd7edb7653b312ae35d11d05a95bd3e39 100644
+--- a/src/main/java/org/bukkit/craftbukkit/attribute/CraftAttribute.java
++++ b/src/main/java/org/bukkit/craftbukkit/attribute/CraftAttribute.java
+@@ -34,11 +34,16 @@ public class CraftAttribute {
+ 
+         // We currently do not have any version-dependent remapping, so we can use current version
+         // First convert from when only the names where saved
++        // EMC start
++        string = string.replace("GENERIC_", "GENERIC.");
++        string = string.replace("HORSE_", "HORSE.");
++        string = string.replace("PLAYER_", "PLAYER.");
++        string = string.replace("ZOMBIE_", "ZOMBIE.");
++        // EMC end
+         string = FieldRename.convertAttributeName(ApiVersion.CURRENT, string);
+         string = string.toLowerCase(Locale.ROOT);
+         NamespacedKey key = NamespacedKey.fromString(string);
+         if (key == null) return null; // Paper - Fixup NamespacedKey handling
+-
+         // Now also convert from when keys where saved
+         return CraftRegistry.get(Registry.ATTRIBUTE, key, ApiVersion.CURRENT);
+     }
+diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java
+index 60ec9b228518de0521b12f3f4ef26cb30260315a..b14c528cb9827327968df81b21ca6b2f1517c82d 100644
+--- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java
++++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java
+@@ -721,10 +721,71 @@ class CraftMetaItem implements ItemMeta, Damageable, Repairable, BlockDataMeta {
+ 
+     void deserializeInternal(CompoundTag tag, Object context) {
+         // SPIGOT-4576: Need to migrate from internal to proper data
++        // EMC start
++        if (tag.contains("AttributeModifiers")) {
++            ListTag attributeModifiersList = tag.getList("AttributeModifiers", Tag.TAG_COMPOUND);
++            tag.remove("AttributeModifiers");
++
++            ListTag newAttributeModifiers = new ListTag();
++            for (int idx = 0; idx < attributeModifiersList.size(); idx++) {
++                CompoundTag oldAttribute = attributeModifiersList.getCompound(idx);
++                CompoundTag newAttribute = new CompoundTag();
++                if (oldAttribute.contains("Amount", CompoundTag.TAG_DOUBLE)) {
++                    newAttribute.putDouble("amount", oldAttribute.getDouble("Amount"));
++                }
++                if (oldAttribute.contains("AttributeName", CompoundTag.TAG_STRING)) {
++                    String attributeName = oldAttribute.getString("AttributeName");
++                    newAttribute.putString("AttributeName", attributeName);
++                    String rename = ATTRIBUTE_RENAMES.get(attributeName);
++                    if (rename != null) {
++                        attributeName = rename;
++                    }
++                    newAttribute.putString("id", attributeName);
++                    newAttribute.putString("type", attributeName);
++                }
++                if (oldAttribute.contains("Slot", CompoundTag.TAG_STRING)) {
++                    String slot = oldAttribute.getString("Slot");
++                    newAttribute.putString("slot", slot);
++                    newAttribute.putString("Slot", slot);
++                }
++                if (oldAttribute.contains("Operation", CompoundTag.TAG_INT)) {
++                    int operation = oldAttribute.getInt("Operation");
++                    String operationType = operation == 0 ? "add_value" : operation == 1 ? "add_multiplied_base" : "add_multiplied_total";
++                    newAttribute.putString("operation", operationType);
++                }
++                newAttributeModifiers.add(newAttribute);
++            }
++            tag.put("attribute-modifiers", newAttributeModifiers);
++        }
++        // EMC end
+         if (tag.contains(CraftMetaItem.ATTRIBUTES.NBT, CraftMagicNumbers.NBT.TAG_LIST)) {
+             this.attributeModifiers = CraftMetaItem.buildModifiersLegacy(tag, CraftMetaItem.ATTRIBUTES);
+         }
+     }
++    // EMC start
++    private static final Map<String, String> ATTRIBUTE_RENAMES = new HashMap<>(
++        ImmutableMap.<String, String>builder()
++                    .put("generic.maxHealth", "minecraft:generic.max_health")
++                    .put("Max Health", "minecraft:generic.max_health")
++                    .put("zombie.spawnReinforcements", "minecraft:zombie.spawn_reinforcements")
++                    .put("Spawn Reinforcements Chance", "minecraft:zombie.spawn_reinforcements")
++                    .put("horse.jumpStrength", "minecraft:horse.jump_strength")
++                    .put("Jump Strength", "minecraft:horse.jump_strength")
++                    .put("generic.followRange", "minecraft:generic.follow_range")
++                    .put("Follow Range", "minecraft:generic.follow_range")
++                    .put("generic.knockbackResistance", "minecraft:generic.knockback_resistance")
++                    .put("Knockback Resistance", "minecraft:generic.knockback_resistance")
++                    .put("generic.movementSpeed", "minecraft:generic.movement_speed")
++                    .put("Movement Speed", "minecraft:generic.movement_speed")
++                    .put("generic.flyingSpeed", "minecraft:generic.flying_speed")
++                    .put("Flying Speed", "minecraft:generic.flying_speed")
++                    .put("generic.attackDamage", "minecraft:generic.attack_damage")
++                    .put("generic.attackKnockback", "minecraft:generic.attack_knockback")
++                    .put("generic.attackSpeed", "minecraft:generic.attack_speed")
++                    .put("generic.armorToughness", "minecraft:generic.armor_toughness")
++                    .build()
++    );
++    // EMC end
+ 
+     private static Multimap<Attribute, AttributeModifier> buildModifiersLegacy(CompoundTag tag, ItemMetaKey key) {
+         Multimap<Attribute, AttributeModifier> modifiers = LinkedHashMultimap.create();
