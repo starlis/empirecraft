@@ -5,71 +5,33 @@ Subject: [PATCH] Improve loading old block entity names
 
 
 diff --git a/src/main/java/net/minecraft/world/level/block/entity/BlockEntity.java b/src/main/java/net/minecraft/world/level/block/entity/BlockEntity.java
-index 574a3c7173a9ea24a542d5a489b2df3f9c920d1b..cd30e5402bc2b66fbe55e932ef5008856f3eee4f 100644
+index cffeaff83ec5037c21ff33ac32287017c1263b67..14befb3b020de18a15445d0288fa38f7c450776e 100644
 --- a/src/main/java/net/minecraft/world/level/block/entity/BlockEntity.java
 +++ b/src/main/java/net/minecraft/world/level/block/entity/BlockEntity.java
-@@ -1,11 +1,15 @@
+@@ -1,5 +1,6 @@
  package net.minecraft.world.level.block.entity;
  
 +import com.google.gson.JsonParseException;
  import com.mojang.logging.LogUtils;
  import com.mojang.serialization.Codec;
  import java.util.HashSet;
- import java.util.Objects;
- import java.util.Set;
- import javax.annotation.Nullable;
-+
-+import io.papermc.paper.adventure.PaperAdventure;
-+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
- import net.minecraft.CrashReportCategory;
- import net.minecraft.core.BlockPos;
- import net.minecraft.core.HolderLookup;
-@@ -25,6 +29,8 @@ import net.minecraft.world.item.BlockItem;
- import net.minecraft.world.item.ItemStack;
- import net.minecraft.world.level.Level;
- import net.minecraft.world.level.block.state.BlockState;
-+import org.bukkit.craftbukkit.CraftRegistry;
-+import org.jetbrains.annotations.NotNull;
- import org.slf4j.Logger;
- 
- // CraftBukkit start
-@@ -378,12 +384,38 @@ public abstract class BlockEntity {
+@@ -378,7 +379,18 @@ public abstract class BlockEntity {
      @Nullable
      public static Component parseCustomNameSafe(String json, HolderLookup.Provider registryLookup) {
          try {
--            return Component.Serializer.fromJsonLenient(json, registryLookup); // EMC
+-            return Component.Serializer.fromJson(json, registryLookup);
 +            // EMC start
++            if (json.isEmpty()) {
++                return null;
++            }
 +            if (json.startsWith("{") && json.endsWith("}")) {
 +                try {
 +                    return Component.Serializer.fromJson(json, registryLookup);
 +                } catch (JsonParseException ignored) {
 +                }
-+                return Component.Serializer.fromJsonLenient(json, registryLookup);
-+            } else {
-+                return PaperAdventure.asVanilla(LegacyComponentSerializer.legacySection().deserialize(json));
 +            }
++            return Component.Serializer.fromJsonLenient(json, registryLookup);
 +            // EMC end
          } catch (Exception exception) {
              BlockEntity.LOGGER.warn("Failed to parse custom name from string '{}', discarding", json, exception);
              return null;
-         }
-     }
-+    // EMC start
-+    static @NotNull String getString(@NotNull String text) {
-+        if (text.startsWith("{") && text.endsWith("}")) {
-+            Component component = null;
-+            try {
-+                component = Component.Serializer.fromJson(text, CraftRegistry.getMinecraftRegistry());
-+            } catch (JsonParseException ignored) {
-+            }
-+            text = component != null ? component.getString() : text;
-+        }
-+        if (text.startsWith("\"") && text.endsWith("\"") && text.length() > 1) {
-+            text = text.substring(1, text.length() - 1);
-+        }
-+        return text;
-+    }
-+    // EMC end
- 
-     // CraftBukkit start - add method
-     public InventoryHolder getOwner() {
