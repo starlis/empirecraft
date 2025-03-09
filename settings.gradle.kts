@@ -8,7 +8,7 @@ pluginManagement {
 }
 
 plugins {
-    id("org.gradle.toolchains.foojay-resolver-convention") version "0.8.0"
+    id("org.gradle.toolchains.foojay-resolver-convention") version "0.9.0"
 }
 
 if (!file(".git").exists()) {
@@ -28,7 +28,7 @@ if (!file(".git").exists()) {
 }
 
 rootProject.name = "empirecraft"
-for (name in listOf("EmpireCraft-API", "EmpireCraft-Server", "paper-api-generator")) {
+for (name in listOf("empirecraft-api", "empirecraft-server")) {
     val projName = name.lowercase(Locale.ENGLISH)
     include(projName)
     findProject(":$projName")!!.projectDir = file(name)

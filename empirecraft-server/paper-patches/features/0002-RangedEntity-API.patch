@@ -1,0 +1,52 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: chickeneer <emcchickeneer@gmail.com>
+Date: Sat, 1 Apr 2023 12:14:27 -0500
+Subject: [PATCH] RangedEntity-API
+
+
+diff --git a/src/main/java/com/destroystokyo/paper/entity/CraftRangedEntity.java b/src/main/java/com/destroystokyo/paper/entity/CraftRangedEntity.java
+index d7a8eb1b8f24ed2741ae9dae62d3f6146f273e1d..6529e85902fcfb0f6a6551e5ab9026997ed76a70 100644
+--- a/src/main/java/com/destroystokyo/paper/entity/CraftRangedEntity.java
++++ b/src/main/java/com/destroystokyo/paper/entity/CraftRangedEntity.java
+@@ -17,4 +17,41 @@ public interface CraftRangedEntity<T extends Mob & RangedAttackMob> extends Rang
+     default void setChargingAttack(boolean raiseHands) {
+         getHandle().setAggressive(raiseHands);
+     }
++    // EMC start
++    @Override
++    default void setRangedAttackDistance(float range) {
++        com.empireminecraft.empirecraft.api.API.entity.setTargetRange(this, (double) range);
++        net.minecraft.world.entity.Mob entity = getHandle();
++        com.empireminecraft.empirecraft.api.EntityAIApi.getGoalSets(entity).forEach(set -> set.forEach(o -> {
++            net.minecraft.world.entity.ai.goal.Goal goal = o.getGoal();
++            if (goal instanceof net.minecraft.world.entity.ai.goal.RangedAttackGoal) {
++                ((net.minecraft.world.entity.ai.goal.RangedAttackGoal) goal).setAttackRadius(range);
++            } else if (goal instanceof net.minecraft.world.entity.ai.goal.RangedBowAttackGoal) {
++                ((net.minecraft.world.entity.ai.goal.RangedBowAttackGoal<?>) goal).setAttackRadius(range);
++            }
++        }));
++    }
++
++    @Override
++    default void setRangedAttackSpeed(Integer min, Integer max) {
++        if (min == null && max == null) {
++            return;
++        }
++        net.minecraft.world.entity.Mob entity = getHandle();
++        com.empireminecraft.empirecraft.api.EntityAIApi.getGoalSets(entity).forEach(set -> set.forEach(o -> {
++            net.minecraft.world.entity.ai.goal.Goal goal = o.getGoal();
++            if (goal instanceof net.minecraft.world.entity.ai.goal.RangedAttackGoal) {
++                if (min != null) {
++                    ((net.minecraft.world.entity.ai.goal.RangedAttackGoal) goal).setMinInterval(min);
++                }
++                if (max != null) {
++                    ((net.minecraft.world.entity.ai.goal.RangedAttackGoal) goal).setMaxInterval(max);
++                }
++            } else if (goal instanceof net.minecraft.world.entity.ai.goal.RangedBowAttackGoal) {
++                int speed = min != null && max != null ? Math.min(min, max) : (min != null ? min : max);
++                ((net.minecraft.world.entity.ai.goal.RangedBowAttackGoal<?>) goal).setMinAttackInterval(speed);
++            }
++        }));
++    }
++    // EMC end
+ }

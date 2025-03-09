@@ -1,0 +1,132 @@
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/empirecraft/api/EAPI_Entity.java
+@@ -1,0 +_,129 @@
++/*
++ * Copyright (c) 2016 Starlis LLC / Daniel Ennis (Aikar) - MIT License
++ *
++ *  Permission is hereby granted, free of charge, to any person obtaining
++ *  a copy of this software and associated documentation files (the
++ *  "Software"), to deal in the Software without restriction, including
++ *  without limitation the rights to use, copy, modify, merge, publish,
++ *  distribute, sublicense, and/or sell copies of the Software, and to
++ *  permit persons to whom the Software is furnished to do so, subject to
++ *  the following conditions:
++ *
++ *  The above copyright notice and this permission notice shall be
++ *  included in all copies or substantial portions of the Software.
++ *
++ *  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ *  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
++ *  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ *  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
++ *  LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
++ *  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
++ *  WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package com.empireminecraft.empirecraft.api;
++
++import org.bukkit.World;
++import org.bukkit.entity.Mob;
++import com.empireminecraft.empirecraft.api.EntityTask.TaskHandler;
++import org.bukkit.entity.Creature;
++import org.bukkit.entity.Entity;
++import org.bukkit.entity.Item;
++import org.jetbrains.annotations.NotNull;
++import org.jetbrains.annotations.Nullable;
++
++import java.util.Set;
++
++public interface EAPI_Entity {
++    byte @NotNull [] serializeEntity(@NotNull Entity entity);
++    @Nullable Entity deserializeEntity(byte @NotNull [] data, @NotNull World world);
++
++    void cancelTasks(@NotNull Entity entity);
++
++    @NotNull
++    default <T extends Entity> EntityTask<T> scheduleTask(@NotNull T entity, int interval, @NotNull Runnable task) {
++        return scheduleTask(entity, interval, new EntityTask<T>() {
++            @Override
++            public void run(@NotNull T entity) {
++                task.run();
++            }
++        });
++    }
++
++    @NotNull
++    default <T extends Entity> EntityTask<T> scheduleDelayedTask(@NotNull T entity, int delay, @NotNull Runnable task) {
++        return scheduleTask(entity, delay, new EntityTask<T>(1) {
++            @Override
++            public void run(@NotNull T entity) {
++                task.run();
++            }
++        });
++    }
++
++    @NotNull
++    default <T extends Entity> EntityTask<T> scheduleDelayedTask(@NotNull T entity, int delay, @NotNull TaskHandler<T> task) {
++        return scheduleTask(entity, delay, new EntityTask<T>(1) {
++            @Override
++            public void run(@NotNull T entity) {
++                task.run(entity, this);
++            }
++        });
++    }
++
++    @NotNull
++    default <T extends Entity> EntityTask<T> scheduleTask(@NotNull T entity, int interval, @NotNull TaskHandler<T> task) {
++        return scheduleTask(entity, interval, new EntityTask<T>() {
++            @Override
++            public void run(@NotNull T entity) {
++                task.run(entity, this);
++            }
++        });
++    }
++
++    @NotNull
++    default <T extends Entity> EntityTask<T> scheduleTask(@NotNull T entity, int interval, int limit, @NotNull TaskHandler<T> task) {
++        return scheduleTask(entity, interval, new EntityTask<T>(limit) {
++            @Override
++            public void run(@NotNull T entity) {
++                task.run(entity, this);
++            }
++        });
++    }
++
++    @NotNull
++    default <T extends Entity> EntityTask<T> scheduleTask(@NotNull T entity, int interval, int limit, @NotNull Runnable task) {
++        return scheduleTask(entity, interval, new EntityTask<T>(limit) {
++            @Override
++            public void run(@NotNull T entity) {
++                task.run();
++            }
++        });
++    }
++
++    @NotNull
++    <T extends Entity> EntityTask<T> scheduleTask(@NotNull T entity, int interval, @NotNull EntityTask<T> task);
++
++    void setItemCanDespawn(@NotNull Item item, boolean canDespawn);
++
++    void setFireProof(@NotNull Mob mob, boolean flag);
++
++    void setPanicProof(@NotNull Mob mob, boolean flag);
++
++    void makeAggressive(@NotNull Creature creature, float range);
++
++    boolean isAggressive(@NotNull Creature creature);
++
++    void makePeaceful(@NotNull Mob mob);
++
++    void addGoalByName(@NotNull Mob mob, @NotNull String goalName, boolean isTargetGoal, int tickRate, @NotNull Class<?>[] argClasses, @NotNull Object... args);
++
++    void removeGoalByName(@NotNull Mob mob, @NotNull String goalName);
++
++    @NotNull
++    Set<String> listGoalNames(@NotNull Mob mob);
++
++    void setEntitySize(@NotNull Entity mob, float width, float height);
++
++    void setTargetRange(@NotNull Mob mob, @Nullable Double range);
++
++}

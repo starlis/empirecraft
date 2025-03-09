@@ -1,0 +1,49 @@
+--- a/net/minecraft/world/entity/LivingEntity.java
++++ b/net/minecraft/world/entity/LivingEntity.java
+@@ -375,6 +_,7 @@
+             .add(Attributes.EXPLOSION_KNOCKBACK_RESISTANCE)
+             .add(Attributes.WATER_MOVEMENT_EFFICIENCY)
+             .add(Attributes.MOVEMENT_EFFICIENCY)
++            .add(Attributes.ATTACK_DAMAGE, 2.0D) // EMC - make all mobs able to attack
+             .add(Attributes.ATTACK_KNOCKBACK);
+     }
+ 
+@@ -821,7 +_,19 @@
+         }
+         // Paper end - Friction API
+         if (compound.contains("attributes", 9) && this.level() != null && !this.level().isClientSide) {
+-            this.getAttributes().load(compound.getList("attributes", 10));
++            // EMC start - Remove old targetRange attribute data
++            ListTag nbttaglist = compound.getList("attributes", 10);
++            Set<Integer> removeIndices = new HashSet<>();
++            for (int i = 0; i < nbttaglist.size(); ++i) {
++                if ("generic.targetRange".equals(nbttaglist.getCompound(i).getString("Name"))) {
++                    removeIndices.add(i);
++                }
++            }
++            for (int index : removeIndices) {
++                nbttaglist.remove(index);
++            }
++            this.getAttributes().load(nbttaglist);
++            // EMC end - Remove old targetRange attribute data
+         }
+ 
+         if (compound.contains("active_effects", 9)) {
+@@ -3099,8 +_,15 @@
+     }
+ 
+     public boolean doHurtTarget(ServerLevel level, Entity source) {
+-        this.setLastHurtMob(source);
+-        return false;
++        // EMC start - make all mobs able to attack
++        boolean flag = source.hurtServer(level, this.damageSources().mobAttack(this), (float) ((int) this.getAttribute(Attributes.ATTACK_DAMAGE).getValue()));
++        if (flag) {
++            DamageSource damagesource = this.damageSources().mobAttack(this);
++            EnchantmentHelper.doPostAttackEffects(level, source, damagesource);
++            this.setLastHurtMob(source);
++        }
++        return flag;
++        // EMC end - make all mobs able to attack
+     }
+ 
+     // Paper start - EAR 2

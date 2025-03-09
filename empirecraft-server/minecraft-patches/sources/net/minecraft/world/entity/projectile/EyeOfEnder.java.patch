@@ -1,0 +1,52 @@
+--- a/net/minecraft/world/entity/projectile/EyeOfEnder.java
++++ b/net/minecraft/world/entity/projectile/EyeOfEnder.java
+@@ -26,6 +_,11 @@
+     public double tz;
+     public int life;
+     public boolean surviveAfterDeath;
++    // EMC start - EyeOfEnder API
++    public int lifeTime = 80;
++    public double speed = 0.0025D;
++    public boolean exactTarget = false;
++    // EMC end - EyeOfEnder API
+ 
+     public EyeOfEnder(EntityType<? extends EyeOfEnder> entityType, Level level) {
+         super(entityType, level);
+@@ -81,6 +_,7 @@
+         double d2 = d - this.getX();
+         double d3 = d1 - this.getZ();
+         double squareRoot = Math.sqrt(d2 * d2 + d3 * d3);
++        if (exactTarget) squareRoot = 0; // EMC - Set Exact Target
+         if (squareRoot > 12.0) {
+             this.tx = this.getX() + d2 / squareRoot * 12.0;
+             this.tz = this.getZ() + d3 / squareRoot * 12.0;
+@@ -115,6 +_,7 @@
+         Vec3 deltaMovement = this.getDeltaMovement();
+         double d = this.getX() + deltaMovement.x;
+         double d1 = this.getY() + deltaMovement.y;
++        double distY = this.ty - d1; // EMC
+         double d2 = this.getZ() + deltaMovement.z;
+         double d3 = deltaMovement.horizontalDistance();
+         this.setXRot(Projectile.lerpRotation(this.xRotO, (float)(Mth.atan2(deltaMovement.y, d3) * 180.0F / (float)Math.PI)));
+@@ -122,9 +_,9 @@
+         if (!this.level().isClientSide) {
+             double d4 = this.tx - d;
+             double d5 = this.tz - d2;
+-            float f = (float)Math.sqrt(d4 * d4 + d5 * d5);
++            float f = (float)Math.sqrt(d4 * d4 + d5 * d5 + (exactTarget ? distY * distY : 0)); // EMC - Set Exact Target
+             float f1 = (float)Mth.atan2(d5, d4);
+-            double d6 = Mth.lerp(0.0025, d3, (double)f);
++            double d6 = Mth.lerp(speed, d3, f); // EMC - Set Speed
+             double d7 = deltaMovement.y;
+             if (f < 1.0F) {
+                 d6 *= 0.8;
+@@ -166,7 +_,8 @@
+         if (!this.level().isClientSide) {
+             this.setPos(d, d1, d2);
+             this.life++;
+-            if (this.life > 80 && !this.level().isClientSide) {
++            if (this.life > this.lifeTime && !this.level().isClientSide) { // EMC - add lifeTime
++                if (!(new com.empireminecraft.empirecraft.event.entity.EnderSignalArriveEvent((org.bukkit.entity.EnderSignal) this.getBukkitEntity()).callEvent())) {return;} // EMC - EnderSignalArriveEvent
+                 this.playSound(SoundEvents.ENDER_EYE_DEATH, 1.0F, 1.0F);
+                 this.discard(this.surviveAfterDeath ? org.bukkit.event.entity.EntityRemoveEvent.Cause.DROP : org.bukkit.event.entity.EntityRemoveEvent.Cause.DESPAWN); // CraftBukkit - add Bukkit remove cause
+                 if (this.surviveAfterDeath) {

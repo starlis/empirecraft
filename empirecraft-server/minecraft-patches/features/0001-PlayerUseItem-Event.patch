@@ -1,0 +1,166 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Sat, 22 Dec 2012 00:35:15 -0500
+Subject: [PATCH] PlayerUseItem Event
+
+This lets us control when an item is consumed and change the item.
+
+diff --git a/net/minecraft/server/level/ServerPlayerGameMode.java b/net/minecraft/server/level/ServerPlayerGameMode.java
+index 623c069f1fe079e020c6391a3db1a3d95cd3dbf5..a2d4a644b37fc5dea700177b5d349ca53a0e4502 100644
+--- a/net/minecraft/server/level/ServerPlayerGameMode.java
++++ b/net/minecraft/server/level/ServerPlayerGameMode.java
+@@ -420,6 +420,15 @@ public class ServerPlayerGameMode {
+     }
+ 
+     public InteractionResult useItem(ServerPlayer player, Level level, ItemStack stack, InteractionHand hand) {
++        // EMC start - PlayerUseItemEvent - Allow control over if item should be consumed or not.
++        org.bukkit.inventory.EquipmentSlot bukkitHand = hand == InteractionHand.MAIN_HAND ? org.bukkit.inventory.EquipmentSlot.HAND : org.bukkit.inventory.EquipmentSlot.OFF_HAND;
++        org.bukkit.craftbukkit.inventory.CraftItemStack craftitem = org.bukkit.craftbukkit.inventory.CraftItemStack.asCraftMirror(stack);
++        org.bukkit.craftbukkit.inventory.CraftItemStack origItemClone = craftitem.clone();
++        com.empireminecraft.empirecraft.event.player.PlayerUseItemEvent event = new com.empireminecraft.empirecraft.event.player.PlayerUseItemEvent(player.getBukkitEntity(), craftitem, bukkitHand);
++        if (!event.callEvent()) {
++            return InteractionResult.FAIL;
++        }
++        // EMC end - PlayerUseItemEvent
+         if (this.gameModeForPlayer == GameType.SPECTATOR) {
+             return InteractionResult.PASS;
+         } else if (player.getCooldowns().isOnCooldown(stack)) {
+@@ -427,6 +436,13 @@ public class ServerPlayerGameMode {
+         } else {
+             int count = stack.getCount();
+             int damageValue = stack.getDamageValue();
++            // EMC start - PlayerUseItemEvent
++            ItemStack orig = stack;
++            if (event.getTempItem() != null) {
++                stack = org.bukkit.craftbukkit.inventory.CraftItemStack.asNMSCopy(event.getTempItem());
++                player.setItemInHand(hand, stack);
++            }
++            // EMC end - PlayerUseItemEvent
+             InteractionResult interactionResult = stack.use(level, player, hand);
+             ItemStack itemStack;
+             if (interactionResult instanceof InteractionResult.Success success) {
+@@ -434,21 +450,45 @@ public class ServerPlayerGameMode {
+             } else {
+                 itemStack = player.getItemInHand(hand);
+             }
++            // EMC start - PlayerUseItemEvent - change order and redo lots of things here.
++            if (event.getTempItem() != null) {
++                // EMC - restore original item
++                player.setItemInHand(hand, itemStack = orig);
++            }
+ 
+-            if (itemStack == stack && itemStack.getCount() == count && itemStack.getUseDuration(player) <= 0 && itemStack.getDamageValue() == damageValue) {
+-                return interactionResult;
+-            } else if (interactionResult instanceof InteractionResult.Fail && itemStack.getUseDuration(player) > 0 && !player.isUsingItem()) {
++            boolean isSame = itemStack == stack && itemStack.getCount() == count && itemStack.getUseDuration(player) <= 0 && itemStack.getDamageValue() == damageValue;
++            //if (itemStack == stack && itemStack.getCount() == count && itemStack.getUseDuration(player) <= 0 && itemStack.getDamageValue() == damageValue) {
++            //    return interactionResult;
++            // EMC - This was just a short circuit, always run post use on success
++            /*} else*/ if (interactionResult instanceof InteractionResult.Fail && itemStack.getUseDuration(player) > 0 && !player.isUsingItem()) {
++                // if fail, abort - this is vanilla
+                 return interactionResult;
+             } else {
+-                if (stack != itemStack) {
++                //if (stack != itemStack) { // EMC - If fail, move down
++                //    player.setItemInHand(hand, itemStack);
++                //}
++                org.bukkit.inventory.ItemStack craftNew = org.bukkit.craftbukkit.inventory.CraftItemStack.asCraftMirror(itemStack);
++                com.empireminecraft.empirecraft.event.player.PlayerPostUseItemEvent postUseItemEvent = new com.empireminecraft.empirecraft.event.player.PlayerPostUseItemEvent(player.getBukkitEntity(), origItemClone, craftNew, bukkitHand);
++                postUseItemEvent.callEvent();
++
++                //noinspection ObjectEquality
++                if (craftNew != postUseItemEvent.getNewItem()) {
++                    // Use a different new item instead. Not good to do if its a "Hold to use item" FYI!
++                    itemStack = org.bukkit.craftbukkit.inventory.CraftItemStack.asNMSCopy(postUseItemEvent.getNewItem());
++                    isSame = false;
++                }
++
++                if (stack != itemStack) { // EMC - from above
+                     player.setItemInHand(hand, itemStack);
+                 }
++                // EMC end - PlayerUseItemEvent
+ 
+                 if (itemStack.isEmpty()) {
+                     player.setItemInHand(hand, ItemStack.EMPTY);
++                    isSame = false; // EMC - PlayerUseItemEvent
+                 }
+ 
+-                if (!player.isUsingItem()) {
++                if (itemStack.isEmpty() || (!isSame && !player.isUsingItem())) { // EMC - PlayerUseItemEvent  - add !isSame
+                     player.inventoryMenu.sendAllDataToRemote();
+                 }
+ 
+@@ -465,6 +505,7 @@ public class ServerPlayerGameMode {
+     public ItemStack interactItemStack;
+     public InteractionResult useItemOn(ServerPlayer player, Level level, ItemStack stack, InteractionHand hand, BlockHitResult hitResult) {
+         BlockPos blockPos = hitResult.getBlockPos();
++        org.bukkit.util.Vector hitVector = new org.bukkit.util.Vector(hitResult.getLocation().x, hitResult.getLocation().y, hitResult.getLocation().z); // EMC - PlayerUseItemEvent - Ensure last 3 floats line up as vector params
+         BlockState blockState = level.getBlockState(blockPos);
+         boolean cancelledBlock = false;
+         boolean cancelledItem = false; // Paper - correctly handle items on cooldown
+@@ -506,8 +547,10 @@ public class ServerPlayerGameMode {
+             boolean flag = !player.getMainHandItem().isEmpty() || !player.getOffhandItem().isEmpty();
+             boolean flag1 = player.isSecondaryUseActive() && flag;
+             ItemStack itemStack = stack.copy();
++            InteractionResult interactResult = null; // EMC - PlayerUseItemEvent
+             if (!flag1) {
+                 InteractionResult interactionResult = blockState.useItemOn(player.getItemInHand(hand), level, player, hand, hitResult);
++                interactResult = interactionResult; // EMC - PlayerUseItemEvent
+                 if (interactionResult.consumesAction()) {
+                     CriteriaTriggers.ITEM_USED_ON_BLOCK.trigger(player, blockPos, itemStack);
+                     return interactionResult;
+@@ -515,6 +558,7 @@ public class ServerPlayerGameMode {
+ 
+                 if (interactionResult instanceof InteractionResult.TryEmptyHandInteraction && hand == InteractionHand.MAIN_HAND) {
+                     InteractionResult interactionResult1 = blockState.useWithoutItem(level, player, hitResult);
++                    interactResult = interactionResult1; // EMC - PlayerUseItemEvent
+                     if (interactionResult1.consumesAction()) {
+                         CriteriaTriggers.DEFAULT_BLOCK_USE.trigger(player, blockPos);
+                         return interactionResult1;
+@@ -523,15 +567,44 @@ public class ServerPlayerGameMode {
+             }
+ 
+             if (!stack.isEmpty() && !this.interactResult) { // add !interactResult SPIGOT-764
++                // EMC start - PlayerUseItemEvent - Allow control over if item should be consumed or not.
++                org.bukkit.inventory.EquipmentSlot bukkitHand = hand == InteractionHand.MAIN_HAND ? org.bukkit.inventory.EquipmentSlot.HAND : org.bukkit.inventory.EquipmentSlot.OFF_HAND;
++                org.bukkit.craftbukkit.inventory.CraftItemStack craftitem = org.bukkit.craftbukkit.inventory.CraftItemStack.asCraftMirror(stack);
++                com.empireminecraft.empirecraft.event.player.PlayerPlaceItemAtEvent eventPlace = new com.empireminecraft.empirecraft.event.player.PlayerPlaceItemAtEvent(
++                        player.getBukkitEntity(), craftitem,
++                        io.papermc.paper.util.MCUtil.toLocation(level, blockPos),
++                        org.bukkit.craftbukkit.block.CraftBlock.notchToBlockFace(hitResult.getDirection()),
++                        hitVector, bukkitHand);
++                if (!eventPlace.callEvent()) {
++                    return InteractionResult.FAIL;
++                }
++                int count = stack.getCount(); // Paper - moved from below before temporary items
++                ItemStack orig = stack;
++                if (eventPlace.getTempItem() != null) {
++                    stack = org.bukkit.craftbukkit.inventory.CraftItemStack.asNMSCopy(eventPlace.getTempItem());
++                    player.setItemInHand(hand, stack);
++                }
+                 UseOnContext useOnContext = new UseOnContext(player, hand, hitResult);
++                if (eventPlace.getTempItem() != null) {
++                    player.setItemInHand(hand, stack = orig);
++                }
+                 InteractionResult interactionResult1;
+-                if (this.isCreative()) {
+-                    int count = stack.getCount();
++                if (this.isCreative() || !eventPlace.getConsumeItem()) { // EMC - add || !eventPlace.getConsumeItem()
++                    //int count = stack.getCount(); // EMC - Move up
+                     interactionResult1 = stack.useOn(useOnContext);
+                     stack.setCount(count);
+                 } else {
+                     interactionResult1 = stack.useOn(useOnContext);
+                 }
++                if (interactResult != InteractionResult.FAIL) {
++                    com.empireminecraft.empirecraft.event.player.PlayerPostPlaceItemAtEvent postUseItemEvent =
++                            new com.empireminecraft.empirecraft.event.player.PlayerPostPlaceItemAtEvent(player.getBukkitEntity(), craftitem,
++                                    io.papermc.paper.util.MCUtil.toLocation(level, blockPos),
++                                    org.bukkit.craftbukkit.block.CraftBlock.notchToBlockFace(hitResult.getDirection()),
++                                    hitVector, bukkitHand);
++                    postUseItemEvent.callEvent();
++                }
++                // EMC end - PlayerUseItemEvent
+ 
+                 if (interactionResult1.consumesAction()) {
+                     CriteriaTriggers.ITEM_USED_ON_BLOCK.trigger(player, blockPos, itemStack);

@@ -1,0 +1,123 @@
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/empirecraft/api/EntityAIApi.java
+@@ -1,0 +_,120 @@
++package com.empireminecraft.empirecraft.api;
++
++import net.minecraft.core.BlockPos;
++import net.minecraft.world.entity.ai.goal.*;
++import net.minecraft.world.entity.ai.goal.target.HurtByTargetGoal;
++import net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal;
++import net.minecraft.world.entity.monster.Blaze;
++import net.minecraft.world.level.pathfinder.Node;
++import net.minecraft.world.level.pathfinder.Path;
++import org.bukkit.Location;
++import org.bukkit.craftbukkit.entity.CraftEntity;
++import org.bukkit.entity.LivingEntity;
++import org.bukkit.entity.Mob;
++
++import java.lang.reflect.Constructor;
++import java.util.ArrayList;
++import java.util.HashSet;
++import java.util.List;
++import java.util.Set;
++
++public class EntityAIApi {
++
++    private EntityAIApi() {
++    }
++
++    public static net.minecraft.world.entity.Mob getMobHandle(Mob entity) {
++        return (net.minecraft.world.entity.Mob) (((CraftEntity) entity).getHandle());
++    }
++
++    public static boolean isHostileGoal(Goal goal) {
++        if (goal instanceof MeleeAttackGoal ||
++                goal instanceof OcelotAttackGoal ||
++                goal instanceof Blaze.BlazeAttackGoal ||
++                goal instanceof RangedAttackGoal ||
++                goal instanceof RangedBowAttackGoal ||
++                goal instanceof MoveThroughVillageGoal ||
++                goal instanceof BreakDoorGoal ||
++                goal instanceof NearestAttackableTargetGoal ||
++                goal instanceof HurtByTargetGoal) {
++            return true;
++        }
++        return false;
++    }
++
++    static Goal getPathfinderGoal(net.minecraft.world.entity.Mob handle, Class<?>[] argClasses, String className, Object[] args) throws Exception {
++        Class<?> aClass = Class.forName(className);
++        CTOR:
++        for (Constructor<?> ctor : aClass.getDeclaredConstructors()) {
++            Class<?>[] parameterTypes = ctor.getParameterTypes();
++            if ((args.length +1) != parameterTypes.length) {
++                continue;
++            }
++            if (!parameterTypes[0].isAssignableFrom(handle.getClass())) {
++                continue;
++            }
++            for (int i = 1; i < parameterTypes.length; i++) {
++                Class<?> pCls = parameterTypes[i];
++                // TODO: Map argClasses from CB counterparts to NMS such as LivingEntity.class => EntityLiving.class
++                if (!pCls.isAssignableFrom(argClasses[i-1])) {
++                    continue CTOR;
++                }
++            }
++            Object[] newArgs = new Object[args.length+1];
++            System.arraycopy(args, 0, newArgs, 1, args.length);
++            newArgs[0] = handle;
++            return (Goal) ctor.newInstance(newArgs);
++        }
++        return null;
++    }
++
++    public static List<Set<WrappedGoal>> getGoalSets(net.minecraft.world.entity.Mob entity) {
++        List<Set<WrappedGoal>> check = new ArrayList<>();
++        check.add(new HashSet<>(entity.goalSelector.lockedFlags.values()));
++        check.add(new HashSet<>(entity.goalSelector.availableGoals));
++        check.add(new HashSet<>(entity.targetSelector.lockedFlags.values()));
++        check.add(new HashSet<>(entity.targetSelector.availableGoals));
++        return check;
++    }
++
++
++    private static Path getPathEntity(Mob entity) {
++        return getMobHandle(entity).getNavigation().getPath();
++    }
++
++    private static Path getPathEntity(Location loc, net.minecraft.world.entity.Mob handle) {
++        final boolean onGround = handle.onGround();
++        handle.setOnGround(true);
++        Path path = null;
++        if (loc != null) {
++            path = handle.getNavigation().createPath(new BlockPos(loc.getBlockX(), loc.getBlockY(), loc.getBlockZ()), 0);
++        }
++
++        handle.setOnGround(onGround);
++        return path;
++    }
++
++
++    private static Path getPathEntity(LivingEntity target, net.minecraft.world.entity.Mob handle) {
++        final boolean onGround = handle.onGround();
++        handle.setOnGround(true);
++        Path path = null;
++        if (target != null) {
++            path = handle.getNavigation().createPath(((CraftEntity) target).getHandle(), 0);
++        }
++
++        handle.setOnGround(onGround);
++        return path;
++    }
++
++    private static Location getFinalLocation(Mob entity, Path pathEntity) {
++        if (pathEntity == null) {
++            return null;
++        }
++        final Node pathPoint = pathEntity.getEndNode();
++        if (pathPoint == null) {
++            return null;
++        }
++        return new Location(entity.getWorld(), pathPoint.x, pathPoint.y, pathPoint.z);
++    }
++}

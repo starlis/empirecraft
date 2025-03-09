@@ -1,0 +1,157 @@
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/empirecraft/api/CraftEAPI_Entity.java
+@@ -1,0 +_,154 @@
++/*
++ * Copyright (c) 2016 Starlis LLC / Daniel Ennis (Aikar) - MIT License
++ *
++ *  Permission is hereby granted, free of charge, to any person obtaining
++ *  a copy of this software and associated documentation files (the
++ *  "Software"), to deal in the Software without restriction, including
++ *  without limitation the rights to use, copy, modify, merge, publish,
++ *  distribute, sublicense, and/or sell copies of the Software, and to
++ *  permit persons to whom the Software is furnished to do so, subject to
++ *  the following conditions:
++ *
++ *  The above copyright notice and this permission notice shall be
++ *  included in all copies or substantial portions of the Software.
++ *
++ *  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ *  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
++ *  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ *  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
++ *  LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
++ *  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
++ *  WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package com.empireminecraft.empirecraft.api;
++
++import net.minecraft.server.MinecraftServer;
++import net.minecraft.world.entity.PathfinderMob;
++import net.minecraft.world.entity.ai.goal.Goal;
++import net.minecraft.world.entity.ai.goal.MeleeAttackGoal;
++import net.minecraft.world.entity.ai.goal.WrappedGoal;
++import net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal;
++import net.minecraft.world.entity.item.ItemEntity;
++import net.minecraft.world.entity.player.Player;
++import org.bukkit.craftbukkit.entity.CraftCreature;
++import org.bukkit.craftbukkit.entity.CraftEntity;
++import org.bukkit.craftbukkit.entity.CraftMob;
++import org.bukkit.entity.Creature;
++import org.bukkit.entity.Entity;
++import org.bukkit.entity.Item;
++import org.bukkit.entity.Mob;
++import org.jetbrains.annotations.NotNull;
++
++import java.util.HashSet;
++import java.util.Set;
++import java.util.regex.Pattern;
++
++public class CraftEAPI_Entity implements EAPI_Entity {
++
++    @NotNull
++    public <T extends Entity> EntityTask<T> scheduleTask(@NotNull T entity, int interval, @NotNull EntityTask<T> task) {
++        ((CraftEntity) entity).getHandle().entityTasks.add(task);
++        task.init(entity, interval);
++        return task;
++    }
++
++    public void cancelTasks(@NotNull Entity entity) {
++        ((CraftEntity) entity).getHandle().entityTasks.clear();
++    }
++
++    @Override
++    public void setItemCanDespawn(@NotNull Item item, boolean canDespawn) {
++        final net.minecraft.world.entity.Entity handle = ((CraftEntity) item).getHandle();
++        ((ItemEntity) handle).canDespawn = canDespawn;
++    }
++
++    @Override
++    public void setFireProof(@NotNull Mob mob, boolean flag) {
++        ((CraftEntity) mob).getHandle().fireProof = flag;
++    }
++
++    @Override
++    public void setPanicProof(@NotNull Mob mob, boolean flag) {
++        ((CraftMob) mob).getHandle().panicProof = flag;
++    }
++
++    @Override
++    public void makeAggressive(@NotNull Creature creature, float range) {
++        PathfinderMob handle = ((CraftCreature) creature).getHandle();
++        if (!handle.markedAggressive) {
++            handle.goalSelector.addGoal(2, new MeleeAttackGoal(handle, 1.0F, false));
++            handle.targetSelector.addGoal(2, new NearestAttackableTargetGoal<>(handle, Player.class, true));
++            setTargetRange(creature, (double) range);
++            handle.markedAggressive = true;
++        }
++    }
++
++    @Override
++    public boolean isAggressive(@NotNull Creature creature) {
++        PathfinderMob entity = ((CraftCreature) creature).getHandle();
++        return entity.markedAggressive;
++    }
++
++        +    @Override
++    public void makePeaceful(@NotNull Mob mob) {
++        net.minecraft.world.entity.Mob handle = (net.minecraft.world.entity.Mob) ((CraftEntity) mob).getHandle();
++
++        EntityAIApi.getGoalSets(handle).forEach(set -> set.removeIf(o -> EntityAIApi.isHostileGoal(o.getGoal())));
++    }
++
++    @Override
++    public void addGoalByName(@NotNull Mob mob, @NotNull String goalName, boolean isTargetGoal, int tickRate, @NotNull Class<?>[] argClasses, @NotNull Object... args) {
++        net.minecraft.world.entity.Mob handle = (net.minecraft.world.entity.Mob) ((CraftEntity) mob).getHandle();
++        String nms = handle.getClass().getPackage().getName();
++        String className = nms + "." + goalName;
++        try {
++            Goal goal = EntityAIApi.getPathfinderGoal(handle, argClasses, className, args);
++            if (goal == null) {
++                MinecraftServer.LOGGER.error("Could not create goal for " + className);
++                return;
++            }
++            if (isTargetGoal) {
++                handle.targetSelector.addGoal(tickRate, goal);
++            } else {
++                handle.goalSelector.addGoal(tickRate, goal);
++            }
++        } catch (Exception e) {
++            MinecraftServer.LOGGER.error("Error adding goal by name");
++            e.printStackTrace();
++        }
++    }
++
++    private static final Pattern ENTITY_PACKAGE = Pattern.compile("net.minecraft.world.entity.");
++    @Override
++    public void removeGoalByName(@NotNull Mob mob, @NotNull String goalName) {
++        net.minecraft.world.entity.Mob entity = (net.minecraft.world.entity.Mob) ((CraftEntity) mob).getHandle();
++        for (Set<WrappedGoal> set : EntityAIApi.getGoalSets(entity)) {
++            set.removeIf(o -> ENTITY_PACKAGE.matcher(o.getGoal().getClass().getName()).replaceAll("")
++                                            .equalsIgnoreCase(goalName));
++        }
++    }
++    @NotNull
++    @Override
++    public Set<String> listGoalNames(@NotNull Mob mob) {
++        Set<String> goals = new HashSet<>();
++        net.minecraft.world.entity.Mob entity = (net.minecraft.world.entity.Mob) ((CraftEntity) mob).getHandle();
++        for (Set<WrappedGoal> set : EntityAIApi.getGoalSets(entity)) {
++            for (WrappedGoal wrappedGoal : set) {
++                goals.add(ENTITY_PACKAGE.matcher(wrappedGoal.getGoal().getClass().getName()).replaceAll(""));
++            }
++        }
++        return goals;
++    }
++
++    @Override
++    public void setEntitySize(@NotNull Entity entity, float width, float height) {
++        ((CraftEntity) entity).getHandle().setDimensions(width, height);
++    }
++
++    @Override
++    public void setTargetRange(@NotNull Mob mob, Double range) {
++        net.minecraft.world.entity.Mob entity = (net.minecraft.world.entity.Mob) ((CraftEntity) mob).getHandle();
++        entity.targetRange = range;
++    }
++}

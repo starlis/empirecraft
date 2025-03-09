@@ -1,0 +1,50 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Mon, 31 Dec 2012 01:25:46 -0500
+Subject: [PATCH] Anvil Event
+
+Fire an event for anvil usage, remove cap from server, send level to client
+
+diff --git a/net/minecraft/world/inventory/AnvilMenu.java b/net/minecraft/world/inventory/AnvilMenu.java
+index aaa022ac3656d68bad8dbd4c80a90b62fb6f9a16..f48f1ad9116e6752304bcf79ff016949eb9f1192 100644
+--- a/net/minecraft/world/inventory/AnvilMenu.java
++++ b/net/minecraft/world/inventory/AnvilMenu.java
+@@ -263,6 +263,18 @@ public class AnvilMenu extends ItemCombinerMenu {
+             if (this.cost.get() >= this.maximumRepairCost && !this.player.getAbilities().instabuild) { // CraftBukkit
+                 itemStack = ItemStack.EMPTY;
+             }
++            // EMC start - AnvilEvent
++            final int origCost = this.cost.get();
++            com.empireminecraft.empirecraft.event.inventory.AnvilEvent event = new com.empireminecraft.empirecraft.event.inventory.AnvilEvent((org.bukkit.entity.Player) player.getBukkitEntity(), org.bukkit.craftbukkit.inventory.CraftItemStack.asBukkitCopy(item), org.bukkit.craftbukkit.inventory.CraftItemStack.asBukkitCopy(item1), org.bukkit.craftbukkit.inventory.CraftItemStack.asBukkitCopy(itemStack), this.cost.get());
++            org.bukkit.Bukkit.getPluginManager().callEvent(event);
++            if (event.isCancelled()) {
++                itemStack = ItemStack.EMPTY;
++            } else {
++                itemStack = org.bukkit.craftbukkit.inventory.CraftItemStack.asNMSCopy(event.getResult());
++                this.cost.set(event.getCost());
++                this.cost.forceUpdate = origCost != event.getCost();
++            }
++            // EMC end - AnvilEvent
+ 
+             if (!itemStack.isEmpty()) {
+                 int minxx = itemStack.getOrDefault(DataComponents.REPAIR_COST, Integer.valueOf(0));
+diff --git a/net/minecraft/world/inventory/DataSlot.java b/net/minecraft/world/inventory/DataSlot.java
+index 305002fa5ed1e33dcd11fc2d983f000ef466fdd6..7a28fc99941bb0d2c855a1c169c2a8515a4759be 100644
+--- a/net/minecraft/world/inventory/DataSlot.java
++++ b/net/minecraft/world/inventory/DataSlot.java
+@@ -2,6 +2,7 @@ package net.minecraft.world.inventory;
+ 
+ public abstract class DataSlot {
+     private int prevValue;
++    public boolean forceUpdate = false; // EMC - AnvilEvent
+ 
+     public static DataSlot forContainer(final ContainerData data, final int idx) {
+         return new DataSlot() {
+@@ -52,6 +53,7 @@ public abstract class DataSlot {
+     public abstract void set(int value);
+ 
+     public boolean checkAndClearUpdateFlag() {
++        if (this.forceUpdate) { return true; } // EMC - AnvilEvent
+         int i = this.get();
+         boolean flag = i != this.prevValue;
+         this.prevValue = i;

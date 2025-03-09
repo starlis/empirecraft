@@ -1,0 +1,87 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Mon, 4 Mar 2013 23:35:02 -0500
+Subject: [PATCH] Temporary Meta API
+
+
+diff --git a/src/main/java/org/bukkit/craftbukkit/CraftChunk.java b/src/main/java/org/bukkit/craftbukkit/CraftChunk.java
+index de8b9048c8395c05b8688bc9d984b8ad680f15b3..f849f18e67ae179da06bd27d370436d8fb4e4061 100644
+--- a/src/main/java/org/bukkit/craftbukkit/CraftChunk.java
++++ b/src/main/java/org/bukkit/craftbukkit/CraftChunk.java
+@@ -98,6 +98,11 @@ public class CraftChunk implements Chunk {
+ 
+         return chunkAccess;
+     }
++    // EMC start - Temporary Meta API
++    public @org.jetbrains.annotations.NotNull java.util.Map<org.bukkit.NamespacedKey, Object> getTemporaryMeta() {
++        return getHandle(ChunkStatus.FULL).tempMeta;
++    }
++    // EMC end - Temporary Meta API
+ 
+     @Override
+     public int getX() {
+diff --git a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
+index 1439d282167dc8a2e66f4896849153b810112988..cdb62ed7c680c01c612220137cc4a74b756d8b92 100644
+--- a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
++++ b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
+@@ -282,6 +282,11 @@ public class CraftWorld extends CraftRegionAccessor implements World {
+         ).isValid();
+     }
+     // Paper end
++    // EMC start - Temporary Meta API
++    public @NotNull java.util.Map<NamespacedKey, Object> getTemporaryMeta() {
++        return getHandle().serverLevelData.tempMeta;
++    }
++    // EMC end - Temporary Meta API
+ 
+     private static final Random rand = new Random();
+ 
+diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java
+index 1ee0ad266955e36b729ba31eb75aad9289acd8e4..b6e6f558f4429084e32ada73085741e44186b732 100644
+--- a/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java
++++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java
+@@ -177,6 +177,11 @@ public abstract class CraftEntity implements org.bukkit.entity.Entity {
+         return false;
+     }
+     // Paper end
++    // EMC start
++    public @org.jetbrains.annotations.NotNull java.util.Map<org.bukkit.NamespacedKey, Object> getTemporaryMeta() {
++        return getHandle().tempMeta;
++    }
++    // EMC end
+ 
+     @Override
+     public double getHeight() {
+diff --git a/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java b/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
+index 57c3f8531bf85b53af3a4aad6e9e369d5cff0ce3..585df7aaf000f5867f6f5afa9a663a767b0e4ba9 100644
+--- a/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
++++ b/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
+@@ -1652,6 +1652,11 @@ public class CraftEventFactory {
+         InventoryCloseEvent event = new InventoryCloseEvent(human.containerMenu.getBukkitView(), reason); // Paper
+         human.level().getCraftServer().getPluginManager().callEvent(event);
+         human.containerMenu.transferTo(human.inventoryMenu, human.getBukkitEntity());
++        // EMC start - Temporary Meta API
++        if (event.getInventory().getViewers().isEmpty()) {
++            org.bukkit.craftbukkit.inventory.CraftInventory.meta.remove(((org.bukkit.craftbukkit.inventory.CraftInventory) event.getInventory()).getInventory());
++        }
++        // EMC end - Temporary Meta API
+     }
+ 
+     public static ItemStack handleEditBookEvent(ServerPlayer player, int itemInHandIndex, ItemStack itemInHand, ItemStack newBookItem) {
+diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftInventory.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftInventory.java
+index c6159c70f7a37b9bffe268b91905ce848d1d2927..88bae81f207c30c5e04343b82e713ca1f1f6a1cd 100644
+--- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftInventory.java
++++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftInventory.java
+@@ -447,6 +447,12 @@ public class CraftInventory implements Inventory {
+         return count;
+     }
+     // Paper end
++    // EMC start - Temporary Meta API
++    public static final java.util.WeakHashMap<Container, java.util.Map<org.bukkit.NamespacedKey, Object>> meta = new java.util.WeakHashMap<>(64);
++    public @org.jetbrains.annotations.NotNull java.util.Map<org.bukkit.NamespacedKey, Object> getTemporaryMeta() {
++        return meta.computeIfAbsent(inventory, k -> new HashMap<>());
++    }
++    // EMC end - Temporary Meta API
+ 
+     @Override
+     public ListIterator<ItemStack> iterator() {
