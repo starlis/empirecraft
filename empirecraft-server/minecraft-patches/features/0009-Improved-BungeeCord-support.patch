@@ -1,0 +1,64 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Mon, 9 Dec 2013 23:21:21 -0500
+Subject: [PATCH] Improved BungeeCord support
+
+Secure BungeeCord with IP Whitelist for IP/UUID forwarding
+Allow online-mode to be set to true, and skip online-mode for bungee IP's
+
+diff --git a/net/minecraft/network/Connection.java b/net/minecraft/network/Connection.java
+index e1000d8ab5ae0034b56a3524d2caee8c299b50e7..dc9a6fd8ce776e2f8cddfa6c7319c5e4805383af 100644
+--- a/net/minecraft/network/Connection.java
++++ b/net/minecraft/network/Connection.java
+@@ -95,6 +95,7 @@ public class Connection extends SimpleChannelInboundHandler<Packet<?>> {
+     // Spigot end
+     @Nullable
+     private volatile PacketListener disconnectListener;
++    public boolean isProxied = false; // EMC - Adjusted BungeeCord Support
+     @Nullable
+     private volatile PacketListener packetListener;
+     @Nullable
+diff --git a/net/minecraft/server/network/ServerHandshakePacketListenerImpl.java b/net/minecraft/server/network/ServerHandshakePacketListenerImpl.java
+index c6e53b56c55ebf2c13b08b9896ffd545b04762d1..c78806584b04e6e09171272801d8e2c787cad26e 100644
+--- a/net/minecraft/server/network/ServerHandshakePacketListenerImpl.java
++++ b/net/minecraft/server/network/ServerHandshakePacketListenerImpl.java
+@@ -120,7 +120,8 @@ public class ServerHandshakePacketListenerImpl implements ServerHandshakePacketL
+         } else {
+             this.connection.setupInboundProtocol(LoginProtocols.SERVERBOUND, new ServerLoginPacketListenerImpl(this.server, this.connection, transferred));
+             // Paper start - PlayerHandshakeEvent
+-            boolean proxyLogicEnabled = org.spigotmc.SpigotConfig.bungee;
++            String ip = ((java.net.InetSocketAddress) this.connection.getRemoteAddress()).getAddress().getHostAddress(); // EMC - Adjusted BungeeCord Support
++            boolean proxyLogicEnabled = org.spigotmc.SpigotConfig.bungee && org.spigotmc.SpigotConfig.bungeeAddresses.contains(ip); // EMC - Adjusted BungeeCord Support - add bungeeAddresses check
+             boolean handledByEvent = false;
+             // Try and handle the handshake through the event
+             if (com.destroystokyo.paper.event.player.PlayerHandshakeEvent.getHandlerList().getRegisteredListeners().length != 0) { // Hello? Can you hear me?
+@@ -156,6 +157,7 @@ public class ServerHandshakePacketListenerImpl implements ServerHandshakePacketL
+             String[] split = packet.hostName().split("\00");
+             if (!handledByEvent && proxyLogicEnabled) { // Paper
+                 // if (org.spigotmc.SpigotConfig.bungee) { // Paper - comment out, we check above!
++                connection.isProxied = true; // EMC - Adjusted BungeeCord Support
+                 if ((split.length == 3 || split.length == 4) && (ServerHandshakePacketListenerImpl.BYPASS_HOSTCHECK || ServerHandshakePacketListenerImpl.HOST_PATTERN.matcher(split[1]).matches())) { // Paper - Add bypass host check
+                     // Paper start - Unix domain socket support
+                     java.net.SocketAddress socketAddress = this.connection.getRemoteAddress();
+@@ -163,7 +165,7 @@ public class ServerHandshakePacketListenerImpl implements ServerHandshakePacketL
+                     this.connection.address = new java.net.InetSocketAddress(split[1], socketAddress instanceof java.net.InetSocketAddress ? ((java.net.InetSocketAddress) socketAddress).getPort() : 0);
+                     // Paper end - Unix domain socket support
+                     this.connection.spoofedUUID = com.mojang.util.UndashedUuid.fromStringLenient( split[2] );
+-                } else {
++                } else if (false) { // EMC - Adjusted BungeeCord Support
+                     Component message = Component.literal("If you wish to use IP forwarding, please enable it in your BungeeCord config as well!");
+                     this.connection.send(new ClientboundLoginDisconnectPacket(message));
+                     this.connection.disconnect(message);
+diff --git a/net/minecraft/server/network/ServerLoginPacketListenerImpl.java b/net/minecraft/server/network/ServerLoginPacketListenerImpl.java
+index 9951a4012667dd8caa69e563ab68acc626f4675c..a300b9f0dae71eb32a15d7513fee57699d8cb426 100644
+--- a/net/minecraft/server/network/ServerLoginPacketListenerImpl.java
++++ b/net/minecraft/server/network/ServerLoginPacketListenerImpl.java
+@@ -183,7 +183,7 @@ public class ServerLoginPacketListenerImpl implements ServerLoginPacketListener,
+         if (singleplayerProfile != null && this.requestedUsername.equalsIgnoreCase(singleplayerProfile.getName())) {
+             this.startClientVerification(singleplayerProfile);
+         } else {
+-            if (this.server.usesAuthentication() && !this.connection.isMemoryConnection()) {
++            if (this.server.usesAuthentication() && !this.connection.isMemoryConnection() && !this.connection.isProxied) { // EMC - Adjusted BungeeCord Support - add && !isProxied
+                 this.state = ServerLoginPacketListenerImpl.State.KEY;
+                 this.connection.send(new ClientboundHelloPacket("", this.server.getKeyPair().getPublic().getEncoded(), this.challenge, true));
+             } else {

@@ -1,0 +1,38 @@
+--- a/net/minecraft/server/MinecraftServer.java
++++ b/net/minecraft/server/MinecraftServer.java
+@@ -985,6 +_,7 @@
+     }
+     // CraftBukkit end
+ 
++    public String shutdownReason = "Server Shutting Down"; // EMC - ServerShutdownEvent
+     public void stopServer() {
+         // CraftBukkit start - prevent double stopping on multiple threads
+         synchronized(this.stopLock) {
+@@ -1003,9 +_,12 @@
+         Commands.COMMAND_SENDING_POOL.shutdownNow(); // Paper - Perf: Async command map building; Shutdown and don't bother finishing
+         // CraftBukkit start
+         if (this.server != null) {
+-            this.server.spark.disable(); // Paper - spark
+-            this.server.disablePlugins();
+-            this.server.waitForAsyncTasksShutdown(); // Paper - Wait for Async Tasks during shutdown
++            // EMC start - move disablePlugins down
++            //this.server.spark.disable(); // Paper - spark
++            //this.server.disablePlugins();
++            //this.server.waitForAsyncTasksShutdown(); // Paper - Wait for Async Tasks during shutdown
++            new com.empireminecraft.empirecraft.event.ServerShutdownEvent(shutdownReason).callEvent(); // EMC - ServerShutdownEvent
++            // EMC end - move disablePlugins down
+         }
+         // CraftBukkit end
+         if (io.papermc.paper.plugin.PluginInitializerManager.instance().pluginRemapper != null) io.papermc.paper.plugin.PluginInitializerManager.instance().pluginRemapper.shutdown(); // Paper - Plugin remapping
+@@ -1039,6 +_,11 @@
+ 
+         this.saveAllChunks(false, true, false, true); // Paper - rewrite chunk system
+ 
++        // EMC start - move disablePlugins from above
++        this.server.spark.disable(); // Paper - spark
++        this.server.disablePlugins();
++        this.server.waitForAsyncTasksShutdown(); // Paper - Wait for Async Tasks during shutdown
++        // EMC end - move disablePlugins from above
+         this.isSaving = false;
+         this.resources.close();
+ 

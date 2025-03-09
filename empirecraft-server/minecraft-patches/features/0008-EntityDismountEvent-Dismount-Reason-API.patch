@@ -1,0 +1,209 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aikar <aikar@aikar.co>
+Date: Wed, 7 Aug 2013 19:52:14 -0400
+Subject: [PATCH] EntityDismountEvent Dismount Reason API
+
+
+diff --git a/net/minecraft/server/level/ServerLevel.java b/net/minecraft/server/level/ServerLevel.java
+index f24c64d1a65f11911d02c88bc01fb1d2ad467296..4c929cbb72d11c79522928a38dff4369ce161971 100644
+--- a/net/minecraft/server/level/ServerLevel.java
++++ b/net/minecraft/server/level/ServerLevel.java
+@@ -809,6 +809,7 @@ public class ServerLevel extends Level implements ServerEntityGetter, WorldGenLe
+                                         if (!vehicle.isRemoved() && vehicle.hasPassenger(entity)) {
+                                             return;
+                                         }
++                                        if (vehicle.isRemoved()) { entity.dismountReason =  org.bukkit.event.entity.EntityDismountEvent.DismountReason.DEAD_VEHICLE; } // EMC - DismountReason API
+ 
+                                         entity.stopRiding();
+                                     }
+@@ -1287,6 +1288,7 @@ public class ServerLevel extends Level implements ServerEntityGetter, WorldGenLe
+ 
+     private void tickPassenger(Entity ridingEntity, Entity passengerEntity, final boolean isActive) { // Paper - EAR 2
+         if (passengerEntity.isRemoved() || passengerEntity.getVehicle() != ridingEntity) {
++            if (passengerEntity.isRemoved()) { passengerEntity.dismountReason =  org.bukkit.event.entity.EntityDismountEvent.DismountReason.DEAD_VEHICLE; } // EMC - DismountReason API
+             passengerEntity.stopRiding();
+         } else if (passengerEntity instanceof Player || this.entityTickList.contains(passengerEntity)) {
+             passengerEntity.setOldPosAndRot();
+diff --git a/net/minecraft/server/level/ServerPlayer.java b/net/minecraft/server/level/ServerPlayer.java
+index 57d432dc9e8d8e9a3e088e7c40b35178c30fe786..009f803d7cb5e70f2508fd9adf39661c911f0124 100644
+--- a/net/minecraft/server/level/ServerPlayer.java
++++ b/net/minecraft/server/level/ServerPlayer.java
+@@ -1403,6 +1403,7 @@ public class ServerPlayer extends Player implements ca.spottedleaf.moonrise.patc
+             }
+             // CraftBukkit end
+             if (!teleportTransition.asPassenger()) {
++                this.dismountReason = org.bukkit.event.entity.EntityDismountEvent.DismountReason.TELEPORT; // EMC - DismountReason API
+                 this.stopRiding();
+             }
+ 
+@@ -1992,10 +1993,11 @@ public class ServerPlayer extends Player implements ca.spottedleaf.moonrise.patc
+ 
+     public void disconnect() {
+         this.disconnected = true;
+-        this.ejectPassengers();
++        this.ejectPassengers(org.bukkit.event.entity.EntityDismountEvent.DismountReason.DISCONNECT); // EMC - DismountReason API
+ 
+         // Paper start - Workaround vehicle not tracking the passenger disconnection dismount
+         if (this.isPassenger() && this.getVehicle() instanceof ServerPlayer) {
++            this.dismountReason = org.bukkit.event.entity.EntityDismountEvent.DismountReason.DISCONNECT; // EMC - DismountReason API
+             this.stopRiding();
+         }
+         // Paper end - Workaround vehicle not tracking the passenger disconnection dismount
+@@ -2192,6 +2194,7 @@ public class ServerPlayer extends Player implements ca.spottedleaf.moonrise.patc
+             this.connection.send(new ClientboundGameEventPacket(ClientboundGameEventPacket.CHANGE_GAME_MODE, gameMode.getId()));
+             if (gameMode == GameType.SPECTATOR) {
+                 this.removeEntitiesOnShoulder();
++                this.dismountReason = org.bukkit.event.entity.EntityDismountEvent.DismountReason.SPECTATE; // EMC - DismountReason API
+                 this.stopRiding();
+                 EnchantmentHelper.stopLocationBasedEffects(this);
+             } else {
+diff --git a/net/minecraft/server/players/PlayerList.java b/net/minecraft/server/players/PlayerList.java
+index 5a4960fdbd97d830ac79845697eea9372c48a13b..2dae068343dab43ce96dff50ed4a9554f15d76c9 100644
+--- a/net/minecraft/server/players/PlayerList.java
++++ b/net/minecraft/server/players/PlayerList.java
+@@ -538,6 +538,7 @@ public abstract class PlayerList {
+             Entity rootVehicle = player.getRootVehicle();
+             if (rootVehicle.hasExactlyOnePlayerPassenger()) {
+                 LOGGER.debug("Removing player mount");
++                player.dismountReason = org.bukkit.event.entity.EntityDismountEvent.DismountReason.DISCONNECT; // EMC - DismountReason API
+                 player.stopRiding();
+                 rootVehicle.getPassengersAndSelf().forEach(entity -> {
+                     // Paper start - Fix villager boat exploit
+diff --git a/net/minecraft/world/entity/Entity.java b/net/minecraft/world/entity/Entity.java
+index f69c80fba525c09d53c72d8c9c5cd79ab21e53f6..c709bc44987fa68fbbde7dec83fc224f5224a036 100644
+--- a/net/minecraft/world/entity/Entity.java
++++ b/net/minecraft/world/entity/Entity.java
+@@ -834,6 +834,7 @@ public abstract class Entity implements SyncedDataHolder, Nameable, EntityAccess
+         if (firstTick && this instanceof net.minecraft.world.entity.NeutralMob neutralMob) neutralMob.tickInitialPersistentAnger(level); // Paper - Prevent entity loading causing async lookups
+         this.inBlockState = null;
+         if (this.isPassenger() && this.getVehicle().isRemoved()) {
++            this.dismountReason = org.bukkit.event.entity.EntityDismountEvent.DismountReason.DEAD_VEHICLE; // EMC - DismountReason API
+             this.stopRiding();
+         }
+ 
+@@ -3060,6 +3061,7 @@ public abstract class Entity implements SyncedDataHolder, Nameable, EntityAccess
+                 }
+                 // CraftBukkit end
+                 if (this.isPassenger()) {
++                    this.dismountReason = org.bukkit.event.entity.EntityDismountEvent.DismountReason.TRANSFER; // EMC - DismountReason API
+                     this.stopRiding();
+                 }
+ 
+@@ -3081,7 +3083,13 @@ public abstract class Entity implements SyncedDataHolder, Nameable, EntityAccess
+     }
+ 
+     public void ejectPassengers() {
++        // EMC start - DismountReason API
++        ejectPassengers(org.bukkit.event.entity.EntityDismountEvent.DismountReason.UNKNOWN);
++    }
++    public void ejectPassengers(org.bukkit.event.entity.EntityDismountEvent.DismountReason reason) {
+         for (int i = this.passengers.size() - 1; i >= 0; i--) {
++            this.passengers.get(i).dismountReason = reason;
++            // EMC end - DismountReason API
+             this.passengers.get(i).stopRiding();
+         }
+     }
+@@ -3136,6 +3144,10 @@ public abstract class Entity implements SyncedDataHolder, Nameable, EntityAccess
+     }
+     protected boolean removePassenger(Entity passenger, boolean suppressCancellation) { // CraftBukkit
+         // Paper end - Force entity dismount during teleportation
++        // EMC start - DismountReason API
++        org.bukkit.event.entity.EntityDismountEvent.DismountReason dismountReason = passenger.dismountReason;
++        passenger.dismountReason = org.bukkit.event.entity.EntityDismountEvent.DismountReason.UNKNOWN;
++        // EMC end - DismountReason API
+         if (passenger.getVehicle() == this) {
+             throw new IllegalStateException("Use x.stopRiding(y), not y.removePassenger(x)");
+         } else {
+@@ -3158,7 +3170,7 @@ public abstract class Entity implements SyncedDataHolder, Nameable, EntityAccess
+                 }
+             }
+ 
+-            org.bukkit.event.entity.EntityDismountEvent event = new org.bukkit.event.entity.EntityDismountEvent(passenger.getBukkitEntity(), this.getBukkitEntity(), !suppressCancellation); // Paper - Force entity dismount during teleportation
++            org.bukkit.event.entity.EntityDismountEvent event = new org.bukkit.event.entity.EntityDismountEvent(passenger.getBukkitEntity(), this.getBukkitEntity(), !suppressCancellation, dismountReason); // Paper - Force entity dismount during teleportation // EMC - DismountReasonAPI - Add dismountReason
+             // Suppress during worldgen
+             if (this.valid) {
+                 org.bukkit.Bukkit.getPluginManager().callEvent(event);
+@@ -3692,6 +3704,7 @@ public abstract class Entity implements SyncedDataHolder, Nameable, EntityAccess
+             );
+     }
+ 
++    public org.bukkit.event.entity.EntityDismountEvent.DismountReason dismountReason = org.bukkit.event.entity.EntityDismountEvent.DismountReason.UNKNOWN; // EMC - DismountReason API
+     public final boolean isInvulnerableToBase(DamageSource damageSource) {
+         return this.isRemoved()
+             || this.invulnerable && !damageSource.is(DamageTypeTags.BYPASSES_INVULNERABILITY) && !damageSource.isCreativePlayer()
+@@ -4920,10 +4933,19 @@ public abstract class Entity implements SyncedDataHolder, Nameable, EntityAccess
+         }
+ 
+         if (this.removalReason.shouldDestroy()) {
++            this.dismountReason = org.bukkit.event.entity.EntityDismountEvent.DismountReason.DEAD; // EMC - DismountReason API
+             this.stopRiding();
+         }
+ 
+         if (this.removalReason != Entity.RemovalReason.UNLOADED_TO_CHUNK) { this.getPassengers().forEach(Entity::stopRiding); } // Paper - rewrite chunk system
++        // EMC start - DismountReason API
++        if (removalReason != RemovalReason.UNLOADED_TO_CHUNK) {
++            this.getPassengers().forEach(entity -> {
++                entity.dismountReason = org.bukkit.event.entity.EntityDismountEvent.DismountReason.DEAD_VEHICLE; // EMC - Add this
++                entity.stopRiding();
++            }); // Paper - chunk system - don't adjust passenger state when unloading, it's just not safe (and messes with our logic in entity chunk unload)
++        }
++        // EMC end - DismountReason API
+         this.levelCallback.onRemove(removalReason);
+         this.onRemoval(removalReason);
+         // Paper start - Folia schedulers
+diff --git a/net/minecraft/world/entity/Leashable.java b/net/minecraft/world/entity/Leashable.java
+index 8e115fa3039be5ce6917728cda2a7e756af88a13..451d3f0284772521cd835917ace6b4742f64c891 100644
+--- a/net/minecraft/world/entity/Leashable.java
++++ b/net/minecraft/world/entity/Leashable.java
+@@ -251,6 +251,7 @@ public interface Leashable {
+         }
+ 
+         if (entity.isPassenger()) {
++            entity.dismountReason = org.bukkit.event.entity.EntityDismountEvent.DismountReason.LEASH; // EMC - DismountReason API
+             entity.stopRiding();
+         }
+     }
+diff --git a/net/minecraft/world/entity/LivingEntity.java b/net/minecraft/world/entity/LivingEntity.java
+index 1564170e41d1916ddbbf734296af1542e85e2c8b..d10567d9792788892d8c8aa5d00b5045f97c53b3 100644
+--- a/net/minecraft/world/entity/LivingEntity.java
++++ b/net/minecraft/world/entity/LivingEntity.java
+@@ -500,6 +500,7 @@ public abstract class LivingEntity extends Entity implements Attackable {
+                 }
+ 
+                 if (!this.level().isClientSide && this.isPassenger() && this.getVehicle() != null && this.getVehicle().dismountsUnderwater()) {
++                    this.dismountReason = org.bukkit.event.entity.EntityDismountEvent.DismountReason.WATER; // EMC - DismountReason API
+                     this.stopRiding();
+                 }
+             } else if (this.getAirSupply() < this.getMaxAirSupply()) {
+@@ -4336,6 +4337,7 @@ public abstract class LivingEntity extends Entity implements Attackable {
+ 
+     public void startSleeping(BlockPos pos) {
+         if (this.isPassenger()) {
++            if (this instanceof net.minecraft.world.entity.player.Player) this.dismountReason = org.bukkit.event.entity.EntityDismountEvent.DismountReason.PLAYER; // EMC - DismountReason API
+             this.stopRiding();
+         }
+ 
+diff --git a/net/minecraft/world/entity/player/Player.java b/net/minecraft/world/entity/player/Player.java
+index a0813aa9ebf5b32375b1bc9f294d8fc34cc867fe..964535fefc59ec5dd492e7027edf09e1ac459e12 100644
+--- a/net/minecraft/world/entity/player/Player.java
++++ b/net/minecraft/world/entity/player/Player.java
+@@ -553,6 +553,7 @@ public abstract class Player extends LivingEntity {
+     @Override
+     public void rideTick() {
+         if (!this.level().isClientSide && this.wantsToStopRiding() && this.isPassenger()) {
++            this.dismountReason = org.bukkit.event.entity.EntityDismountEvent.DismountReason.PLAYER; // EMC - DismountReason API
+             this.stopRiding();
+             // CraftBukkit start - SPIGOT-7316: no longer passenger, dismount and return
+             if (!this.isPassenger()) {
+diff --git a/net/minecraft/world/item/consume_effects/TeleportRandomlyConsumeEffect.java b/net/minecraft/world/item/consume_effects/TeleportRandomlyConsumeEffect.java
+index ee22f8b4e76019fd3b09b62a1b19ab6e949dc56f..13afd2c15bd48bc96b872e86f7366ab5f26aa504 100644
+--- a/net/minecraft/world/item/consume_effects/TeleportRandomlyConsumeEffect.java
++++ b/net/minecraft/world/item/consume_effects/TeleportRandomlyConsumeEffect.java
+@@ -51,6 +51,7 @@ public record TeleportRandomlyConsumeEffect(float diameter) implements ConsumeEf
+             );
+             double d2 = entity.getZ() + (entity.getRandom().nextDouble() - 0.5) * this.diameter;
+             if (entity.isPassenger()) {
++                entity.dismountReason = org.bukkit.event.entity.EntityDismountEvent.DismountReason.TELEPORT; // EMC - DismountReason API
+                 entity.stopRiding();
+             }
+ 
