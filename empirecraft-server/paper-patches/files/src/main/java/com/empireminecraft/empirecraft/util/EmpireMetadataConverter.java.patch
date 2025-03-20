@@ -1,56 +1,7 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
-From: chickeneer <emcchickeneer@gmail.com>
-Date: Wed, 11 Sep 2024 21:34:46 -0500
-Subject: [PATCH] Add a data converter to migrate from Empirecraft metadata
-
-
-diff --git a/src/main/java/ca/spottedleaf/dataconverter/minecraft/MCVersionRegistry.java b/src/main/java/ca/spottedleaf/dataconverter/minecraft/MCVersionRegistry.java
-index 69b5f9fe20c09ac0e72205ba8e4475c2dfea8313..123c65871e1b42eaf2f8e65a3635f1ff945b732d 100644
---- a/src/main/java/ca/spottedleaf/dataconverter/minecraft/MCVersionRegistry.java
-+++ b/src/main/java/ca/spottedleaf/dataconverter/minecraft/MCVersionRegistry.java
-@@ -239,7 +239,8 @@ public final class MCVersionRegistry {
-                 3833,
-                 3939,
-                 3943,
--                3945
-+                3945,
-+                3952 // EMC
-                 // All up to 1.21
-         };
-         Arrays.sort(converterVersions);
-diff --git a/src/main/java/ca/spottedleaf/dataconverter/minecraft/datatypes/MCTypeRegistry.java b/src/main/java/ca/spottedleaf/dataconverter/minecraft/datatypes/MCTypeRegistry.java
-index f4d7700ab53753dd5ac3222fbfd7bdd11b48197c..8fff64a10f5837729c43205275ddd423e8f2e64e 100644
---- a/src/main/java/ca/spottedleaf/dataconverter/minecraft/datatypes/MCTypeRegistry.java
-+++ b/src/main/java/ca/spottedleaf/dataconverter/minecraft/datatypes/MCTypeRegistry.java
-@@ -1,6 +1,7 @@
- package ca.spottedleaf.dataconverter.minecraft.datatypes;
- 
- import ca.spottedleaf.dataconverter.minecraft.versions.*;
-+import com.empireminecraft.util.EmpireMetadataConverter;
- import com.mojang.logging.LogUtils;
- import org.slf4j.Logger;
- 
-@@ -297,6 +298,7 @@ public final class MCTypeRegistry {
-         V3939.register();
-         V3943.register();
-         V3945.register();
-+        EmpireMetadataConverter.register();
-     }
- 
-     private MCTypeRegistry() {}
-diff --git a/src/main/java/com/empireminecraft/util/EmpireMetadataConverter.java b/src/main/java/com/empireminecraft/util/EmpireMetadataConverter.java
-new file mode 100644
-index 0000000000000000000000000000000000000000..acfa4c5d6da2ff2088a2c582f05d39e265603e7e
 --- /dev/null
-+++ b/src/main/java/com/empireminecraft/util/EmpireMetadataConverter.java
-@@ -0,0 +1,446 @@
-+/*
-+ * Copyright (c) 2024. Starlis LLC / dba Empire Minecraft
-+ *
-+ * This source code is proprietary software and must not be redistributed without Starlis LLC's approval
-+ */
-+
-+package com.empireminecraft.util;
++++ b/src/main/java/com/empireminecraft/empirecraft/util/EmpireMetadataConverter.java
+@@ -1,0 +_,440 @@
++package com.empireminecraft.empirecraft.util;
 +
 +import ca.spottedleaf.dataconverter.converters.DataConverter;
 +import ca.spottedleaf.dataconverter.minecraft.MCVersions;
@@ -73,9 +24,9 @@ index 0000000000000000000000000000000000000000..acfa4c5d6da2ff2088a2c582f05d39e2
 +import java.util.Set;
 +import java.util.regex.Pattern;
 +
-+public final class EmpireMetadataConverter {
++public class EmpireMetadataConverter {
 +
-+    private static final int VERSION = MCVersions.V_1_21_RC1;
++    private static final int VERSION = MCVersions.V1_21_RC1;
 +
 +    private static final String META_MAP = "MetaMap";
 +    private static final String META_TYPE = "MetaType";
@@ -369,8 +320,8 @@ index 0000000000000000000000000000000000000000..acfa4c5d6da2ff2088a2c582f05d39e2
 +                        java.io.ByteArrayOutputStream outputStream = new java.io.ByteArrayOutputStream();
 +                        try {
 +                            net.minecraft.nbt.NbtIo.writeCompressed(
-+                                nbtMap.getTag(),
-+                                outputStream
++                                    nbtMap.getTag(),
++                                    outputStream
 +                            );
 +                        } catch (IOException ex) {
 +                            throw new RuntimeException(ex);
@@ -416,13 +367,13 @@ index 0000000000000000000000000000000000000000..acfa4c5d6da2ff2088a2c582f05d39e2
 +    private static final Set<String> SKIP_STARTS_WITH = Set.of("survivalRespawn_");
 +
 +    private static final Set<String> SKIP_KEYS = Set.of(
-+        "groupLogoutMembers",
-+        "homeResidence",
-+        "__regInfo",
-+        "engagedAge",
-+        "entityAttackers",
-+        "playerCombatActivity",
-+        "ipReplenishMap"
++            "groupLogoutMembers",
++            "homeResidence",
++            "__regInfo",
++            "engagedAge",
++            "entityAttackers",
++            "playerCombatActivity",
++            "ipReplenishMap"
 +    );
 +
 +    static @NotNull String getString(@NotNull String text) {
@@ -490,35 +441,3 @@ index 0000000000000000000000000000000000000000..acfa4c5d6da2ff2088a2c582f05d39e2
 +    private EmpireMetadataConverter() {
 +    }
 +}
-diff --git a/src/main/java/net/minecraft/world/level/storage/LevelStorageSource.java b/src/main/java/net/minecraft/world/level/storage/LevelStorageSource.java
-index 85ba843ce7e1f62971e736fa2cc028c47b274ce4..4a4ea9f24f4b9529920ece8598bbcafc74463f55 100644
---- a/src/main/java/net/minecraft/world/level/storage/LevelStorageSource.java
-+++ b/src/main/java/net/minecraft/world/level/storage/LevelStorageSource.java
-@@ -1,5 +1,9 @@
- package net.minecraft.world.level.storage;
- 
-+import ca.spottedleaf.dataconverter.minecraft.MCDataConverter;
-+import ca.spottedleaf.dataconverter.minecraft.datatypes.MCDataType;
-+import ca.spottedleaf.dataconverter.minecraft.datatypes.MCTypeRegistry;
-+import com.empireminecraft.util.MCLog;
- import com.google.common.collect.Maps;
- import com.mojang.datafixers.DataFixer;
- import com.mojang.logging.LogUtils;
-@@ -278,7 +282,7 @@ public class LevelStorageSource {
-         CompoundTag nbttagcompound = LevelStorageSource.readLevelDataTagRaw(path);
-         CompoundTag nbttagcompound1 = nbttagcompound.getCompound("Data");
-         int i = NbtUtils.getDataVersion(nbttagcompound1, -1); final int version = i; // Paper - obfuscation helpers
--        Dynamic<?> dynamic = DataFixTypes.LEVEL.updateToCurrentVersion(dataFixer, new Dynamic(NbtOps.INSTANCE, nbttagcompound1), i);
-+        Dynamic<?> dynamic = new Dynamic(NbtOps.INSTANCE, MCDataConverter.convertTag(MCTypeRegistry.LEVEL, nbttagcompound1, i, net.minecraft.SharedConstants.getCurrentVersion().getDataVersion().getVersion())); // EMC
- 
-         // Paper start - replace data conversion system
-         dynamic = dynamic.update("Player", (dynamic1) -> {
-@@ -318,7 +322,7 @@ public class LevelStorageSource {
-                     CompoundTag nbttagcompound = (CompoundTag) nbtbase;
-                     CompoundTag nbttagcompound1 = nbttagcompound.getCompound("Data");
-                     int i = NbtUtils.getDataVersion(nbttagcompound1, -1);
--                    Dynamic<?> dynamic = DataFixTypes.LEVEL.updateToCurrentVersion(this.fixerUpper, new Dynamic(NbtOps.INSTANCE, nbttagcompound1), i);
-+                    Dynamic<?> dynamic = new Dynamic(NbtOps.INSTANCE, MCDataConverter.convertTag(MCTypeRegistry.LEVEL, nbttagcompound1, i, net.minecraft.SharedConstants.getCurrentVersion().getDataVersion().getVersion())); // EMC
- 
-                     return this.makeLevelSummary(dynamic, save, locked);
-                 }
