@@ -1,0 +1,70 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: chickeneer <emcchickeneer@gmail.com>
+Date: Sat, 16 Jan 2021 22:44:20 -0600
+Subject: [PATCH] Convert EntityTag attributes on creature spawn
+
+Entity conversion does not run on the EntityTag.
+This is a serious flaw in this SpawnEgg EntityTag features
+
+diff --git a/net/minecraft/world/entity/EntityType.java b/net/minecraft/world/entity/EntityType.java
+index db07c6abf244c98891037abb82231de6aac41a7a..3c74d248289b55539a431725f138ad45adb95f97 100644
+--- a/net/minecraft/world/entity/EntityType.java
++++ b/net/minecraft/world/entity/EntityType.java
+@@ -1302,11 +1302,57 @@ public class EntityType<T extends Entity> implements FeatureElement, EntityTypeT
+         return 1.0 + Shapes.collide(Direction.Axis.Y, box, collisions, shouldOffsetYMore ? -2.0 : -1.0);
+     }
+ 
++    // EMC start
++    private static final java.util.Map<String, String> attributeConversion = new com.google.common.collect.ImmutableMap.Builder<String, String>()
++            .put("generic.maxHealth", "generic.max_health")
++            .put("horse.jumpStrength", "horse.jump_strength")
++            .put("generic.followRange", "generic.follow_range")
++            .put("generic.knockbackResistance", "generic.knockback_resistance")
++            .put("generic.movementSpeed", "generic.movement_speed")
++            .put("generic.flyingSpeed", "generic.flying_speed")
++            .put("generic.attackDamage", "generic.attack_damage")
++            .put("generic.attackKnockback", "generic.attack_knockback")
++            .put("generic.attackSpeed", "generic.attack_speed")
++            .put("generic.armorToughness", "generic.armor_toughness").build();
++    private static final java.util.Map<Integer, String> catTypeConversion = new com.google.common.collect.ImmutableMap.Builder<Integer, String>()
++            .put(0, "minecraft:tabby")
++            .put(1, "minecraft:black")
++            .put(2, "minecraft:red")
++            .put(3, "minecraft:siamese")
++            .put(4, "minecraft:british_shorthair")
++            .put(5, "minecraft:calico")
++            .put(6, "minecraft:persian")
++            .put(7, "minecraft:ragdoll")
++            .put(8, "minecraft:white")
++            .put(9, "minecraft:jellie")
++            .put(10, "minecraft:all_black").build();
++    private static void convertNBT(@org.jetbrains.annotations.NotNull CompoundTag entityTag) {
++        if (entityTag.contains("Attributes", 9)) {
++            ListTag nbttaglist = entityTag.getList("Attributes", 10);
++            for (int i = 0; i < nbttaglist.size(); i++) {
++                String value = attributeConversion.get(nbttaglist.getCompound(i).getString("Name"));
++                if (value != null) {
++                    nbttaglist.getCompound(i).putString("Name", value);
++                }
++            }
++        }
++        if (entityTag.contains("CatType")) {
++            Integer id = entityTag.getInt("CatType");
++            String value = catTypeConversion.get(id);
++            if (value == null) {
++                value = "minecraft:tabby";
++            }
++            entityTag.remove("CatType");
++            entityTag.putString("variant", value);
++        }
++    }
++    // EMC end
+     public static void updateCustomEntityTag(Level level, @Nullable Player player, @Nullable Entity entity, CustomData customData) {
+         MinecraftServer server = level.getServer();
+         if (server != null && entity != null) {
+             EntityType<?> entityType = customData.parseEntityType(server.registryAccess(), Registries.ENTITY_TYPE);
+             if (entity.getType() == entityType) {
++                customData = customData.update(EntityType::convertNBT); // EMC
+                 if (level.isClientSide || !entity.getType().onlyOpCanSetNbt() || player != null && server.getPlayerList().isOp(player.getGameProfile())) {
+                     // Paper start - filter out protected tags
+                     if (player == null || !player.getBukkitEntity().hasPermission("minecraft.nbt.place")) {

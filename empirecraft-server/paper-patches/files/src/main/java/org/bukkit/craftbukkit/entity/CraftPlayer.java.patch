@@ -1,0 +1,70 @@
+--- a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
++++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
+@@ -2309,6 +_,67 @@
+     }
+     // Paper end - Add Listing API for Player
+ 
++    // EMC start - Fake Player API
++    public final Map<UUID, Set<WeakReference<Plugin>>> hiddenFakePlayers = new HashMap<>();
++    @Override
++    public boolean canSee(@NotNull com.empireminecraft.empirecraft.api.FakePlayer fakePlayer) {
++        return !hiddenFakePlayers.containsKey(fakePlayer.getUniqueId());
++    }
++    @Override
++    public void hideFakePlayer(@NotNull Plugin plugin, @NotNull com.empireminecraft.empirecraft.api.FakePlayer fakePlayer) {
++        UUID fakeUUID = fakePlayer.getUniqueId();
++        if  (fakeUUID.equals(this.getUniqueId())) {
++            return;
++        }
++
++        Set<WeakReference<Plugin>> hidingPlugins = hiddenFakePlayers.get(fakeUUID);
++        if (hidingPlugins != null) {
++            // Some plugins are already hiding the player. Just mark that this
++            // plugin wants the player hidden too and end.
++            hidingPlugins.add(getPluginWeakReference(plugin));
++            return;
++        }
++        hidingPlugins = new HashSet<>();
++        hidingPlugins.add(getPluginWeakReference(plugin));
++        hiddenFakePlayers.put(fakeUUID, hidingPlugins);
++
++        if (com.empireminecraft.empirecraft.api.CraftEmpireAPI.getServer().fakePlayerMap.containsKey(fakeUUID)) {
++            getHandle().connection.send(new ClientboundPlayerInfoRemovePacket(List.of(fakePlayer.getUniqueId())));
++        }
++    }
++    @Override
++    public void showFakePlayer(@NotNull Plugin plugin, @NotNull com.empireminecraft.empirecraft.api.FakePlayer fakePlayer) {
++        UUID fakeUUID = fakePlayer.getUniqueId();
++        if  (fakeUUID.equals(this.getUniqueId())) {
++            return;
++        }
++
++        Set<WeakReference<Plugin>> hidingPlugins = hiddenFakePlayers.get(fakeUUID);
++        if (hidingPlugins == null) {
++            return; // Player isn't hidden
++        }
++        hidingPlugins.remove(getPluginWeakReference(plugin));
++        if (!hidingPlugins.isEmpty()) {
++            return; // Some other plugins still want the player hidden
++        }
++        hiddenFakePlayers.remove(fakeUUID);
++        if (com.empireminecraft.empirecraft.api.CraftEmpireAPI.getServer().fakePlayerMap.containsKey(fakeUUID)) {
++            getHandle().connection.send(new ClientboundPlayerInfoUpdatePacket(
++                    java.util.EnumSet.of(ClientboundPlayerInfoUpdatePacket.Action.ADD_PLAYER, ClientboundPlayerInfoUpdatePacket.Action.INITIALIZE_CHAT, ClientboundPlayerInfoUpdatePacket.Action.UPDATE_GAME_MODE, ClientboundPlayerInfoUpdatePacket.Action.UPDATE_LISTED, ClientboundPlayerInfoUpdatePacket.Action.UPDATE_LATENCY, ClientboundPlayerInfoUpdatePacket.Action.UPDATE_DISPLAY_NAME), fakePlayer));
++        }
++    }
++    @Override
++    public Set<com.empireminecraft.empirecraft.api.FakePlayer> getHiddenFakePlayers() {
++        Set<com.empireminecraft.empirecraft.api.FakePlayer> ret = new HashSet<>();
++        for (UUID uuid : hiddenFakePlayers.keySet()) {
++            com.empireminecraft.empirecraft.api.FakePlayer fakePlayer = com.empireminecraft.empirecraft.api.CraftEmpireAPI.server.getFakePlayer(uuid);
++            if (fakePlayer != null) {
++                ret.add(fakePlayer);
++            }
++        }
++        return java.util.Collections.unmodifiableSet(ret);
++    }
++    // EMC end - Fake Player API
+     @Override
+     public Map<String, Object> serialize() {
+         Map<String, Object> result = new LinkedHashMap<String, Object>();

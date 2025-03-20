@@ -1,0 +1,34 @@
+--- a/net/minecraft/world/level/block/entity/ConduitBlockEntity.java
++++ b/net/minecraft/world/level/block/entity/ConduitBlockEntity.java
+@@ -215,6 +_,14 @@
+             List<LivingEntity> entitiesOfClass = level.getEntitiesOfClass(
+                 LivingEntity.class, getDestroyRangeAABB(pos), collidedEntity -> collidedEntity instanceof Enemy && collidedEntity.isInWaterOrRain()
+             );
++            // EMC start - ConduitNewTargetEvent
++            List<org.bukkit.entity.LivingEntity> bukkitEntities = Lists.newArrayListWithCapacity(entitiesOfClass.size());
++            for (LivingEntity entity : entitiesOfClass) {
++                bukkitEntities.add(entity.getBukkitLivingEntity());
++            }
++            new com.empireminecraft.empirecraft.event.block.ConduitNewTargetEvent(bukkitEntities, org.bukkit.craftbukkit.block.CraftBlock.at(level, pos)).callEvent();
++            entitiesOfClass.removeIf(entityLiving -> !bukkitEntities.contains(entityLiving.getBukkitLivingEntity()));
++            // EMC end - ConduitNewTargetEvent
+             if (!entitiesOfClass.isEmpty()) {
+                 blockEntity.destroyTarget = entitiesOfClass.get(level.random.nextInt(entitiesOfClass.size()));
+             }
+@@ -223,7 +_,7 @@
+         }
+ 
+         if (damageTarget && blockEntity.destroyTarget != null) { // CraftBukkit
+-            if (blockEntity.destroyTarget.hurtServer((net.minecraft.server.level.ServerLevel) level, level.damageSources().magic().eventBlockDamager(level, pos), 4.0F)) // CraftBukkit
++            if (blockEntity.destroyTarget.hurtServer((net.minecraft.server.level.ServerLevel) level, level.damageSources().magic().eventBlockDamager(level, pos), 4.0F)) { // CraftBukkit // EMC - Remove target for cancelled hurt
+             level.playSound(
+                 null,
+                 blockEntity.destroyTarget.getX(),
+@@ -234,6 +_,7 @@
+                 1.0F,
+                 1.0F
+             );
++            } else { blockEntity.destroyTarget = null; } // EMC - Remove target for cancelled hurt
+         }
+ 
+         if (livingEntity != blockEntity.destroyTarget) {

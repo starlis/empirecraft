@@ -1,0 +1,55 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: chickeneer <emcchickeneer@gmail.com>
+Date: Tue, 29 Dec 2020 01:32:45 -0600
+Subject: [PATCH] Fake Player API
+
+
+diff --git a/net/minecraft/network/protocol/game/ClientboundPlayerInfoUpdatePacket.java b/net/minecraft/network/protocol/game/ClientboundPlayerInfoUpdatePacket.java
+index 13c94022cae4c46fb94634687db92ee2178945ac..63afbc7cf9061e3c6ff0ab6624da0d31c0780ebb 100644
+--- a/net/minecraft/network/protocol/game/ClientboundPlayerInfoUpdatePacket.java
++++ b/net/minecraft/network/protocol/game/ClientboundPlayerInfoUpdatePacket.java
+@@ -29,6 +29,26 @@ public class ClientboundPlayerInfoUpdatePacket implements Packet<ClientGamePacke
+     private final EnumSet<ClientboundPlayerInfoUpdatePacket.Action> actions;
+     private final List<ClientboundPlayerInfoUpdatePacket.Entry> entries;
+ 
++    // EMC start - Fake Player API
++    public ClientboundPlayerInfoUpdatePacket(ClientboundPlayerInfoUpdatePacket.Action action, com.empireminecraft.empirecraft.api.FakePlayer... fakePlayers) {
++        this(EnumSet.of(action), fakePlayers);
++    }
++    public ClientboundPlayerInfoUpdatePacket(EnumSet<ClientboundPlayerInfoUpdatePacket.Action> actions, com.empireminecraft.empirecraft.api.FakePlayer... fakePlayers) {
++        this.actions = actions;
++        this.entries = com.google.common.collect.Lists.newArrayListWithCapacity(fakePlayers.length);
++        for (com.empireminecraft.empirecraft.api.FakePlayer fakePlayer : fakePlayers) {
++            fakePlayer.getUniqueId();
++            EntryBuilder builder = new EntryBuilder(fakePlayer.getUniqueId());
++            builder.profile = com.destroystokyo.paper.profile.CraftPlayerProfile.asAuthlib(fakePlayer.getProfile());
++            builder.listed = true;
++            builder.latency = fakePlayer.getPing();
++            builder.gameMode = GameType.byId(fakePlayer.getGameMode().getValue());
++            builder.displayName = io.papermc.paper.adventure.PaperAdventure.asVanilla(fakePlayer.getPlayerListName());
++            //TODO: boolean listed, @Nullable RemoteChatSession.Data chatSession
++            this.entries.add(builder.build());
++        }
++    }
++    // EMC end - Fake Player API
+     public ClientboundPlayerInfoUpdatePacket(EnumSet<ClientboundPlayerInfoUpdatePacket.Action> actions, Collection<ServerPlayer> players) {
+         this.actions = actions;
+         this.entries = players.stream().map(ClientboundPlayerInfoUpdatePacket.Entry::new).toList();
+diff --git a/net/minecraft/server/players/PlayerList.java b/net/minecraft/server/players/PlayerList.java
+index 96cd137cd646d17d1e11f450cd28dca844c1e4c0..63bcf401711830996ef6a7bdcf613428efa29f79 100644
+--- a/net/minecraft/server/players/PlayerList.java
++++ b/net/minecraft/server/players/PlayerList.java
+@@ -338,6 +338,13 @@ public abstract class PlayerList {
+         }
+         // CraftBukkit end
+ 
++        // EMC start - Fake Player API
++        for (com.empireminecraft.empirecraft.api.FakePlayer fakePlayer : com.empireminecraft.empirecraft.api.CraftEmpireAPI.getServer().fakePlayerMap.values()) {
++            if (player.getBukkitEntity().canSee(fakePlayer)) {
++                player.connection.send(new ClientboundPlayerInfoUpdatePacket(EnumSet.of(ClientboundPlayerInfoUpdatePacket.Action.ADD_PLAYER, ClientboundPlayerInfoUpdatePacket.Action.INITIALIZE_CHAT, ClientboundPlayerInfoUpdatePacket.Action.UPDATE_GAME_MODE, ClientboundPlayerInfoUpdatePacket.Action.UPDATE_LISTED, ClientboundPlayerInfoUpdatePacket.Action.UPDATE_LATENCY, ClientboundPlayerInfoUpdatePacket.Action.UPDATE_DISPLAY_NAME), fakePlayer));
++            }
++        }
++        // EMC end - Fake Player API
+         // CraftBukkit start - sendAll above replaced with this loop
+         ClientboundPlayerInfoUpdatePacket packet = ClientboundPlayerInfoUpdatePacket.createPlayerInitializing(List.of(player)); // Paper - Add Listing API for Player
+ 

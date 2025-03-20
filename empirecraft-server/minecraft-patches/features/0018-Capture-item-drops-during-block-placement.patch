@@ -1,0 +1,46 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: chickeneer <emcchickeneer@gmail.com>
+Date: Thu, 29 Jul 2021 02:07:15 -0500
+Subject: [PATCH] Capture item drops during block placement
+
+
+diff --git a/net/minecraft/world/item/ItemStack.java b/net/minecraft/world/item/ItemStack.java
+index 76f50437396f8f856381d0fbef52953ef7c263f6..6c3e2c645e210b7eb7f0151c0b6a157eddc6d591 100644
+--- a/net/minecraft/world/item/ItemStack.java
++++ b/net/minecraft/world/item/ItemStack.java
+@@ -400,10 +400,19 @@ public final class ItemStack implements DataComponentHolder {
+             } finally {
+                 serverLevel.captureBlockStates = false;
+             }
++            // EMC start - Capture item Drops during placement
++            serverLevel.captureDrops = new java.util.ArrayList<>();
++            org.bukkit.block.Block bblock = org.bukkit.craftbukkit.block.CraftBlock.at(serverLevel, clickedPos);
++            org.bukkit.block.BlockState state = bblock.getState();
++            // EMC end - Capture item Drops during placement
+             DataComponentPatch newPatch = this.components.asPatch();
+             int newCount = this.getCount();
+             this.setCount(oldCount);
+             this.restorePatch(previousPatch);
++            // EMC start - Capture item Drops during placement
++            List<ItemEntity> itemsToDrop = serverLevel.captureDrops;
++            serverLevel.captureDrops = null;
++            // EMC end - Capture item Drops during placement
+             if (interactionResult.consumesAction() && serverLevel.captureTreeGeneration && !serverLevel.capturedBlockStates.isEmpty()) {
+                 serverLevel.captureTreeGeneration = false;
+                 org.bukkit.Location location = org.bukkit.craftbukkit.util.CraftLocation.toBukkit(clickedPos, serverLevel.getWorld());
+@@ -423,6 +432,7 @@ public final class ItemStack implements DataComponentHolder {
+                 org.bukkit.Bukkit.getPluginManager().callEvent(fertilizeEvent);
+ 
+                 if (!fertilizeEvent.isCancelled()) {
++                    org.bukkit.craftbukkit.event.CraftEventFactory.handleBlockDropItemEvent(bblock, state, (ServerPlayer) player, itemsToDrop); // EMC
+                     // Change the stack to its new contents if it hasn't been tampered with.
+                     if (this.getCount() == oldCount && Objects.equals(this.components.asPatch(), previousPatch)) {
+                         this.restorePatch(newPatch);
+@@ -467,6 +477,7 @@ public final class ItemStack implements DataComponentHolder {
+ 
+                     SignItem.openSign = null; // SPIGOT-6758 - Reset on early return
+                 } else {
++                    org.bukkit.craftbukkit.event.CraftEventFactory.handleBlockDropItemEvent(bblock, state, (ServerPlayer) player, itemsToDrop); // EMC
+                     // Change the stack to its new contents if it hasn't been tampered with.
+                     if (this.getCount() == oldCount && Objects.equals(this.components.asPatch(), previousPatch)) {
+                         this.restorePatch(newPatch);

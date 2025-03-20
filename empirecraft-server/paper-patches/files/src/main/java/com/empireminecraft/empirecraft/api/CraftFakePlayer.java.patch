@@ -1,0 +1,153 @@
+--- /dev/null
++++ b/src/main/java/com/empireminecraft/empirecraft/api/CraftFakePlayer.java
+@@ -1,0 +_,150 @@
++package com.empireminecraft.empirecraft.api;
++
++import com.destroystokyo.paper.profile.PlayerProfile;
++import com.empireminecraft.empirecraft.event.FakePlayerJoinEvent;
++import com.empireminecraft.empirecraft.event.FakePlayerQuitEvent;
++import net.kyori.adventure.text.Component;
++import net.minecraft.network.protocol.game.ClientboundPlayerInfoRemovePacket;
++import net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket;
++import net.minecraft.server.MinecraftServer;
++import net.minecraft.server.level.ServerPlayer;
++import org.bukkit.GameMode;
++import org.jetbrains.annotations.NotNull;
++
++import java.util.EnumSet;
++import java.util.List;
++import java.util.UUID;
++
++public class CraftFakePlayer implements FakePlayer {
++    private final PlayerProfile profile;
++    // Use uuid field to ensure the PlayerProfile is not altered to change the UUID.
++    private final UUID uuid;
++    public int ping;
++    public GameMode gameMode;
++    public Component playerListName;
++
++    public CraftFakePlayer(@NotNull PlayerProfile profile, int ping, @NotNull GameMode gameMode, @NotNull Component playerListName) throws IllegalArgumentException {
++        this.profile = profile;
++        if (profile.getId() == null) {
++            throw new IllegalArgumentException("PlayerProfile does not contain a valid id");
++        }
++        this.uuid = profile.getId();
++        this.ping = ping;
++        this.gameMode = gameMode;
++        this.playerListName = playerListName;
++    }
++
++    @NotNull
++    @Override
++    public PlayerProfile getProfile() {
++        return profile;
++    }
++
++    @NotNull
++    @Override
++    public Component getPlayerListName() {
++        return playerListName;
++    }
++
++    @Override
++    public int getPing() {
++        return ping;
++    }
++
++    @NotNull
++    @Override
++    public GameMode getGameMode() {
++        return gameMode;
++    }
++
++    @NotNull
++    @Override
++    public UUID getUniqueId() {
++        return uuid;
++    }
++
++    @Override
++    public void join() {
++        UUID uuid = this.getUniqueId();
++        if (this.isJoined()) {
++            return;
++        }
++        new FakePlayerJoinEvent(this).callEvent();
++        CraftEmpireAPI.getServer().fakePlayerMap.put(uuid, this);
++
++        var packet = new ClientboundPlayerInfoUpdatePacket(EnumSet.of(ClientboundPlayerInfoUpdatePacket.Action.ADD_PLAYER, ClientboundPlayerInfoUpdatePacket.Action.UPDATE_GAME_MODE, ClientboundPlayerInfoUpdatePacket.Action.UPDATE_LISTED, ClientboundPlayerInfoUpdatePacket.Action.UPDATE_LATENCY, ClientboundPlayerInfoUpdatePacket.Action.UPDATE_DISPLAY_NAME), this);
++        for (ServerPlayer entityPlayer : MinecraftServer.getServer().getPlayerList().players) {
++            if (entityPlayer.getBukkitEntity().canSee(this)) {
++                entityPlayer.connection.send(packet);
++            }
++        }
++    }
++
++    @Override
++    public void quit() {
++        UUID uuid = this.getUniqueId();
++        if (!this.isJoined()) {
++            return;
++        }
++        new FakePlayerQuitEvent(this).callEvent();
++        CraftEmpireAPI.getServer().fakePlayerMap.remove(uuid);
++
++
++        var packet = new ClientboundPlayerInfoRemovePacket(List.of(this.getUniqueId()));
++        for (ServerPlayer entityPlayer : MinecraftServer.getServer().getPlayerList().players) {
++            if (entityPlayer.getBukkitEntity().canSee(this)) {
++                entityPlayer.connection.send(packet);
++            } else {
++                entityPlayer.getBukkitEntity().hiddenFakePlayers.remove(uuid);
++            }
++        }
++    }
++
++    @Override
++    public void setPing(int ping, boolean update) {
++        this.ping = ping;
++        if (update) {
++            this.sendUpdatePackets(ClientboundPlayerInfoUpdatePacket.Action.UPDATE_LATENCY);
++        }
++    }
++
++    @Override
++    public void setGameMode(@NotNull GameMode gameMode, boolean update) {
++        this.gameMode = gameMode;
++        if (update) {
++            this.sendUpdatePackets(ClientboundPlayerInfoUpdatePacket.Action.UPDATE_GAME_MODE);
++        }
++    }
++
++    @Override
++    public void setPlayerListName(@NotNull Component playerListName, boolean update) {
++        this.playerListName = playerListName;
++        if (update) {
++            this.sendUpdatePackets(ClientboundPlayerInfoUpdatePacket.Action.UPDATE_DISPLAY_NAME);
++        }
++    }
++
++    @Override
++    public void update() {
++        this.sendUpdatePackets(ClientboundPlayerInfoUpdatePacket.Action.UPDATE_LATENCY);
++        this.sendUpdatePackets(ClientboundPlayerInfoUpdatePacket.Action.UPDATE_GAME_MODE);
++        this.sendUpdatePackets(ClientboundPlayerInfoUpdatePacket.Action.UPDATE_DISPLAY_NAME);
++    }
++
++    private void sendUpdatePackets(@NotNull ClientboundPlayerInfoUpdatePacket.Action action) {
++        if (this.isJoined()) {
++            var packet = new ClientboundPlayerInfoUpdatePacket(action, this);
++            for (ServerPlayer entityPlayer : MinecraftServer.getServer().getPlayerList().players) {
++                if (entityPlayer.getBukkitEntity().canSee(this)) {
++                    entityPlayer.connection.send(packet);
++                }
++            }
++        }
++    }
++
++    @Override
++    public boolean isJoined() {
++        return CraftEmpireAPI.getServer().fakePlayerMap.containsKey(this.getUniqueId());
++    }
++
++}
