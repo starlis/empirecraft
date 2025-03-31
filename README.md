@@ -2,7 +2,7 @@
 ## What
 EmpireCraft is a fork of [Paper](https://github.com/PaperMC/Paper) used by the [Empire Minecraft](https://ref.emc.gs/Aikar?gam=EmpireCraft) Server.
 
-It contains many gameplay changes to suit our server and some potential performance improvements to be contributed back to Paper / Sponge.
+It contains many gameplay changes to suit our server and some potential performance improvements to be contributed back to Paper.
 
 We also have many APIs that we privately use but [may choose not to](#why-we-dont-release-all-apis) publicly PR upstream.
 
@@ -30,28 +30,57 @@ If we make any breaking changes, and you still wish to use these patches, it's y
 
 So in summary, we love to share! Use anything we wrote in this repo how ever you please, but support it yourself :)
 
+See [PaperMC/Paper](https://github.com/PaperMC/Paper), and [PaperMC/Paperweight](https://github.com/PaperMC/paperweight) for the license of material used by this project.
+
 ## OS Support & Scripts
 We only directly support the latest LTS Ubuntu for shell scripts. It may work elsewhere... but no promises.
 
 Some scripts may try to push to our repos, please change that if you fork :)
 
-### build-data/importmcdev
-Imports specific files from mc-dev that upstream does not use, but we need.
+## API
 
-### scripts/apatch
-Used to attempt wiggle applying a patch when `./gradlew applyPatches` is unable to do detect the conflicts.
+### Dependency Information
+Maven
+```xml
+<dependency>
+    <groupId>com.empireminecraft.empirecraft</groupId>
+    <artifactId>empirecraft-api</artifactId>
+    <version>1.21.4-R0.1-SNAPSHOT</version>
+    <scope>provided</scope>
+</dependency>
+```
 
-### Common Gradle commands
-The most common gradle commands needed to use this project are listed here.
-`./gradlew cleanCache`
-`./gradlew applyPatches`
-`./gradlew rebuildPatches`
-`./gradlew createReobfBundlerJar`
-`./gradlew publishToMavenLocal`
+Gradle
+```kotlin
+dependencies {
+    compileOnly("com.empireminecraft.empirecraft:empirecraft-api:1.21.4-R0.1-SNAPSHOT")
+}
+```
 
-### Common Gradle commands
-Deprecated patches scheduled for removal in a future unannounced update
-API-0002-ItemStack-isSimiliar-API-to-skip-durability-and-name.patch
-API-0026-Chat-API.patch
-API-0032-Add-ChatColor.getById.patch
-API-0042-SpawnEggMeta-setSpawnedEntity-API.patch
+We do not currently have a publicly available repository at this time. one would need to compile and publish locally as needed.
+
+## Building and setting up
+
+#### Initial setup
+First, <u>clone</u> this repository. Do not download it.
+
+Then run the following command in the root directory:
+
+```
+./gradlew applyAllPatches
+```
+
+The project is now ready for use in your IDE.
+
+#### Creating a patch
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+#### Compiling
+
+Use the command `./gradlew build` to build the API and server. Compiled JARs
+will be placed under `empirecraft-api/build/libs` and `empirecraft-server/build/libs`.
+**These JARs are not used to start a server.**
+
+To compile a server-ready bundler jar, run `./gradlew createMojmapBundlerJar`.
+To install the `empirecraft-api` and `empirecraft` dependencies to your local Maven repo, run `./gradlew publishToMavenLocal`. The compiled bundler jar will be in `empirecraft-server/build/libs`.
