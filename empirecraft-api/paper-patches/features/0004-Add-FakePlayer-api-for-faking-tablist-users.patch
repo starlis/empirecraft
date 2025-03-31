@@ -5,7 +5,7 @@ Subject: [PATCH] Add FakePlayer api for faking tablist users
 
 
 diff --git a/src/main/java/com/empireminecraft/empirecraft/api/EAPI_Server.java b/src/main/java/com/empireminecraft/empirecraft/api/EAPI_Server.java
-index 6ee46a5abf4b76725ee4d2bc651b5796d9277caa..e46133a5a485dc1cc6376694493b240f1ae1cbe8 100644
+index 6ee46a5abf4b76725ee4d2bc651b5796d9277caa..681ec68e050f4fa279061550949a2b1a37261c95 100644
 --- a/src/main/java/com/empireminecraft/empirecraft/api/EAPI_Server.java
 +++ b/src/main/java/com/empireminecraft/empirecraft/api/EAPI_Server.java
 @@ -23,6 +23,21 @@
@@ -15,52 +15,48 @@ index 6ee46a5abf4b76725ee4d2bc651b5796d9277caa..e46133a5a485dc1cc6376694493b240f
 +import com.destroystokyo.paper.profile.PlayerProfile;
 +import net.kyori.adventure.text.Component;
 +import org.bukkit.GameMode;
-+import org.jetbrains.annotations.NotNull;
-+import org.jetbrains.annotations.Nullable;
++import org.jspecify.annotations.NullMarked;
++import org.jspecify.annotations.Nullable;
 +
 +import java.util.Set;
 +import java.util.UUID;
 +
++@NullMarked
  public interface EAPI_Server {
  
-+    @Nullable
-+    FakePlayer getFakePlayer(@NotNull UUID uuid);
-+    @NotNull
-+    FakePlayer createFakePlayer(@NotNull PlayerProfile profile, int ping, @NotNull GameMode gameMode, @NotNull Component playerListName) throws IllegalArgumentException;
-+    @NotNull
++    @Nullable FakePlayer getFakePlayer(UUID uuid);
++
++    FakePlayer createFakePlayer(PlayerProfile profile, int ping, GameMode gameMode, Component playerListName) throws IllegalArgumentException;
++
 +    Set<FakePlayer> getJoinedFakePlayers();
  }
 \ No newline at end of file
 diff --git a/src/main/java/com/empireminecraft/empirecraft/api/FakePlayer.java b/src/main/java/com/empireminecraft/empirecraft/api/FakePlayer.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..1a1de70fa3b8f69d23e5a02c2d39bb87079f735f
+index 0000000000000000000000000000000000000000..3e9ba7879e7fe835690352a30f8fef6e6c3a3210
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/empirecraft/api/FakePlayer.java
-@@ -0,0 +1,48 @@
+@@ -0,0 +1,44 @@
 +package com.empireminecraft.empirecraft.api;
 +
 +import com.destroystokyo.paper.profile.PlayerProfile;
 +import net.kyori.adventure.text.Component;
 +import org.bukkit.GameMode;
-+import org.jetbrains.annotations.NotNull;
-+import org.jetbrains.annotations.Nullable;
++import org.jspecify.annotations.NullMarked;
 +
 +import java.util.UUID;
 +
++@NullMarked
 +public interface FakePlayer {
 +
-+    @NotNull
 +    PlayerProfile getProfile();
 +
-+    @NotNull
 +    Component getPlayerListName();
 +
 +    int getPing();
 +
-+    @NotNull
 +    GameMode getGameMode();
 +
-+    @NotNull
 +    UUID getUniqueId();
 +
 +    void join();
@@ -71,15 +67,15 @@ index 0000000000000000000000000000000000000000..1a1de70fa3b8f69d23e5a02c2d39bb87
 +    }
 +    void setPing(int ping, boolean update);
 +
-+    default void setGameMode(@NotNull GameMode gameMode) {
++    default void setGameMode(GameMode gameMode) {
 +        setGameMode(gameMode, true);
 +    }
-+    void setGameMode(@NotNull GameMode gameMode, boolean update);
++    void setGameMode(GameMode gameMode, boolean update);
 +
-+    default void setPlayerListName(@NotNull Component playerListName) {
++    default void setPlayerListName(Component playerListName) {
 +        setPlayerListName(playerListName, true);
 +    }
-+    void setPlayerListName(@NotNull Component playerListName, boolean update);
++    void setPlayerListName(Component playerListName, boolean update);
 +
 +    void update();
 +
@@ -87,7 +83,7 @@ index 0000000000000000000000000000000000000000..1a1de70fa3b8f69d23e5a02c2d39bb87
 +}
 diff --git a/src/main/java/com/empireminecraft/empirecraft/event/FakePlayerEvent.java b/src/main/java/com/empireminecraft/empirecraft/event/FakePlayerEvent.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..7668e749b4924ea0c8f4367dda4c6175961c7880
+index 0000000000000000000000000000000000000000..281b08b1d6cbd3c5a9537ef33f7ce8c3ce33e2d5
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/empirecraft/event/FakePlayerEvent.java
 @@ -0,0 +1,26 @@
@@ -95,15 +91,16 @@ index 0000000000000000000000000000000000000000..7668e749b4924ea0c8f4367dda4c6175
 +
 +import com.empireminecraft.empirecraft.api.FakePlayer;
 +import org.bukkit.event.Event;
-+import org.jetbrains.annotations.NotNull;
++import org.jspecify.annotations.NullMarked;
 +
 +/**
 + * Represents a fakeplayer related event
 + */
++@NullMarked
 +public abstract class FakePlayerEvent extends Event {
 +    protected FakePlayer fakePlayer;
 +
-+    public FakePlayerEvent(@NotNull final FakePlayer who) {
++    public FakePlayerEvent(FakePlayer who) {
 +        fakePlayer = who;
 +    }
 +
@@ -112,65 +109,62 @@ index 0000000000000000000000000000000000000000..7668e749b4924ea0c8f4367dda4c6175
 +     *
 +     * @return Player who is involved in this event
 +     */
-+    @NotNull
 +    public final FakePlayer getFakePlayer() {
 +        return fakePlayer;
 +    }
 +}
 diff --git a/src/main/java/com/empireminecraft/empirecraft/event/FakePlayerJoinEvent.java b/src/main/java/com/empireminecraft/empirecraft/event/FakePlayerJoinEvent.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..dcb8375056cac239f5897845888782b032c83ae1
+index 0000000000000000000000000000000000000000..39b95f5e21bcb30025e41c7e0852c25100300140
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/empirecraft/event/FakePlayerJoinEvent.java
-@@ -0,0 +1,23 @@
+@@ -0,0 +1,22 @@
 +package com.empireminecraft.empirecraft.event;
 +
 +import com.empireminecraft.empirecraft.api.FakePlayer;
 +import org.bukkit.event.HandlerList;
-+import org.jetbrains.annotations.NotNull;
++import org.jspecify.annotations.NullMarked;
 +
++@NullMarked
 +public class FakePlayerJoinEvent extends FakePlayerEvent {
-+    public FakePlayerJoinEvent(@NotNull FakePlayer who) {
++    public FakePlayerJoinEvent( FakePlayer who) {
 +        super(who);
 +    }
 +
 +    private static final HandlerList handlers = new HandlerList();
 +
-+    @NotNull
 +    public HandlerList getHandlers() {
 +        return handlers;
 +    }
 +
-+    @NotNull
 +    public static HandlerList getHandlerList() {
 +        return handlers;
 +    }
 +}
 diff --git a/src/main/java/com/empireminecraft/empirecraft/event/FakePlayerQuitEvent.java b/src/main/java/com/empireminecraft/empirecraft/event/FakePlayerQuitEvent.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..815c481f5d27c7d9ed7e3980f6a04bdebf3efbf7
+index 0000000000000000000000000000000000000000..0ec4291e1ccaed66857f65aaf20ef8a547a40d45
 --- /dev/null
 +++ b/src/main/java/com/empireminecraft/empirecraft/event/FakePlayerQuitEvent.java
-@@ -0,0 +1,23 @@
+@@ -0,0 +1,22 @@
 +package com.empireminecraft.empirecraft.event;
 +
 +import com.empireminecraft.empirecraft.api.FakePlayer;
 +import org.bukkit.event.HandlerList;
-+import org.jetbrains.annotations.NotNull;
++import org.jspecify.annotations.NullMarked;
 +
++@NullMarked
 +public class FakePlayerQuitEvent extends FakePlayerEvent {
-+    public FakePlayerQuitEvent(@NotNull FakePlayer who) {
++    public FakePlayerQuitEvent(FakePlayer who) {
 +        super(who);
 +    }
 +
 +    private static final HandlerList handlers = new HandlerList();
 +
-+    @NotNull
 +    public HandlerList getHandlers() {
 +        return handlers;
 +    }
 +
-+    @NotNull
 +    public static HandlerList getHandlerList() {
 +        return handlers;
 +    }
