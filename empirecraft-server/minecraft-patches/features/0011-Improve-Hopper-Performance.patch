@@ -6,34 +6,10 @@ Subject: [PATCH] Improve Hopper Performance
 Only do an item "suck in" action once per second
 
 diff --git a/net/minecraft/world/entity/item/ItemEntity.java b/net/minecraft/world/entity/item/ItemEntity.java
-index 74bd9cb4033d238374fbaa151f9e3e320a69b3f4..b238c21749645391d7f5ef5ca7312defd21ca54b 100644
+index abeaa5082823d6bdec6eab5a79ba696f43b91b0d..2be612a2e4e6b53e4d8cea43d82bc19e8e948969 100644
 --- a/net/minecraft/world/entity/item/ItemEntity.java
 +++ b/net/minecraft/world/entity/item/ItemEntity.java
-@@ -9,6 +9,7 @@ import net.minecraft.network.chat.Component;
- import net.minecraft.network.syncher.EntityDataAccessor;
- import net.minecraft.network.syncher.EntityDataSerializers;
- import net.minecraft.network.syncher.SynchedEntityData;
-+import net.minecraft.server.MinecraftServer;
- import net.minecraft.server.level.ServerLevel;
- import net.minecraft.sounds.SoundSource;
- import net.minecraft.stats.Stats;
-@@ -23,6 +24,7 @@ import net.minecraft.world.entity.MoverType;
- import net.minecraft.world.entity.SlotAccess;
- import net.minecraft.world.entity.TraceableEntity;
- import net.minecraft.world.entity.player.Player;
-+import net.minecraft.world.entity.vehicle.MinecartHopper;
- import net.minecraft.world.item.Item;
- import net.minecraft.world.item.ItemStack;
- import net.minecraft.world.level.Explosion;
-@@ -30,6 +32,7 @@ import net.minecraft.world.level.GameRules;
- import net.minecraft.world.level.Level;
- import net.minecraft.world.level.gameevent.GameEvent;
- import net.minecraft.world.level.portal.TeleportTransition;
-+import net.minecraft.world.phys.AABB;
- import net.minecraft.world.phys.Vec3;
- 
- public class ItemEntity extends Entity implements TraceableEntity {
-@@ -146,6 +149,7 @@ public class ItemEntity extends Entity implements TraceableEntity {
+@@ -143,6 +143,7 @@ public class ItemEntity extends Entity implements TraceableEntity {
              // CraftBukkit end
              this.discard(org.bukkit.event.entity.EntityRemoveEvent.Cause.DESPAWN); // CraftBukkit - add Bukkit remove cause
          }
@@ -41,7 +17,7 @@ index 74bd9cb4033d238374fbaa151f9e3e320a69b3f4..b238c21749645391d7f5ef5ca7312def
      }
      // Paper end - EAR 2
  
-@@ -230,8 +234,21 @@ public class ItemEntity extends Entity implements TraceableEntity {
+@@ -227,8 +228,21 @@ public class ItemEntity extends Entity implements TraceableEntity {
                  // CraftBukkit end
                  this.discard(org.bukkit.event.entity.EntityRemoveEvent.Cause.DESPAWN); // CraftBukkit - add Bukkit remove cause
              }
@@ -51,10 +27,10 @@ index 74bd9cb4033d238374fbaa151f9e3e320a69b3f4..b238c21749645391d7f5ef5ca7312def
 +    // EMC start - Improve Hopper Performance
 +    private void markHopperCarts() {
 +        if (this.isAlive() && this.onGround && this.age < 20 * 60 && this.age % 20 == 0) {
-+            AABB aabb = this.getBoundingBox().inflate(32, 4, 32);
++            net.minecraft.world.phys.AABB aabb = this.getBoundingBox().inflate(32, 4, 32);
 +            for (Entity entity : this.level().getEntities(this, aabb)) {
-+                if (entity instanceof MinecartHopper) {
-+                    ((MinecartHopper) entity).pickupImmunity = MinecraftServer.currentTick + 200;
++                if (entity instanceof net.minecraft.world.entity.vehicle.MinecartHopper minecartHopper) {
++                    minecartHopper.pickupImmunity = net.minecraft.server.MinecraftServer.currentTick + 200;
 +                }
 +            }
 +        }
@@ -64,18 +40,18 @@ index 74bd9cb4033d238374fbaa151f9e3e320a69b3f4..b238c21749645391d7f5ef5ca7312def
      @Override
      public BlockPos getBlockPosBelowThatAffectsMyMovement() {
 diff --git a/net/minecraft/world/entity/vehicle/MinecartHopper.java b/net/minecraft/world/entity/vehicle/MinecartHopper.java
-index 8341e7f01606fca90e69384c16fc19bb9e20d1b7..682b8164e7f08798a02765635fc77e8939a23017 100644
+index 41a6ec508a10a49a37539d2f10171d15c233b280..d3e840bc8c36859f4411e4929590150effe48392 100644
 --- a/net/minecraft/world/entity/vehicle/MinecartHopper.java
 +++ b/net/minecraft/world/entity/vehicle/MinecartHopper.java
-@@ -21,6 +21,7 @@ import net.minecraft.world.level.block.state.properties.RailShape;
- public class MinecartHopper extends AbstractMinecartContainer implements Hopper {
+@@ -23,6 +23,7 @@ public class MinecartHopper extends AbstractMinecartContainer implements Hopper
+     private static final boolean DEFAULT_ENABLED = true;
      private boolean enabled = true;
      private boolean consumedItemThisFrame = false;
 +    public int pickupImmunity = 0; // EMC - Improve Hopper Performance
  
      public MinecartHopper(EntityType<? extends MinecartHopper> entityType, Level level) {
          super(entityType, level);
-@@ -148,5 +149,12 @@ public class MinecartHopper extends AbstractMinecartContainer implements Hopper
+@@ -150,5 +151,12 @@ public class MinecartHopper extends AbstractMinecartContainer implements Hopper
          this.activatedImmunityTick = Math.max(this.activatedImmunityTick, net.minecraft.server.MinecraftServer.currentTick + 20);
      }
      // Paper end
@@ -89,7 +65,7 @@ index 8341e7f01606fca90e69384c16fc19bb9e20d1b7..682b8164e7f08798a02765635fc77e89
  
  }
 diff --git a/net/minecraft/world/level/block/entity/Hopper.java b/net/minecraft/world/level/block/entity/Hopper.java
-index 5f042e294db605827000123252b0df646968f897..04547e3c6dca7aea6b4867b3486abb2745a2016d 100644
+index 484c2ba2752fbf3ad929e46c2f078e906f6f0637..5ee05df6f4ed2518fb444f9c497037612483a314 100644
 --- a/net/minecraft/world/level/block/entity/Hopper.java
 +++ b/net/minecraft/world/level/block/entity/Hopper.java
 @@ -11,6 +11,7 @@ public interface Hopper extends Container {
@@ -101,10 +77,10 @@ index 5f042e294db605827000123252b0df646968f897..04547e3c6dca7aea6b4867b3486abb27
  
      double getLevelY();
 diff --git a/net/minecraft/world/level/block/entity/HopperBlockEntity.java b/net/minecraft/world/level/block/entity/HopperBlockEntity.java
-index 59b1e920f61ff6031b430efc92a3005ea7549f89..f7891e9d08cf10d5f4baef21b7d8f7f7e4623a52 100644
+index e62579c79cc027057cf1d52d28b89c076822f912..a263d9986da55ed5294b2a9e9f39f973e1e480ec 100644
 --- a/net/minecraft/world/level/block/entity/HopperBlockEntity.java
 +++ b/net/minecraft/world/level/block/entity/HopperBlockEntity.java
-@@ -105,6 +105,21 @@ public class HopperBlockEntity extends RandomizableContainerBlockEntity implemen
+@@ -109,6 +109,21 @@ public class HopperBlockEntity extends RandomizableContainerBlockEntity implemen
          return ContainerHelper.removeItem(this.getItems(), index, count);
      }
  
@@ -126,7 +102,7 @@ index 59b1e920f61ff6031b430efc92a3005ea7549f89..f7891e9d08cf10d5f4baef21b7d8f7f7
      @Override
      public void setItem(int index, ItemStack stack) {
          this.unpackLootTable(null);
-@@ -552,7 +567,7 @@ public class HopperBlockEntity extends RandomizableContainerBlockEntity implemen
+@@ -556,7 +571,7 @@ public class HopperBlockEntity extends RandomizableContainerBlockEntity implemen
              }
  
              return false;
@@ -135,7 +111,7 @@ index 59b1e920f61ff6031b430efc92a3005ea7549f89..f7891e9d08cf10d5f4baef21b7d8f7f7
              boolean flag = hopper.isGridAligned() && blockState.isCollisionShapeFullBlock(level, blockPos) && !blockState.is(BlockTags.DOES_NOT_BLOCK_HOPPERS);
              if (!flag) {
                  for (ItemEntity itemEntity : getItemsAtAndAbove(level, hopper)) {
-@@ -564,6 +579,7 @@ public class HopperBlockEntity extends RandomizableContainerBlockEntity implemen
+@@ -568,6 +583,7 @@ public class HopperBlockEntity extends RandomizableContainerBlockEntity implemen
  
              return false;
          }

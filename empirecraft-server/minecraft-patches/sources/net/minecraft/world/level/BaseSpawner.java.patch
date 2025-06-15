@@ -1,25 +1,35 @@
 --- a/net/minecraft/world/level/BaseSpawner.java
 +++ b/net/minecraft/world/level/BaseSpawner.java
-@@ -52,6 +_,25 @@
+@@ -26,6 +_,7 @@
+ import net.minecraft.world.level.storage.ValueOutput;
+ import net.minecraft.world.phys.AABB;
+ import net.minecraft.world.phys.Vec3;
++import org.bukkit.craftbukkit.entity.CraftEntityType;
+ import org.slf4j.Logger;
+ 
+ public abstract class BaseSpawner {
+@@ -61,6 +_,27 @@
      }
  
      public boolean isNearPlayer(Level level, BlockPos pos) {
 +        // EMC start - Add SpawnerInitiateEvent
-+        if (this.nextSpawnData == null) {
++        SpawnData spawnData = this.nextSpawnData;
++        if (spawnData == null) {
 +            return false;
 +        }
-+        Optional<net.minecraft.world.entity.EntityType<?>> type = net.minecraft.world.entity.EntityType.by(this.nextSpawnData.getEntityToSpawn());
-+        if (type.isEmpty()) {
++        org.bukkit.entity.EntityType entityType;
++        try (ProblemReporter.ScopedCollector scopedCollector = new ProblemReporter.ScopedCollector(() -> "spawner@" + pos, LOGGER)) {
++            ValueInput valueInput = TagValueInput.create(scopedCollector, level.registryAccess(), spawnData.entityToSpawn());
++            Optional<net.minecraft.world.entity.EntityType<?>> type = net.minecraft.world.entity.EntityType.by(valueInput);
++            entityType = type.map(CraftEntityType::minecraftToBukkit).orElse(null);
++        }
++        if (entityType == null) {
 +            return false;
 +        }
-+        final int x = pos.getX();
-+        final int y = pos.getY();
-+        final int z = pos.getZ();
-+        org.bukkit.Location loc = new org.bukkit.Location(level.getWorld(), x, y, z);
 +
-+        if (!(new com.empireminecraft.empirecraft.event.SpawnerInitiateEvent(
-+                org.bukkit.entity.EntityType.fromName(net.minecraft.world.entity.EntityType.getKey(type.get()).getPath()),
-+                level.getWorld(), loc).callEvent())) {
++        if (!(new com.empireminecraft.empirecraft.event.SpawnerInitiateEvent(entityType,
++            level.getWorld(),
++            org.bukkit.craftbukkit.util.CraftLocation.toBukkit(pos, level)).callEvent())) {
 +            return false;
 +        }
 +        // EMC end - Add SpawnerInitiateEvent

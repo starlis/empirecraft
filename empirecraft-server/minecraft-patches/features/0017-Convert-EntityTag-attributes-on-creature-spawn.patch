@@ -7,10 +7,10 @@ Entity conversion does not run on the EntityTag.
 This is a serious flaw in this SpawnEgg EntityTag features
 
 diff --git a/net/minecraft/world/entity/EntityType.java b/net/minecraft/world/entity/EntityType.java
-index db07c6abf244c98891037abb82231de6aac41a7a..6c119e4522c8a5d3b8cec0c9192a700016cf2876 100644
+index 8bb3b779acb92f96d8a3efd1664439901496602f..159ee3bd379f037f5e6d06077737c5a91d93dd77 100644
 --- a/net/minecraft/world/entity/EntityType.java
 +++ b/net/minecraft/world/entity/EntityType.java
-@@ -1302,11 +1302,57 @@ public class EntityType<T extends Entity> implements FeatureElement, EntityTypeT
+@@ -1323,11 +1323,56 @@ public class EntityType<T extends Entity> implements FeatureElement, EntityTypeT
          return 1.0 + Shapes.collide(Direction.Axis.Y, box, collisions, shouldOffsetYMore ? -2.0 : -1.0);
      }
  
@@ -39,17 +39,16 @@ index db07c6abf244c98891037abb82231de6aac41a7a..6c119e4522c8a5d3b8cec0c9192a7000
 +            .put(9, "minecraft:jellie")
 +            .put(10, "minecraft:all_black").build();
 +    private static void convertNBT(@org.jspecify.annotations.NonNull CompoundTag entityTag) {
-+        if (entityTag.contains("Attributes", 9)) {
-+            ListTag nbttaglist = entityTag.getList("Attributes", 10);
-+            for (int i = 0; i < nbttaglist.size(); i++) {
-+                String value = attributeConversion.get(nbttaglist.getCompound(i).getString("Name"));
-+                if (value != null) {
-+                    nbttaglist.getCompound(i).putString("Name", value);
-+                }
++        net.minecraft.nbt.ListTag nbttaglist = entityTag.getListOrEmpty("Attributes");
++        for (int i = 0; i < nbttaglist.size(); i++) {
++            CompoundTag iTag = nbttaglist.getCompoundOrEmpty(i);
++            String value = attributeConversion.get(iTag.getStringOr("Name", ""));
++            if (value != null) {
++                iTag.putString("Name", value);
 +            }
 +        }
 +        if (entityTag.contains("CatType")) {
-+            Integer id = entityTag.getInt("CatType");
++            Integer id = entityTag.getIntOr("CatType", 0);
 +            String value = catTypeConversion.get(id);
 +            if (value == null) {
 +                value = "minecraft:tabby";
@@ -59,12 +58,12 @@ index db07c6abf244c98891037abb82231de6aac41a7a..6c119e4522c8a5d3b8cec0c9192a7000
 +        }
 +    }
 +    // EMC end
-     public static void updateCustomEntityTag(Level level, @Nullable Player player, @Nullable Entity entity, CustomData customData) {
+     public static void updateCustomEntityTag(Level level, @Nullable LivingEntity owner, @Nullable Entity entity, CustomData customData) {
          MinecraftServer server = level.getServer();
          if (server != null && entity != null) {
              EntityType<?> entityType = customData.parseEntityType(server.registryAccess(), Registries.ENTITY_TYPE);
              if (entity.getType() == entityType) {
 +                customData = customData.update(EntityType::convertNBT); // EMC
-                 if (level.isClientSide || !entity.getType().onlyOpCanSetNbt() || player != null && server.getPlayerList().isOp(player.getGameProfile())) {
-                     // Paper start - filter out protected tags
-                     if (player == null || !player.getBukkitEntity().hasPermission("minecraft.nbt.place")) {
+                 if (level.isClientSide
+                     || !entity.getType().onlyOpCanSetNbt()
+                     || owner instanceof Player player && server.getPlayerList().isOp(player.getGameProfile())) {

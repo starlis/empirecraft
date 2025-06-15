@@ -5,10 +5,10 @@ Subject: [PATCH] EntityDismountEvent Dismount Reason API
 
 
 diff --git a/net/minecraft/server/level/ServerLevel.java b/net/minecraft/server/level/ServerLevel.java
-index f455a7a762fd9a3c8bb940782630d06ff2811b8d..07d378dbc9585875ec83a1a8fcb6174df145bb33 100644
+index bab17d21b74f5e4eea478002c5d20a6b7d15fe41..80d3d8cc89d03a2835d0e34a6d6c89beaf8c0744 100644
 --- a/net/minecraft/server/level/ServerLevel.java
 +++ b/net/minecraft/server/level/ServerLevel.java
-@@ -809,6 +809,7 @@ public class ServerLevel extends Level implements ServerEntityGetter, WorldGenLe
+@@ -803,6 +803,7 @@ public class ServerLevel extends Level implements ServerEntityGetter, WorldGenLe
                                          if (!vehicle.isRemoved() && vehicle.hasPassenger(entity)) {
                                              return;
                                          }
@@ -16,7 +16,7 @@ index f455a7a762fd9a3c8bb940782630d06ff2811b8d..07d378dbc9585875ec83a1a8fcb6174d
  
                                          entity.stopRiding();
                                      }
-@@ -1287,6 +1288,7 @@ public class ServerLevel extends Level implements ServerEntityGetter, WorldGenLe
+@@ -1294,6 +1295,7 @@ public class ServerLevel extends Level implements ServerEntityGetter, WorldGenLe
  
      private void tickPassenger(Entity ridingEntity, Entity passengerEntity, final boolean isActive) { // Paper - EAR 2
          if (passengerEntity.isRemoved() || passengerEntity.getVehicle() != ridingEntity) {
@@ -25,18 +25,18 @@ index f455a7a762fd9a3c8bb940782630d06ff2811b8d..07d378dbc9585875ec83a1a8fcb6174d
          } else if (passengerEntity instanceof Player || this.entityTickList.contains(passengerEntity)) {
              passengerEntity.setOldPosAndRot();
 diff --git a/net/minecraft/server/level/ServerPlayer.java b/net/minecraft/server/level/ServerPlayer.java
-index 8517bcd1266a2296937a3c40330c7186777da604..2924c8c9276d8d40848aeac66f7b410b0e04ba85 100644
+index 52078d8a67c45748759ac4ea5d1a8c49b24d1eb7..bfec5dfd6c3c2e51457cd7300217d7acebb5cb78 100644
 --- a/net/minecraft/server/level/ServerPlayer.java
 +++ b/net/minecraft/server/level/ServerPlayer.java
-@@ -1410,6 +1410,7 @@ public class ServerPlayer extends Player implements ca.spottedleaf.moonrise.patc
+@@ -1384,6 +1384,7 @@ public class ServerPlayer extends Player implements ca.spottedleaf.moonrise.patc
              }
              // CraftBukkit end
              if (!teleportTransition.asPassenger()) {
 +                this.dismountReason = org.bukkit.event.entity.EntityDismountEvent.DismountReason.TELEPORT; // EMC - DismountReason API
-                 this.stopRiding();
+                 this.removeVehicle();
              }
  
-@@ -1999,10 +2000,11 @@ public class ServerPlayer extends Player implements ca.spottedleaf.moonrise.patc
+@@ -1959,10 +1960,11 @@ public class ServerPlayer extends Player implements ca.spottedleaf.moonrise.patc
  
      public void disconnect() {
          this.disconnected = true;
@@ -49,7 +49,7 @@ index 8517bcd1266a2296937a3c40330c7186777da604..2924c8c9276d8d40848aeac66f7b410b
              this.stopRiding();
          }
          // Paper end - Workaround vehicle not tracking the passenger disconnection dismount
-@@ -2199,6 +2201,7 @@ public class ServerPlayer extends Player implements ca.spottedleaf.moonrise.patc
+@@ -2160,6 +2162,7 @@ public class ServerPlayer extends Player implements ca.spottedleaf.moonrise.patc
              this.connection.send(new ClientboundGameEventPacket(ClientboundGameEventPacket.CHANGE_GAME_MODE, gameMode.getId()));
              if (gameMode == GameType.SPECTATOR) {
                  this.removeEntitiesOnShoulder();
@@ -58,10 +58,10 @@ index 8517bcd1266a2296937a3c40330c7186777da604..2924c8c9276d8d40848aeac66f7b410b
                  EnchantmentHelper.stopLocationBasedEffects(this);
              } else {
 diff --git a/net/minecraft/server/players/PlayerList.java b/net/minecraft/server/players/PlayerList.java
-index c9dbe659374e3ce140316116e05110567e44b810..762dd4ed031171a4bbcf5e38b67523b5cdab5bae 100644
+index b1524279c02cd3be82338a6bd0320cb125a134d5..9a5d2af3f070549b4c6aca699299d847ac5a77c7 100644
 --- a/net/minecraft/server/players/PlayerList.java
 +++ b/net/minecraft/server/players/PlayerList.java
-@@ -538,6 +538,7 @@ public abstract class PlayerList {
+@@ -545,6 +545,7 @@ public abstract class PlayerList {
              Entity rootVehicle = player.getRootVehicle();
              if (rootVehicle.hasExactlyOnePlayerPassenger()) {
                  LOGGER.debug("Removing player mount");
@@ -70,10 +70,10 @@ index c9dbe659374e3ce140316116e05110567e44b810..762dd4ed031171a4bbcf5e38b67523b5
                  rootVehicle.getPassengersAndSelf().forEach(entity -> {
                      // Paper start - Fix villager boat exploit
 diff --git a/net/minecraft/world/entity/Entity.java b/net/minecraft/world/entity/Entity.java
-index 813dc8d28cb8aa41ba87862e1c6c119d15b31fb7..e2d724d5b2cca5c55a9bb5be8cd7e3b3dcf1f9b8 100644
+index ac8eb2e0d94109183b21514097576939fba265a1..ae6b6973ad56ae7d92d296e6c79a09de106376e8 100644
 --- a/net/minecraft/world/entity/Entity.java
 +++ b/net/minecraft/world/entity/Entity.java
-@@ -834,6 +834,7 @@ public abstract class Entity implements SyncedDataHolder, Nameable, EntityAccess
+@@ -849,6 +849,7 @@ public abstract class Entity implements SyncedDataHolder, Nameable, EntityAccess
          if (firstTick && this instanceof net.minecraft.world.entity.NeutralMob neutralMob) neutralMob.tickInitialPersistentAnger(level); // Paper - Prevent entity loading causing async lookups
          this.inBlockState = null;
          if (this.isPassenger() && this.getVehicle().isRemoved()) {
@@ -81,7 +81,7 @@ index 813dc8d28cb8aa41ba87862e1c6c119d15b31fb7..e2d724d5b2cca5c55a9bb5be8cd7e3b3
              this.stopRiding();
          }
  
-@@ -3065,6 +3066,7 @@ public abstract class Entity implements SyncedDataHolder, Nameable, EntityAccess
+@@ -3221,6 +3222,7 @@ public abstract class Entity implements SyncedDataHolder, Nameable, EntityAccess
                  }
                  // CraftBukkit end
                  if (this.isPassenger()) {
@@ -89,7 +89,7 @@ index 813dc8d28cb8aa41ba87862e1c6c119d15b31fb7..e2d724d5b2cca5c55a9bb5be8cd7e3b3
                      this.stopRiding();
                  }
  
-@@ -3086,7 +3088,13 @@ public abstract class Entity implements SyncedDataHolder, Nameable, EntityAccess
+@@ -3242,7 +3244,13 @@ public abstract class Entity implements SyncedDataHolder, Nameable, EntityAccess
      }
  
      public void ejectPassengers() {
@@ -103,7 +103,7 @@ index 813dc8d28cb8aa41ba87862e1c6c119d15b31fb7..e2d724d5b2cca5c55a9bb5be8cd7e3b3
              this.passengers.get(i).stopRiding();
          }
      }
-@@ -3141,6 +3149,10 @@ public abstract class Entity implements SyncedDataHolder, Nameable, EntityAccess
+@@ -3297,6 +3305,10 @@ public abstract class Entity implements SyncedDataHolder, Nameable, EntityAccess
      }
      protected boolean removePassenger(Entity passenger, boolean suppressCancellation) { // CraftBukkit
          // Paper end - Force entity dismount during teleportation
@@ -114,7 +114,7 @@ index 813dc8d28cb8aa41ba87862e1c6c119d15b31fb7..e2d724d5b2cca5c55a9bb5be8cd7e3b3
          if (passenger.getVehicle() == this) {
              throw new IllegalStateException("Use x.stopRiding(y), not y.removePassenger(x)");
          } else {
-@@ -3163,7 +3175,7 @@ public abstract class Entity implements SyncedDataHolder, Nameable, EntityAccess
+@@ -3319,7 +3331,7 @@ public abstract class Entity implements SyncedDataHolder, Nameable, EntityAccess
                  }
              }
  
@@ -123,7 +123,7 @@ index 813dc8d28cb8aa41ba87862e1c6c119d15b31fb7..e2d724d5b2cca5c55a9bb5be8cd7e3b3
              // Suppress during worldgen
              if (this.valid) {
                  org.bukkit.Bukkit.getPluginManager().callEvent(event);
-@@ -3697,6 +3709,7 @@ public abstract class Entity implements SyncedDataHolder, Nameable, EntityAccess
+@@ -3879,6 +3891,7 @@ public abstract class Entity implements SyncedDataHolder, Nameable, EntityAccess
              );
      }
  
@@ -131,7 +131,7 @@ index 813dc8d28cb8aa41ba87862e1c6c119d15b31fb7..e2d724d5b2cca5c55a9bb5be8cd7e3b3
      public final boolean isInvulnerableToBase(DamageSource damageSource) {
          return this.isRemoved()
              || this.invulnerable && !damageSource.is(DamageTypeTags.BYPASSES_INVULNERABILITY) && !damageSource.isCreativePlayer()
-@@ -4925,10 +4938,19 @@ public abstract class Entity implements SyncedDataHolder, Nameable, EntityAccess
+@@ -5151,10 +5164,19 @@ public abstract class Entity implements SyncedDataHolder, Nameable, EntityAccess
          }
  
          if (this.removalReason.shouldDestroy()) {
@@ -152,10 +152,10 @@ index 813dc8d28cb8aa41ba87862e1c6c119d15b31fb7..e2d724d5b2cca5c55a9bb5be8cd7e3b3
          this.onRemoval(removalReason);
          // Paper start - Folia schedulers
 diff --git a/net/minecraft/world/entity/Leashable.java b/net/minecraft/world/entity/Leashable.java
-index 8e115fa3039be5ce6917728cda2a7e756af88a13..451d3f0284772521cd835917ace6b4742f64c891 100644
+index eab109f5256bf829dd43174699e79e9a2c6326c0..14ec7089aca7a7b7deab8315499707507672d9b8 100644
 --- a/net/minecraft/world/entity/Leashable.java
 +++ b/net/minecraft/world/entity/Leashable.java
-@@ -251,6 +251,7 @@ public interface Leashable {
+@@ -352,6 +352,7 @@ public interface Leashable {
          }
  
          if (entity.isPassenger()) {
@@ -164,18 +164,18 @@ index 8e115fa3039be5ce6917728cda2a7e756af88a13..451d3f0284772521cd835917ace6b474
          }
      }
 diff --git a/net/minecraft/world/entity/LivingEntity.java b/net/minecraft/world/entity/LivingEntity.java
-index 1564170e41d1916ddbbf734296af1542e85e2c8b..d10567d9792788892d8c8aa5d00b5045f97c53b3 100644
+index 762a13956684489900d230909b96aa99307a3368..d6ee253b8ec8ee735f3ed8d6da4de347e6752871 100644
 --- a/net/minecraft/world/entity/LivingEntity.java
 +++ b/net/minecraft/world/entity/LivingEntity.java
-@@ -500,6 +500,7 @@ public abstract class LivingEntity extends Entity implements Attackable {
+@@ -467,6 +467,7 @@ public abstract class LivingEntity extends Entity implements Attackable, Waypoin
                  }
  
-                 if (!this.level().isClientSide && this.isPassenger() && this.getVehicle() != null && this.getVehicle().dismountsUnderwater()) {
+                 if (this.isPassenger() && this.getVehicle() != null && this.getVehicle().dismountsUnderwater()) {
 +                    this.dismountReason = org.bukkit.event.entity.EntityDismountEvent.DismountReason.WATER; // EMC - DismountReason API
                      this.stopRiding();
                  }
              } else if (this.getAirSupply() < this.getMaxAirSupply()) {
-@@ -4336,6 +4337,7 @@ public abstract class LivingEntity extends Entity implements Attackable {
+@@ -4408,6 +4409,7 @@ public abstract class LivingEntity extends Entity implements Attackable, Waypoin
  
      public void startSleeping(BlockPos pos) {
          if (this.isPassenger()) {
@@ -184,10 +184,10 @@ index 1564170e41d1916ddbbf734296af1542e85e2c8b..d10567d9792788892d8c8aa5d00b5045
          }
  
 diff --git a/net/minecraft/world/entity/player/Player.java b/net/minecraft/world/entity/player/Player.java
-index 921bc2d5c5a7ad767158cbcaebc79cea2af53a67..0960acb2eff1b3dc18aa26a8bf906660e92be56a 100644
+index e1e1cac0a3a16ed9220076d9fde0baafac827d4c..63f34d4289b1efdd4d31c488025ceebaf055a99e 100644
 --- a/net/minecraft/world/entity/player/Player.java
 +++ b/net/minecraft/world/entity/player/Player.java
-@@ -554,6 +554,7 @@ public abstract class Player extends LivingEntity {
+@@ -579,6 +579,7 @@ public abstract class Player extends LivingEntity {
      @Override
      public void rideTick() {
          if (!this.level().isClientSide && this.wantsToStopRiding() && this.isPassenger()) {
@@ -196,7 +196,7 @@ index 921bc2d5c5a7ad767158cbcaebc79cea2af53a67..0960acb2eff1b3dc18aa26a8bf906660
              // CraftBukkit start - SPIGOT-7316: no longer passenger, dismount and return
              if (!this.isPassenger()) {
 diff --git a/net/minecraft/world/item/consume_effects/TeleportRandomlyConsumeEffect.java b/net/minecraft/world/item/consume_effects/TeleportRandomlyConsumeEffect.java
-index ee22f8b4e76019fd3b09b62a1b19ab6e949dc56f..13afd2c15bd48bc96b872e86f7366ab5f26aa504 100644
+index 56dac4f7c4a1e8fe830bb3da807d2ea06bf2fb7c..a38b4cf170cd2518ca3db9bf137c7484db5ac9a2 100644
 --- a/net/minecraft/world/item/consume_effects/TeleportRandomlyConsumeEffect.java
 +++ b/net/minecraft/world/item/consume_effects/TeleportRandomlyConsumeEffect.java
 @@ -51,6 +51,7 @@ public record TeleportRandomlyConsumeEffect(float diameter) implements ConsumeEf

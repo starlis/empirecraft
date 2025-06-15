@@ -6,10 +6,10 @@ Subject: [PATCH] PlayerUseItem Event
 This lets us control when an item is consumed and change the item.
 
 diff --git a/net/minecraft/server/level/ServerPlayerGameMode.java b/net/minecraft/server/level/ServerPlayerGameMode.java
-index 623c069f1fe079e020c6391a3db1a3d95cd3dbf5..a2d4a644b37fc5dea700177b5d349ca53a0e4502 100644
+index 6734756d7a51e635a50a47577f9e6b6f8111db51..08928b476fb47f825e59a84d7300be8a588b2b68 100644
 --- a/net/minecraft/server/level/ServerPlayerGameMode.java
 +++ b/net/minecraft/server/level/ServerPlayerGameMode.java
-@@ -420,6 +420,15 @@ public class ServerPlayerGameMode {
+@@ -417,6 +417,15 @@ public class ServerPlayerGameMode {
      }
  
      public InteractionResult useItem(ServerPlayer player, Level level, ItemStack stack, InteractionHand hand) {
@@ -25,7 +25,7 @@ index 623c069f1fe079e020c6391a3db1a3d95cd3dbf5..a2d4a644b37fc5dea700177b5d349ca5
          if (this.gameModeForPlayer == GameType.SPECTATOR) {
              return InteractionResult.PASS;
          } else if (player.getCooldowns().isOnCooldown(stack)) {
-@@ -427,6 +436,13 @@ public class ServerPlayerGameMode {
+@@ -424,6 +433,13 @@ public class ServerPlayerGameMode {
          } else {
              int count = stack.getCount();
              int damageValue = stack.getDamageValue();
@@ -39,7 +39,7 @@ index 623c069f1fe079e020c6391a3db1a3d95cd3dbf5..a2d4a644b37fc5dea700177b5d349ca5
              InteractionResult interactionResult = stack.use(level, player, hand);
              ItemStack itemStack;
              if (interactionResult instanceof InteractionResult.Success success) {
-@@ -434,21 +450,45 @@ public class ServerPlayerGameMode {
+@@ -431,21 +447,45 @@ public class ServerPlayerGameMode {
              } else {
                  itemStack = player.getItemInHand(hand);
              }
@@ -90,7 +90,7 @@ index 623c069f1fe079e020c6391a3db1a3d95cd3dbf5..a2d4a644b37fc5dea700177b5d349ca5
                      player.inventoryMenu.sendAllDataToRemote();
                  }
  
-@@ -465,6 +505,7 @@ public class ServerPlayerGameMode {
+@@ -462,6 +502,7 @@ public class ServerPlayerGameMode {
      public ItemStack interactItemStack;
      public InteractionResult useItemOn(ServerPlayer player, Level level, ItemStack stack, InteractionHand hand, BlockHitResult hitResult) {
          BlockPos blockPos = hitResult.getBlockPos();
@@ -98,7 +98,7 @@ index 623c069f1fe079e020c6391a3db1a3d95cd3dbf5..a2d4a644b37fc5dea700177b5d349ca5
          BlockState blockState = level.getBlockState(blockPos);
          boolean cancelledBlock = false;
          boolean cancelledItem = false; // Paper - correctly handle items on cooldown
-@@ -506,8 +547,10 @@ public class ServerPlayerGameMode {
+@@ -503,8 +544,10 @@ public class ServerPlayerGameMode {
              boolean flag = !player.getMainHandItem().isEmpty() || !player.getOffhandItem().isEmpty();
              boolean flag1 = player.isSecondaryUseActive() && flag;
              ItemStack itemStack = stack.copy();
@@ -109,7 +109,7 @@ index 623c069f1fe079e020c6391a3db1a3d95cd3dbf5..a2d4a644b37fc5dea700177b5d349ca5
                  if (interactionResult.consumesAction()) {
                      CriteriaTriggers.ITEM_USED_ON_BLOCK.trigger(player, blockPos, itemStack);
                      return interactionResult;
-@@ -515,6 +558,7 @@ public class ServerPlayerGameMode {
+@@ -512,6 +555,7 @@ public class ServerPlayerGameMode {
  
                  if (interactionResult instanceof InteractionResult.TryEmptyHandInteraction && hand == InteractionHand.MAIN_HAND) {
                      InteractionResult interactionResult1 = blockState.useWithoutItem(level, player, hitResult);
@@ -117,7 +117,7 @@ index 623c069f1fe079e020c6391a3db1a3d95cd3dbf5..a2d4a644b37fc5dea700177b5d349ca5
                      if (interactionResult1.consumesAction()) {
                          CriteriaTriggers.DEFAULT_BLOCK_USE.trigger(player, blockPos);
                          return interactionResult1;
-@@ -523,15 +567,44 @@ public class ServerPlayerGameMode {
+@@ -520,15 +564,44 @@ public class ServerPlayerGameMode {
              }
  
              if (!stack.isEmpty() && !this.interactResult) { // add !interactResult SPIGOT-764
@@ -126,7 +126,7 @@ index 623c069f1fe079e020c6391a3db1a3d95cd3dbf5..a2d4a644b37fc5dea700177b5d349ca5
 +                org.bukkit.craftbukkit.inventory.CraftItemStack craftitem = org.bukkit.craftbukkit.inventory.CraftItemStack.asCraftMirror(stack);
 +                com.empireminecraft.empirecraft.event.player.PlayerPlaceItemAtEvent eventPlace = new com.empireminecraft.empirecraft.event.player.PlayerPlaceItemAtEvent(
 +                        player.getBukkitEntity(), craftitem,
-+                        io.papermc.paper.util.MCUtil.toLocation(level, blockPos),
++                        org.bukkit.craftbukkit.util.CraftLocation.toBukkit(blockPos, level),
 +                        org.bukkit.craftbukkit.block.CraftBlock.notchToBlockFace(hitResult.getDirection()),
 +                        hitVector, bukkitHand);
 +                if (!eventPlace.callEvent()) {
@@ -143,9 +143,9 @@ index 623c069f1fe079e020c6391a3db1a3d95cd3dbf5..a2d4a644b37fc5dea700177b5d349ca5
 +                    player.setItemInHand(hand, stack = orig);
 +                }
                  InteractionResult interactionResult1;
--                if (this.isCreative()) {
+-                if (player.hasInfiniteMaterials()) {
 -                    int count = stack.getCount();
-+                if (this.isCreative() || !eventPlace.getConsumeItem()) { // EMC - add || !eventPlace.getConsumeItem()
++                if (player.hasInfiniteMaterials() || !eventPlace.getConsumeItem()) { // EMC - add || !eventPlace.getConsumeItem()
 +                    //int count = stack.getCount(); // EMC - Move up
                      interactionResult1 = stack.useOn(useOnContext);
                      stack.setCount(count);
@@ -155,9 +155,9 @@ index 623c069f1fe079e020c6391a3db1a3d95cd3dbf5..a2d4a644b37fc5dea700177b5d349ca5
 +                if (interactResult != InteractionResult.FAIL) {
 +                    com.empireminecraft.empirecraft.event.player.PlayerPostPlaceItemAtEvent postUseItemEvent =
 +                            new com.empireminecraft.empirecraft.event.player.PlayerPostPlaceItemAtEvent(player.getBukkitEntity(), craftitem,
-+                                    io.papermc.paper.util.MCUtil.toLocation(level, blockPos),
-+                                    org.bukkit.craftbukkit.block.CraftBlock.notchToBlockFace(hitResult.getDirection()),
-+                                    hitVector, bukkitHand);
++                                org.bukkit.craftbukkit.util.CraftLocation.toBukkit(blockPos, level),
++                                org.bukkit.craftbukkit.block.CraftBlock.notchToBlockFace(hitResult.getDirection()),
++                                hitVector, bukkitHand);
 +                    postUseItemEvent.callEvent();
 +                }
 +                // EMC end - PlayerUseItemEvent

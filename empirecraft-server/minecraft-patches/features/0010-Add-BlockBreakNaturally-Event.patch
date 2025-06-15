@@ -6,10 +6,10 @@ Subject: [PATCH] Add BlockBreakNaturally Event
 To give reliable control over all blocks dropping to world to restore custom item meta
 
 diff --git a/net/minecraft/server/level/ServerLevel.java b/net/minecraft/server/level/ServerLevel.java
-index 4c929cbb72d11c79522928a38dff4369ce161971..e1e3259a38d24ee855ffa22f9d00af50e88ea0aa 100644
+index 80d3d8cc89d03a2835d0e34a6d6c89beaf8c0744..04c01363e8cb97ce265a67c9e0f922f89ff187c3 100644
 --- a/net/minecraft/server/level/ServerLevel.java
 +++ b/net/minecraft/server/level/ServerLevel.java
-@@ -1525,6 +1525,7 @@ public class ServerLevel extends Level implements ServerEntityGetter, WorldGenLe
+@@ -1546,6 +1546,7 @@ public class ServerLevel extends Level implements ServerEntityGetter, WorldGenLe
              if (entity instanceof net.minecraft.world.entity.item.ItemEntity itemEntity && itemEntity.getItem().isEmpty()) return false; // Paper - Prevent empty items from being added
              // Paper start - capture all item additions to the world
              if (captureDrops != null && entity instanceof net.minecraft.world.entity.item.ItemEntity) {
@@ -18,22 +18,22 @@ index 4c929cbb72d11c79522928a38dff4369ce161971..e1e3259a38d24ee855ffa22f9d00af50
                  return true;
              }
 diff --git a/net/minecraft/world/entity/item/ItemEntity.java b/net/minecraft/world/entity/item/ItemEntity.java
-index 736933cd63fea858f31f02cde538d0490cdc1300..74bd9cb4033d238374fbaa151f9e3e320a69b3f4 100644
+index 865e08714505ebccde6ad3b583e74469a19cd089..abeaa5082823d6bdec6eab5a79ba696f43b91b0d 100644
 --- a/net/minecraft/world/entity/item/ItemEntity.java
 +++ b/net/minecraft/world/entity/item/ItemEntity.java
-@@ -41,6 +41,7 @@ public class ItemEntity extends Entity implements TraceableEntity {
-     private static final int INFINITE_LIFETIME = -32768;
-     public int age;
+@@ -47,6 +47,7 @@ public class ItemEntity extends Entity implements TraceableEntity {
+     private static final short DEFAULT_PICKUP_DELAY = 0;
+     public int age = 0;
      public boolean canDespawn = true; // EMC - Item canDespawn API
 +    public BlockPos droppedPosition; // EMC - BlockBreakNaturallyEvent
-     public int pickupDelay;
+     public int pickupDelay = 0;
      public int health = 5;
      @Nullable
 diff --git a/net/minecraft/world/level/block/Block.java b/net/minecraft/world/level/block/Block.java
-index 976de81d65b6494cdad20f4ec5125fceec86f951..9b7dffd655f90e481f840300cc07c37d8f5f059c 100644
+index be6f37f91569c659c609e5e8d38671ca86f8cd95..cd778ed61f5382fc4663d278ab9c1717bc495bee 100644
 --- a/net/minecraft/world/level/block/Block.java
 +++ b/net/minecraft/world/level/block/Block.java
-@@ -339,7 +339,7 @@ public class Block extends BlockBehaviour implements ItemLike {
+@@ -385,7 +385,7 @@ public class Block extends BlockBehaviour implements ItemLike {
          double d1 = pos.getX() + 0.5 + Mth.nextDouble(level.random, -0.25, 0.25);
          double d2 = pos.getY() + 0.5 + Mth.nextDouble(level.random, -0.25, 0.25) - d;
          double d3 = pos.getZ() + 0.5 + Mth.nextDouble(level.random, -0.25, 0.25);
@@ -42,7 +42,7 @@ index 976de81d65b6494cdad20f4ec5125fceec86f951..9b7dffd655f90e481f840300cc07c37d
      }
  
      public static void popResourceFromFace(Level level, BlockPos pos, Direction direction, ItemStack stack) {
-@@ -354,17 +354,19 @@ public class Block extends BlockBehaviour implements ItemLike {
+@@ -400,17 +400,19 @@ public class Block extends BlockBehaviour implements ItemLike {
          double d5 = stepX == 0 ? Mth.nextDouble(level.random, -0.1, 0.1) : stepX * 0.1;
          double d6 = stepY == 0 ? Mth.nextDouble(level.random, 0.0, 0.1) : stepY * 0.1 + 0.1;
          double d7 = stepZ == 0 ? Mth.nextDouble(level.random, -0.1, 0.1) : stepZ * 0.1;
@@ -60,7 +60,7 @@ index 976de81d65b6494cdad20f4ec5125fceec86f951..9b7dffd655f90e481f840300cc07c37d
 +                itemEntity.droppedPosition = blockPos.immutable(); // EMC - BlockBreakNaturallyEvent
                  level.captureDrops.add(itemEntity);
              } else {
-+                new com.empireminecraft.empirecraft.event.block.BlockBreakNaturallyEvent(io.papermc.paper.util.MCUtil.toLocation(level, blockPos), (org.bukkit.entity.Item) itemEntity.getBukkitEntity()).callEvent(); // EMC - BlockBreakNaturallyEvent
++                new com.empireminecraft.empirecraft.event.block.BlockBreakNaturallyEvent(org.bukkit.craftbukkit.util.CraftLocation.toBukkit(blockPos, level), (org.bukkit.entity.Item) itemEntity.getBukkitEntity()).callEvent(); // EMC - BlockBreakNaturallyEvent
                  level.addFreshEntity(itemEntity);
              }
              // CraftBukkit end
