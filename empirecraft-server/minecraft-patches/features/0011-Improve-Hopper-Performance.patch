@@ -6,10 +6,10 @@ Subject: [PATCH] Improve Hopper Performance
 Only do an item "suck in" action once per second
 
 diff --git a/net/minecraft/world/entity/item/ItemEntity.java b/net/minecraft/world/entity/item/ItemEntity.java
-index 4b75faa39b19acf18b0c563500f0600f1fbb46ee..94ffba1a8b3f7d1bd84755ca808b25a7802f4ec6 100644
+index b50bda730049bd6c3703bac060a7e7a802cac5e2..563370d9e07070e11b85e7574bc88b0cdf8ae1b4 100644
 --- a/net/minecraft/world/entity/item/ItemEntity.java
 +++ b/net/minecraft/world/entity/item/ItemEntity.java
-@@ -151,6 +151,7 @@ public class ItemEntity extends Entity implements TraceableEntity {
+@@ -142,6 +142,7 @@ public class ItemEntity extends Entity implements TraceableEntity {
              // CraftBukkit end
              this.discard(org.bukkit.event.entity.EntityRemoveEvent.Cause.DESPAWN); // CraftBukkit - add Bukkit remove cause
          }
@@ -17,7 +17,7 @@ index 4b75faa39b19acf18b0c563500f0600f1fbb46ee..94ffba1a8b3f7d1bd84755ca808b25a7
      }
      // Paper end - EAR 2
  
-@@ -235,8 +236,21 @@ public class ItemEntity extends Entity implements TraceableEntity {
+@@ -226,8 +227,21 @@ public class ItemEntity extends Entity implements TraceableEntity {
                  // CraftBukkit end
                  this.discard(org.bukkit.event.entity.EntityRemoveEvent.Cause.DESPAWN); // CraftBukkit - add Bukkit remove cause
              }
@@ -40,22 +40,15 @@ index 4b75faa39b19acf18b0c563500f0600f1fbb46ee..94ffba1a8b3f7d1bd84755ca808b25a7
      @Override
      public BlockPos getBlockPosBelowThatAffectsMyMovement() {
 diff --git a/net/minecraft/world/entity/vehicle/MinecartHopper.java b/net/minecraft/world/entity/vehicle/MinecartHopper.java
-index 41a6ec508a10a49a37539d2f10171d15c233b280..d3e840bc8c36859f4411e4929590150effe48392 100644
+index 681dab5e26f8fb359f101f22ac85aac3c30d8f7a..6f4d030a341748ce9ebe1a192b5b9fb9f405dea9 100644
 --- a/net/minecraft/world/entity/vehicle/MinecartHopper.java
 +++ b/net/minecraft/world/entity/vehicle/MinecartHopper.java
-@@ -23,6 +23,7 @@ public class MinecartHopper extends AbstractMinecartContainer implements Hopper
-     private static final boolean DEFAULT_ENABLED = true;
-     private boolean enabled = true;
-     private boolean consumedItemThisFrame = false;
-+    public int pickupImmunity = 0; // EMC - Improve Hopper Performance
- 
-     public MinecartHopper(EntityType<? extends MinecartHopper> entityType, Level level) {
-         super(entityType, level);
-@@ -150,5 +151,12 @@ public class MinecartHopper extends AbstractMinecartContainer implements Hopper
+@@ -150,5 +150,13 @@ public class MinecartHopper extends AbstractMinecartContainer implements Hopper
          this.activatedImmunityTick = Math.max(this.activatedImmunityTick, net.minecraft.server.MinecraftServer.currentTick + 20);
      }
      // Paper end
 +    // EMC start - Improve Hopper Performance
++    public int pickupImmunity = 0; // EMC - Improve Hopper Performance
 +    private long tickAttempts = 0;
 +    @Override
 +    public long getAndIncrementAttemptCounter() {
@@ -77,10 +70,10 @@ index 484c2ba2752fbf3ad929e46c2f078e906f6f0637..5ee05df6f4ed2518fb444f9c49703761
  
      double getLevelY();
 diff --git a/net/minecraft/world/level/block/entity/HopperBlockEntity.java b/net/minecraft/world/level/block/entity/HopperBlockEntity.java
-index e62579c79cc027057cf1d52d28b89c076822f912..a263d9986da55ed5294b2a9e9f39f973e1e480ec 100644
+index 769bd52ffd9a636578765bb0454354b65217e908..abb25f26428956c68a3368e68ebd2ae9caf86da9 100644
 --- a/net/minecraft/world/level/block/entity/HopperBlockEntity.java
 +++ b/net/minecraft/world/level/block/entity/HopperBlockEntity.java
-@@ -109,6 +109,21 @@ public class HopperBlockEntity extends RandomizableContainerBlockEntity implemen
+@@ -110,6 +110,21 @@ public class HopperBlockEntity extends RandomizableContainerBlockEntity implemen
          return ContainerHelper.removeItem(this.getItems(), index, count);
      }
  
@@ -102,7 +95,7 @@ index e62579c79cc027057cf1d52d28b89c076822f912..a263d9986da55ed5294b2a9e9f39f973
      @Override
      public void setItem(int index, ItemStack stack) {
          this.unpackLootTable(null);
-@@ -556,7 +571,7 @@ public class HopperBlockEntity extends RandomizableContainerBlockEntity implemen
+@@ -557,7 +572,7 @@ public class HopperBlockEntity extends RandomizableContainerBlockEntity implemen
              }
  
              return false;
@@ -111,7 +104,7 @@ index e62579c79cc027057cf1d52d28b89c076822f912..a263d9986da55ed5294b2a9e9f39f973
              boolean flag = hopper.isGridAligned() && blockState.isCollisionShapeFullBlock(level, blockPos) && !blockState.is(BlockTags.DOES_NOT_BLOCK_HOPPERS);
              if (!flag) {
                  for (ItemEntity itemEntity : getItemsAtAndAbove(level, hopper)) {
-@@ -568,6 +583,7 @@ public class HopperBlockEntity extends RandomizableContainerBlockEntity implemen
+@@ -569,6 +584,7 @@ public class HopperBlockEntity extends RandomizableContainerBlockEntity implemen
  
              return false;
          }
