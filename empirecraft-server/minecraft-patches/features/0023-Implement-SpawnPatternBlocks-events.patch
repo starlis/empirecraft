@@ -1,0 +1,72 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: chickeneer <emcchickeneer@gmail.com>
+Date: Sat, 29 Nov 2025 20:10:27 -0600
+Subject: [PATCH] Implement SpawnPatternBlocks events
+
+
+diff --git a/net/minecraft/world/level/block/CarvedPumpkinBlock.java b/net/minecraft/world/level/block/CarvedPumpkinBlock.java
+index ccb8cf919ce5233eb1de87c35a48c50bef2b1754..83b048911e8ea8d1e07c138f42a5a3151aecc7b9 100644
+--- a/net/minecraft/world/level/block/CarvedPumpkinBlock.java
++++ b/net/minecraft/world/level/block/CarvedPumpkinBlock.java
+@@ -117,17 +117,34 @@ public class CarvedPumpkinBlock extends HorizontalDirectionalBlock {
+         golem.snapTo(pos.getX() + 0.5, pos.getY() + 0.05, pos.getZ() + 0.5, 0.0F, 0.0F);
+         // Paper start
+         org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason spawnReason;
++        // EMC start
++        org.bukkit.entity.EntityType entityType = null;
+         if (golem.getType() == net.minecraft.world.entity.EntityType.SNOW_GOLEM) {
+             spawnReason = org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.BUILD_SNOWMAN;
++            entityType = org.bukkit.entity.EntityType.SNOW_GOLEM;
+         } else if (golem.getType() == net.minecraft.world.entity.EntityType.COPPER_GOLEM) {
+             spawnReason = org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.BUILD_COPPERGOLEM;
++            entityType = org.bukkit.entity.EntityType.COPPER_GOLEM;
+         } else {
+             spawnReason = org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.BUILD_IRONGOLEM;
++            entityType = org.bukkit.entity.EntityType.IRON_GOLEM;
++        }
++        java.util.List<org.bukkit.craftbukkit.block.CraftBlock> list = new java.util.ArrayList<>();
++        for (int i = 0; i < patternMatch.getWidth(); i++) {
++            for (int i1 = 0; i1 < patternMatch.getHeight(); i1++) {
++                BlockInWorld block = patternMatch.getBlock(i, i1, 0);
++                list.add(org.bukkit.craftbukkit.block.CraftBlock.at(level, block.getPos()));
++            }
++        }
++        if (!(new com.empireminecraft.empirecraft.event.CheckSpawnPatternBlockEvent(java.util.Collections.unmodifiableList(list), entityType).callEvent())) {
++            return;
+         }
+         if (!level.addFreshEntity(golem, spawnReason)) {
+             return;
+         }
+         // Paper end
++        new com.empireminecraft.empirecraft.event.ClearSpawnPatternBlocksEvent(java.util.Collections.unmodifiableList(list), entityType).callEvent();
++        // EMC end
+         clearPatternBlocks(level, patternMatch); // Paper - from above
+ 
+         for (ServerPlayer serverPlayer : level.getEntitiesOfClass(ServerPlayer.class, golem.getBoundingBox().inflate(5.0))) {
+diff --git a/net/minecraft/world/level/block/WitherSkullBlock.java b/net/minecraft/world/level/block/WitherSkullBlock.java
+index 99f130e303d4c6ca275bbdbf4099b65386125f51..110e59f1de13d9c9cb9cef7073631b5864719aaf 100644
+--- a/net/minecraft/world/level/block/WitherSkullBlock.java
++++ b/net/minecraft/world/level/block/WitherSkullBlock.java
+@@ -72,9 +72,22 @@ public class WitherSkullBlock extends SkullBlock {
+                         witherBoss.yBodyRot = blockPatternMatch.getForwards().getAxis() == Direction.Axis.X ? 0.0F : 90.0F;
+                         witherBoss.makeInvulnerable();
+                         // CraftBukkit start
++                        // EMC start
++                        java.util.List<org.bukkit.craftbukkit.block.CraftBlock> list = new java.util.ArrayList<>();
++                        for (int i = 0; i < blockPatternMatch.getWidth(); i++) {
++                            for (int i1 = 0; i1 < blockPatternMatch.getHeight(); i1++) {
++                                BlockInWorld block = blockPatternMatch.getBlock(i, i1, 0);
++                                list.add(org.bukkit.craftbukkit.block.CraftBlock.at(level, block.getPos()));
++                            }
++                        }
++                        if (!(new com.empireminecraft.empirecraft.event.CheckSpawnPatternBlockEvent(java.util.Collections.unmodifiableList(list), org.bukkit.entity.EntityType.WITHER).callEvent())) {
++                            return;
++                        }
+                         if (!level.addFreshEntity(witherBoss, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.BUILD_WITHER)) {
+                             return;
+                         }
++                        new com.empireminecraft.empirecraft.event.ClearSpawnPatternBlocksEvent(java.util.Collections.unmodifiableList(list), org.bukkit.entity.EntityType.WITHER).callEvent();
++                        // EMC end
+                         CarvedPumpkinBlock.clearPatternBlocks(level, blockPatternMatch); // CraftBukkit - from above
+                         // CraftBukkit end
+ 
