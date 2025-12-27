@@ -7,19 +7,19 @@ Secure BungeeCord with IP Whitelist for IP/UUID forwarding
 Allow online-mode to be set to true, and skip online-mode for bungee IP's
 
 diff --git a/net/minecraft/network/Connection.java b/net/minecraft/network/Connection.java
-index 14addbaf68b7ad80490187d12d9c9b00891e2ce1..3349cbcc33a8c4856dd1f71019f56fc1e6b9d01f 100644
+index 19ec939529eb638bdc4d7fd9260f161fae118314..9b02ea9d7c664531e70a75a32fc65eb8a9d813c1 100644
 --- a/net/minecraft/network/Connection.java
 +++ b/net/minecraft/network/Connection.java
-@@ -94,6 +94,7 @@ public class Connection extends SimpleChannelInboundHandler<Packet<?>> {
+@@ -74,6 +74,7 @@ public class Connection extends SimpleChannelInboundHandler<Packet<?>> {
+     public boolean preparing = true;
      // Spigot end
-     @Nullable
-     private volatile PacketListener disconnectListener;
+     private volatile @Nullable PacketListener disconnectListener;
 +    public boolean isProxied = false; // EMC - Adjusted BungeeCord Support
-     @Nullable
-     private volatile PacketListener packetListener;
-     @Nullable
+     private volatile @Nullable PacketListener packetListener;
+     private @Nullable DisconnectionDetails disconnectionDetails;
+     private boolean encrypted;
 diff --git a/net/minecraft/server/network/ServerHandshakePacketListenerImpl.java b/net/minecraft/server/network/ServerHandshakePacketListenerImpl.java
-index 8054aad7f394db8257fc894d92a6993283b8dbd4..7f89eee8b609ffa962427243a5b22fad3077da58 100644
+index c180ee8e811bebdcbe542ddd1cb059c1a0ae2335..cae4239818d9952672b99508d2e6cf1561bc8ec7 100644
 --- a/net/minecraft/server/network/ServerHandshakePacketListenerImpl.java
 +++ b/net/minecraft/server/network/ServerHandshakePacketListenerImpl.java
 @@ -116,7 +116,8 @@ public class ServerHandshakePacketListenerImpl implements ServerHandshakePacketL
@@ -32,7 +32,7 @@ index 8054aad7f394db8257fc894d92a6993283b8dbd4..7f89eee8b609ffa962427243a5b22fad
              boolean handledByEvent = false;
              // Try and handle the handshake through the event
              if (com.destroystokyo.paper.event.player.PlayerHandshakeEvent.getHandlerList().getRegisteredListeners().length != 0) { // Hello? Can you hear me?
-@@ -152,6 +153,7 @@ public class ServerHandshakePacketListenerImpl implements ServerHandshakePacketL
+@@ -153,6 +154,7 @@ public class ServerHandshakePacketListenerImpl implements ServerHandshakePacketL
              String[] split = packet.hostName().split("\00");
              if (!handledByEvent && proxyLogicEnabled) { // Paper
                  // if (org.spigotmc.SpigotConfig.bungee) { // Paper - comment out, we check above!
@@ -40,7 +40,7 @@ index 8054aad7f394db8257fc894d92a6993283b8dbd4..7f89eee8b609ffa962427243a5b22fad
                  if ((split.length == 3 || split.length == 4) && (ServerHandshakePacketListenerImpl.BYPASS_HOSTCHECK || ServerHandshakePacketListenerImpl.HOST_PATTERN.matcher(split[1]).matches())) { // Paper - Add bypass host check
                      // Paper start - Unix domain socket support
                      java.net.SocketAddress socketAddress = this.connection.getRemoteAddress();
-@@ -159,7 +161,7 @@ public class ServerHandshakePacketListenerImpl implements ServerHandshakePacketL
+@@ -160,7 +162,7 @@ public class ServerHandshakePacketListenerImpl implements ServerHandshakePacketL
                      this.connection.address = new java.net.InetSocketAddress(split[1], socketAddress instanceof java.net.InetSocketAddress ? ((java.net.InetSocketAddress) socketAddress).getPort() : 0);
                      // Paper end - Unix domain socket support
                      this.connection.spoofedUUID = com.mojang.util.UndashedUuid.fromStringLenient( split[2] );
@@ -50,10 +50,10 @@ index 8054aad7f394db8257fc894d92a6993283b8dbd4..7f89eee8b609ffa962427243a5b22fad
                      this.connection.send(new ClientboundLoginDisconnectPacket(message));
                      this.connection.disconnect(message);
 diff --git a/net/minecraft/server/network/ServerLoginPacketListenerImpl.java b/net/minecraft/server/network/ServerLoginPacketListenerImpl.java
-index bfa10c447b17c398a39edd6160a62b40a6c3297b..b0c918f0418ae16a217d9111484d42080d5e0c0d 100644
+index 51a29ab542136e67741be10bbc5c6377715a207c..dd2f8c2f7e67a8008a39a836fe16f20b4727259c 100644
 --- a/net/minecraft/server/network/ServerLoginPacketListenerImpl.java
 +++ b/net/minecraft/server/network/ServerLoginPacketListenerImpl.java
-@@ -164,7 +164,7 @@ public class ServerLoginPacketListenerImpl implements ServerLoginPacketListener,
+@@ -165,7 +165,7 @@ public class ServerLoginPacketListenerImpl implements ServerLoginPacketListener,
          if (singleplayerProfile != null && this.requestedUsername.equalsIgnoreCase(singleplayerProfile.name())) {
              this.startClientVerification(singleplayerProfile);
          } else {

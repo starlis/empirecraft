@@ -6,10 +6,10 @@ Subject: [PATCH] Add BlockBreakNaturally Event
 To give reliable control over all blocks dropping to world to restore custom item meta
 
 diff --git a/net/minecraft/server/level/ServerLevel.java b/net/minecraft/server/level/ServerLevel.java
-index f6897dcad38b4dce207d98204c31d97d23b96b28..6b886b9d0b5114a0731a0c3860f87b88c5c1d93c 100644
+index fce01fd6c4d19f6579f7ea023eaa747a3eb6c4f2..740db97667bb4ff97b6d79509c1f265b99343961 100644
 --- a/net/minecraft/server/level/ServerLevel.java
 +++ b/net/minecraft/server/level/ServerLevel.java
-@@ -1582,6 +1582,7 @@ public class ServerLevel extends Level implements ServerEntityGetter, WorldGenLe
+@@ -1619,6 +1619,7 @@ public class ServerLevel extends Level implements ServerEntityGetter, WorldGenLe
              if (entity instanceof net.minecraft.world.entity.item.ItemEntity itemEntity && itemEntity.getItem().isEmpty()) return false; // Paper - Prevent empty items from being added
              // Paper start - capture all item additions to the world
              if (captureDrops != null && entity instanceof net.minecraft.world.entity.item.ItemEntity) {
@@ -18,7 +18,7 @@ index f6897dcad38b4dce207d98204c31d97d23b96b28..6b886b9d0b5114a0731a0c3860f87b88
                  return true;
              }
 diff --git a/net/minecraft/world/entity/item/ItemEntity.java b/net/minecraft/world/entity/item/ItemEntity.java
-index eaacb2502e1d922e4bbccdbcbb9ee477ae6dbea9..b50bda730049bd6c3703bac060a7e7a802cac5e2 100644
+index d406311acdfce6527d7025cc2bed9b8964fdd8aa..5054f74e69094e7b9da763c9d6f207619e6a48cb 100644
 --- a/net/minecraft/world/entity/item/ItemEntity.java
 +++ b/net/minecraft/world/entity/item/ItemEntity.java
 @@ -47,6 +47,7 @@ public class ItemEntity extends Entity implements TraceableEntity {
@@ -28,12 +28,12 @@ index eaacb2502e1d922e4bbccdbcbb9ee477ae6dbea9..b50bda730049bd6c3703bac060a7e7a8
 +    public BlockPos droppedPosition; // EMC - BlockBreakNaturallyEvent
      public int pickupDelay = 0;
      public int health = 5;
-     @Nullable
+     public @Nullable EntityReference<Entity> thrower;
 diff --git a/net/minecraft/world/level/block/Block.java b/net/minecraft/world/level/block/Block.java
-index 572fcb33b14d16334e2ab92ddf8699f1ba975aff..81d7c235ee3c00cb40e431b72d8a1f1a28c6292c 100644
+index ab08211e0f64a14a335e3cc4479bcf1f82e25cdd..441c569b7fb97ff6def51f788bf03c5eacd86a34 100644
 --- a/net/minecraft/world/level/block/Block.java
 +++ b/net/minecraft/world/level/block/Block.java
-@@ -424,7 +424,7 @@ public class Block extends BlockBehaviour implements ItemLike {
+@@ -435,7 +435,7 @@ public class Block extends BlockBehaviour implements ItemLike {
          double d1 = pos.getX() + 0.5 + Mth.nextDouble(level.random, -0.25, 0.25);
          double d2 = pos.getY() + 0.5 + Mth.nextDouble(level.random, -0.25, 0.25) - d;
          double d3 = pos.getZ() + 0.5 + Mth.nextDouble(level.random, -0.25, 0.25);
@@ -42,7 +42,7 @@ index 572fcb33b14d16334e2ab92ddf8699f1ba975aff..81d7c235ee3c00cb40e431b72d8a1f1a
      }
  
      public static void popResourceFromFace(Level level, BlockPos pos, Direction direction, ItemStack stack) {
-@@ -439,17 +439,19 @@ public class Block extends BlockBehaviour implements ItemLike {
+@@ -450,17 +450,19 @@ public class Block extends BlockBehaviour implements ItemLike {
          double d5 = stepX == 0 ? Mth.nextDouble(level.random, -0.1, 0.1) : stepX * 0.1;
          double d6 = stepY == 0 ? Mth.nextDouble(level.random, 0.0, 0.1) : stepY * 0.1 + 0.1;
          double d7 = stepZ == 0 ? Mth.nextDouble(level.random, -0.1, 0.1) : stepZ * 0.1;
@@ -52,7 +52,7 @@ index 572fcb33b14d16334e2ab92ddf8699f1ba975aff..81d7c235ee3c00cb40e431b72d8a1f1a
  
 -    private static void popResource(Level level, Supplier<ItemEntity> itemEntitySupplier, ItemStack stack) {
 +    private static void popResource(Level level, Supplier<ItemEntity> itemEntitySupplier, ItemStack stack, BlockPos blockPos) { // EMC - BlockBreakNaturallyEvent
-         if (level instanceof ServerLevel serverLevel && !stack.isEmpty() && serverLevel.getGameRules().getBoolean(GameRules.RULE_DOBLOCKDROPS)) {
+         if (level instanceof ServerLevel serverLevel && !stack.isEmpty() && serverLevel.getGameRules().get(GameRules.BLOCK_DROPS)) {
              ItemEntity itemEntity = itemEntitySupplier.get();
              itemEntity.setDefaultPickUpDelay();
              // CraftBukkit start

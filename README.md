@@ -45,7 +45,7 @@ Maven
 <dependency>
     <groupId>com.empireminecraft.empirecraft</groupId>
     <artifactId>empirecraft-api</artifactId>
-    <version>1.21.4-R0.1-SNAPSHOT</version>
+    <version>1.21.11-R0.1-SNAPSHOT</version>
     <scope>provided</scope>
 </dependency>
 ```
@@ -53,7 +53,7 @@ Maven
 Gradle
 ```kotlin
 dependencies {
-    compileOnly("com.empireminecraft.empirecraft:empirecraft-api:1.21.4-R0.1-SNAPSHOT")
+    compileOnly("com.empireminecraft.empirecraft:empirecraft-api:1.21.11-R0.1-SNAPSHOT")
 }
 ```
 
