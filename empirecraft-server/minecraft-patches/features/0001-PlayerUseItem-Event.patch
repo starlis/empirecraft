@@ -6,7 +6,7 @@ Subject: [PATCH] PlayerUseItem Event
 This lets us control when an item is consumed and change the item.
 
 diff --git a/net/minecraft/server/level/ServerPlayerGameMode.java b/net/minecraft/server/level/ServerPlayerGameMode.java
-index 84d19d79e77cec6a5d64f59fbcce703e467b2407..6b9d48dd79fdcc9e4d51263b0aa1827f2fc36e6c 100644
+index 84d19d79e77cec6a5d64f59fbcce703e467b2407..01725a6a475798ca81e7ba166f02ad33711d964e 100644
 --- a/net/minecraft/server/level/ServerPlayerGameMode.java
 +++ b/net/minecraft/server/level/ServerPlayerGameMode.java
 @@ -438,6 +438,15 @@ public class ServerPlayerGameMode {
@@ -25,11 +25,10 @@ index 84d19d79e77cec6a5d64f59fbcce703e467b2407..6b9d48dd79fdcc9e4d51263b0aa1827f
          if (this.gameModeForPlayer == GameType.SPECTATOR) {
              return InteractionResult.PASS;
          } else if (player.getCooldowns().isOnCooldown(stack)) {
-@@ -445,7 +454,13 @@ public class ServerPlayerGameMode {
-         } else {
+@@ -446,6 +455,13 @@ public class ServerPlayerGameMode {
              int count = stack.getCount();
              int damageValue = stack.getDamageValue();
--            final ItemStack stackBeforeUse = stack.copy(); // Paper - Store stack before use for interact prediction check
+             final ItemStack stackBeforeUse = stack.copy(); // Paper - Store stack before use for interact prediction check
 +            // EMC start - PlayerUseItemEvent
 +            ItemStack orig = stack;
 +            if (event.getTempItem() != null) {
@@ -40,7 +39,7 @@ index 84d19d79e77cec6a5d64f59fbcce703e467b2407..6b9d48dd79fdcc9e4d51263b0aa1827f
              InteractionResult interactionResult = stack.use(level, player, hand);
              ItemStack itemStack;
              if (interactionResult instanceof InteractionResult.Success success) {
-@@ -453,21 +468,45 @@ public class ServerPlayerGameMode {
+@@ -453,21 +469,45 @@ public class ServerPlayerGameMode {
              } else {
                  itemStack = player.getItemInHand(hand);
              }
@@ -91,7 +90,7 @@ index 84d19d79e77cec6a5d64f59fbcce703e467b2407..6b9d48dd79fdcc9e4d51263b0aa1827f
                      // Paper start - Optimize sendAllDataToRemote calls
                      // This is a weird one where the Vanilla behavior is from an ancient version, but also isn't calling startUsingItem on certain instant-use items
                      // TODO Check up on this proper, possibly remove all and move into more specific places
-@@ -491,6 +530,7 @@ public class ServerPlayerGameMode {
+@@ -491,6 +531,7 @@ public class ServerPlayerGameMode {
      public ItemStack interactItemStack;
      public InteractionResult useItemOn(ServerPlayer player, Level level, ItemStack stack, InteractionHand hand, BlockHitResult hitResult) {
          BlockPos blockPos = hitResult.getBlockPos();
@@ -99,7 +98,7 @@ index 84d19d79e77cec6a5d64f59fbcce703e467b2407..6b9d48dd79fdcc9e4d51263b0aa1827f
          BlockState blockState = level.getBlockState(blockPos);
          boolean cancelledBlock = false;
          boolean cancelledItem = false; // Paper - correctly handle items on cooldown
-@@ -538,8 +578,10 @@ public class ServerPlayerGameMode {
+@@ -538,8 +579,10 @@ public class ServerPlayerGameMode {
              boolean flag = !player.getMainHandItem().isEmpty() || !player.getOffhandItem().isEmpty();
              boolean flag1 = player.isSecondaryUseActive() && flag;
              ItemStack itemStack = stack.copy();
@@ -110,7 +109,7 @@ index 84d19d79e77cec6a5d64f59fbcce703e467b2407..6b9d48dd79fdcc9e4d51263b0aa1827f
                  if (interactionResult.consumesAction()) {
                      CriteriaTriggers.ITEM_USED_ON_BLOCK.trigger(player, blockPos, itemStack);
                      return interactionResult;
-@@ -547,6 +589,7 @@ public class ServerPlayerGameMode {
+@@ -547,6 +590,7 @@ public class ServerPlayerGameMode {
  
                  if (interactionResult instanceof InteractionResult.TryEmptyHandInteraction && hand == InteractionHand.MAIN_HAND) {
                      InteractionResult interactionResult1 = blockState.useWithoutItem(level, player, hitResult);
@@ -118,7 +117,7 @@ index 84d19d79e77cec6a5d64f59fbcce703e467b2407..6b9d48dd79fdcc9e4d51263b0aa1827f
                      if (interactionResult1.consumesAction()) {
                          CriteriaTriggers.DEFAULT_BLOCK_USE.trigger(player, blockPos);
                          return interactionResult1;
-@@ -555,15 +598,44 @@ public class ServerPlayerGameMode {
+@@ -555,15 +599,44 @@ public class ServerPlayerGameMode {
              }
  
              if (!stack.isEmpty() && !this.interactResult) { // add !interactResult SPIGOT-764
