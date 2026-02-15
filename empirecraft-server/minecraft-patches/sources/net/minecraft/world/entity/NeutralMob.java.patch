@@ -1,26 +1,25 @@
 --- a/net/minecraft/world/entity/NeutralMob.java
 +++ b/net/minecraft/world/entity/NeutralMob.java
-@@ -65,11 +_,21 @@
+@@ -65,13 +_,21 @@
              this.stopBeingAngry();
          } else {
              if (target != null) {
-+                // EMC start - EntityAngerEvent
-+                boolean cancelStartAnger = false;
-                 if (persistentAngerTarget == null || !persistentAngerTarget.matches(target)) {
--                    this.setPersistentAngerTarget(EntityReference.of(target));
++                boolean cancelStartAnger = false; // EMC - EntityAngerEvent
+                 // Paper start - Backport fix for MC-305388 from 26.1-snapshot-5
+                 boolean newTarget = persistentAngerTarget == null || !persistentAngerTarget.matches(target);
+                 if (newTarget) {
++                    // EMC start - EntityAngerEvent
 +                    if (this instanceof Entity) {
 +                        cancelStartAnger = !(new com.empireminecraft.empirecraft.event.entity.EntityAngerEvent(((Entity) this).getBukkitEntity(), target.getBukkitLivingEntity()).callEvent());
 +                    }
 +                    if (!cancelStartAnger) {
-+                        this.setPersistentAngerTarget(EntityReference.of(target));
-+                    }
++                        // EMC end - EntityAngerEvent
+                     this.setPersistentAngerTarget(EntityReference.of(target));
++                    } // EMC - EntityAngerEvent
                  }
  
--                this.startPersistentAngerTimer();
-+                if (!cancelStartAnger) {
-+                    this.startPersistentAngerTimer();
-+                }
-+                // EMC end - EntityAngerEvent
-             }
- 
-             if (persistentAngerTarget != null && !this.isAngry() && (target == null || !isValidPlayerTarget(target) || !updateAnger)) {
+-                if (newTarget || updateAnger) {
++                if ((newTarget && !cancelStartAnger) || updateAnger) { // EMC - EntityAngerEvent
+                     this.startPersistentAngerTimer();
+                 }
+                 // Paper end - Backport fix for MC-305388 from 26.1-snapshot-5
