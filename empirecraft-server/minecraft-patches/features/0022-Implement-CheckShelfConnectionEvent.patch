@@ -5,27 +5,26 @@ Subject: [PATCH] Implement CheckShelfConnectionEvent
 
 
 diff --git a/net/minecraft/world/level/block/SideChainPartBlock.java b/net/minecraft/world/level/block/SideChainPartBlock.java
-index 9f53bee653b4aded96a9d5c7d324517c32feed05..74a92e586c504f08b0f9c6e677836df4c9058ed2 100644
+index b974e28be5803988bda3d8ee4a4eb8230bace8f6..e86158dc813d298fc96b0dbd8c222f1384776f31 100644
 --- a/net/minecraft/world/level/block/SideChainPartBlock.java
 +++ b/net/minecraft/world/level/block/SideChainPartBlock.java
-@@ -64,13 +64,18 @@ public interface SideChainPartBlock {
-                 int i = neighbors.left().isConnectable() ? this.getAllBlocksConnectedTo(level, neighbors.left().pos()).size() : 0;
-                 int i1 = neighbors.right().isConnectable() ? this.getAllBlocksConnectedTo(level, neighbors.right().pos()).size() : 0;
-                 int i2 = 1;
--                if (this.canConnect(i, i2)) {
-+
+@@ -66,13 +66,17 @@ public interface SideChainPartBlock {
+                 int existingChainOnTheLeft = neighbors.left().isConnectable() ? this.getAllBlocksConnectedTo(level, neighbors.left().pos()).size() : 0;
+                 int existingChainOnTheRight = neighbors.right().isConnectable() ? this.getAllBlocksConnectedTo(level, neighbors.right().pos()).size() : 0;
+                 int currentChainLength = 1;
+-                if (this.canConnect(existingChainOnTheLeft, currentChainLength)) {
 +                // EMC start - CheckShelfConnectionEvent
 +                var leftEvent = new com.empireminecraft.empirecraft.event.block.CheckShelfConnectionEvent(org.bukkit.craftbukkit.block.CraftBlock.at(level, pos), org.bukkit.craftbukkit.block.CraftBlock.at(level, neighbors.left().pos()));
-+                if (this.canConnect(i, i2) && leftEvent.callEvent()) {
-                     sideChainPart = sideChainPart.whenConnectedToTheLeft();
++                if (this.canConnect(existingChainOnTheLeft, currentChainLength) && leftEvent.callEvent()) {
+                     newPartForSelf = newPartForSelf.whenConnectedToTheLeft();
                      neighbors.left().connectToTheRight();
-                     i2 += i;
+                     currentChainLength += existingChainOnTheLeft;
                  }
  
--                if (this.canConnect(i1, i2)) {
+-                if (this.canConnect(existingChainOnTheRight, currentChainLength)) {
 +                var rightEvent = new com.empireminecraft.empirecraft.event.block.CheckShelfConnectionEvent(org.bukkit.craftbukkit.block.CraftBlock.at(level, pos), org.bukkit.craftbukkit.block.CraftBlock.at(level, neighbors.right().pos()));
-+                if (this.canConnect(i1, i2) && rightEvent.callEvent()) {
++                if (this.canConnect(existingChainOnTheRight, currentChainLength) && rightEvent.callEvent()) {
 +                    // EMC end
-                     sideChainPart = sideChainPart.whenConnectedToTheRight();
+                     newPartForSelf = newPartForSelf.whenConnectedToTheRight();
                      neighbors.right().connectToTheLeft();
                  }

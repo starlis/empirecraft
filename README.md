@@ -45,7 +45,7 @@ Maven
 <dependency>
     <groupId>com.empireminecraft.empirecraft</groupId>
     <artifactId>empirecraft-api</artifactId>
-    <version>1.21.11-R0.1-SNAPSHOT</version>
+    <version>26.1.2.local-SNAPSHOT</version>
     <scope>provided</scope>
 </dependency>
 ```
@@ -53,7 +53,7 @@ Maven
 Gradle
 ```kotlin
 dependencies {
-    compileOnly("com.empireminecraft.empirecraft:empirecraft-api:1.21.11-R0.1-SNAPSHOT")
+    compileOnly("com.empireminecraft.empirecraft:empirecraft-api:26.1.2.local-SNAPSHOT")
 }
 ```
 
@@ -82,5 +82,5 @@ Use the command `./gradlew build` to build the API and server. Compiled JARs
 will be placed under `empirecraft-api/build/libs` and `empirecraft-server/build/libs`.
 **These JARs are not used to start a server.**
 
-To compile a server-ready bundler jar, run `./gradlew createMojmapBundlerJar`.
+To compile a server-ready bundler jar, run `./gradlew createBundlerJar`.
 To install the `empirecraft-api` and `empirecraft` dependencies to your local Maven repo, run `./gradlew publishToMavenLocal`. The compiled bundler jar will be in `empirecraft-server/build/libs`.

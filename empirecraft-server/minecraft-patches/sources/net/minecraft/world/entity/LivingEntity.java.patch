@@ -1,6 +1,6 @@
 --- a/net/minecraft/world/entity/LivingEntity.java
 +++ b/net/minecraft/world/entity/LivingEntity.java
-@@ -367,6 +_,7 @@
+@@ -361,6 +_,7 @@
              .add(Attributes.EXPLOSION_KNOCKBACK_RESISTANCE)
              .add(Attributes.WATER_MOVEMENT_EFFICIENCY)
              .add(Attributes.MOVEMENT_EFFICIENCY)
@@ -8,45 +8,54 @@
              .add(Attributes.ATTACK_KNOCKBACK)
              .add(Attributes.CAMERA_DISTANCE)
              .add(Attributes.WAYPOINT_TRANSMIT_RANGE);
-@@ -825,6 +_,7 @@
+@@ -820,6 +_,7 @@
                      this.level().getCraftServer().getPluginManager().callEvent(event);
  
                      if (event.isCancelled()) {
 +                        if (true) { return null; } // EMC - Do not return item to player on cancel drop item event
                          org.bukkit.inventory.ItemStack inHandItem = player.getInventory().getItemInMainHand();
-                         if (includeThrower && inHandItem.getAmount() == 0) {
+                         if (thrownFromHand && inHandItem.getAmount() == 0) {
                              // The complete stack was dropped
-@@ -1165,6 +_,13 @@
+@@ -1154,7 +_,7 @@
+         // Paper start - Don't fire sync event during generation
+         return this.addEffect(newEffect, source, cause, true);
+     }
+-    public boolean addEffect(final MobEffectInstance newEffect, final @Nullable Entity source, final EntityPotionEffectEvent.Cause cause, final boolean fireEvent) {
++    public boolean addEffect(MobEffectInstance newEffect, final @Nullable Entity source, final EntityPotionEffectEvent.Cause cause, final boolean fireEvent) { // EMC - Remove final
+         // Paper end - Don't fire sync event during generation
+         // org.spigotmc.AsyncCatcher.catchOp("effect add"); // Spigot // Paper - move to API
+         if (this.isTickingEffects) {
+@@ -1162,6 +_,13 @@
              return true;
          }
          // CraftBukkit end
 +        // EMC start - EntityEffectAddedEvent
-+        com.empireminecraft.empirecraft.event.entity.EntityEffectAddedEvent addedEvent = new com.empireminecraft.empirecraft.event.entity.EntityEffectAddedEvent((org.bukkit.entity.LivingEntity) this.getBukkitEntity(), org.bukkit.craftbukkit.potion.CraftPotionUtil.toBukkit(effectInstance));
++        com.empireminecraft.empirecraft.event.entity.EntityEffectAddedEvent addedEvent = new com.empireminecraft.empirecraft.event.entity.EntityEffectAddedEvent((org.bukkit.entity.LivingEntity) this.getBukkitEntity(), org.bukkit.craftbukkit.potion.CraftPotionUtil.toBukkit(newEffect));
 +        if (!addedEvent.callEvent()) {
 +            return false;
 +        }
-+        effectInstance = org.bukkit.craftbukkit.potion.CraftPotionUtil.fromBukkit(addedEvent.getEffect());
++        newEffect = org.bukkit.craftbukkit.potion.CraftPotionUtil.fromBukkit(addedEvent.getEffect());
 +        // EMC end - EntityEffectAddedEvent
-         if (!this.canBeAffected(effectInstance)) {
+         if (!this.canBeAffected(newEffect)) {
              return false;
          } else {
-@@ -1990,9 +_,14 @@
+@@ -1979,9 +_,14 @@
  
-     protected float getKnockback(Entity attacker, DamageSource damageSource) {
-         float f = (float)this.getAttributeValue(Attributes.ATTACK_KNOCKBACK);
--        return this.level() instanceof ServerLevel serverLevel
+     protected float getKnockback(final Entity target, final DamageSource damageSource) {
+         float knockback = (float)this.getAttributeValue(Attributes.ATTACK_KNOCKBACK);
+-        return this.level() instanceof ServerLevel level
 +        // EMC start - EntityKnockbackEvent
-+        f = this.level() instanceof ServerLevel serverLevel
-             ? EnchantmentHelper.modifyKnockback(serverLevel, this.getWeaponItem(), attacker, damageSource, f) / 2.0F
-             : f / 2.0F;
-+        var event = new com.empireminecraft.empirecraft.event.entity.EntityKnockbackEvent((org.bukkit.entity.LivingEntity) this.getBukkitEntity(), attacker.getBukkitEntity(), f);
++        knockback = this.level() instanceof ServerLevel level
+             ? EnchantmentHelper.modifyKnockback(level, this.getWeaponItem(), target, damageSource, knockback) / 2.0F
+             : knockback / 2.0F;
++        var event = new com.empireminecraft.empirecraft.event.entity.EntityKnockbackEvent((org.bukkit.entity.LivingEntity) this.getBukkitEntity(), target.getBukkitEntity(), knockback);
 +        event.callEvent();
 +        return event.getLevel();
 +        // EMC end - EntityKnockbackEvent
      }
  
-     protected void dropFromLootTable(ServerLevel level, DamageSource damageSource, boolean playerKill) {
-@@ -2285,7 +_,12 @@
+     protected void dropFromLootTable(final ServerLevel level, final DamageSource source, final boolean playerKilled) {
+@@ -2337,7 +_,12 @@
      }
  
      public int getArmorValue() {
@@ -59,11 +68,11 @@
 +        // EMC end
      }
  
-     protected void hurtArmor(DamageSource damageSource, float damageAmount) {
-@@ -3316,8 +_,15 @@
+     protected void hurtArmor(final DamageSource damageSource, final float damage) {
+@@ -3358,8 +_,15 @@
      }
  
-     public boolean doHurtTarget(ServerLevel level, Entity target) {
+     public boolean doHurtTarget(final ServerLevel level, final Entity target) {
 -        this.setLastHurtMob(target);
 -        return false;
 +        // EMC start - make all mobs able to attack
@@ -77,4 +86,4 @@
 +        // EMC end - make all mobs able to attack
      }
  
-     public void causeExtraKnockback(Entity target, float strength, Vec3 currentMovement) {
+     public void causeExtraKnockback(final Entity target, final float knockback, final Vec3 oldMovement) {

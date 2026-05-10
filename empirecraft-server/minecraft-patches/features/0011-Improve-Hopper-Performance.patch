@@ -6,10 +6,10 @@ Subject: [PATCH] Improve Hopper Performance
 Only do an item "suck in" action once per second
 
 diff --git a/net/minecraft/world/entity/item/ItemEntity.java b/net/minecraft/world/entity/item/ItemEntity.java
-index 5054f74e69094e7b9da763c9d6f207619e6a48cb..eee84856b35cc61413ebc167351f1a72ef3fc0d8 100644
+index d0eddb9f61a1840c2492de4d6cda3cc14d49871a..4d0778717b3e3153e9dad44a042348e8e1301b84 100644
 --- a/net/minecraft/world/entity/item/ItemEntity.java
 +++ b/net/minecraft/world/entity/item/ItemEntity.java
-@@ -139,6 +139,7 @@ public class ItemEntity extends Entity implements TraceableEntity {
+@@ -146,6 +146,7 @@ public class ItemEntity extends Entity implements TraceableEntity {
              // CraftBukkit end
              this.discard(org.bukkit.event.entity.EntityRemoveEvent.Cause.DESPAWN); // CraftBukkit - add Bukkit remove cause
          }
@@ -17,7 +17,7 @@ index 5054f74e69094e7b9da763c9d6f207619e6a48cb..eee84856b35cc61413ebc167351f1a72
      }
      // Paper end - EAR 2
  
-@@ -223,8 +224,21 @@ public class ItemEntity extends Entity implements TraceableEntity {
+@@ -232,8 +233,21 @@ public class ItemEntity extends Entity implements TraceableEntity {
                  // CraftBukkit end
                  this.discard(org.bukkit.event.entity.EntityRemoveEvent.Cause.DESPAWN); // CraftBukkit - add Bukkit remove cause
              }
@@ -40,7 +40,7 @@ index 5054f74e69094e7b9da763c9d6f207619e6a48cb..eee84856b35cc61413ebc167351f1a72
      @Override
      public BlockPos getBlockPosBelowThatAffectsMyMovement() {
 diff --git a/net/minecraft/world/entity/vehicle/minecart/MinecartHopper.java b/net/minecraft/world/entity/vehicle/minecart/MinecartHopper.java
-index 3c961b76769f16160caedce8ec32bb2a2561163f..debaa99178d8746a0303bb9de9a6c80d51f1a729 100644
+index 06ab7c48b18c03af494ab10fc2b584cefc776749..d09a9dec60a7c3dc9e0085e576656a35315e4b6e 100644
 --- a/net/minecraft/world/entity/vehicle/minecart/MinecartHopper.java
 +++ b/net/minecraft/world/entity/vehicle/minecart/MinecartHopper.java
 @@ -151,5 +151,13 @@ public class MinecartHopper extends AbstractMinecartContainer implements Hopper
@@ -70,11 +70,11 @@ index 484c2ba2752fbf3ad929e46c2f078e906f6f0637..5ee05df6f4ed2518fb444f9c49703761
  
      double getLevelY();
 diff --git a/net/minecraft/world/level/block/entity/HopperBlockEntity.java b/net/minecraft/world/level/block/entity/HopperBlockEntity.java
-index 6db027fb1512456e2bbeba342668d8487185210d..50a12ca76f0aed3c4eceee5ed5a3b71f98d99aed 100644
+index 145763454ca59902dea2b76b84df4d0908d43b5d..186ab76d30e4aa1a9641466dbf51378c5d74b107 100644
 --- a/net/minecraft/world/level/block/entity/HopperBlockEntity.java
 +++ b/net/minecraft/world/level/block/entity/HopperBlockEntity.java
 @@ -110,6 +110,21 @@ public class HopperBlockEntity extends RandomizableContainerBlockEntity implemen
-         return ContainerHelper.removeItem(this.getItems(), index, count);
+         return ContainerHelper.removeItem(this.getItems(), slot, count);
      }
  
 +    // EMC start - Improve Hopper Performance
@@ -93,22 +93,22 @@ index 6db027fb1512456e2bbeba342668d8487185210d..50a12ca76f0aed3c4eceee5ed5a3b71f
 +    }
 +    // EMC end - Improve Hopper Performance
      @Override
-     public void setItem(int index, ItemStack stack) {
+     public void setItem(final int slot, final ItemStack itemStack) {
          this.unpackLootTable(null);
-@@ -557,7 +572,7 @@ public class HopperBlockEntity extends RandomizableContainerBlockEntity implemen
+@@ -504,7 +519,7 @@ public class HopperBlockEntity extends RandomizableContainerBlockEntity implemen
              }
  
              return false;
 -        } else {
 +        } else if (shouldSuckin(hopper)) { // EMC - Improve Hopper Performance
-             boolean flag = hopper.isGridAligned() && blockState.isCollisionShapeFullBlock(level, blockPos) && !blockState.is(BlockTags.DOES_NOT_BLOCK_HOPPERS);
-             if (!flag) {
-                 for (ItemEntity itemEntity : getItemsAtAndAbove(level, hopper)) {
-@@ -569,6 +584,7 @@ public class HopperBlockEntity extends RandomizableContainerBlockEntity implemen
+             boolean isBlocked = hopper.isGridAligned()
+                 && blockState.isCollisionShapeFullBlock(level, blockPos)
+                 && !blockState.is(BlockTags.DOES_NOT_BLOCK_HOPPERS);
+@@ -518,6 +533,7 @@ public class HopperBlockEntity extends RandomizableContainerBlockEntity implemen
  
              return false;
          }
 +        return false; // EMC - Improve Hopper Performance
      }
  
-     private static boolean tryTakeInItemFromSlot(Hopper hopper, Container container, int slot, Direction direction, Level level) { // Spigot
+     private static boolean tryTakeInItemFromSlot(final Hopper hopper, final Container container, final int slot, final Direction direction, final Level level) { // Spigot

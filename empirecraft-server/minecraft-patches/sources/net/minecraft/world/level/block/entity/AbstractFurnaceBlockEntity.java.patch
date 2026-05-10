@@ -1,39 +1,41 @@
 --- a/net/minecraft/world/level/block/entity/AbstractFurnaceBlockEntity.java
 +++ b/net/minecraft/world/level/block/entity/AbstractFurnaceBlockEntity.java
-@@ -470,14 +_,14 @@
-             level.recipeAccess().byKey(entry.getKey()).ifPresent(recipeHolder -> {
-                 if (!(recipeHolder.value() instanceof AbstractCookingRecipe)) return; // Paper - don't process non-cooking recipes
-                 list.add((RecipeHolder<?>)recipeHolder);
--                createExperience(level, popVec, entry.getIntValue(), ((AbstractCookingRecipe)recipeHolder.value()).experience(), blockPos, serverPlayer, itemStack, amount); // Paper - don't process non-cooking recipes
-+                createExperience(level, popVec, entry.getIntValue(), ((AbstractCookingRecipe)recipeHolder.value()).experience(), blockPos, serverPlayer, itemStack, amount, ((AbstractCookingRecipe) recipeHolder.value()).result()); // Paper - don't process non-cooking recipes // EMC - add result item
+@@ -455,14 +_,14 @@
+             level.recipeAccess().byKey(entry.getKey()).ifPresent(recipe -> {
+                 if (!(recipe.value() instanceof AbstractCookingRecipe)) return; // Paper - don't process non-cooking recipes
+                 recipesToAward.add((RecipeHolder<?>)recipe);
+-                createExperience(level, position, entry.getIntValue(), ((AbstractCookingRecipe)recipe.value()).experience(), blockPos, serverPlayer, itemStack, amount); // Paper - don't process non-cooking recipes
++                    createExperience(level, position, entry.getIntValue(), ((AbstractCookingRecipe)recipe.value()).experience(), blockPos, serverPlayer, itemStack, amount, ((AbstractCookingRecipe) recipe.value()).result().create()); // Paper - don't process non-cooking recipes // EMC - add result item
              });
          }
  
-         return list;
+         return recipesToAward;
      }
  
--    private static void createExperience(ServerLevel level, Vec3 popVec, int recipeIndex, float experience, BlockPos blockPos, ServerPlayer serverPlayer, ItemStack itemStack, int amount) { // CraftBukkit
-+    private static void createExperience(ServerLevel level, Vec3 popVec, int recipeIndex, float experience, BlockPos blockPos, ServerPlayer serverPlayer, ItemStack itemStack, int amount, ItemStack result) { // CraftBukkit // EMC - add result item
-         int floor = Mth.floor(recipeIndex * experience);
-         float fraction = Mth.frac(recipeIndex * experience);
-         if (fraction != 0.0F && level.random.nextFloat() < fraction) {
-@@ -486,13 +_,15 @@
+-    private static void createExperience(final ServerLevel level, final Vec3 position, final int amount, final float value, final BlockPos blockPos, final ServerPlayer player, final ItemStack itemStack, final int removeCount) {
++    private static void createExperience(final ServerLevel level, final Vec3 position, final int amount, final float value, final BlockPos blockPos, final ServerPlayer player, final ItemStack itemStack, final int removeCount, ItemStack result) { // CraftBukkit // EMC - add result item
+         int xpReward = Mth.floor(amount * value);
+         float xpFraction = Mth.frac(amount * value);
+         if (xpFraction != 0.0F && level.getRandom().nextFloat() < xpFraction) {
+@@ -471,13 +_,17 @@
  
          // CraftBukkit start - fire FurnaceExtractEvent / BlockExpEvent
          org.bukkit.event.block.BlockExpEvent event;
--        if (amount != 0) {
-+        if (true || amount != 0) { // EMC
+-        if (removeCount != 0) {
++        // EMC start
++        if (true || removeCount != 0) {
              event = new org.bukkit.event.inventory.FurnaceExtractEvent(
--                serverPlayer.getBukkitEntity(),
-+                serverPlayer == null ? null : serverPlayer.getBukkitEntity(), // EMC
+-                player.getBukkitEntity(),
++                player == null ? null : player.getBukkitEntity(),
                  org.bukkit.craftbukkit.block.CraftBlock.at(level, blockPos),
 -                itemStack.asBukkitCopy(),
 +                itemStack == null ? null : itemStack.asBukkitCopy(),
-                 amount,
--                floor
-+                floor,
+                 removeCount,
+-                xpReward
++                xpReward,
 +                result == null ? null : result.asBukkitCopy(),
-+                recipeIndex
++                amount
++                // EMC end
              );
          } else {
              event = new org.bukkit.event.block.BlockExpEvent(

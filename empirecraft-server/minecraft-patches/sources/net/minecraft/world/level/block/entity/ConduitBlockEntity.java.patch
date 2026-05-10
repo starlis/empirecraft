@@ -1,30 +1,30 @@
 --- a/net/minecraft/world/level/block/entity/ConduitBlockEntity.java
 +++ b/net/minecraft/world/level/block/entity/ConduitBlockEntity.java
-@@ -201,10 +_,11 @@
-         EntityReference<LivingEntity> entityReference = updateDestroyTarget(blockEntity.destroyTarget, level, pos, canDestroy);
-         LivingEntity livingEntity = EntityReference.getLivingEntity(entityReference, level);
-         if (damageTarget && livingEntity != null) { // CraftBukkit
--            if (livingEntity.hurtServer(level, level.damageSources().magic().eventBlockDamager(level, pos), 4.0F)) // CraftBukkit - move up
-+            if (livingEntity.hurtServer(level, level.damageSources().magic().eventBlockDamager(level, pos), 4.0F)) { // CraftBukkit - move up // EMC - Remove target for cancelled hurt
+@@ -204,10 +_,11 @@
+         EntityReference<LivingEntity> newDestroyTarget = updateDestroyTarget(entity.destroyTarget, level, worldPosition, isActive);
+         LivingEntity targetEntity = EntityReference.getLivingEntity(newDestroyTarget, level);
+         if (damageTarget && targetEntity != null) { // CraftBukkit
+-            if (targetEntity.hurtServer(level, level.damageSources().magic().eventBlockDamager(level, worldPosition), 4.0F)) // CraftBukkit - move up
++            if (targetEntity.hurtServer(level, level.damageSources().magic().eventBlockDamager(level, worldPosition), 4.0F)) { // CraftBukkit - move up // EMC - Remove target for cancelled hurt
              level.playSound(
-                 null, livingEntity.getX(), livingEntity.getY(), livingEntity.getZ(), SoundEvents.CONDUIT_ATTACK_TARGET, SoundSource.BLOCKS, 1.0F, 1.0F
+                 null, targetEntity.getX(), targetEntity.getY(), targetEntity.getZ(), SoundEvents.CONDUIT_ATTACK_TARGET, SoundSource.BLOCKS, 1.0F, 1.0F
              );
-+            } else { blockEntity.destroyTarget = null; } // EMC - Remove target for cancelled hurt
++            } else { entity.destroyTarget = null; } // EMC - Remove target for cancelled hurt
          }
  
-         if (!Objects.equals(entityReference, blockEntity.destroyTarget)) {
-@@ -230,6 +_,14 @@
-         List<LivingEntity> entitiesOfClass = level.getEntitiesOfClass(
-             LivingEntity.class, getDestroyRangeAABB(pos), livingEntity -> livingEntity instanceof Enemy && livingEntity.isInWaterOrRain()
+         if (!Objects.equals(newDestroyTarget, entity.destroyTarget)) {
+@@ -233,6 +_,14 @@
+         List<LivingEntity> candidates = level.getEntitiesOfClass(
+             LivingEntity.class, getDestroyRangeAABB(pos), input -> input instanceof Enemy && input.isInWaterOrRain()
          );
 +        // EMC start - ConduitNewTargetEvent
-+        List<org.bukkit.entity.LivingEntity> bukkitEntities = Lists.newArrayListWithCapacity(entitiesOfClass.size());
-+        for (LivingEntity entity : entitiesOfClass) {
++        List<org.bukkit.entity.LivingEntity> bukkitEntities = Lists.newArrayListWithCapacity(candidates.size());
++        for (LivingEntity entity : candidates) {
 +            bukkitEntities.add(entity.getBukkitLivingEntity());
 +        }
 +        new com.empireminecraft.empirecraft.event.block.ConduitNewTargetEvent(bukkitEntities, org.bukkit.craftbukkit.block.CraftBlock.at(level, pos)).callEvent();
-+        entitiesOfClass.removeIf(entityLiving -> !bukkitEntities.contains(entityLiving.getBukkitLivingEntity()));
++        candidates.removeIf(entityLiving -> !bukkitEntities.contains(entityLiving.getBukkitLivingEntity()));
 +        // EMC end - ConduitNewTargetEvent
-         return entitiesOfClass.isEmpty() ? null : EntityReference.of(Util.getRandom(entitiesOfClass, level.random));
+         return candidates.isEmpty() ? null : EntityReference.of(Util.getRandom(candidates, level.getRandom()));
      }
  

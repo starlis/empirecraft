@@ -51,3 +51,9 @@ fun optionalInclude(name: String, op: (ProjectDescriptor.() -> Unit)? = null) {
         )
     }
 }
+
+gradle.lifecycle.beforeProject {
+    val mcVersion = providers.gradleProperty("mcVersion").get().trim()
+    val versionString = "$mcVersion.local-SNAPSHOT"
+    version = versionString
+}

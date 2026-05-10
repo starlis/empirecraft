@@ -10,18 +10,18 @@
 +    public boolean exactTarget = false;
 +    // EMC end - EyeOfEnder API
  
-     public EyeOfEnder(EntityType<? extends EyeOfEnder> type, Level level) {
+     public EyeOfEnder(final EntityType<? extends EyeOfEnder> type, final Level level) {
          super(type, level);
 @@ -80,6 +_,7 @@
-         // Paper end - Change EnderEye target without changing other things
-         Vec3 vec3 = pos.subtract(this.position());
-         double d = vec3.horizontalDistance();
-+        if (exactTarget) d = 0; // EMC
-         if (d > 12.0) {
-             this.target = this.position().add(vec3.x / d * 12.0, 8.0, vec3.z / d * 12.0);
+         // Paper end - Change EyeOfEnder target without changing other things
+         Vec3 delta = target.subtract(this.position());
+         double horizontalDistance = delta.horizontalDistance();
++        if (exactTarget) horizontalDistance = 0; // EMC
+         if (horizontalDistance > 12.0) {
+             this.target = this.position().add(delta.x / horizontalDistance * 12.0, 8.0, delta.z / horizontalDistance * 12.0);
          } else {
 @@ -108,7 +_,8 @@
-         this.setPos(vec3);
+         this.setPos(newPosition);
          if (!this.level().isClientSide()) {
              this.life++;
 -            if (this.life > 80 && !this.level().isClientSide()) {
@@ -34,13 +34,13 @@
          }
      }
  
--    private static Vec3 updateDeltaMovement(Vec3 deltaMovement, Vec3 pos, Vec3 target) {
--        Vec3 vec3 = new Vec3(target.x - pos.x, 0.0, target.z - pos.z);
-+    private Vec3 updateDeltaMovement(Vec3 deltaMovement, Vec3 pos, Vec3 target) { // EMC - de-static
-+        Vec3 vec3 = new Vec3(target.x - pos.x, exactTarget ? (target.y - pos.y) : 0.0, target.z - pos.z); // EMC - Set Exact Target
-         double len = vec3.length();
--        double d = Mth.lerp(0.0025, deltaMovement.horizontalDistance(), len);
-+        double d = Mth.lerp(speed, deltaMovement.horizontalDistance(), len); // EMC - Set Speed
-         double d1 = deltaMovement.y;
-         if (len < 1.0) {
-             d *= 0.8;
+-    private static Vec3 updateDeltaMovement(final Vec3 oldMovement, final Vec3 position, final Vec3 target) {
+-        Vec3 horizontalDelta = new Vec3(target.x - position.x, 0.0, target.z - position.z);
++    private Vec3 updateDeltaMovement(final Vec3 oldMovement, final Vec3 position, final Vec3 target) { // EMC - de-static
++        Vec3 horizontalDelta = new Vec3(target.x - position.x, exactTarget ? (target.y - position.y) : 0.0, target.z - position.z); // EMC - Set Exact Target
+         double horizontalLength = horizontalDelta.length();
+-        double wantedSpeed = Mth.lerp(0.0025, oldMovement.horizontalDistance(), horizontalLength);
++        double wantedSpeed = Mth.lerp(speed, oldMovement.horizontalDistance(), horizontalLength); // EMC - Set Speed
+         double movementY = oldMovement.y;
+         if (horizontalLength < 1.0) {
+             wantedSpeed *= 0.8;
