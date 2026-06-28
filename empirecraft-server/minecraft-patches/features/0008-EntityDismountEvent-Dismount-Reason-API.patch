@@ -5,7 +5,7 @@ Subject: [PATCH] EntityDismountEvent Dismount Reason API
 
 
 diff --git a/net/minecraft/server/level/ServerLevel.java b/net/minecraft/server/level/ServerLevel.java
-index e1e77671f1be5c33bcaa4423d738f14c663dd069..cec1d55b2816918091ff478be79fa35ec7b17b05 100644
+index fb7e3cec95d739c6c31fa55ad44f364f5c015c7d..6762734a29370a36e015161452ead7e168e8de4f 100644
 --- a/net/minecraft/server/level/ServerLevel.java
 +++ b/net/minecraft/server/level/ServerLevel.java
 @@ -880,6 +880,7 @@ public class ServerLevel extends Level implements WorldGenLevel, ServerEntityGet
@@ -25,39 +25,39 @@ index e1e77671f1be5c33bcaa4423d738f14c663dd069..cec1d55b2816918091ff478be79fa35e
          } else if (entity instanceof Player || this.entityTickList.contains(entity)) {
              entity.setOldPosAndRot();
 diff --git a/net/minecraft/server/level/ServerPlayer.java b/net/minecraft/server/level/ServerPlayer.java
-index 466e6cb6fc343b85431d5245f6741ef4fcda0022..d57a4c6806aa82e6dbe1350fa141bab99eb6237a 100644
+index d09809d3ac600ee4b037a705c2fd3de40fc96342..ce7e663e53eba227c08b3ca3fd816859b198c983 100644
 --- a/net/minecraft/server/level/ServerPlayer.java
 +++ b/net/minecraft/server/level/ServerPlayer.java
-@@ -1544,6 +1544,7 @@ public class ServerPlayer extends Player implements ca.spottedleaf.moonrise.patc
-             }
-             // CraftBukkit end
-             if (!transition.asPassenger()) {
-+                this.dismountReason = org.bukkit.event.entity.EntityDismountEvent.DismountReason.TELEPORT; // EMC - DismountReason API
-                 this.removeVehicle();
-             }
+@@ -1525,6 +1525,7 @@ public class ServerPlayer extends Player implements ca.spottedleaf.moonrise.patc
+         }
+         // CraftBukkit end
+         if (!transition.asPassenger()) {
++            this.dismountReason = org.bukkit.event.entity.EntityDismountEvent.DismountReason.TELEPORT; // EMC - DismountReason API
+             this.removeVehicle();
+         }
  
-@@ -2142,7 +2143,7 @@ public class ServerPlayer extends Player implements ca.spottedleaf.moonrise.patc
+@@ -2116,7 +2117,7 @@ public class ServerPlayer extends Player implements ca.spottedleaf.moonrise.patc
  
      public void disconnect() {
          this.disconnected = true;
 -        this.ejectPassengers();
-+        this.ejectPassengers(org.bukkit.event.entity.EntityDismountEvent.DismountReason.DISCONNECT); // EMC - DismountReason API'
++        this.ejectPassengers(org.bukkit.event.entity.EntityDismountEvent.DismountReason.DISCONNECT); // EMC - DismountReason API
  
          // Paper start - Workaround vehicle not tracking the passenger disconnection dismount
          if (this.isPassenger() && this.getVehicle() instanceof ServerPlayer) {
-@@ -2365,6 +2366,7 @@ public class ServerPlayer extends Player implements ca.spottedleaf.moonrise.patc
-             this.connection.send(new ClientboundGameEventPacket(ClientboundGameEventPacket.CHANGE_GAME_MODE, mode.getId()));
-             if (mode == GameType.SPECTATOR) {
-                 this.removeEntitiesOnShoulder();
-+                this.dismountReason = org.bukkit.event.entity.EntityDismountEvent.DismountReason.SPECTATE; // EMC - DismountReason API
-                 this.stopRiding();
-                 this.stopUsingItem();
-                 EnchantmentHelper.stopLocationBasedEffects(this);
+@@ -2336,6 +2337,7 @@ public class ServerPlayer extends Player implements ca.spottedleaf.moonrise.patc
+         this.connection.send(new ClientboundGameEventPacket(ClientboundGameEventPacket.CHANGE_GAME_MODE, mode.getId()));
+         if (mode == GameType.SPECTATOR) {
+             this.removeEntitiesOnShoulder();
++            this.dismountReason = org.bukkit.event.entity.EntityDismountEvent.DismountReason.SPECTATE; // EMC - DismountReason API
+             this.stopRiding();
+             this.stopUsingItem();
+             EnchantmentHelper.stopLocationBasedEffects(this);
 diff --git a/net/minecraft/server/players/PlayerList.java b/net/minecraft/server/players/PlayerList.java
-index 82748af2479b0f8f15e39d1ad1ccd2a0e583bcdd..e66e44087993788af3e6ed6d803bfbf8bf5e45be 100644
+index 5bea5dcdaf8ee0a38cd8587a55845e940d8f4cac..8fff881baca5886da9881ef54a368cbfd21193c0 100644
 --- a/net/minecraft/server/players/PlayerList.java
 +++ b/net/minecraft/server/players/PlayerList.java
-@@ -473,6 +473,7 @@ public abstract class PlayerList {
+@@ -468,6 +468,7 @@ public abstract class PlayerList {
              Entity vehicle = player.getRootVehicle();
              if (vehicle.hasExactlyOnePlayerPassenger()) {
                  LOGGER.debug("Removing player mount");
@@ -66,7 +66,7 @@ index 82748af2479b0f8f15e39d1ad1ccd2a0e583bcdd..e66e44087993788af3e6ed6d803bfbf8
                  vehicle.getPassengersAndSelf().forEach(e -> {
                      // Paper start - Fix villager boat exploit
 diff --git a/net/minecraft/world/entity/Entity.java b/net/minecraft/world/entity/Entity.java
-index a61c3bee62738119311d81482884897e548ff542..d1dc35e36c30e5c26b3139b7d35f7a73a4779c5c 100644
+index 803a43c4e3fd07393024048f161aab49536fb179..db890f1dbed0bdf188a06a38fda12a65f0682dec 100644
 --- a/net/minecraft/world/entity/Entity.java
 +++ b/net/minecraft/world/entity/Entity.java
 @@ -879,6 +879,7 @@ public abstract class Entity
@@ -77,15 +77,15 @@ index a61c3bee62738119311d81482884897e548ff542..d1dc35e36c30e5c26b3139b7d35f7a73
              this.stopRiding();
          }
  
-@@ -3305,6 +3306,7 @@ public abstract class Entity
-                 }
-                 // CraftBukkit end
-                 if (this.isPassenger()) {
-+                    this.dismountReason = org.bukkit.event.entity.EntityDismountEvent.DismountReason.TRANSFER; // EMC - DismountReason API
-                     this.stopRiding();
-                 }
+@@ -3309,6 +3310,7 @@ public abstract class Entity
+             }
+             // CraftBukkit end
+             if (this.isPassenger()) {
++                this.dismountReason = org.bukkit.event.entity.EntityDismountEvent.DismountReason.TRANSFER; // EMC - DismountReason API
+                 this.stopRiding();
+             }
  
-@@ -3330,7 +3332,13 @@ public abstract class Entity
+@@ -3333,7 +3335,13 @@ public abstract class Entity
      }
  
      public void ejectPassengers() {
@@ -99,7 +99,7 @@ index a61c3bee62738119311d81482884897e548ff542..d1dc35e36c30e5c26b3139b7d35f7a73
              this.passengers.get(i).stopRiding();
          }
      }
-@@ -3389,6 +3397,10 @@ public abstract class Entity
+@@ -3392,6 +3400,10 @@ public abstract class Entity
  
      protected boolean removePassenger(final Entity passenger, final boolean suppressCancellation) { // CraftBukkit
          // Paper end - Force entity dismount during teleportation
@@ -109,17 +109,17 @@ index a61c3bee62738119311d81482884897e548ff542..d1dc35e36c30e5c26b3139b7d35f7a73
 +        // EMC end - DismountReason API
          if (passenger.getVehicle() == this) {
              throw new IllegalStateException("Use x.stopRiding(y), not y.removePassenger(x)");
-         } else {
-@@ -3411,7 +3423,7 @@ public abstract class Entity
-                 }
+         }
+@@ -3414,7 +3426,7 @@ public abstract class Entity
              }
+         }
  
--            org.bukkit.event.entity.EntityDismountEvent event = new org.bukkit.event.entity.EntityDismountEvent(passenger.getBukkitEntity(), this.getBukkitEntity(), !suppressCancellation); // Paper - Force entity dismount during teleportation
-+            org.bukkit.event.entity.EntityDismountEvent event = new org.bukkit.event.entity.EntityDismountEvent(passenger.getBukkitEntity(), this.getBukkitEntity(), !suppressCancellation, dismountReason); // Paper - Force entity dismount during teleportation // EMC - DismountReasonAPI - Add dismountReason
-             // Suppress during worldgen
-             if (this.valid) {
-                 org.bukkit.Bukkit.getPluginManager().callEvent(event);
-@@ -3981,6 +3993,7 @@ public abstract class Entity
+-        org.bukkit.event.entity.EntityDismountEvent event = new org.bukkit.event.entity.EntityDismountEvent(passenger.getBukkitEntity(), this.getBukkitEntity(), !suppressCancellation); // Paper - Force entity dismount during teleportation
++        org.bukkit.event.entity.EntityDismountEvent event = new org.bukkit.event.entity.EntityDismountEvent(passenger.getBukkitEntity(), this.getBukkitEntity(), !suppressCancellation, dismountReason); // Paper - Force entity dismount during teleportation // EMC - DismountReasonAPI - Add dismountReason
+         // Suppress during worldgen
+         if (this.valid) {
+             org.bukkit.Bukkit.getPluginManager().callEvent(event);
+@@ -3983,6 +3995,7 @@ public abstract class Entity
              );
      }
  
@@ -127,7 +127,7 @@ index a61c3bee62738119311d81482884897e548ff542..d1dc35e36c30e5c26b3139b7d35f7a73
      public final boolean isInvulnerableToBase(final DamageSource source) {
          return this.isRemoved()
              || this.invulnerable && !source.is(DamageTypeTags.BYPASSES_INVULNERABILITY) && !source.isCreativePlayer()
-@@ -5127,10 +5140,18 @@ public abstract class Entity
+@@ -5129,10 +5142,18 @@ public abstract class Entity
          }
  
          if (this.removalReason.shouldDestroy()) {
@@ -148,7 +148,7 @@ index a61c3bee62738119311d81482884897e548ff542..d1dc35e36c30e5c26b3139b7d35f7a73
          this.onRemoval(reason);
          // Paper start - Folia schedulers
 diff --git a/net/minecraft/world/entity/Leashable.java b/net/minecraft/world/entity/Leashable.java
-index ff401fa35aab040b319789acb245ac300660399c..9575cb4ae77ba0750819704d32603c658d15fd47 100644
+index 132ce6cef9f9f485028246c41bee805d5d0fe1ec..eaeee1fcf91c0e3b84f2308d83aaedfe1f2ce5e8 100644
 --- a/net/minecraft/world/entity/Leashable.java
 +++ b/net/minecraft/world/entity/Leashable.java
 @@ -360,6 +360,7 @@ public interface Leashable {
@@ -160,7 +160,7 @@ index ff401fa35aab040b319789acb245ac300660399c..9575cb4ae77ba0750819704d32603c65
          }
      }
 diff --git a/net/minecraft/world/entity/LivingEntity.java b/net/minecraft/world/entity/LivingEntity.java
-index 346bfad5b0b0f8bf8ff731fbce9376d06b58f42b..63ba1220171e4130e94cfe3f0f089b26448d36f6 100644
+index 26eeacdf58ddfec04881af99e420a4dc4d591214..5d9a83c975d6fd9450bc4774c1987aea5ffb37e8 100644
 --- a/net/minecraft/world/entity/LivingEntity.java
 +++ b/net/minecraft/world/entity/LivingEntity.java
 @@ -464,6 +464,7 @@ public abstract class LivingEntity extends Entity implements Attackable, Waypoin
@@ -171,7 +171,7 @@ index 346bfad5b0b0f8bf8ff731fbce9376d06b58f42b..63ba1220171e4130e94cfe3f0f089b26
                      this.stopRiding();
                  }
              } else if (this.getAirSupply() < this.getMaxAirSupply()) {
-@@ -4646,6 +4647,7 @@ public abstract class LivingEntity extends Entity implements Attackable, Waypoin
+@@ -4655,6 +4656,7 @@ public abstract class LivingEntity extends Entity implements Attackable, Waypoin
  
      public void startSleeping(final BlockPos bedPosition) {
          if (this.isPassenger()) {
@@ -180,10 +180,10 @@ index 346bfad5b0b0f8bf8ff731fbce9376d06b58f42b..63ba1220171e4130e94cfe3f0f089b26
          }
  
 diff --git a/net/minecraft/world/entity/player/Player.java b/net/minecraft/world/entity/player/Player.java
-index 57ed2a19849d17213c6af00815dc14e68086ff02..7c59abcbb3828a6abe41dc8a82a049a4ae26412f 100644
+index 5f8b4e5f2c5263aec34d079f0d959542ee3d9bb0..f4a769f52bb4d8f2631897d85ad29cacf15155cc 100644
 --- a/net/minecraft/world/entity/player/Player.java
 +++ b/net/minecraft/world/entity/player/Player.java
-@@ -461,6 +461,7 @@ public abstract class Player extends Avatar implements ContainerUser {
+@@ -464,6 +464,7 @@ public abstract class Player extends Avatar implements ContainerUser {
      @Override
      public void rideTick() {
          if (!this.level().isClientSide() && this.wantsToStopRiding() && this.isPassenger()) {
@@ -192,7 +192,7 @@ index 57ed2a19849d17213c6af00815dc14e68086ff02..7c59abcbb3828a6abe41dc8a82a049a4
              // CraftBukkit start - SPIGOT-7316: no longer passenger, dismount and return
              if (!this.isPassenger()) {
 diff --git a/net/minecraft/world/item/consume_effects/TeleportRandomlyConsumeEffect.java b/net/minecraft/world/item/consume_effects/TeleportRandomlyConsumeEffect.java
-index fc29fcaf0b8abd56ef8e50ee6a6d95f7ca9377f8..cfe4abdd835e67935a47b045b00fb97db7b8660a 100644
+index 23ba133fea6e44dfd31e564d9544ec43800d426b..9b0eb615015e302ae1c7c40bf2ca7dd08ba7f172 100644
 --- a/net/minecraft/world/item/consume_effects/TeleportRandomlyConsumeEffect.java
 +++ b/net/minecraft/world/item/consume_effects/TeleportRandomlyConsumeEffect.java
 @@ -50,6 +50,7 @@ public record TeleportRandomlyConsumeEffect(float diameter) implements ConsumeEf
