@@ -7,19 +7,19 @@ Secure BungeeCord with IP Whitelist for IP/UUID forwarding
 Allow online-mode to be set to true, and skip online-mode for bungee IP's
 
 diff --git a/net/minecraft/network/Connection.java b/net/minecraft/network/Connection.java
-index 0f06d509125e72ec11d263d0d5c2179d65f6d8dd..51a7c3d40ec91456090e85cc7d80ef9b3e4628d6 100644
+index 01e5ff70c70dd7fab089d8965bd1c237fa239f45..0f86d9e6c816f636499336e2014e2279bcc8eb72 100644
 --- a/net/minecraft/network/Connection.java
 +++ b/net/minecraft/network/Connection.java
-@@ -73,6 +73,7 @@ public class Connection extends SimpleChannelInboundHandler<Packet<?>> {
+@@ -74,6 +74,7 @@ public class Connection extends SimpleChannelInboundHandler<Packet<?>> {
      public boolean preparing = true;
      // Spigot end
      private volatile @Nullable PacketListener disconnectListener;
 +    public boolean isProxied = false; // EMC - Adjusted BungeeCord Support
      private volatile @Nullable PacketListener packetListener;
      private @Nullable DisconnectionDetails disconnectionDetails;
-     private boolean encrypted;
+     private boolean disconnectionHandled;
 diff --git a/net/minecraft/server/network/ServerHandshakePacketListenerImpl.java b/net/minecraft/server/network/ServerHandshakePacketListenerImpl.java
-index 4ae94fe8c32a77eb5e1b0eda659b44cd11d4ca9d..e5f8c8dd9cb60a26031f7c7416347e53b575b642 100644
+index 649f9646abb1bd84f1f22409aee09d2a4d27e581..b96e71f491077df5f848c06ff920fb1106d3a06e 100644
 --- a/net/minecraft/server/network/ServerHandshakePacketListenerImpl.java
 +++ b/net/minecraft/server/network/ServerHandshakePacketListenerImpl.java
 @@ -116,7 +116,8 @@ public class ServerHandshakePacketListenerImpl implements ServerHandshakePacketL
@@ -43,14 +43,14 @@ index 4ae94fe8c32a77eb5e1b0eda659b44cd11d4ca9d..e5f8c8dd9cb60a26031f7c7416347e53
 @@ -160,7 +162,7 @@ public class ServerHandshakePacketListenerImpl implements ServerHandshakePacketL
                      this.connection.address = new java.net.InetSocketAddress(split[1], socketAddress instanceof java.net.InetSocketAddress ? ((java.net.InetSocketAddress) socketAddress).getPort() : 0);
                      // Paper end - Unix domain socket support
-                     this.connection.spoofedUUID = com.mojang.util.UndashedUuid.fromStringLenient( split[2] );
+                     this.connection.spoofedUUID = com.mojang.util.UndashedUuid.fromStringLenient(split[2]);
 -                } else {
 +                } else if (false) { // EMC - Adjusted BungeeCord Support
                      Component message = Component.literal("If you wish to use IP forwarding, please enable it in your BungeeCord config as well!");
                      this.connection.send(new ClientboundLoginDisconnectPacket(message));
                      this.connection.disconnect(message);
 diff --git a/net/minecraft/server/network/ServerLoginPacketListenerImpl.java b/net/minecraft/server/network/ServerLoginPacketListenerImpl.java
-index 722c832ce18fd930d9fdb4f718dc13bfc962e5dd..8c93cff1172b4d0849869cfa842954057facc579 100644
+index fb5a84d2a00528d5c8f549f238abb6aa20d1ccad..8ab5053c3a395c4e3f13089b3a0761191976d3e7 100644
 --- a/net/minecraft/server/network/ServerLoginPacketListenerImpl.java
 +++ b/net/minecraft/server/network/ServerLoginPacketListenerImpl.java
 @@ -173,7 +173,7 @@ public class ServerLoginPacketListenerImpl implements ServerLoginPacketListener,

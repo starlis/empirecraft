@@ -1,14 +1,14 @@
 --- a/net/minecraft/world/entity/LivingEntity.java
 +++ b/net/minecraft/world/entity/LivingEntity.java
-@@ -361,6 +_,7 @@
+@@ -375,6 +_,7 @@
              .add(Attributes.EXPLOSION_KNOCKBACK_RESISTANCE)
              .add(Attributes.WATER_MOVEMENT_EFFICIENCY)
              .add(Attributes.MOVEMENT_EFFICIENCY)
 +            .add(Attributes.ATTACK_DAMAGE, 2.0D) // EMC - make all mobs able to attack
              .add(Attributes.ATTACK_KNOCKBACK)
              .add(Attributes.CAMERA_DISTANCE)
-             .add(Attributes.WAYPOINT_TRANSMIT_RANGE);
-@@ -823,6 +_,7 @@
+             .add(Attributes.WAYPOINT_TRANSMIT_RANGE)
+@@ -845,6 +_,7 @@
                  this.level().getCraftServer().getPluginManager().callEvent(event);
  
                  if (event.isCancelled()) {
@@ -16,16 +16,19 @@
                      org.bukkit.inventory.ItemStack inHandItem = player.getInventory().getItemInMainHand();
                      if (thrownFromHand && inHandItem.getAmount() == 0) {
                          // The complete stack was dropped
-@@ -1158,7 +_,7 @@
-         // Paper start - Don't fire sync event during generation
+@@ -1156,13 +_,23 @@
          return this.addEffect(newEffect, source, cause, true);
      }
+ 
 -    public boolean addEffect(final MobEffectInstance newEffect, final @Nullable Entity source, final EntityPotionEffectEvent.Cause cause, final boolean fireEvent) {
 +    public boolean addEffect(MobEffectInstance newEffect, final @Nullable Entity source, final EntityPotionEffectEvent.Cause cause, final boolean fireEvent) { // EMC - Remove final
          // Paper end - Don't fire sync event during generation
-         // org.spigotmc.AsyncCatcher.catchOp("effect add"); // Spigot // Paper - move to API
-         if (this.isTickingEffects) {
-@@ -1166,6 +_,13 @@
+         if (this.tickingEffects) {
+-            this.deferredEffectUpdates.offer(() -> this.addEffect(newEffect, source, cause, fireEvent));
++            // EMC start
++            final MobEffectInstance finalNewEffect = newEffect;
++            this.deferredEffectUpdates.offer(() -> this.addEffect(finalNewEffect, source, cause, fireEvent));
++            // EMC end
              return true;
          }
          // CraftBukkit end
@@ -39,7 +42,7 @@
          if (!this.canBeAffected(newEffect)) {
              return false;
          }
-@@ -1985,9 +_,14 @@
+@@ -1952,9 +_,14 @@
  
      protected float getKnockback(final Entity target, final DamageSource damageSource) {
          float knockback = (float)this.getAttributeValue(Attributes.ATTACK_KNOCKBACK);
@@ -55,7 +58,7 @@
      }
  
      protected void dropFromLootTable(final ServerLevel level, final DamageSource source, final boolean playerKilled) {
-@@ -2343,7 +_,12 @@
+@@ -2319,7 +_,12 @@
      }
  
      public int getArmorValue() {
@@ -69,7 +72,7 @@
      }
  
      protected void hurtArmor(final DamageSource damageSource, final float damage) {
-@@ -3366,8 +_,15 @@
+@@ -3367,8 +_,15 @@
      }
  
      public boolean doHurtTarget(final ServerLevel level, final Entity target) {
@@ -86,4 +89,4 @@
 +        // EMC end - make all mobs able to attack
      }
  
-     public void causeExtraKnockback(final Entity target, final float knockback, final Vec3 oldMovement) {
+     public void causeExtraKnockback(

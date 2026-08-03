@@ -1,57 +1,57 @@
 --- a/net/minecraft/world/entity/EntityType.java
 +++ b/net/minecraft/world/entity/EntityType.java
-@@ -1289,8 +_,18 @@
+@@ -121,8 +_,19 @@
          final boolean tryMoveDown,
          final boolean movedUp
      ) {
 +        // EMC start - MonsterEggSpawnEvent
-+        Consumer<T> consumer = null;
++        PostSpawnProcessor<T> postSpawn = null;
 +        final com.empireminecraft.empirecraft.event.MonsterEggSpawnEvent event = new com.empireminecraft.empirecraft.event.MonsterEggSpawnEvent(user != null ? user.getBukkitLivingEntity() : null, org.bukkit.craftbukkit.util.CraftLocation.toBukkit(spawnPos, level), org.bukkit.craftbukkit.inventory.CraftItemStack.asCraftMirror(itemStack), spawnReason == EntitySpawnReason.DISPENSER ? org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.DISPENSE_EGG : org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.SPAWNER_EGG);
 +        if (!event.callEvent()) {
 +            return null;
 +        }
-+        if (event.getAfterSpawn() != null) {
-+            consumer = entity -> event.getAfterSpawn().accept(entity.getBukkitEntity());
++        var afterSpawn = event.getAfterSpawn();
++        if (afterSpawn != null) {
++            postSpawn = entity -> afterSpawn.accept(entity.getBukkitEntity());
 +        }
 +        // EMC end - MonsterEggSpawnEvent
          // CraftBukkit start
 -        return this.spawn(level, itemStack, user, spawnPos, spawnReason, tryMoveDown, movedUp, spawnReason == EntitySpawnReason.DISPENSER ? org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.DISPENSE_EGG : org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.SPAWNER_EGG); // Paper - use correct spawn reason for dispenser spawn eggs
-+        return this.spawn(level, itemStack, user, spawnPos, spawnReason, tryMoveDown, movedUp, spawnReason == EntitySpawnReason.DISPENSER ? org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.DISPENSE_EGG : org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.SPAWNER_EGG, consumer); // Paper - use correct spawn reason for dispenser spawn eggs // EMC - Add Consumer to spawn method
++        return this.spawn(level, itemStack, user, spawnPos, spawnReason, tryMoveDown, movedUp, spawnReason == EntitySpawnReason.DISPENSER ? org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.DISPENSE_EGG : org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.SPAWNER_EGG, postSpawn); // Paper - use correct spawn reason for dispenser spawn eggs // EMC - Add Consumer to spawn method
      }
  
      @Nullable
-@@ -1304,6 +_,22 @@
+@@ -136,6 +_,21 @@
          final boolean movedUp,
          final org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason createSpawnReason
      ) {
-+        // EMC start - Add After Consumer to spawn method
++        // EMC start - Add PostSpawnProcessor to spawn method
 +        return this.spawn(level, itemStack, user, spawnPos, spawnReason, tryMoveDown, movedUp, createSpawnReason, null);
 +    }
 +    @Nullable
 +    public T spawn(
-+        ServerLevel level,
-+        @Nullable ItemStack itemStack,
-+        @Nullable LivingEntity user,
-+        BlockPos spawnPos,
-+        EntitySpawnReason spawnReason,
-+        boolean tryMoveDown,
-+        boolean movedUp,
-+        org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason createSpawnReason,
-+        @Nullable Consumer<T> afterConsumer
++        final ServerLevel level,
++        final @Nullable ItemStack itemStack,
++        final @Nullable LivingEntity user,
++        final BlockPos spawnPos,
++        final EntitySpawnReason spawnReason,
++        final boolean tryMoveDown,
++        final boolean movedUp,
++        final org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason createSpawnReason,
++        @Nullable PostSpawnProcessor<T> postSpawn
 +    ) {
-+        // EMC end - Add After Consumer to spawn method
          // CraftBukkit end
-         Consumer<T> postSpawnConfig;
+         PostSpawnProcessor<T> postSpawnConfig;
          if (itemStack != null) {
-@@ -1311,6 +_,11 @@
+@@ -143,6 +_,11 @@
          } else {
-             postSpawnConfig = entity -> {};
+             postSpawnConfig = PostSpawnProcessor.nop();
          }
-+        // EMC start - Add After Consumer to spawn method
-+        if (afterConsumer != null) {
-+            postSpawnConfig = postSpawnConfig.andThen(afterConsumer);
++        // EMC start - Add PostSpawnProcessor to spawn method
++        if (postSpawn != null) {
++            postSpawnConfig = postSpawnConfig.andThen(postSpawn);
 +        }
-+        // EMC end - Add After Consumer to spawn method
++        // EMC end - Add PostSpawnProcessor to spawn method
  
          return this.spawn(level, postSpawnConfig, spawnPos, spawnReason, tryMoveDown, movedUp, createSpawnReason); // CraftBukkit
      }
