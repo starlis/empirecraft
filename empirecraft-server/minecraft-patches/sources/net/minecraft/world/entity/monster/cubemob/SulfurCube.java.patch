@@ -1,0 +1,36 @@
+--- a/net/minecraft/world/entity/monster/cubemob/SulfurCube.java
++++ b/net/minecraft/world/entity/monster/cubemob/SulfurCube.java
+@@ -102,7 +_,10 @@
+     private static final float VERTICAL_HIT_ANGLE_SCALE = 0.5F;
+     private static final float VERTICAL_POSITION_ANGLE_SCALE = 0.8F;
+     private static final float EXTRA_KNOCKBACK_DAMPENING = 0.25F;
+-    private static final Predicate<ItemEntity> ALLOWED_ITEMS = e -> !e.hasPickUpDelay() && e.isAlive() && isSwallowableItem(e.getItem());
++    // EMC start
++    public static @Nullable Predicate<ItemEntity> canSwallowItemEntity;
++    private static final Predicate<ItemEntity> ALLOWED_ITEMS = e -> !e.hasPickUpDelay() && e.isAlive() && isSwallowableItem(e.getItem()) && (canSwallowItemEntity == null || canSwallowItemEntity.test(e));
++    // EMC end
+ 
+     public SulfurCube(final EntityType<? extends SulfurCube> type, final Level level) {
+         super(type, level);
+@@ -690,8 +_,11 @@
+         return !this.hasBodyItem();
+     }
+ 
++    // EMC start - Predicate to expand logic for what is considered a valid swallowable target
++    public static @Nullable Predicate<ItemStack> canSwallowItem;
+     private static boolean isSwallowableItem(final ItemStack itemStack) {
+-        return itemStack.is(ItemTags.SULFUR_CUBE_SWALLOWABLE);
++        return itemStack.is(ItemTags.SULFUR_CUBE_SWALLOWABLE) && (canSwallowItem == null || canSwallowItem.test(itemStack));
++        // EMC end
+     }
+ 
+     @Override
+@@ -713,7 +_,7 @@
+     @Override
+     protected void pickUpItem(final ServerLevel level, final ItemEntity entity) {
+         ItemStack itemStack = entity.getItem();
+-        if (this.canHoldItem(itemStack) && this.pickupTimer <= 0) {
++        if (this.canHoldItem(itemStack) && this.pickupTimer <= 0 && (canSwallowItemEntity == null || canSwallowItemEntity.test(entity))) { // EMC
+             this.onItemPickup(entity);
+             this.setItemSlot(EquipmentSlot.BODY, itemStack.split(1));
+             this.playSound(this.getAbsorbSound());
