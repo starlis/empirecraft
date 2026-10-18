@@ -6,17 +6,17 @@ Subject: [PATCH] PlayerUseItem Event
 This lets us control when an item is consumed and change the item.
 
 diff --git a/net/minecraft/server/level/ServerPlayerGameMode.java b/net/minecraft/server/level/ServerPlayerGameMode.java
-index 45cbc7913546fe7294cf1ac4a885e6ca68dcbd7f..c8fb950645df0555e307eaeb57812a5ec9531793 100644
+index 81487e9840845de76f58e83cc57b173b5945bab4..116319209b2162348e8a8a521e932646c0236ac2 100644
 --- a/net/minecraft/server/level/ServerPlayerGameMode.java
 +++ b/net/minecraft/server/level/ServerPlayerGameMode.java
-@@ -440,6 +440,15 @@ public class ServerPlayerGameMode {
+@@ -471,6 +471,15 @@ public class ServerPlayerGameMode {
      }
  
      public InteractionResult useItem(final ServerPlayer player, final Level level, final ItemStack itemStack, final InteractionHand hand) {
 +        // EMC start - PlayerUseItemEvent - Allow control over if item should be consumed or not.
 +        org.bukkit.inventory.EquipmentSlot bukkitHand = hand == InteractionHand.MAIN_HAND ? org.bukkit.inventory.EquipmentSlot.HAND : org.bukkit.inventory.EquipmentSlot.OFF_HAND;
-+        org.bukkit.craftbukkit.inventory.CraftItemStack craftitem = org.bukkit.craftbukkit.inventory.CraftItemStack.asCraftMirror(itemStack);
-+        org.bukkit.craftbukkit.inventory.CraftItemStack origItemClone = craftitem.clone();
++        org.bukkit.inventory.ItemStack craftitem = org.bukkit.craftbukkit.inventory.CraftItemStack.asBukkitMirror(itemStack);
++        org.bukkit.inventory.ItemStack origItemClone = craftitem.clone();
 +        com.empireminecraft.empirecraft.event.player.PlayerUseItemEvent event = new com.empireminecraft.empirecraft.event.player.PlayerUseItemEvent(player.getBukkitEntity(), craftitem, bukkitHand);
 +        if (!event.callEvent()) {
 +            return InteractionResult.FAIL;
@@ -25,7 +25,7 @@ index 45cbc7913546fe7294cf1ac4a885e6ca68dcbd7f..c8fb950645df0555e307eaeb57812a5e
          if (this.gameModeForPlayer == GameType.SPECTATOR) {
              return InteractionResult.PASS;
          }
-@@ -451,7 +460,14 @@ public class ServerPlayerGameMode {
+@@ -482,7 +491,14 @@ public class ServerPlayerGameMode {
          int oldCount = itemStack.getCount();
          int oldDamage = itemStack.getDamageValue();
          final ItemStack stackBeforeUse = itemStack.copy(); // Paper - Store stack before use for interact prediction check
@@ -41,7 +41,7 @@ index 45cbc7913546fe7294cf1ac4a885e6ca68dcbd7f..c8fb950645df0555e307eaeb57812a5e
          ItemStack resultStack;
          if (result instanceof InteractionResult.Success success) {
              resultStack = Objects.requireNonNullElse(success.heldItemTransformedTo(), player.getItemInHand(hand));
-@@ -459,26 +475,41 @@ public class ServerPlayerGameMode {
+@@ -490,26 +506,41 @@ public class ServerPlayerGameMode {
              resultStack = player.getItemInHand(hand);
          }
  
@@ -65,7 +65,7 @@ index 45cbc7913546fe7294cf1ac4a885e6ca68dcbd7f..c8fb950645df0555e307eaeb57812a5e
          }
  
 +        // EMC start - PlayerUseItemEvent
-+        org.bukkit.inventory.ItemStack craftNew = org.bukkit.craftbukkit.inventory.CraftItemStack.asCraftMirror(resultStack);
++        org.bukkit.inventory.ItemStack craftNew = org.bukkit.craftbukkit.inventory.CraftItemStack.asBukkitMirror(resultStack);
 +        com.empireminecraft.empirecraft.event.player.PlayerPostUseItemEvent postUseItemEvent = new com.empireminecraft.empirecraft.event.player.PlayerPostUseItemEvent(player.getBukkitEntity(), origItemClone, craftNew, bukkitHand);
 +        postUseItemEvent.callEvent();
 +        if (craftNew != postUseItemEvent.getNewItem()) {
@@ -88,7 +88,7 @@ index 45cbc7913546fe7294cf1ac4a885e6ca68dcbd7f..c8fb950645df0555e307eaeb57812a5e
              // Paper start - Optimize sendAllDataToRemote calls
              // This is a weird one where the Vanilla behavior is from an ancient version, but also isn't calling startUsingItem on certain instant-use items
              // TODO Check up on this proper, possibly remove all and move into more specific places
-@@ -502,6 +533,7 @@ public class ServerPlayerGameMode {
+@@ -533,6 +564,7 @@ public class ServerPlayerGameMode {
          final ServerPlayer player, final Level level, final ItemStack itemStack, final InteractionHand hand, final BlockHitResult hitResult
      ) {
          BlockPos pos = hitResult.getBlockPos();
@@ -96,7 +96,7 @@ index 45cbc7913546fe7294cf1ac4a885e6ca68dcbd7f..c8fb950645df0555e307eaeb57812a5e
          BlockState state = level.getBlockState(pos);
          boolean cancelledBlock = false;
          boolean cancelledItem = false; // Paper - correctly handle items on cooldown
-@@ -551,8 +583,10 @@ public class ServerPlayerGameMode {
+@@ -598,8 +630,10 @@ public class ServerPlayerGameMode {
              boolean haveSomethingInOurHands = !player.getMainHandItem().isEmpty() || !player.getOffhandItem().isEmpty();
              boolean suppressUsingBlock = player.isSecondaryUseActive() && haveSomethingInOurHands;
              ItemStack usedItemStack = itemStack.copy();
@@ -107,7 +107,7 @@ index 45cbc7913546fe7294cf1ac4a885e6ca68dcbd7f..c8fb950645df0555e307eaeb57812a5e
                  if (itemUse.consumesAction()) {
                      CriteriaTriggers.ITEM_USED_ON_BLOCK.trigger(player, pos, usedItemStack);
                      return itemUse;
-@@ -560,6 +594,7 @@ public class ServerPlayerGameMode {
+@@ -607,6 +641,7 @@ public class ServerPlayerGameMode {
  
                  if (itemUse instanceof InteractionResult.TryEmptyHandInteraction && hand == InteractionHand.MAIN_HAND) {
                      InteractionResult use = state.useWithoutItem(level, player, hitResult);
@@ -115,7 +115,7 @@ index 45cbc7913546fe7294cf1ac4a885e6ca68dcbd7f..c8fb950645df0555e307eaeb57812a5e
                      if (use.consumesAction()) {
                          CriteriaTriggers.DEFAULT_BLOCK_USE.trigger(player, pos);
                          return use;
-@@ -567,16 +602,46 @@ public class ServerPlayerGameMode {
+@@ -614,11 +649,32 @@ public class ServerPlayerGameMode {
                  }
              }
  
@@ -124,7 +124,7 @@ index 45cbc7913546fe7294cf1ac4a885e6ca68dcbd7f..c8fb950645df0555e307eaeb57812a5e
              if (!itemStack.isEmpty() && !this.interactResult) { // Spigot -  add !this.interactResult SPIGOT-764
 +                // EMC start - PlayerUseItemEvent - Allow control over if item should be consumed or not.
 +                org.bukkit.inventory.EquipmentSlot bukkitHand = hand == InteractionHand.MAIN_HAND ? org.bukkit.inventory.EquipmentSlot.HAND : org.bukkit.inventory.EquipmentSlot.OFF_HAND;
-+                org.bukkit.craftbukkit.inventory.CraftItemStack craftitem = org.bukkit.craftbukkit.inventory.CraftItemStack.asCraftMirror(itemStack);
++                org.bukkit.inventory.ItemStack craftitem = org.bukkit.craftbukkit.inventory.CraftItemStack.asBukkitMirror(itemStack);
 +                com.empireminecraft.empirecraft.event.player.PlayerPlaceItemAtEvent eventPlace = new com.empireminecraft.empirecraft.event.player.PlayerPlaceItemAtEvent(
 +                    player.getBukkitEntity(), craftitem,
 +                    org.bukkit.craftbukkit.util.CraftLocation.toBukkit(pos, level),
@@ -142,15 +142,17 @@ index 45cbc7913546fe7294cf1ac4a885e6ca68dcbd7f..c8fb950645df0555e307eaeb57812a5e
 +                if (eventPlace.getTempItem() != null) {
 +                    player.setItemInHand(hand, itemStackToUse = itemStack);
 +                }
-                 InteractionResult success;
+                 InteractionResult result;
 -                if (player.hasInfiniteMaterials()) {
 -                    int count = itemStack.getCount();
-+                if (player.hasInfiniteMaterials()|| !eventPlace.getConsumeItem()) { // EMC - add || !eventPlace.getConsumeItem()
++                if (player.hasInfiniteMaterials() || !eventPlace.getConsumeItem()) { // EMC - add || !eventPlace.getConsumeItem()
 +                    //int count = itemStack.getCount(); // EMC - move up
-                     success = itemStack.useOn(context);
+                     result = itemStack.useOn(context);
                      itemStack.setCount(count);
                  } else {
-                     success = itemStack.useOn(context);
+@@ -630,6 +686,15 @@ public class ServerPlayerGameMode {
+                         }
+                     }
                  }
 +                if (interactionResult != InteractionResult.FAIL) {
 +                    com.empireminecraft.empirecraft.event.player.PlayerPostPlaceItemAtEvent postUseItemEvent =
@@ -162,5 +164,5 @@ index 45cbc7913546fe7294cf1ac4a885e6ca68dcbd7f..c8fb950645df0555e307eaeb57812a5e
 +                }
 +                // EMC end - PlayerUseItemEvent
  
-                 if (success.consumesAction()) {
+                 if (result.consumesAction()) {
                      CriteriaTriggers.ITEM_USED_ON_BLOCK.trigger(player, pos, usedItemStack);
